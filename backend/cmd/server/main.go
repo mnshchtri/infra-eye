@@ -1,0 +1,157 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/infra-eye/backend/internal/config"
+	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/handlers"
+	"github.com/infra-eye/backend/internal/healing"
+	"github.com/infra-eye/backend/internal/metrics"
+	"github.com/infra-eye/backend/internal/middleware"
+	"github.com/infra-eye/backend/internal/models"
+	"github.com/infra-eye/backend/internal/seed"
+)
+
+func main() {
+	// Load config
+	config.Load()
+
+	// Connect DB & migrate
+	db.Connect()
+
+	// Seed default data
+	seed.Run()
+
+	// Start metrics collection for existing servers
+	go startMetricsForExistingServers()
+
+	// Start self-healing engine
+	healing.StartEngine()
+
+	// Setup Gin
+	if config.C.Env == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	r := gin.Default()
+
+	// CORS — allow frontend dev server
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "http://localhost:4173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	// ── Public routes ──────────────────────────────────────────
+	r.POST("/api/auth/login", handlers.Login)
+	r.GET("/api/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok", "version": "1.0.0", "time": time.Now()})
+	})
+
+	// ── Protected routes ───────────────────────────────────────
+	api := r.Group("/api", middleware.Auth())
+	{
+		// Auth
+		api.GET("/auth/me", handlers.GetMe)
+
+		// Servers
+		api.GET("/servers", handlers.ListServers)
+		api.POST("/servers", handlers.CreateServer)
+		api.GET("/servers/:id", handlers.GetServer)
+		api.PUT("/servers/:id", handlers.UpdateServer)
+		api.DELETE("/servers/:id", handlers.DeleteServer)
+		api.POST("/servers/:id/test", handlers.TestServerConnection)
+
+		// Metrics
+		api.GET("/servers/:id/metrics", handlers.GetMetrics)
+		api.GET("/servers/:id/metrics/latest", handlers.GetLatestMetric)
+
+		// Logs
+		api.GET("/servers/:id/logs", handlers.GetLogs)
+
+		// Kubectl
+		api.POST("/servers/:id/kubectl", handlers.RunKubectl)
+
+		// AI
+		api.POST("/ai/chat", handlers.AIChat)
+
+		// Alert rules
+		api.GET("/alert-rules", handlers.ListAlertRules)
+		api.POST("/alert-rules", handlers.CreateAlertRule)
+		api.GET("/alert-rules/:id", handlers.GetAlertRule)
+		api.PUT("/alert-rules/:id", handlers.UpdateAlertRule)
+		api.DELETE("/alert-rules/:id", handlers.DeleteAlertRule)
+
+		// Healing actions history
+		api.GET("/healing-actions", handlers.ListHealingActions)
+	}
+
+	// ── WebSocket routes (auth via query param token) ──────────
+	ws := r.Group("/ws")
+	ws.Use(wsAuthMiddleware())
+	{
+		ws.GET("/servers/:id/logs", handlers.StreamLogs)
+		ws.GET("/servers/:id/metrics", metricsWsHandler)
+		ws.GET("/servers/:id/terminal", handlers.SSHTerminal)
+	}
+
+	addr := fmt.Sprintf(":%s", config.C.Port)
+	log.Printf("🚀 InfraEye API running on http://localhost%s", addr)
+	if err := r.Run(addr); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+// wsAuthMiddleware reads token from query param for WebSocket connections
+func wsAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		if token == "" {
+			// Also try Authorization header (for non-WS use)
+			token = c.GetHeader("Authorization")
+			if len(token) > 7 {
+				token = token[7:] // strip "Bearer "
+			}
+		}
+		if token == "" {
+			c.AbortWithStatusJSON(401, gin.H{"error": "missing token"})
+			return
+		}
+		c.Request.Header.Set("Authorization", "Bearer "+token)
+		middleware.Auth()(c)
+	}
+}
+
+// metricsWsHandler subscribes a client to the server's metrics room
+func metricsWsHandler(c *gin.Context) {
+	id := c.Param("id")
+	var srv models.Server
+	if err := db.DB.First(&srv, id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "server not found"})
+		return
+	}
+	_ = srv
+
+	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	if err != nil {
+		return
+	}
+
+	handlers.MetricsWSHandler(conn, id)
+}
+
+func startMetricsForExistingServers() {
+	var servers []models.Server
+	db.DB.Find(&servers)
+	for _, srv := range servers {
+		go metrics.StartCollector(srv)
+	}
+	log.Printf("✅ Started metrics collection for %d existing servers", len(servers))
+}
