@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { 
   Plus, LayoutGrid, Server, 
-  Settings, RefreshCw, FileCode,
+  RefreshCw, FileCode,
   Boxes, ChevronRight, Activity,
   Globe, X, Terminal,
-  Monitor, List, Zap, Shield
+  List, Zap, Shield
 } from 'lucide-react'
 import { api } from '../api/client'
 import { Terminal as XTerm } from '@xterm/xterm'
@@ -233,12 +233,12 @@ export function Kubernetes() {
         </header>
 
         <main style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
-          {activeRes === 'pulse' && <PulseDashboard cluster={selectedCluster} stats={stats} onJump={(r) => setActiveRes(r)} />}
+          {activeRes === 'pulse' && <PulseDashboard cluster={selectedCluster} stats={stats} onJump={(r: ResourceType) => setActiveRes(r)} />}
           {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version']} data={data} />}
           {activeRes === 'pods' && <KTable 
              columns={['Name', 'Namespace', 'Restarts', 'Status']} 
              data={data} 
-             actions={ (p) => (
+             actions={ (p: any) => (
                 <>
                   <button className="btn-icon" title="Logs" onClick={() => setDrawer({ open: true, mode: 'logs', pod: p.metadata.name, ns: p.metadata.namespace })}><List size={14} /></button>
                   <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace })}><Terminal size={14} /></button>
@@ -349,7 +349,7 @@ function KTable({ columns, data, actions }: any) {
              </tr>
           </thead>
           <tbody>
-             {data.map((item, i) => (
+             {data.map((item: any, i: number) => (
                 <tr key={i}>
                    {columns.map((c: string) => (
                       <td key={c} style={c === 'Name' ? { fontWeight: 700, color: 'var(--brand-primary)' } : {}}>

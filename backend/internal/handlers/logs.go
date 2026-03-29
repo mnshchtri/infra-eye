@@ -107,8 +107,12 @@ func tailLogs(server models.Server, room string) {
 	}
 	session.Stderr = nil
 
-	cmd := "tail -F /var/log/syslog 2>/dev/null || tail -F /var/log/messages 2>/dev/null || journalctl -f --no-pager 2>/dev/null"
+	cmd := "tail -F /var/log/syslog 2>/dev/null || tail -F /var/log/messages 2>/dev/null || tail -F /var/log/system.log 2>/dev/null || journalctl -f --no-pager 2>/dev/null"
+	if server.OS == "darwin" {
+		cmd = "log stream --level info 2>/dev/null"
+	}
 	if err := session.Start(cmd); err != nil {
+		ws.GlobalHub.Broadcast(room, "error", gin.H{"message": fmt.Sprintf("Failed to start log stream: %v", err)})
 		return
 	}
 

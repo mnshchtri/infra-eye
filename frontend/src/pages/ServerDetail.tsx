@@ -2,10 +2,11 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Cpu, MemoryStick, HardDrive, Activity,
-  ScrollText, Terminal, Boxes, RefreshCw, Wifi, Shield,
-  Search, Download, Power, Settings as SettingsIcon,
-  ChevronRight, Gauge, Layers, Server, ArrowRight, Info
+  ScrollText, Terminal as TerminalIcon, Boxes, RefreshCw, Wifi, Shield,
+  Search, Download, Power, Settings as SettingsIcon, Loader2,
+  ChevronRight, Gauge, Layers, Server, ArrowRight, Info, Apple, HelpCircle
 } from 'lucide-react'
+import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -16,7 +17,7 @@ import { usePermission } from '../hooks/usePermission'
 
 interface Server {
   id: number; name: string; host: string; port: number; ssh_user: string;
-  status: string; tags: string; description: string; auth_type: string;
+  status: string; tags: string; description: string; auth_type: string; os: string;
 }
 interface Metric {
   id: number; timestamp: string; cpu_percent: number; mem_percent: number;
@@ -48,6 +49,7 @@ export function ServerDetail() {
   const [kubectlCmd, setKubectlCmd]       = useState('get pods')
   const [kubectlOutput, setKubectlOutput] = useState('')
   const [kubectlLoading, setKubectlLoading] = useState(false)
+  const [rebooting, setRebooting] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const logWsRef = useRef<WebSocket | null>(null)
@@ -58,11 +60,25 @@ export function ServerDetail() {
     loadMetrics()
     loadLogs()
     startMetricsWs()
+    startLogsWs()
     return () => {
       wsRef.current?.close()
       logWsRef.current?.close()
     }
   }, [id])
+
+  // Poll metrics every 5s until we have data (handles freshly connected servers)
+  useEffect(() => {
+    if (metrics.length > 0) return // already have data
+    const poll = setInterval(async () => {
+      const res = await api.get(`/api/servers/${id}/metrics?minutes=60`).catch(() => null)
+      if (res && res.data?.length > 0) {
+        setMetrics(res.data)
+        clearInterval(poll)
+      }
+    }, 5000)
+    return () => clearInterval(poll)
+  }, [id, metrics.length])
 
   async function loadServer() {
     setLoading(true)
@@ -93,6 +109,17 @@ export function ServerDetail() {
       const msg = JSON.parse(event.data)
       if (msg.type === 'metric') {
         setMetrics(prev => [...prev.slice(-119), msg.payload])
+      }
+    }
+  }
+
+  function startLogsWs() {
+    const ws = new WebSocket(buildWsUrl(`/ws/servers/${id}/logs`))
+    logWsRef.current = ws
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'log') {
+        setLogs(prev => [msg.payload, ...prev].slice(0, 500))
       }
     }
   }
@@ -176,6 +203,21 @@ export function ServerDetail() {
     }
   }
 
+  async function handleReboot() {
+    if (!confirm('🚨 ARE YOU SURE YOU WANT TO RESTART THIS SERVER?\n\nThis will issue a command locally to the system and disrupt active workloads.')) return
+    setRebooting(true)
+    try {
+      await api.post(`/api/servers/${id}/reboot`)
+      setServer(prev => prev ? { ...prev, status: 'offline' } : null)
+      alert("Reboot command sent to " + server?.name)
+      navigate('/servers')
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Reboot failed')
+    } finally {
+      setRebooting(false)
+    }
+  }
+
   async function handleClearHistory(type: 'logs' | 'metrics') {
     if (!confirm(`Clear all ${type} for this server?`)) return
     try {
@@ -227,7 +269,10 @@ export function ServerDetail() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 16px var(--brand-glow)'
           }}>
-            <Server size={32} color="#fff" />
+            {server.os === 'darwin' ? <Apple size={30} color="#fff" /> : 
+             server.os === 'windows' ? <WindowsIcon size={24} color="#fff" /> :
+             server.os === 'linux'  ? <LinuxIcon size={26} color="#fff" /> : 
+             <HelpCircle size={30} color="#fff" />}
           </div>
           <div>
             <h1 className="page-title" style={{ fontSize: 28, marginBottom: 4 }}>{server.name}</h1>
@@ -244,11 +289,11 @@ export function ServerDetail() {
         </div>
         
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-secondary" style={{ gap: 8 }}>
-            <Power size={14} /> Restart
+          <button className="btn btn-secondary" style={{ gap: 8 }} onClick={handleReboot} disabled={rebooting || server.status !== 'online'}>
+            {rebooting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }}/> : <Power size={14} color="var(--danger)" />} Restart
           </button>
           <button className="btn btn-primary" onClick={() => setActiveTab('Terminal')} style={{ gap: 8 }}>
-            <Terminal size={14} /> Connect SSH
+            <TerminalIcon size={14} /> Connect SSH
           </button>
         </div>
       </div>
@@ -273,7 +318,7 @@ export function ServerDetail() {
           >
             {tab === 'Overview' && <Gauge size={16} />}
             {tab === 'Logs' && <ScrollText size={16} />}
-            {tab === 'Terminal' && <Terminal size={16} />}
+            {tab === 'Terminal' && <TerminalIcon size={16} />}
             {tab === 'Kubectl' && <Boxes size={16} />}
             {tab === 'Settings' && <SettingsIcon size={16} />}
             {tab}
@@ -417,7 +462,7 @@ export function ServerDetail() {
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#27c93f' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12, fontWeight: 700 }}>
-                <Terminal size={12} />
+                <TerminalIcon size={12} />
                 SSH TERMINAL — {server.ssh_user}@{server.host}
               </div>
               <div style={{ width: 40 }} />
@@ -447,7 +492,7 @@ export function ServerDetail() {
                   <div style={{ flex: 1, position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontWeight: 800, color: 'var(--text-muted)', fontSize: 13 }}>kubectl</span>
                     <input className="input" value={kubectlCmd}
-                      onChange={e => setLogSearch(e.target.value)}
+                      onChange={e => setKubectlCmd(e.target.value)}
                       placeholder="get pods"
                       onKeyDown={e => e.key === 'Enter' && runKubectl()}
                       style={{ paddingLeft: 64, height: 44, fontSize: 14, fontWeight: 600, background: '#f8fafc' }}

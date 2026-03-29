@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/db"
@@ -66,6 +68,7 @@ func CreateServer(c *gin.Context) {
 		Description: req.Description,
 		KubeConfig:  req.KubeConfig,
 		Status:      "unknown",
+		OS:          "unknown",
 	}
 
 	if err := db.DB.Create(&server).Error; err != nil {
@@ -177,7 +180,101 @@ func TestServerConnection(c *gin.Context) {
 		return
 	}
 
-	out, _ := client.RunCommand("hostname && uptime")
-	db.DB.Model(&server).Update("status", "online")
-	c.JSON(http.StatusOK, gin.H{"status": "online", "output": out})
+	out, err := client.RunCommand("uname -s && hostname && uptime")
+	if err != nil {
+		log.Printf("⚠️ SSH command failed for server %d (%s): %v", server.ID, server.Host, err)
+	}
+
+	osType := "linux"
+	outLower := strings.ToLower(out)
+	if strings.Contains(outLower, "darwin") {
+		osType = "darwin"
+	}
+	log.Printf("🔍 Detected OS for server %d: %s (Raw: %q)", server.ID, osType, out)
+
+	db.DB.Model(&server).Updates(map[string]interface{}{"status": "online", "os": osType})
+
+	// Restart the metrics collector so data flows immediately
+	go metrics.StartCollector(server)
+
+	c.JSON(http.StatusOK, gin.H{"status": "online", "output": out, "os": osType})
+}
+func DisconnectServer(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Printf("❌ Invalid server ID for disconnect: %q", idStr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid server id"})
+		return
+	}
+
+	log.Printf("🔌 Disconnecting server %d...", id)
+
+	// Remove from SSH pool (closes connection)
+	sshpool.Remove(uint(id))
+
+	// Stop the metrics collector for this server
+	metrics.StopCollector(uint(id))
+
+	// Update DB status to offline
+	if err := db.DB.Model(&models.Server{}).Where("id = ?", id).Update("status", "offline").Error; err != nil {
+		log.Printf("❌ Failed to update server %d status to offline in DB: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update status in database"})
+		return
+	}
+
+	log.Printf("✅ Server %d disconnected successfully", id)
+	c.JSON(http.StatusOK, gin.H{"message": "server disconnected", "status": "offline"})
+}
+
+func RebootServer(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid server id"})
+		return
+	}
+
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	client, err := sshpool.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to connect to server"})
+		return
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create ssh session"})
+		return
+	}
+	defer session.Close()
+
+	cmd := "sudo reboot || reboot"
+	if server.OS == "darwin" {
+		cmd = "sudo shutdown -r now || sudo reboot"
+	} else if server.OS == "windows" {
+		cmd = "shutdown /r /t 0"
+	}
+
+	if server.AuthType == "password" && server.SSHPassword != "" && server.SSHUser != "root" && server.OS != "windows" {
+		cmd = fmt.Sprintf("echo '%s' | sudo -S %s", server.SSHPassword, cmd)
+	}
+
+	// Trigger reboot async to avoid hang since connection drops
+	go func() {
+		_ = session.Run(cmd)
+	}()
+
+	log.Printf("🔄 Reboot command issued to server %d", server.ID)
+
+	sshpool.Remove(server.ID)
+	metrics.StopCollector(server.ID)
+	db.DB.Model(&server).Update("status", "offline")
+
+	c.JSON(http.StatusOK, gin.H{"message": "Reboot command issued successfully", "status": "offline"})
 }

@@ -28,8 +28,8 @@ dev-local:
 
 # Legacy dev command (tries to start app in Docker too)
 dev:
-	@echo "⚠️ Starting InfraEye in Docker (may have build issues)..."
-	@docker-compose up -d
+	@echo "🚀 Starting InfraEye Full Stack (Local Backend & Frontend)..."
+	@./dev.sh
 
 # Install frontend deps
 frontend-install:

@@ -75,6 +75,8 @@ func main() {
 		api.PUT("/servers/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateServer)
 		api.DELETE("/servers/:id", middleware.RequireRole("admin"), handlers.DeleteServer)
 		api.POST("/servers/:id/test", middleware.RequireRole("admin", "devops"), handlers.TestServerConnection)
+		api.POST("/servers/:id/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectServer)
+		api.POST("/servers/:id/reboot", middleware.RequireRole("admin", "devops"), handlers.RebootServer)
 
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)

@@ -1,11 +1,13 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/infra-eye/backend/internal/config"
@@ -15,8 +17,14 @@ import (
 	"github.com/infra-eye/backend/internal/ws"
 )
 
+// per-server goroutine management
+var (
+	collectors   = map[uint]context.CancelFunc{}
+	collectorsMu sync.Mutex
+)
+
 // Script run on remote server to collect metrics
-const metricsScript = `
+const linuxMetricsScript = `
 #!/bin/sh
 # CPU (1-second sample)
 CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1 2>/dev/null || \
@@ -43,6 +51,28 @@ UPTIME=$(cat /proc/uptime | awk '{print int($1)}')
 echo "{\"cpu\":$CPU,\"mem_used\":$MEM_USED,\"mem_total\":$MEM_TOTAL,\"mem_pct\":$MEM_PCT,\"disk_used\":$DISK_USED,\"disk_total\":$DISK_TOTAL,\"disk_pct\":$DISK_PCT,\"load\":$LOAD,\"uptime\":$UPTIME}"
 `
 
+const darwinMetricsScript = `
+CPU=$(top -l 1 -s 0 | grep "CPU usage" | awk '{u=$3; s=$5; gsub(/%/,"",u); gsub(/%/,"",s); printf "%.1f", u+s}' 2>/dev/null || echo "0")
+if [ -z "$CPU" ]; then CPU="0"; fi
+
+MEM_TOTAL=$(sysctl -n hw.memsize | awk '{print int($1/1024/1024)}')
+MEM_USED=$(vm_stat | awk '/Pages active/ {a=$3} /Pages wired/ {w=$4} END {gsub(/\./,"",a); gsub(/\./,"",w); printf "%d", int((a+w)*4096/1024/1024)}')
+if [ -z "$MEM_USED" ]; then MEM_USED="0"; fi
+MEM_PCT=$(awk -v u=$MEM_USED -v t=$MEM_TOTAL 'BEGIN {if(t>0) printf "%.1f", (u/t)*100; else print "0"}')
+
+DISK_BLOCKS=$(df -k / | tail -1)
+DISK_USED=$(echo $DISK_BLOCKS | awk '{print int($3/1024/1024)}')
+DISK_TOTAL=$(echo $DISK_BLOCKS | awk '{print int($2/1024/1024)}')
+DISK_PCT=$(echo $DISK_BLOCKS | awk '{print $5}' | sed 's/%//')
+
+LOAD=$(sysctl -n vm.loadavg | awk '{print $2}')
+BOOT_TIME=$(sysctl -n kern.boottime | awk '{print $4}' | sed 's/,//g')
+NOW=$(date +%s)
+UPTIME=$((NOW - BOOT_TIME))
+
+echo "{\"cpu\":$CPU,\"mem_used\":$MEM_USED,\"mem_total\":$MEM_TOTAL,\"mem_pct\":$MEM_PCT,\"disk_used\":$DISK_USED,\"disk_total\":$DISK_TOTAL,\"disk_pct\":$DISK_PCT,\"load\":$LOAD,\"uptime\":$UPTIME}"
+`
+
 type rawMetrics struct {
 	CPU       float64 `json:"cpu"`
 	MemUsed   float64 `json:"mem_used"`
@@ -55,17 +85,51 @@ type rawMetrics struct {
 	Uptime    int64   `json:"uptime"`
 }
 
+// StartCollector starts (or restarts) a metrics collector for the given server.
+// Calling it while a collector is already running cancels the old one first.
 func StartCollector(server models.Server) {
+	collectorsMu.Lock()
+	if cancel, ok := collectors[server.ID]; ok {
+		cancel() // stop the old goroutine
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	collectors[server.ID] = cancel
+	collectorsMu.Unlock()
+
+	log.Printf("📊 Metrics collector started for server %d (%s)", server.ID, server.Host)
+
 	interval := time.Duration(config.C.MetricsInterval) * time.Second
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		collect(server)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("📊 Metrics collector stopped for server %d", server.ID)
+			return
+		case <-ticker.C:
+			collect(server)
+		}
+	}
+}
+
+// StopCollector cancels the running metrics collector for a server (if any).
+func StopCollector(serverID uint) {
+	collectorsMu.Lock()
+	defer collectorsMu.Unlock()
+	if cancel, ok := collectors[serverID]; ok {
+		cancel()
+		delete(collectors, serverID)
 	}
 }
 
 func collect(server models.Server) {
+	// Refresh server data to get latest OS/Status
+	if err := db.DB.First(&server, server.ID).Error; err != nil {
+		log.Printf("Metrics error: server %d not found in DB", server.ID)
+		return
+	}
+
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		log.Printf("Metrics SSH error server %d: %v", server.ID, err)
@@ -73,7 +137,26 @@ func collect(server models.Server) {
 		return
 	}
 
-	output, err := client.RunCommand(metricsScript)
+	// Detect OS if unknown
+	if server.OS == "unknown" || server.OS == "" {
+		out, err := client.RunCommand("uname -s")
+		if err == nil {
+			osType := "linux"
+			if strings.Contains(strings.ToLower(out), "darwin") {
+				osType = "darwin"
+			}
+			server.OS = osType
+			db.DB.Model(&server).Update("os", osType)
+			log.Printf("🔄 Auto-detected OS for server %d: %s", server.ID, osType)
+		}
+	}
+
+	script := linuxMetricsScript
+	if server.OS == "darwin" {
+		script = darwinMetricsScript
+	}
+
+	output, err := client.RunCommand(script)
 	if err != nil {
 		// try JSON parse anyway (non-zero exit but output present)
 		if !strings.Contains(output, "{") {

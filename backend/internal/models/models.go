@@ -36,6 +36,7 @@ type Server struct {
 	Status      string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
 	Description string         `json:"description"`
 	KubeConfig  string         `json:"kube_config"`
+	OS          string         `json:"os"`           // linux, darwin, unknown
 }
 
 type Metric struct {

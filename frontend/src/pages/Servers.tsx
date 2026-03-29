@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X } from 'lucide-react'
+import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X, WifiOff, Apple, HelpCircle } from 'lucide-react'
+import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
@@ -8,6 +9,7 @@ interface ServerData {
   id: number; name: string; host: string; port: number;
   ssh_user: string; auth_type: string; tags: string;
   description: string; status: string; ssh_key_path: string;
+  os: string;
 }
 
 const emptyForm = {
@@ -33,6 +35,7 @@ export function Servers() {
   const [editId, setEditId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState<number | null>(null)
+  const [disconnecting, setDisconnecting] = useState<number | null>(null)
   const [testResults, setTestResults] = useState<Record<number, { ok: boolean; msg: string }>>({})
 
   useEffect(() => {
@@ -87,10 +90,28 @@ export function Servers() {
     try {
       const res = await api.post(`/api/servers/${id}/test`)
       setTestResults(prev => ({ ...prev, [id]: { ok: res.data.status === 'online', msg: res.data.output || '' } }))
+      if (res.data.status === 'online') {
+        setServers(prev => prev.map(s => s.id === id ? { ...s, status: 'online', os: res.data.os } : s))
+      }
     } catch {
       setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Connection failed' } }))
     } finally {
       setTesting(null)
+    }
+  }
+
+  async function disconnectServer(id: number) {
+    setDisconnecting(id)
+    try {
+      await api.post(`/api/servers/${id}/disconnect`)
+      setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Disconnected' } }))
+      setServers(prev => prev.map(s => s.id === id ? { ...s, status: 'offline' } : s))
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Disconnect failed'
+      console.error('Disconnect error:', err)
+      alert(`Disconnect failed: ${errorMsg}`)
+    } finally {
+      setDisconnecting(null)
     }
   }
 
@@ -257,7 +278,7 @@ export function Servers() {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['Server', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
+                {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{
                     padding: '16px 24px', fontSize: 11, fontWeight: 800,
                     color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em',
@@ -304,6 +325,17 @@ export function Servers() {
                     </div>
                   </td>
                   <td style={{ padding: '18px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {s.os === 'darwin' ? <Apple size={16} color="var(--text-primary)" /> : 
+                       s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" /> :
+                       s.os === 'linux' ? <LinuxIcon size={15} color="var(--brand-primary)" /> : 
+                       <HelpCircle size={16} color="var(--text-muted)" />}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {s.os === 'darwin' ? 'macOS' : s.os === 'windows' ? 'Windows' : s.os === 'linux' ? 'Linux' : 'Unknown'}
+                      </span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '18px 24px' }}>
                     <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>
                       {s.ssh_user}@{s.host}:{s.port}
                     </span>
@@ -339,22 +371,41 @@ export function Servers() {
                   <td style={{ padding: '18px 24px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {can('manage-servers') && (
-                        <button
-                          title="Test connection"
-                          style={{
-                            padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                            color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
-                            display: 'flex', alignItems: 'center',
-                          }}
-                          onClick={() => testConnection(s.id)} disabled={testing === s.id}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
-                        >
-                          {testing === s.id
-                            ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                            : <Wifi size={13} />}
-                        </button>
+                        s.status === 'online' ? (
+                          <button
+                            title="Disconnect"
+                            style={{
+                              padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                              color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
+                              display: 'flex', alignItems: 'center',
+                            }}
+                            onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                          >
+                            {disconnecting === s.id
+                              ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                              : <WifiOff size={13} />}
+                          </button>
+                        ) : (
+                          <button
+                            title="Connect"
+                            style={{
+                              padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                              background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                              color: 'var(--success)', cursor: 'pointer', transition: 'all 0.15s',
+                              display: 'flex', alignItems: 'center',
+                            }}
+                            onClick={() => testConnection(s.id)} disabled={testing === s.id}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
+                          >
+                            {testing === s.id
+                              ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                              : <Wifi size={13} />}
+                          </button>
+                        )
                       )}
                       {can('manage-servers') && (
                         <button

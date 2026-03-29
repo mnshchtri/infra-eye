@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
-  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp,
+  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, Apple, HelpCircle
 } from 'lucide-react'
+import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts'
 import { api } from '../api/client'
 
 interface ServerData {
   id: number; name: string; host: string; status: string;
   tags: string; description: string; port: number; ssh_user: string;
+  os: string;
 }
 interface MetricData {
   cpu_percent: number; mem_percent: number; disk_percent: number;
@@ -83,10 +88,23 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
             background: `${statusColor}10`, border: `1px solid ${statusColor}25`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Server size={18} color={statusColor} />
+            {server.os === 'darwin' ? <Apple size={18} color={statusColor} /> :
+             server.os === 'windows'? <WindowsIcon size={16} color={statusColor} /> :
+             server.os === 'linux'  ? <LinuxIcon size={16} color={statusColor} /> :
+             <HelpCircle size={18} color={statusColor} />}
           </div>
           <div className="server-info-top">
-            <div className="server-name">{server.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className="server-name">{server.name}</div>
+              <span style={{
+                fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 4,
+                background: server.os === 'darwin' ? 'rgba(255,255,255,0.1)' : 'rgba(129,140,248,0.15)',
+                color: server.os === 'darwin' ? '#fff' : 'var(--brand-primary)',
+                textTransform: 'uppercase', letterSpacing: '0.04em', border: '1px solid rgba(255,255,255,0.05)'
+              }}>
+                {server.os === 'darwin' ? 'MacOS' : server.os === 'windows' ? 'Windows' : 'Linux'}
+              </span>
+            </div>
             <div className="server-host">{server.ssh_user}@{server.host}</div>
           </div>
         </div>
@@ -186,6 +204,16 @@ export function Dashboard() {
     ? (metricValues.reduce((a, m) => a + m.cpu_percent, 0) / metricValues.length).toFixed(1) + '%'
     : '—'
 
+  const analyticsChartData = servers.map(s => {
+    const m = metrics[s.id]
+    return {
+      name: s.name,
+      CPU: m ? parseFloat(m.cpu_percent.toFixed(1)) : 0,
+      Memory: m ? parseFloat(m.mem_percent.toFixed(1)) : 0,
+      Disk: m ? parseFloat(m.disk_percent.toFixed(1)) : 0,
+    }
+  })
+
   return (
     <div className="page">
       {/* Page Header */}
@@ -233,6 +261,38 @@ export function Dashboard() {
           color="var(--warning)"
         />
       </div>
+
+      {/* Global Performance Chart */}
+      {!loading && servers.length > 0 && (
+        <div className="card fade-up" style={{ marginBottom: 48, padding: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' }}>
+              <Activity size={20} color="var(--brand-primary)" />
+            </div>
+            <div>
+              <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Performance Analytics</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Resource utilization across all connected servers</p>
+            </div>
+          </div>
+          <div style={{ height: 300, marginTop: 32 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} unit="%" />
+                <Tooltip
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12, boxShadow: 'var(--shadow-lg)' }}
+                  cursor={{ fill: 'var(--bg-app)' }}
+                />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 12 }} />
+                <Bar dataKey="CPU" fill="var(--brand-primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="Memory" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="Disk" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Server Grid / Empty State */}
       {loading ? (
