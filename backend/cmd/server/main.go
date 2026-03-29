@@ -109,6 +109,7 @@ func main() {
 		ws.GET("/servers/:id/logs", handlers.StreamLogs)
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
+		ws.GET("/servers/:id/kubectl/pod-terminal", handlers.RunPodTerminal)
 	}
 
 	addr := fmt.Sprintf(":%s", config.C.Port)

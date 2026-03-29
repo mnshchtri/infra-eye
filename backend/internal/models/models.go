@@ -35,7 +35,7 @@ type Server struct {
 	Tags        string         `json:"tags"`    // comma-separated
 	Status      string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
 	Description string         `json:"description"`
-	KubeConfig  string         `json:"-"` // base64 encoded kubeconfig
+	KubeConfig  string         `json:"kube_config"`
 }
 
 type Metric struct {

@@ -38,6 +38,7 @@ type serverRequest struct {
 	AuthType    string `json:"auth_type"`
 	Tags        string `json:"tags"`
 	Description string `json:"description"`
+	KubeConfig  string `json:"kube_config"`
 }
 
 func CreateServer(c *gin.Context) {
@@ -63,6 +64,7 @@ func CreateServer(c *gin.Context) {
 		AuthType:    req.AuthType,
 		Tags:        req.Tags,
 		Description: req.Description,
+		KubeConfig:  req.KubeConfig,
 		Status:      "unknown",
 	}
 
@@ -103,6 +105,7 @@ func UpdateServer(c *gin.Context) {
 	if req.AuthType != "" {
 		server.AuthType = req.AuthType
 	}
+	server.KubeConfig = req.KubeConfig
 
 	// Remove stale SSH connection
 	sshpool.Remove(uint(id))
