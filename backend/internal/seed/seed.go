@@ -14,31 +14,36 @@ func Run() {
 }
 
 func seedUsers() {
-	var count int64
-	db.DB.Model(&models.User{}).Count(&count)
-	if count > 0 {
-		return
+	type seedUser struct {
+		username string
+		password string
+		role     string
+		email    string
 	}
 
-	hash, _ := bcrypt.GenerateFromPassword([]byte("infra123"), bcrypt.DefaultCost)
-	admin := models.User{
-		Username:     "admin",
-		PasswordHash: string(hash),
-		Role:         "admin",
-		Email:        "admin@infraeye.local",
+	users := []seedUser{
+		{"admin",   "infra123",   "admin",   "admin@infraeye.local"},
+		{"devops",  "devops123",  "devops",  "devops@infraeye.local"},
+		{"trainee", "trainee123", "trainee", "trainee@infraeye.local"},
+		{"intern",  "intern123",  "intern",  "intern@infraeye.local"},
 	}
-	db.DB.Create(&admin)
 
-	opHash, _ := bcrypt.GenerateFromPassword([]byte("operator123"), bcrypt.DefaultCost)
-	operator := models.User{
-		Username:     "operator",
-		PasswordHash: string(opHash),
-		Role:         "operator",
-		Email:        "operator@infraeye.local",
+	for _, u := range users {
+		var count int64
+		db.DB.Model(&models.User{}).Where("username = ?", u.username).Count(&count)
+		if count == 0 {
+			hash, _ := bcrypt.GenerateFromPassword([]byte(u.password), bcrypt.DefaultCost)
+			db.DB.Create(&models.User{
+				Username:     u.username,
+				PasswordHash: string(hash),
+				Role:         u.role,
+				Email:        u.email,
+				IsActive:     true,
+			})
+		}
 	}
-	db.DB.Create(&operator)
 
-	log.Println("✅ Seeded users: admin/infra123, operator/operator123")
+	log.Println("✅ Seed check complete for default RBAC users: admin, devops, trainee, intern")
 }
 
 func seedAlertRules() {

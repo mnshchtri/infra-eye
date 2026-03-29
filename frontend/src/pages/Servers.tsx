@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
-import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { usePermission } from '../hooks/usePermission'
 
 interface ServerData {
   id: number; name: string; host: string; port: number;
@@ -15,9 +16,16 @@ const emptyForm = {
   ssh_password: '', tags: '', description: '',
 }
 
+const statusColors: Record<string, string> = {
+  online: 'var(--success)',
+  offline: 'var(--danger)',
+  unknown: 'var(--warning)',
+}
+
 export function Servers() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { can } = usePermission()
   const [servers, setServers] = useState<ServerData[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -45,11 +53,8 @@ export function Servers() {
   async function saveServer() {
     setSaving(true)
     try {
-      if (editId) {
-        await api.put(`/api/servers/${editId}`, form)
-      } else {
-        await api.post('/api/servers', form)
-      }
+      if (editId) await api.put(`/api/servers/${editId}`, form)
+      else await api.post('/api/servers', form)
       setShowForm(false)
       setEditId(null)
       setForm(emptyForm)
@@ -81,8 +86,8 @@ export function Servers() {
     setTesting(id)
     try {
       const res = await api.post(`/api/servers/${id}/test`)
-      setTestResults(prev => ({ ...prev, [id]: { ok: res.data.status === 'online', msg: res.data.output || res.data.error || '' } }))
-    } catch (e: any) {
+      setTestResults(prev => ({ ...prev, [id]: { ok: res.data.status === 'online', msg: res.data.output || '' } }))
+    } catch {
       setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Connection failed' } }))
     } finally {
       setTesting(null)
@@ -94,149 +99,295 @@ export function Servers() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Servers</h1>
-          <p className="page-subtitle">Manage your connected infrastructure</p>
+          <p className="page-subtitle">Manage and monitor your connected infrastructure</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}>
-          <Plus size={14} /> Add Server
-        </button>
+        {can('manage-servers') && (
+          <button
+            className="btn btn-primary"
+            onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}
+          >
+            <Plus size={14} /> Add Server
+          </button>
+        )}
       </div>
 
-      {/* Form Modal */}
+      {/* Add/Edit Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal fade-in" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">{editId ? 'Edit Server' : 'Add Server'}</h2>
-            <div className="modal-form">
-              <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Name *</label>
-                  <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="prod-web-01" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Host / IP *</label>
-                  <input className="input" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} placeholder="192.168.1.100" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">SSH Port</label>
-                  <input className="input" type="number" value={form.port} onChange={e => setForm({ ...form, port: +e.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">SSH User *</label>
-                  <input className="input" value={form.ssh_user} onChange={e => setForm({ ...form, ssh_user: e.target.value })} placeholder="root" />
-                </div>
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999,
+            background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setShowForm(false)}
+        >
+          <div
+            className="fade-up"
+            style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
+              borderRadius: 24, padding: 36, width: '100%', maxWidth: 600,
+              boxShadow: 'var(--shadow-lg)',
+              maxHeight: '90vh', overflowY: 'auto',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>
+                  {editId ? 'Edit Server' : 'Connect Server'}
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {editId ? 'Update server credentials' : 'Add a new server to monitoring'}
+                </p>
               </div>
+              <button
+                onClick={() => setShowForm(false)}
+                style={{
+                  width: 32, height: 32, borderRadius: 10, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                  color: 'var(--text-muted)', cursor: 'pointer',
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
 
-              <div className="form-group">
-                <label className="form-label">Auth Type</label>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  {['key', 'password'].map(t => (
-                    <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
-                      <input type="radio" value={t} checked={form.auth_type === t} onChange={() => setForm({ ...form, auth_type: t })} />
-                      {t === 'key' ? '🔑 SSH Key' : '🔒 Password'}
-                    </label>
-                  ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {[
+                { label: 'Server Name', key: 'name', placeholder: 'prod-web-01' },
+                { label: 'Host / IP Address', key: 'host', placeholder: '192.168.1.100' },
+                { label: 'SSH Port', key: 'port', placeholder: '22', type: 'number' },
+                { label: 'SSH User', key: 'ssh_user', placeholder: 'root' },
+              ].map(({ label, key, placeholder, type }) => (
+                <div key={key} className="input-group">
+                  <label className="input-label">{label}</label>
+                  <input
+                    className="input"
+                    type={type || 'text'}
+                    value={(form as any)[key]}
+                    onChange={e => setForm({ ...form, [key]: type === 'number' ? +e.target.value : e.target.value })}
+                    placeholder={placeholder}
+                  />
                 </div>
-              </div>
+              ))}
+            </div>
 
-              {form.auth_type === 'key' ? (
-                <div className="form-group">
-                  <label className="form-label">Private Key Path</label>
-                  <input className="input" value={form.ssh_key_path} onChange={e => setForm({ ...form, ssh_key_path: e.target.value })} placeholder="~/.ssh/id_rsa" />
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label className="form-label">SSH Password</label>
-                  <input className="input" type="password" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
-                </div>
-              )}
-
-              <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Tags (comma-separated)</label>
-                  <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, k8s, web" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Description</label>
-                  <input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-                </div>
+            {/* Auth type */}
+            <div className="input-group">
+              <label className="input-label">Authentication Method</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {['key', 'password'].map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setForm({ ...form, auth_type: t })}
+                    style={{
+                      padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                      border: '1px solid', transition: 'all 0.2s', cursor: 'pointer',
+                      ...(form.auth_type === t
+                        ? { background: 'rgba(129,140,248,0.15)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }
+                        : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--text-muted)' }
+                      ),
+                    }}
+                  >
+                    {t === 'key' ? '🔑 SSH Key' : '🔒 Password'}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveServer} disabled={saving}>
-                {saving ? <><Loader2 size={14} className="spin-icon" /> Saving…</> : editId ? 'Update' : 'Add Server'}
+
+            {form.auth_type === 'key' ? (
+              <div className="input-group">
+                <label className="input-label">Private Key Path</label>
+                <input className="input" value={form.ssh_key_path} onChange={e => setForm({ ...form, ssh_key_path: e.target.value })} placeholder="~/.ssh/id_rsa" />
+              </div>
+            ) : (
+              <div className="input-group">
+                <label className="input-label">SSH Password</label>
+                <input className="input" type="password" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="input-group">
+                <label className="input-label">Tags (comma-separated)</label>
+                <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, k8s, web" />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Description</label>
+                <input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional note" />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveServer} disabled={saving}>
+                {saving ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : editId ? 'Update Server' : 'Add Server'}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Content */}
       {loading ? (
-        <div className="empty-state"><div className="spinner" /></div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
+        </div>
       ) : servers.length === 0 ? (
         <div className="empty-state">
-          <Server size={48} />
-          <p>No servers yet</p>
-          <span>Add your first server to start monitoring</span>
+          <div style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Server size={32} color="var(--brand-primary)" />
+          </div>
+          <p>No servers connected yet</p>
+          <span>Add your first server to start monitoring your infrastructure</span>
+          {can('manage-servers') && (
+            <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={() => setShowForm(true)}>
+              <Plus size={14} /> Add Your First Server
+            </button>
+          )}
         </div>
       ) : (
-        <div className="servers-table-wrap card" style={{ padding: 0 }}>
-          <table className="servers-table">
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr>
-                <th>Server</th><th>Host</th><th>Auth</th><th>Tags</th>
-                <th>Status</th><th>Actions</th>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['Server', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
+                  <th key={h} style={{
+                    padding: '16px 24px', fontSize: 11, fontWeight: 800,
+                    color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em',
+                  }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {servers.map(s => (
-                <tr key={s.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className={`status-dot ${s.status}`} />
+              {servers.map((s, i) => (
+                <tr
+                  key={s.id}
+                  className="fade-up"
+                  style={{
+                    borderBottom: i < servers.length - 1 ? '1px solid var(--border)' : 'none',
+                    transition: 'background 0.15s',
+                    animationDelay: `${i * 50}ms`,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <td style={{ padding: '18px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: `${statusColors[s.status] || 'var(--text-muted)'}15`,
+                        border: `1px solid ${statusColors[s.status] || 'var(--text-muted)'}30`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Server size={14} color={statusColors[s.status] || 'var(--text-muted)'} />
+                      </div>
                       <div>
-                        <strong style={{ cursor: 'pointer', color: 'var(--text-primary)' }}
-                          onClick={() => navigate(`/servers/${s.id}`)}>
+                        <div
+                          style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14 }}
+                          onClick={() => navigate(`/servers/${s.id}`)}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--brand-primary)'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#fff'}
+                        >
                           {s.name}
-                        </strong>
-                        {s.description && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.description}</div>}
+                        </div>
+                        {s.description && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.description}</div>}
                       </div>
                     </div>
                   </td>
-                  <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {s.ssh_user}@{s.host}:{s.port}
+                  <td style={{ padding: '18px 24px' }}>
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {s.ssh_user}@{s.host}:{s.port}
+                    </span>
                   </td>
-                  <td><span className="badge badge-info">{s.auth_type}</span></td>
-                  <td>
+                  <td style={{ padding: '18px 24px' }}>
+                    <span style={{
+                      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                      background: 'rgba(59,130,246,0.1)', color: 'var(--info)',
+                      border: '1px solid rgba(59,130,246,0.2)',
+                    }}>
+                      {s.auth_type}
+                    </span>
+                  </td>
+                  <td style={{ padding: '18px 24px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {s.tags?.split(',').filter(Boolean).map(t => (
                         <span key={t} className="server-tag">{t.trim()}</span>
                       ))}
                     </div>
                   </td>
-                  <td>
+                  <td style={{ padding: '18px 24px' }}>
                     {testResults[s.id] !== undefined ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                         {testResults[s.id].ok
-                          ? <><CheckCircle2 size={14} color="var(--success)" /> <span style={{ color: 'var(--success)' }}>Connected</span></>
-                          : <><XCircle size={14} color="var(--danger)" /> <span style={{ color: 'var(--danger)' }}>Failed</span></>}
+                          ? <><CheckCircle2 size={14} color="var(--success)" /><span style={{ color: 'var(--success)', fontWeight: 600 }}>Connected</span></>
+                          : <><XCircle size={14} color="var(--danger)" /><span style={{ color: 'var(--danger)', fontWeight: 600 }}>Failed</span></>}
                       </div>
                     ) : (
                       <span className={`badge badge-${s.status}`}>{s.status}</span>
                     )}
                   </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-secondary" style={{ padding: '6px 10px' }}
-                        onClick={() => testConnection(s.id)} disabled={testing === s.id}>
-                        {testing === s.id ? <Loader2 size={13} className="spin-icon" /> : <Wifi size={13} />}
-                      </button>
-                      <button className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => editServer(s)}>
-                        <Pencil size={13} />
-                      </button>
-                      <button className="btn btn-danger" style={{ padding: '6px 10px' }} onClick={() => deleteServer(s.id)}>
-                        <Trash2 size={13} />
-                      </button>
+                  <td style={{ padding: '18px 24px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {can('manage-servers') && (
+                        <button
+                          title="Test connection"
+                          style={{
+                            padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
+                            display: 'flex', alignItems: 'center',
+                          }}
+                          onClick={() => testConnection(s.id)} disabled={testing === s.id}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                        >
+                          {testing === s.id
+                            ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                            : <Wifi size={13} />}
+                        </button>
+                      )}
+                      {can('manage-servers') && (
+                        <button
+                          title="Edit"
+                          style={{
+                            padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
+                            display: 'flex', alignItems: 'center',
+                          }}
+                          onClick={() => editServer(s)}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                      {can('delete-server') && (
+                        <button
+                          title="Delete"
+                          style={{
+                            padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                            color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
+                            display: 'flex', alignItems: 'center',
+                          }}
+                          onClick={() => deleteServer(s.id)}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -245,6 +396,10 @@ export function Servers() {
           </table>
         </div>
       )}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }

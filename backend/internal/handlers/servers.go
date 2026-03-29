@@ -112,10 +112,51 @@ func UpdateServer(c *gin.Context) {
 }
 
 func DeleteServer(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	idStr := c.Param("id")
+	id, _ := strconv.Atoi(idStr)
+	
 	sshpool.Remove(uint(id))
-	db.DB.Delete(&models.Server{}, id)
-	c.JSON(http.StatusOK, gin.H{"message": "server deleted"})
+	
+	// Hard delete the server and all related data (cascading cleanup)
+	tx := db.DB.Begin()
+	
+	// Delete associatied metrics
+	if err := tx.Where("server_id = ?", id).Delete(&models.Metric{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete metrics"})
+		return
+	}
+	
+	// Delete associated logs
+	if err := tx.Where("server_id = ?", id).Delete(&models.LogEntry{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete logs"})
+		return
+	}
+	
+	// Delete associated alert rules (Hard Delete)
+	if err := tx.Unscoped().Where("server_id = ?", id).Delete(&models.AlertRule{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete alert rules"})
+		return
+	}
+
+	// Delete associated healing actions
+	if err := tx.Where("server_id = ?", id).Delete(&models.HealingAction{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete healing actions"})
+		return
+	}
+	
+	// Finally, Hard Delete the server itself
+	if err := tx.Unscoped().Delete(&models.Server{}, id).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete server"})
+		return
+	}
+	
+	tx.Commit()
+	c.JSON(http.StatusOK, gin.H{"message": "server and all associated data permanently deleted"})
 }
 
 func TestServerConnection(c *gin.Context) {

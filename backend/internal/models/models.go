@@ -13,9 +13,11 @@ type User struct {
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 	Username     string         `gorm:"uniqueIndex;not null" json:"username"`
 	PasswordHash string         `gorm:"not null" json:"-"`
-	Role         string         `gorm:"default:'operator'" json:"role"` // admin, operator
+	// Role defines access level: admin | devops | trainee | intern
+	Role         string         `gorm:"default:'intern'" json:"role"`
 	Email        string         `json:"email"`
 	Avatar       string         `json:"avatar"`
+	IsActive     bool           `gorm:"default:true" json:"is_active"`
 }
 
 type Server struct {

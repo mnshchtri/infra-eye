@@ -46,13 +46,29 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
-func AdminOnly() gin.HandlerFunc {
+// RequireRole blocks requests whose role is not in the allowed list.
+// Usage: middleware.RequireRole("admin", "devops")
+func RequireRole(allowed ...string) gin.HandlerFunc {
+	set := make(map[string]struct{}, len(allowed))
+	for _, r := range allowed {
+		set[r] = struct{}{}
+	}
 	return func(c *gin.Context) {
 		role, _ := c.Get("role")
-		if role != "admin" {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin access required"})
+		roleStr, _ := role.(string)
+		if _, ok := set[roleStr]; !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "access denied: insufficient role",
+				"required_one_of": allowed,
+				"your_role": roleStr,
+			})
 			return
 		}
 		c.Next()
 	}
+}
+
+// AdminOnly is a convenience wrapper around RequireRole("admin").
+func AdminOnly() gin.HandlerFunc {
+	return RequireRole("admin")
 }

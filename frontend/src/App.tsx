@@ -6,6 +6,7 @@ import { Servers } from './pages/Servers'
 import { ServerDetail } from './pages/ServerDetail'
 import { AIAssistant } from './pages/AIAssistant'
 import { AlertRules } from './pages/AlertRules'
+import { Settings } from './pages/Settings'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -28,7 +29,7 @@ export default function App() {
           <Route path="kubectl" element={<Navigate to="/" />} />
           <Route path="ai" element={<AIAssistant />} />
           <Route path="alerts" element={<AlertRules />} />
-          <Route path="settings" element={<div className="page"><div className="empty-state">Settings coming soon</div></div>} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

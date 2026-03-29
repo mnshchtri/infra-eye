@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Server, Cpu, MemoryStick, HardDrive, Wifi, Plus, RefreshCw, AlertTriangle } from 'lucide-react'
+import {
+  Server, Cpu, MemoryStick, HardDrive, Wifi,
+  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp,
+} from 'lucide-react'
 import { api } from '../api/client'
 
 interface ServerData {
-  id: number;  name: string; host: string; status: string;
+  id: number; name: string; host: string; status: string;
   tags: string; description: string; port: number; ssh_user: string;
 }
 interface MetricData {
@@ -13,58 +16,134 @@ interface MetricData {
 }
 
 function MetricBar({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) {
-  const color = value >= danger ? 'var(--danger)' : value >= warn ? 'var(--warning)' : 'var(--success)'
+  const color = value >= danger
+    ? 'var(--danger)'
+    : value >= warn
+    ? 'var(--warning)'
+    : 'var(--success)'
   return (
-    <div className="metric-bar">
-      <div className="metric-bar-fill" style={{ width: `${Math.min(value, 100)}%`, background: color }} />
+    <div className="metric-bar-outer">
+      <div
+        className="metric-bar-fill"
+        style={{ width: `${Math.min(value, 100)}%`, background: color }}
+      />
+    </div>
+  )
+}
+
+function StatCard({
+  label, value, icon: Icon, color, delta
+}: {
+  label: string; value: string | number; icon: any;
+  color: string; delta?: string
+}) {
+  return (
+    <div className="card stat-card fade-up">
+      <div
+        className="stat-icon-wrapper"
+        style={{ background: `${color}10`, border: `1px solid ${color}25` }}
+      >
+        <Icon size={20} color={color} />
+      </div>
+      <div className="stat-val-group">
+        <div className="stat-value">{value}</div>
+        <div className="stat-label">{label}</div>
+        {delta && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <TrendingUp size={10} color={color} />
+            <span style={{ fontSize: 10, color, fontWeight: 700, letterSpacing: '0.02em' }}>{delta}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 function ServerCard({ server, metric }: { server: ServerData; metric?: MetricData }) {
   const navigate = useNavigate()
+
+  const statusColors: Record<string, string> = {
+    online: 'var(--success)',
+    offline: 'var(--danger)',
+    unknown: 'var(--warning)',
+  }
+  const statusColor = statusColors[server.status] || 'var(--text-muted)'
+
   return (
-    <div className="server-card fade-in" onClick={() => navigate(`/servers/${server.id}`)}>
+    <div
+      className="card server-card fade-up"
+      onClick={() => navigate(`/servers/${server.id}`)}
+      style={{ cursor: 'pointer', padding: 24 }}
+    >
+      {/* Header */}
       <div className="server-card-header">
-        <div className="server-card-icon"><Server size={18} /></div>
-        <div>
-          <h3 className="server-card-name">{server.name}</h3>
-          <span className="server-card-host">{server.host}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: `${statusColor}10`, border: `1px solid ${statusColor}25`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Server size={18} color={statusColor} />
+          </div>
+          <div className="server-info-top">
+            <div className="server-name">{server.name}</div>
+            <div className="server-host">{server.ssh_user}@{server.host}</div>
+          </div>
         </div>
-        <span className={`badge badge-${server.status}`}>{server.status}</span>
+        <span className={`badge badge-${server.status}`}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', background: statusColor,
+            boxShadow: server.status === 'online' ? `0 0 8px ${statusColor}` : undefined,
+          }} />
+          {server.status}
+        </span>
       </div>
 
+      {/* Metrics */}
       {metric ? (
-        <div className="server-card-metrics">
-          <div className="metric-row">
-            <div className="metric-label"><Cpu size={12} /> CPU</div>
-            <MetricBar value={metric.cpu_percent} />
-            <span className="metric-value">{metric.cpu_percent.toFixed(1)}%</span>
-          </div>
-          <div className="metric-row">
-            <div className="metric-label"><MemoryStick size={12} /> MEM</div>
-            <MetricBar value={metric.mem_percent} />
-            <span className="metric-value">{metric.mem_percent.toFixed(1)}%</span>
-          </div>
-          <div className="metric-row">
-            <div className="metric-label"><HardDrive size={12} /> DISK</div>
-            <MetricBar value={metric.disk_percent} />
-            <span className="metric-value">{metric.disk_percent.toFixed(1)}%</span>
-          </div>
+        <div className="server-metric-stack" style={{ margin: '24px 0' }}>
+          {[
+            { label: 'CPU', value: metric.cpu_percent, icon: <Cpu size={12} /> },
+            { label: 'MEM', value: metric.mem_percent, icon: <MemoryStick size={12} /> },
+            { label: 'DISK', value: metric.disk_percent, icon: <HardDrive size={12} /> },
+          ].map(({ label, value, icon }) => (
+            <div key={label} className="metric-row">
+              <div className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {icon} {label}
+              </div>
+              <MetricBar value={value} />
+              <span className="metric-percent" style={{
+                color: value >= 80 ? 'var(--danger)' : value >= 60 ? 'var(--warning)' : 'var(--text-secondary)',
+                fontWeight: 600,
+              }}>
+                {value.toFixed(0)}%
+              </span>
+            </div>
+          ))}
         </div>
       ) : (
-        <div className="server-card-no-metrics">
-          <Wifi size={14} /> No metrics yet
+        <div style={{
+          padding: '24px 0', display: 'flex', alignItems: 'center', gap: 10,
+          color: 'var(--text-muted)', fontSize: 13, fontWeight: 500,
+        }}>
+          <Wifi size={14} /> No metrics collected yet
         </div>
       )}
 
-      {server.tags && (
-        <div className="server-card-tags">
-          {server.tags.split(',').map(t => (
-            <span key={t} className="server-tag">{t.trim()}</span>
-          ))}
+      {/* Footer */}
+      <div className="server-card-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+        <div className="server-tag-group">
+          {server.tags
+            ? server.tags.split(',').map(t => (
+                <span key={t} className="server-tag">{t.trim()}</span>
+              ))
+            : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tags</span>
+          }
         </div>
-      )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--brand-primary)', fontWeight: 700 }}>
+          Manage <ArrowRight size={13} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -80,7 +159,6 @@ export function Dashboard() {
     try {
       const serversRes = await api.get('/api/servers')
       setServers(serversRes.data)
-      // Fetch latest metric for each server
       const metricMap: Record<number, MetricData> = {}
       await Promise.all(
         serversRes.data.map(async (s: ServerData) => {
@@ -103,64 +181,99 @@ export function Dashboard() {
   const online  = servers.filter(s => s.status === 'online').length
   const offline = servers.filter(s => s.status === 'offline').length
   const total   = servers.length
+  const metricValues = Object.values(metrics)
+  const avgCpu = metricValues.length > 0
+    ? (metricValues.reduce((a, m) => a + m.cpu_percent, 0) / metricValues.length).toFixed(1) + '%'
+    : '—'
 
   return (
     <div className="page">
+      {/* Page Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Real-time overview of all connected servers</p>
+          <h1 className="page-title">Command Center</h1>
+          <p className="page-subtitle">Infrastructure Overview — {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={loadData}>
-            <RefreshCw size={14} /> Refresh
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button className="btn btn-secondary" onClick={loadData} disabled={loading} style={{ height: 42, padding: '0 20px' }}>
+            <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
+            Refresh
           </button>
-          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')}>
-            <Plus size={14} /> Add Server
+          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')} style={{ height: 42, padding: '0 20px' }}>
+            <Plus size={16} /> Add Server
           </button>
         </div>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid-4" style={{ marginBottom: 28 }}>
-        {[
-          { label: 'Total Servers', value: total, icon: Server, color: 'var(--accent)' },
-          { label: 'Online',        value: online,  icon: Wifi,   color: 'var(--success)' },
-          { label: 'Offline',       value: offline, icon: AlertTriangle, color: 'var(--danger)' },
-          { label: 'Avg CPU',
-            value: metrics && Object.values(metrics).length > 0
-              ? (Object.values(metrics).reduce((a, m) => a + m.cpu_percent, 0) / Object.values(metrics).length).toFixed(1) + '%'
-              : '—',
-            icon: Cpu, color: 'var(--warning)' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="card stat-card">
-            <div className="stat-icon" style={{ background: color + '22', color }}><Icon size={20} /></div>
-            <div>
-              <div className="stat-value">{loading ? '—' : value}</div>
-              <div className="stat-label">{label}</div>
-            </div>
-          </div>
-        ))}
+      {/* Stat Cards */}
+      <div className="grid-stats" style={{ marginBottom: 48 }}>
+        <StatCard
+          label="Total Servers"
+          value={loading ? '—' : total}
+          icon={Server}
+          color="var(--brand-primary)"
+        />
+        <StatCard
+          label="Status Online"
+          value={loading ? '—' : online}
+          icon={Wifi}
+          color="var(--success)"
+          delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined}
+        />
+        <StatCard
+          label="Status Offline"
+          value={loading ? '—' : offline}
+          icon={AlertTriangle}
+          color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'}
+        />
+        <StatCard
+          label="Global Avg CPU"
+          value={loading ? '—' : avgCpu}
+          icon={TrendingUp}
+          color="var(--warning)"
+        />
       </div>
 
+      {/* Server Grid / Empty State */}
       {loading ? (
-        <div className="empty-state"><div className="spinner" /></div>
-      ) : servers.length === 0 ? (
         <div className="empty-state">
-          <Server size={48} />
+           <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            border: '3px solid var(--border)',
+            borderTopColor: 'var(--brand-primary)',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+        </div>
+      ) : servers.length === 0 ? (
+        <div className="empty-state fade-up">
+          <div style={{
+            width: 100, height: 100, borderRadius: 32,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow-lg)',
+          }}>
+            <Server size={44} color="var(--brand-primary)" />
+          </div>
           <p>No servers connected</p>
-          <span>Add your first server to start monitoring</span>
-          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')}>
-            <Plus size={14} /> Add Server
+          <span>Get started by adding your first server to the platform for monitoring.</span>
+          <button className="btn btn-primary" style={{ height: 48, padding: '0 32px', fontSize: 15 }} onClick={() => navigate('/servers?add=1')}>
+            <Plus size={18} /> Add Your First Server
           </button>
         </div>
       ) : (
-        <div className="grid-auto">
-          {servers.map(s => (
-            <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
+        <div className="grid-cards">
+          {servers.map((s, i) => (
+            <div key={s.id} style={{ animationDelay: `${i * 50}ms` }}>
+              <ServerCard server={s} metric={metrics[s.id]} />
+            </div>
           ))}
         </div>
       )}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }

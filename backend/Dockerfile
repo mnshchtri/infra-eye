@@ -7,7 +7,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server/main.go
 
-FROM alpine:latest
+FROM alpine:3.19
 WORKDIR /app
 RUN apk --no-cache add ca-certificates tzdata openssh-client curl
 

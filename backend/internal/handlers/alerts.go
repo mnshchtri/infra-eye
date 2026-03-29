@@ -110,17 +110,33 @@ func UpdateAlertRule(c *gin.Context) {
 
 func DeleteAlertRule(c *gin.Context) {
 	id := c.Param("id")
-	db.DB.Delete(&models.AlertRule{}, id)
-	c.JSON(http.StatusOK, gin.H{"message": "rule deleted"})
+	if err := db.DB.Unscoped().Delete(&models.AlertRule{}, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete rule"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "rule permanently deleted"})
 }
 
 func ListHealingActions(c *gin.Context) {
 	var actions []models.HealingAction
 	serverID := c.Query("server_id")
-	query := db.DB.Order("created_at DESC").Limit(100)
+	query := db.DB.Order("created_at DESC")
 	if serverID != "" {
 		query = query.Where("server_id = ?", serverID)
 	}
-	query.Find(&actions)
+	query.Limit(100).Find(&actions)
 	c.JSON(http.StatusOK, actions)
+}
+
+func ClearHealingHistory(c *gin.Context) {
+	serverID := c.Query("server_id")
+	query := db.DB
+	if serverID != "" {
+		query = query.Where("server_id = ?", serverID)
+	}
+	if err := query.Exec("DELETE FROM healing_actions").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to clear history"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "history cleared"})
 }

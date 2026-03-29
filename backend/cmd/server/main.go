@@ -60,37 +60,45 @@ func main() {
 	{
 		// Auth
 		api.GET("/auth/me", handlers.GetMe)
+		api.PUT("/auth/me", handlers.UpdateProfile)
 
-		// Servers
+		// ── User Management (admin only) ──────────────────────────
+		api.GET("/users", middleware.RequireRole("admin"), handlers.ListUsers)
+		api.POST("/users", middleware.RequireRole("admin"), handlers.CreateUser)
+		api.PUT("/users/:id", middleware.RequireRole("admin"), handlers.UpdateUser)
+		api.DELETE("/users/:id", middleware.RequireRole("admin"), handlers.DeleteUser)
+
+		// ── Servers ───────────────────────────────────────────────
 		api.GET("/servers", handlers.ListServers)
-		api.POST("/servers", handlers.CreateServer)
+		api.POST("/servers", middleware.RequireRole("admin", "devops"), handlers.CreateServer)
 		api.GET("/servers/:id", handlers.GetServer)
-		api.PUT("/servers/:id", handlers.UpdateServer)
-		api.DELETE("/servers/:id", handlers.DeleteServer)
-		api.POST("/servers/:id/test", handlers.TestServerConnection)
+		api.PUT("/servers/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateServer)
+		api.DELETE("/servers/:id", middleware.RequireRole("admin"), handlers.DeleteServer)
+		api.POST("/servers/:id/test", middleware.RequireRole("admin", "devops"), handlers.TestServerConnection)
 
-		// Metrics
+		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)
 		api.GET("/servers/:id/metrics/latest", handlers.GetLatestMetric)
 
-		// Logs
+		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)
 
-		// Kubectl
-		api.POST("/servers/:id/kubectl", handlers.RunKubectl)
+		// ── Kubectl ───────────────────────────────────────────────
+		api.POST("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectl)
 
-		// AI
-		api.POST("/ai/chat", handlers.AIChat)
+		// ── AI ────────────────────────────────────────────────────
+		api.POST("/ai/chat", middleware.RequireRole("admin", "devops", "trainee"), handlers.AIChat)
 
-		// Alert rules
-		api.GET("/alert-rules", handlers.ListAlertRules)
-		api.POST("/alert-rules", handlers.CreateAlertRule)
-		api.GET("/alert-rules/:id", handlers.GetAlertRule)
-		api.PUT("/alert-rules/:id", handlers.UpdateAlertRule)
-		api.DELETE("/alert-rules/:id", handlers.DeleteAlertRule)
+		// ── Alert rules ───────────────────────────────────────────
+		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
+		api.POST("/alert-rules", middleware.RequireRole("admin", "devops"), handlers.CreateAlertRule)
+		api.GET("/alert-rules/:id", middleware.RequireRole("admin", "devops", "trainee"), handlers.GetAlertRule)
+		api.PUT("/alert-rules/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateAlertRule)
+		api.DELETE("/alert-rules/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteAlertRule)
 
-		// Healing actions history
-		api.GET("/healing-actions", handlers.ListHealingActions)
+		// ── Healing actions ───────────────────────────────────────
+		api.GET("/healing-actions", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListHealingActions)
+		api.DELETE("/healing-actions", middleware.RequireRole("admin"), handlers.ClearHealingHistory)
 	}
 
 	// ── WebSocket routes (auth via query param token) ──────────
@@ -99,7 +107,7 @@ func main() {
 	{
 		ws.GET("/servers/:id/logs", handlers.StreamLogs)
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
-		ws.GET("/servers/:id/terminal", handlers.SSHTerminal)
+		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
 	}
 
 	addr := fmt.Sprintf(":%s", config.C.Port)
