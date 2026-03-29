@@ -38,6 +38,29 @@ type openAIResponse struct {
 	} `json:"error"`
 }
 
+// Gemini REST API Support
+type geminiRequest struct {
+	Contents []struct {
+		Role  string `json:"role"`
+		Parts []struct {
+			Text string `json:"text"`
+		} `json:"parts"`
+	} `json:"contents"`
+}
+
+type geminiResponse struct {
+	Candidates []struct {
+		Content struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
 func AIChat(c *gin.Context) {
 	var req chatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -78,9 +101,11 @@ func buildContext(serverID uint) string {
 		// Last metric
 		var metric models.Metric
 		if err := db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").First(&metric).Error; err == nil {
-			ctx += fmt.Sprintf("Latest metrics:\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%%\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
+			ctx += fmt.Sprintf("Latest metrics:\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%% (Used: %.1f GB, Total: %.1f GB)\n- Network RX: %.2f MB/s, TX: %.2f MB/s\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
 				metric.CPUPercent, metric.MemPercent, metric.MemUsedMB, metric.MemTotalMB,
-				metric.DiskPercent, metric.LoadAvg1, metric.Uptime)
+				metric.DiskPercent, metric.DiskUsedGB, metric.DiskTotalGB,
+				metric.NetRxMBps, metric.NetTxMBps,
+				metric.LoadAvg1, metric.Uptime)
 		}
 	}
 
@@ -88,11 +113,64 @@ func buildContext(serverID uint) string {
 }
 
 func askAI(systemContext, question string) string {
-	if config.C.OpenAIKey == "" {
-		// Mock response when no API key
-		return mockAIResponse(question)
+	// 1. Try Gemini (Priority)
+	if config.C.GeminiKey != "" {
+		return askGemini(systemContext, question)
 	}
 
+	// 2. Fallback to OpenAI
+	if config.C.OpenAIKey != "" {
+		return askOpenAI(systemContext, question)
+	}
+
+	// 3. Final Mock Fallback
+	return mockAIResponse(question)
+}
+
+func askGemini(systemContext, question string) string {
+	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s", config.C.GeminiKey)
+
+	reqBody := geminiRequest{}
+
+	reqBody.Contents = []struct {
+		Role  string `json:"role"`
+		Parts []struct {
+			Text string `json:"text"`
+		} `json:"parts"`
+	}{
+		{
+			Role: "user",
+			Parts: []struct {
+				Text string `json:"text"`
+			}{{Text: "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question}},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	resp, err := http.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Gemini request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var gemResp geminiResponse
+	if err := json.Unmarshal(body, &gemResp); err != nil {
+		return fmt.Sprintf("Gemini parse error: %v | raw: %s", err, string(body))
+	}
+
+	if gemResp.Error != nil {
+		return fmt.Sprintf("Gemini API error: %s", gemResp.Error.Message)
+	}
+
+	if len(gemResp.Candidates) == 0 || len(gemResp.Candidates[0].Content.Parts) == 0 {
+		return "No response from Gemini REST API."
+	}
+
+	return gemResp.Candidates[0].Content.Parts[0].Text
+}
+
+func askOpenAI(systemContext, question string) string {
 	reqBody := openAIRequest{
 		Model: "gpt-4o",
 		Messages: []openAIMessage{

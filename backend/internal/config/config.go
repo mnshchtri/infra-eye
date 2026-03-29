@@ -15,6 +15,7 @@ type Config struct {
 	RedisAddr       string
 	JWTSecret       string
 	OpenAIKey       string
+	GeminiKey       string
 	MetricsInterval int
 	LogMaxLines     int
 }
@@ -34,6 +35,7 @@ func Load() {
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
 		JWTSecret:       getEnv("JWT_SECRET", "dev-secret-change-in-production"),
 		OpenAIKey:       getEnv("OPENAI_API_KEY", ""),
+		GeminiKey:       getEnv("GEMINI_API_KEY", ""),
 		MetricsInterval: getEnvInt("METRICS_INTERVAL", 30),
 		LogMaxLines:     getEnvInt("LOG_MAX_LINES", 500),
 	}

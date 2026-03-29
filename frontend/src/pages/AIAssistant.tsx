@@ -99,7 +99,7 @@ export function AIAssistant() {
               AI Assistant
             </h1>
             <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              GPT-4o · {messages.length - 1} messages
+              Gemini 1.5 Flash · {messages.length - 1} messages
             </p>
           </div>
         </div>
