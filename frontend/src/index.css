@@ -126,12 +126,12 @@ input, textarea, select { font-family: inherit; outline: none; }
 .collapsed .sidebar-header { justify-content: center; }
 .sidebar-logo { display: flex; align-items: center; gap: 10px; }
 .sidebar-logo-icon {
-  width: 30px; height: 30px;
+  width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .sidebar-logo-icon img { width: 100%; height: 100%; object-fit: contain; }
-.sidebar-logo-text { font-size: 16px; font-weight: 700; color: var(--text-primary); white-space: nowrap; letter-spacing: -0.01em; }
+.sidebar-logo-text { font-size: 22px; font-weight: 900; color: var(--text-primary); white-space: nowrap; letter-spacing: -0.03em; }
 
 .sidebar-toggle-btn {
   background: transparent; border: 1px solid transparent;

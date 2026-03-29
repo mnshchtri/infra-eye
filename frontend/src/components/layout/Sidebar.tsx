@@ -63,8 +63,8 @@ export function Sidebar() {
       {/* Header / Logo */}
       <div className="sidebar-header" style={{ justifyContent: sidebarCollapsed ? 'center' : 'space-between' }}>
         <div className="sidebar-logo">
-          <div className="sidebar-logo-icon" style={{ width: 24, height: 24 }}>
-            <img src={logo} alt="L" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          <div className="sidebar-logo-icon">
+            <img src={logo} alt="L" />
           </div>
           {!sidebarCollapsed && <span className="sidebar-logo-text">InfraEye</span>}
         </div>

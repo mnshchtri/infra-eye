@@ -247,13 +247,13 @@ export function Dashboard() {
       ) : servers.length === 0 ? (
         <div className="empty-state fade-up">
           <div style={{
-            width: 100, height: 100, borderRadius: 32,
+            width: 120, height: 120, borderRadius: 36,
             background: 'var(--bg-card)',
             border: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: 'var(--shadow-lg)',
           }}>
-            <Server size={44} color="var(--brand-primary)" />
+            <Server size={56} color="var(--brand-primary)" />
           </div>
           <p>No servers connected</p>
           <span>Get started by adding your first server to the platform for monitoring.</span>
