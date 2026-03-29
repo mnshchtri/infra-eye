@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Bell, Trash2, Pencil, History, X, Zap, Shield, Activity } from 'lucide-react'
+import { Plus, Bell, Trash2, Pencil, History, X, Zap, Activity, FileCode } from 'lucide-react'
 import { api } from '../api/client'
 import { format } from 'date-fns'
 import { usePermission } from '../hooks/usePermission'
@@ -34,7 +34,8 @@ export function AlertRules() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState<number | null>(null)
-  const [tab, setTab] = useState<'rules' | 'history'>('rules')
+  const [tab, setTab] = useState<'rules' | 'history' | 'xml'>('rules')
+  const [xmlContent, setXmlContent] = useState('')
   const { can } = usePermission()
 
   useEffect(() => { loadData() }, [])
@@ -80,6 +81,49 @@ export function AlertRules() {
     return servers.find(s => s.id === id)?.name || `Server #${id}`
   }
 
+  function generateXml() {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<AlertRules>\n'
+    rules.forEach(r => {
+      xml += `  <Rule id="${r.id}" name="${r.name}" serverId="${r.server_id}" enabled="${r.enabled}">\n`
+      xml += `    <Condition type="${r.condition_type}" op="${r.condition_op}" value="${r.condition_value}" />\n`
+      xml += `    <Action type="${r.action_type}">${r.action_command}</Action>\n`
+      xml += `  </Rule>\n`
+    })
+    xml += '</AlertRules>'
+    setXmlContent(xml)
+  }
+
+  async function parseXml() {
+    setLoading(true)
+    try {
+      const parser = new DOMParser()
+      const xmlDoc = parser.parseFromString(xmlContent, "text/xml")
+      const ruleNodes = xmlDoc.getElementsByTagName("Rule")
+      
+      const newRules = Array.from(ruleNodes).map(node => ({
+        name: node.getAttribute("name") || "Rule",
+        server_id: parseInt(node.getAttribute("serverId") || "0"),
+        enabled: node.getAttribute("enabled") !== "false",
+        condition_type: node.getElementsByTagName("Condition")[0]?.getAttribute("type") || "cpu",
+        condition_op: node.getElementsByTagName("Condition")[0]?.getAttribute("op") || "gt",
+        condition_value: node.getElementsByTagName("Condition")[0]?.getAttribute("value") || "80",
+        action_type: node.getElementsByTagName("Action")[0]?.getAttribute("type") || "ssh_command",
+        action_command: node.getElementsByTagName("Action")[0]?.textContent || ""
+      }))
+
+      if (newRules.length === 0) throw new Error("No valid rules found in XML")
+      
+      await api.post('/api/alert-rules/batch', newRules)
+      alert("Infrastructure sync complete. " + newRules.length + " rules updated.")
+      setTab('rules')
+      loadData()
+    } catch (e: any) {
+      alert("Sync Failed: " + (e.response?.data?.error || e.message))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -96,10 +140,13 @@ export function AlertRules() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 32, background: 'var(--bg-elevated)', borderRadius: 14, padding: 4, width: 'fit-content', border: '1px solid var(--border)' }}>
-        {(['rules', 'history'] as const).map(t => (
+        {(['rules', 'history', 'xml'] as const).map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => {
+              if (t === 'xml') generateXml();
+              setTab(t as any);
+            }}
             style={{
               padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
               transition: 'all 0.2s', cursor: 'pointer', border: 'none',
@@ -110,7 +157,9 @@ export function AlertRules() {
               ),
             }}
           >
-            {t === 'rules' ? <><Bell size={13} /> Active Rules</> : <><History size={13} /> Action History</>}
+            {t === 'rules' && <><Bell size={13} /> Active Rules</>}
+            {t === 'history' && <><History size={13} /> Action History</>}
+            {t === 'xml' && <><FileCode size={13} /> Source (XML)</>}
           </button>
         ))}
       </div>
@@ -214,123 +263,142 @@ export function AlertRules() {
         </div>
       )}
 
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
-        </div>
-      ) : tab === 'rules' ? (
-        rules.length === 0 ? (
-          <div className="empty-state">
-            <div style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Bell size={32} color="var(--brand-primary)" />
-            </div>
-            <p>No rules defined</p>
-            <span>Create rules to automatically remediate issues in your infrastructure</span>
-            {can('manage-alerts') && (
-              <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={() => setShowForm(true)}>
-                <Plus size={14} /> Create First Rule
-              </button>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
-            {rules.map((rule, i) => {
-              const condColor = CONDITION_COLORS[rule.condition_type] || 'var(--brand-primary)'
-              return (
-                <div key={rule.id} className="card fade-up" style={{ animationDelay: `${i * 60}ms`, padding: 24 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 11, background: `${condColor}15`, border: `1px solid ${condColor}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Activity size={16} color={condColor} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 15 }}>{rule.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{getServerName(rule.server_id)}</div>
-                      </div>
-                    </div>
-                    {can('manage-alerts') && (
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        {/* Toggle */}
-                        <div
-                          onClick={() => toggleEnable(rule)}
-                          style={{
-                            width: 36, height: 20, borderRadius: 20, cursor: 'pointer', transition: 'all 0.3s', position: 'relative',
-                            background: rule.enabled ? 'var(--success)' : 'rgba(255,255,255,0.1)',
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute', top: 2, left: rule.enabled ? 18 : 2, width: 16, height: 16,
-                            borderRadius: '50%', background: '#fff', transition: 'left 0.3s',
-                            boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                          }} />
-                        </div>
-                        <button style={{ padding: '5px 8px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => { setForm(rule as any); setEditId(rule.id); setShowForm(true) }}>
-                          <Pencil size={11} />
-                        </button>
-                        <button style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: 'var(--danger)', cursor: 'pointer' }} onClick={() => deleteRule(rule.id)}>
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Condition block */}
-                  <div style={{ background: '#f1f5f9', padding: '10px 14px', borderRadius: 10, marginBottom: 12, border: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: condColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>IF </span>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: '"JetBrains Mono", monospace' }}>
-                      {rule.condition_type} {rule.condition_op === 'gt' ? '>' : rule.condition_op === 'lt' ? '<' : '>='} {rule.condition_value}
-                    </span>
-                  </div>
-
-                  {/* Action block */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                    {rule.action_type === 'ssh_command'
-                      ? <Zap size={13} color="var(--warning)" style={{ marginTop: 2, flexShrink: 0 }} />
-                      : <Shield size={13} color="var(--info)" style={{ marginTop: 2, flexShrink: 0 }} />
-                    }
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: '"JetBrains Mono", monospace', wordBreak: 'break-all' }}>
-                      {rule.action_command || rule.action_type}
-                    </div>
-                  </div>
+      {/* ── XML Content Area ── */}
+      {tab === 'xml' && (
+        <div className="fade-in">
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ 
+                  width: 44, height: 44, borderRadius: 12, 
+                  background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <FileCode size={22} color="var(--brand-primary)" />
                 </div>
-              )
-            })}
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Rule Definitions (XML)</h2>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Advanced configuration for infrastructure automation</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="btn btn-secondary" onClick={() => generateXml()}>Reset View</button>
+                <button className="btn btn-primary" onClick={parseXml}>Sync Rules</button>
+              </div>
+            </div>
+            <textarea
+              className="input"
+              value={xmlContent}
+              onChange={e => setXmlContent(e.target.value)}
+              style={{
+                width: '100%', height: 450, border: 'none', borderRadius: 0,
+                fontFamily: '"JetBrains Mono", monospace', fontSize: 13, padding: 32,
+                background: '#0a0c12', color: '#818cf8', lineHeight: 1.6,
+                resize: 'none'
+              }}
+              spellCheck={false}
+            />
           </div>
-        )
-      ) : (
-        /* History tab */
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        </div>
+      )}
+
+      {/* ── Rules Tab ── */}
+      {tab === 'rules' && (
+        <>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+              <div className="spinner" />
+            </div>
+          ) : rules.length === 0 ? (
+            <div className="empty-state">
+              <div style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Bell size={32} color="var(--brand-primary)" />
+              </div>
+              <p>No rules defined</p>
+              <span>Create rules to automatically remediate issues in your infrastructure</span>
+              {can('manage-alerts') && (
+                <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}>
+                  <Plus size={14} /> Create First Rule
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 24 }}>
+              {rules.map((rule, i) => {
+                const condColor = CONDITION_COLORS[rule.condition_type] || 'var(--brand-primary)'
+                return (
+                  <div key={rule.id} className="card fade-up" style={{ animationDelay: `${i * 60}ms`, padding: 24 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: `${condColor}10`, border: `1px solid ${condColor}25`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Zap size={18} color={condColor} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 15 }}>{rule.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{getServerName(rule.server_id)}</div>
+                        </div>
+                      </div>
+                      {can('manage-alerts') && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn-icon" onClick={() => { setForm(rule as any); setEditId(rule.id); setShowForm(true) }}><Pencil size={12} /></button>
+                          <button className="btn-icon danger" onClick={() => deleteRule(rule.id)}><Trash2 size={12} /></button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-app)', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 16 }}>
+                      <Activity size={14} color={condColor} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        {rule.condition_type.toUpperCase()} {rule.condition_op === 'gt' ? '>' : rule.condition_op === 'lt' ? '<' : '>='} {rule.condition_value}
+                      </span>
+                    </div>
+
+                    <div 
+                      onClick={() => toggleEnable(rule)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, color: rule.enabled ? 'var(--success)' : 'var(--text-muted)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+                      {rule.enabled ? 'RULE ACTIVE' : 'RULE DISABLED'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── History Tab ── */}
+      {tab === 'history' && (
+        <div className="card fade-in" style={{ padding: 0, overflow: 'hidden' }}>
           {history.length === 0 ? (
-            <div className="empty-state" style={{ padding: '60px 0' }}>
-              <History size={36} color="var(--text-muted)" />
-              <p>No actions triggered yet</p>
+            <div className="empty-state" style={{ padding: '80px 0' }}>
+              <History size={40} color="var(--text-muted)" />
+              <p>Remediation log is clear</p>
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Time', 'Server', 'Trigger', 'Command', 'Result'].map(h => (
-                    <th key={h} style={{ padding: '14px 20px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</th>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
+                  {['Time', 'Server', 'Trigger Event', 'Remediation Output'].map(h => (
+                    <th key={h} style={{ padding: '16px 24px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {history.map((h, i) => (
                   <tr key={h.id} style={{ borderBottom: i < history.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <td style={{ padding: '14px 20px', fontSize: 12, color: 'var(--text-muted)', fontFamily: '"JetBrains Mono", monospace' }}>
+                    <td style={{ padding: '20px 24px', fontSize: 12, color: 'var(--text-muted)', fontFamily: '"Courier New", monospace' }}>
                       {format(new Date(h.created_at), 'MMM d, HH:mm:ss')}
                     </td>
-                    <td style={{ padding: '14px 20px', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{getServerName(h.server_id)}</td>
-                    <td style={{ padding: '14px 20px', fontSize: 12, color: 'var(--text-secondary)' }}>{h.trigger_info}</td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: 'var(--text-muted)', background: '#f1f5f9', padding: '3px 8px', borderRadius: 6 }}>
-                        {h.command || 'notify'}
-                      </span>
+                    <td style={{ padding: '20px 24px', fontSize: 13, fontWeight: 700 }}>{getServerName(h.server_id)}</td>
+                    <td style={{ padding: '20px 24px' }}>
+                      <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)', border: '1px solid var(--warning)25' }}>{h.trigger_info}</span>
                     </td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <span className={`badge badge-${h.status === 'success' ? 'online' : 'offline'}`}>
-                        {h.status}
-                      </span>
+                    <td style={{ padding: '20px 24px' }}>
+                       <div style={{ background: '#0a0c12', color: '#10b981', padding: '10px 14px', borderRadius: 8, fontSize: 11, fontFamily: '"JetBrains Mono", monospace', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                         {h.output || 'No output produced'}
+                       </div>
                     </td>
                   </tr>
                 ))}
@@ -340,7 +408,13 @@ export function AlertRules() {
         </div>
       )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--brand-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; alignItems: center; justifyContent: center; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; background: transparent; transition: all 0.2s; }
+        .btn-icon:hover { border-color: var(--brand-primary); color: var(--brand-primary); background: #f1f0ff; }
+        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: #fff1f1; }
+      `}</style>
     </div>
   )
 }

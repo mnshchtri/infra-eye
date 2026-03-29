@@ -92,6 +92,7 @@ func main() {
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
 		api.POST("/alert-rules", middleware.RequireRole("admin", "devops"), handlers.CreateAlertRule)
+		api.POST("/alert-rules/batch", middleware.RequireRole("admin", "devops"), handlers.BatchUpdateAlertRules)
 		api.GET("/alert-rules/:id", middleware.RequireRole("admin", "devops", "trainee"), handlers.GetAlertRule)
 		api.PUT("/alert-rules/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateAlertRule)
 		api.DELETE("/alert-rules/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteAlertRule)

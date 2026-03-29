@@ -20,23 +20,29 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',
     items: [
-      { to: '/',         icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/servers',  icon: Server,          label: 'Servers' },
+      { to: '/',           icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/servers',    icon: Server,          label: 'Servers' },
+    ]
+  },
+  {
+    label: 'Infrastructure',
+    items: [
+      { to: '/kubernetes', icon: Boxes,           label: 'Kubernetes',  action: 'use-kubectl' },
+      { to: '/alerts',     icon: Bell,            label: 'Alert Rules', action: 'view-alerts' },
     ]
   },
   {
     label: 'Operations',
     items: [
-      { to: '/terminal', icon: Terminal, label: 'Terminal', action: 'use-terminal' },
-      { to: '/kubectl',  icon: Boxes,    label: 'Kubectl', action: 'use-kubectl' },
-      { to: '/ai',       icon: Bot,      label: 'AI Assistant', action: 'use-ai' },
+      { to: '/terminal',   icon: Terminal,        label: 'Terminal',    action: 'use-terminal' },
+      { to: '/ai',         icon: Bot,             label: 'AI Assistant', action: 'use-ai' },
     ]
   },
   {
-    label: 'Monitoring',
+    label: 'System',
     items: [
-      { to: '/alerts',   icon: Bell,     label: 'Alert Rules', action: 'view-alerts' },
-      { to: '/settings', icon: Settings, label: 'Settings' },
+      { to: '/settings',   icon: Settings,        label: 'Settings' },
+      { to: '/devtools',   icon: Terminal,        label: 'Dev Tools',   action: 'manage-users' },
     ]
   },
 ]
@@ -123,27 +129,6 @@ export function Sidebar() {
       })}
       </nav>
 
-      {/* Live indicator (Modern SaaS) */}
-      {!sidebarCollapsed ? (
-        <div className="sidebar-live-container" style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-          marginBottom: 16, borderRadius: 'var(--radius-md)',
-          background: 'var(--success-glow)', border: '1px solid #a7f3d0'
-        }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%', background: 'var(--success)',
-            boxShadow: '0 0 8px var(--success)', flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600, letterSpacing: '-0.01em' }}>System Live</span>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%', background: 'var(--success)',
-            boxShadow: '0 0 8px var(--success)'
-          }} title="System Live" />
-        </div>
-      )}
 
       {/* User Footer */}
       <div className="sidebar-footer">

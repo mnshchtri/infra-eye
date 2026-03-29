@@ -34,7 +34,22 @@ export function Login() {
       <div className="login-card fade-up" style={{ zIndex: 10 }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, gap: 16 }}>
-          <img src={logo} alt="InfraEye" style={{ height: 56, objectFit: 'contain' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <img src={logo} alt="InfraEye" style={{ height: 56, objectFit: 'contain' }} />
+            <span style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: 'var(--brand-primary)',
+              background: 'rgba(79, 70, 229, 0.06)',
+              padding: '4px 12px',
+              borderRadius: '99px',
+              border: '1px solid var(--brand-glow)',
+              letterSpacing: '0.02em',
+              marginTop: 4
+            }}>
+              InfraEye
+            </span>
+          </div>
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4, letterSpacing: '-0.02em' }}>
               Welcome back
@@ -116,21 +131,9 @@ export function Login() {
           </button>
         </form>
 
-        {/* Hint */}
-        <div style={{
-          marginTop: 24, padding: '12px 16px', borderRadius: 'var(--radius-md)',
-          background: '#f8fafc', border: '1px solid #e2e8f0',
-          display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'center'
-        }}>
-          <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Default Credentials
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--text-primary)', fontFamily: '"JetBrains Mono", monospace' }}>
-            admin / infra123
-          </p>
-        </div>
+
       </div>
-      
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>

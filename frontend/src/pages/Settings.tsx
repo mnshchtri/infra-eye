@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, Power, PowerOff } from 'lucide-react'
+import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { usePermission } from '../hooks/usePermission'
@@ -106,10 +106,10 @@ export function Settings() {
   }
 
   const roleColors: Record<string, string> = {
-    admin: 'var(--danger)',
-    devops: 'var(--brand-primary)',
-    trainee: 'var(--warning)',
-    intern: 'var(--info)'
+    admin: '#ef4444',   // var(--danger)
+    devops: '#4f46e5',  // var(--brand-primary)
+    trainee: '#f59e0b', // var(--warning)
+    intern: '#3b82f6'   // var(--info)
   }
 
   return (
@@ -121,194 +121,276 @@ export function Settings() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 32, background: 'var(--bg-elevated)', borderRadius: 14, padding: 4, width: 'fit-content', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+      {/* Top Segmented Navigation */}
+      <div style={{ 
+        display: 'flex', 
+        gap: 8, 
+        marginBottom: 40, 
+        padding: 6, 
+        background: '#f1f5f9', 
+        borderRadius: 16, 
+        width: 'fit-content',
+        border: '1px solid var(--border)'
+      }}>
         <button
           onClick={() => setActiveTab('profile')}
           style={{
-            padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-            transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '10px 24px', borderRadius: 12, fontSize: 13, fontWeight: 700,
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', cursor: 'pointer', border: 'none',
+            display: 'flex', alignItems: 'center', gap: 8,
             ...(activeTab === 'profile'
-              ? { background: 'var(--brand-primary)', color: 'var(--text-primary)', boxShadow: '0 4px 12px var(--brand-glow)' }
+              ? { background: '#fff', color: 'var(--brand-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
               : { background: 'transparent', color: 'var(--text-muted)' }
             ),
           }}
         >
-          <User size={14} /> My Profile
+          <User size={16} /> My Account
         </button>
 
         {can('manage-users') && (
           <button
             onClick={() => setActiveTab('users')}
             style={{
-              padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-              transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '10px 24px', borderRadius: 12, fontSize: 13, fontWeight: 700,
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', cursor: 'pointer', border: 'none',
+              display: 'flex', alignItems: 'center', gap: 8,
               ...(activeTab === 'users'
-                ? { background: 'var(--brand-primary)', color: 'var(--text-primary)', boxShadow: '0 4px 12px var(--brand-glow)' }
+                ? { background: '#fff', color: 'var(--brand-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
                 : { background: 'transparent', color: 'var(--text-muted)' }
               ),
             }}
           >
-            <Shield size={14} /> User Management
+            <Shield size={16} /> User Management
           </button>
         )}
       </div>
 
-      {activeTab === 'profile' && (
-        <div className="card fade-in" style={{ maxWidth: 500 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <User size={18} /> Personal Information
-          </h3>
-          <form onSubmit={updateProfile}>
-            <div className="input-group">
-              <label className="input-label">Username</label>
-              <input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6 }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Username cannot be changed.</span>
+      <div className="fade-up">
+        {activeTab === 'profile' && (
+          <div className="card" style={{ maxWidth: 680, padding: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+              <div style={{ 
+                width: 48, height: 48, borderRadius: 14, 
+                background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <User size={24} color="var(--brand-primary)" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Update your contact email and security credentials</p>
+              </div>
             </div>
             
-            <div className="input-group">
-              <label className="input-label">Role</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="badge" style={{ background: `${roleColors[currentUser?.role || 'intern']}20`, color: roleColors[currentUser?.role || 'intern'], border: `1px solid ${roleColors[currentUser?.role || 'intern']}40` }}>
-                  {currentUser?.role.toUpperCase()}
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Contact an admin to change your role.</span>
+            <form onSubmit={updateProfile}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+                <div className="input-group">
+                  <label className="input-label">Username</label>
+                  <input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6, background: '#f8fafc' }} />
+                </div>
+                
+                <div className="input-group">
+                  <label className="input-label">Access Level</label>
+                  <div style={{ paddingTop: 4 }}>
+                    <span className="badge" style={{ 
+                      background: `${roleColors[currentUser?.role || 'intern']}15`, 
+                      color: roleColors[currentUser?.role || 'intern'], 
+                      border: `1px solid ${roleColors[currentUser?.role || 'intern']}25`,
+                      padding: '6px 14px'
+                    }}>
+                      {currentUser?.role.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="input-group">
-              <label className="input-label">Email Address</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
-                <input className="input" style={{ paddingLeft: 40 }} value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="you@example.com" />
+              <div className="input-group">
+                <label className="input-label">Email Address</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
+                  <input className="input" style={{ paddingLeft: 42 }} value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="you@example.com" />
+                </div>
               </div>
-            </div>
 
-            <div className="input-group">
-              <label className="input-label">New Password</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
-                <input className="input" type="password" style={{ paddingLeft: 40 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} />
+              <div className="input-group" style={{ marginTop: 20 }}>
+                <label className="input-label">Change Password</label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
+                  <input className="input" type="password" style={{ paddingLeft: 42 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="••••••••" minLength={6} />
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>Leave blank if you don't wish to change your current password.</p>
               </div>
-            </div>
 
-            <div style={{ marginTop: 32 }}>
-              <button type="submit" className="btn btn-primary" disabled={profileSaving}>
-                {profileSaving ? 'Saving...' : 'Update Profile'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {activeTab === 'users' && can('manage-users') && (
-        <div className="fade-in">
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-            <button className="btn btn-primary" onClick={() => { setShowUserForm(true); setEditUserId(null); setUserForm(emptyUserForm) }}>
-              <Plus size={14} /> Add User
-            </button>
+              <div style={{ marginTop: 40, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ padding: '12px 28px', height: 46 }}>
+                  {profileSaving ? 'Saving Changes...' : 'Save Settings'}
+                </button>
+              </div>
+            </form>
           </div>
+        )}
 
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['User', 'Role', 'Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '16px 24px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '40px' }}>Loading...</td>
+        {activeTab === 'users' && can('manage-users') && (
+          <div className="fade-in">
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ 
+                    width: 44, height: 44, borderRadius: 12, 
+                    background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Shield size={22} color="var(--brand-primary)" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Access Control</h2>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Manage administrative users and platform permissions</p>
+                  </div>
+                </div>
+                <button className="btn btn-primary" onClick={() => { setShowUserForm(true); setEditUserId(null); setUserForm(emptyUserForm) }} style={{ height: 40, padding: '0 20px' }}>
+                  <Plus size={16} /> Add User
+                </button>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
+                    {['User Information', 'Role', 'Status', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '14px 32px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
+                    ))}
                   </tr>
-                ) : users.map((u, i) => (
-                  <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <td style={{ padding: '16px 24px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f1f5f9', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {u.username.charAt(0).toUpperCase()}
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '80px' }}>
+                        <div className="spinner" style={{ margin: '0 auto' }}></div>
+                      </td>
+                    </tr>
+                  ) : users.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>No platform users registered.</td>
+                    </tr>
+                  ) : users.map((u, i) => (
+                    <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? '1px solid var(--border)' : 'none', transition: 'background 0.2s' }}>
+                      <td style={{ padding: '20px 32px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{ 
+                            width: 38, height: 38, borderRadius: 10, background: 'var(--bg-app)', 
+                            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', 
+                            justifyContent: 'center', fontWeight: 800, color: 'var(--brand-primary)', fontSize: 14 
+                          }}>
+                            {u.username.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 14 }}>{u.username}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{u.email || 'System user'}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 14 }}>{u.username}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{u.email || 'No email provided'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                      <span className="badge" style={{ background: `${roleColors[u.role] || 'var(--text-muted)'}20`, color: roleColors[u.role] || 'var(--text-muted)', border: `1px solid ${roleColors[u.role] || 'var(--text-muted)'}40` }}>
-                        {u.role.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                      {u.is_active 
-                        ? <span style={{ color: 'var(--success)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><Power size={12} /> Active</span>
-                        : <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><PowerOff size={12} /> Inactive</span>
-                      }
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={{ padding: '7px 10px', borderRadius: 8, background: '#f1f5f9', border: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => editUser(u)}>
-                          <Pencil size={13} />
-                        </button>
-                        {currentUser?.id !== u.id && (
-                          <button style={{ padding: '7px 10px', borderRadius: 8, background: 'var(--danger-glow)', border: '1px solid #fecaca', color: 'var(--danger)', cursor: 'pointer' }} onClick={() => deleteUser(u.id, u.username)}>
-                            <Trash2 size={13} />
+                      </td>
+                      <td style={{ padding: '20px 32px' }}>
+                        <span className="badge" style={{ background: `${roleColors[u.role] || '#94a3b8'}15`, color: roleColors[u.role] || '#94a3b8', border: `1px solid ${roleColors[u.role] || '#94a3b8'}25` }}>
+                          {u.role.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ padding: '20px 32px' }}>
+                        {u.is_active 
+                          ? <span style={{ color: 'var(--success)', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px var(--success)' }} /> Active
+                            </span>
+                          : <span style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} /> Inactive
+                            </span>
+                        }
+                      </td>
+                      <td style={{ padding: '20px 32px' }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button style={{ 
+                            padding: '8px 12px', borderRadius: 10, background: '#fff', border: '1px solid var(--border)', 
+                            color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' 
+                          }} onClick={() => editUser(u)} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--brand-primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                            <Pencil size={15} />
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          {currentUser?.id !== u.id && (
+                            <button style={{ 
+                              padding: '8px 12px', borderRadius: 10, background: '#fff', border: '1px solid #fecaca', 
+                              color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                              boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' 
+                            }} onClick={() => deleteUser(u.id, u.username)} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* User Form Modal */}
       {showUserForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card fade-up" style={{ width: '100%', maxWidth: 440, padding: 32 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 24 }}>{editUserId ? 'Edit User' : 'Create New User'}</h2>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="card fade-up" style={{ width: '100%', maxWidth: 460, padding: 32, boxShadow: 'var(--shadow-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 32 }}>
+              <div style={{ 
+                width: 40, height: 40, borderRadius: 10, 
+                background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Plus size={20} color="var(--brand-primary)" />
+              </div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{editUserId ? 'Update User' : 'Provision User'}</h2>
+            </div>
+
             <form onSubmit={saveUser}>
               <div className="input-group">
-                <label className="input-label">Username</label>
-                <input className="input" required value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} disabled={!!editUserId} />
+                <label className="input-label">User Identifier</label>
+                <input className="input" required value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} disabled={!!editUserId} placeholder="e.g. jdoe" />
               </div>
               <div className="input-group">
-                <label className="input-label">Email</label>
-                <input className="input" type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+                <label className="input-label">Email Context</label>
+                <input className="input" type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} placeholder="user@infraeye.local" />
               </div>
               <div className="input-group">
-                <label className="input-label">{editUserId ? 'New Password (Optional)' : 'Password'}</label>
-                <input className="input" type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required={!editUserId} minLength={6} />
+                <label className="input-label">{editUserId ? 'Rotate Password (Optional)' : 'Security Credential'}</label>
+                <input className="input" type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required={!editUserId} minLength={6} placeholder="••••••••" />
               </div>
               <div className="input-group">
-                <label className="input-label">Role</label>
-                <select className="input" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})}>
-                  <option value="intern">Intern</option>
-                  <option value="trainee">Trainee</option>
-                  <option value="devops">DevOps</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <label className="input-label">Permission Tier</label>
+                <div style={{ position: 'relative' }}>
+                  <select className="input" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} style={{ WebkitAppearance: 'none', appearance: 'none', cursor: 'pointer' }}>
+                    <option value="intern">Intern tier</option>
+                    <option value="trainee">Trainee tier</option>
+                    <option value="devops">DevOps tier</option>
+                    <option value="admin">Administrator tier</option>
+                  </select>
+                  <ArrowRight size={14} style={{ position: 'absolute', right: 14, top: 14, transform: 'rotate(90deg)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                </div>
               </div>
               {!!editUserId && (
-                <div className="input-group" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
-                  <input type="checkbox" id="activeCheckbox" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} style={{ width: 16, height: 16 }} />
-                  <label htmlFor="activeCheckbox" className="input-label" style={{ marginBottom: 0, cursor: 'pointer' }}>Account is Active</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, padding: '14px', background: '#f8fafc', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <input type="checkbox" id="activeCheckbox" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                  <label htmlFor="activeCheckbox" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', marginBottom: 0 }}>Authorization Active</label>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
-                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowUserForm(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={userSaving}>Save User</button>
+              <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1, height: 44 }} onClick={() => setShowUserForm(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, height: 44 }} disabled={userSaving}>{userSaving ? 'Saving...' : 'Confirm Action'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
+      
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner { border: 2px solid rgba(0,0,0,0.1); border-top-color: var(--brand-primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+      `}</style>
     </div>
   )
 }

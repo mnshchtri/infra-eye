@@ -140,3 +140,51 @@ func ClearHealingHistory(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "history cleared"})
 }
+func BatchUpdateAlertRules(c *gin.Context) {
+	var reqs []alertRuleRequest
+	if err := c.ShouldBindJSON(&reqs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tx := db.DB.Begin()
+	// Optional: Clear existing rules if that's the intended XML sync behavior
+	// For now, let's just create/update. 
+	// To make it a true "sync", we usually delete all and re-insert, or match by name.
+	// Let's go with "Delete all and re-insert" for a clean XML sync.
+	if err := tx.Exec("DELETE FROM alert_rules").Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to clear old rules"})
+		return
+	}
+
+	for _, req := range reqs {
+		if req.Severity == "" {
+			req.Severity = "warning"
+		}
+		if req.CooldownMinutes == 0 {
+			req.CooldownMinutes = 5
+		}
+		rule := models.AlertRule{
+			Name:            req.Name,
+			ServerID:        req.ServerID,
+			ConditionType:   req.ConditionType,
+			ConditionOp:     req.ConditionOp,
+			ConditionValue:  req.ConditionValue,
+			Severity:        req.Severity,
+			ActionType:      req.ActionType,
+			ActionCommand:   req.ActionCommand,
+			CooldownMinutes: req.CooldownMinutes,
+			Enabled:         req.Enabled,
+			Description:     req.Description,
+		}
+		if err := tx.Create(&rule).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	tx.Commit()
+	c.JSON(http.StatusOK, gin.H{"message": "successfully synced rules", "count": len(reqs)})
+}

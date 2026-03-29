@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useAuthStore } from '../store/authStore'
 
 export type PermissionAction =
@@ -14,7 +15,7 @@ export type PermissionAction =
 export function usePermission() {
   const { user } = useAuthStore()
 
-  const can = (action: PermissionAction): boolean => {
+  const can = useCallback((action: PermissionAction): boolean => {
     if (!user) return false
     const role = user.role
 
@@ -36,11 +37,11 @@ export function usePermission() {
       case 'manage-users':
         return ['admin'].includes(role)
       case 'view-settings':
-        return true // Everyone can view their own profile/settings
+        return true
       default:
         return false
     }
-  }
+  }, [user])
 
   return { can }
 }

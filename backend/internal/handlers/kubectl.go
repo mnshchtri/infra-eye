@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
@@ -140,7 +139,7 @@ func SSHTerminal(c *gin.Context) {
 		if err != nil {
 			break
 		}
-		if _, err := io.WriteString(stdin, string(msg)); err != nil {
+		if _, err := stdin.Write(msg); err != nil {
 			break
 		}
 	}
