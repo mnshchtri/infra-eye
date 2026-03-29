@@ -340,8 +340,8 @@ export function AlertRules() {
                       </div>
                       {can('manage-alerts') && (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="btn-icon" onClick={() => { setForm(rule as any); setEditId(rule.id); setShowForm(true) }}><Pencil size={12} /></button>
-                          <button className="btn-icon danger" onClick={() => deleteRule(rule.id)}><Trash2 size={12} /></button>
+                          <button className="btn-icon" onClick={() => { setForm(rule as any); setEditId(rule.id); setShowForm(true) }}><Pencil size={16} /></button>
+                          <button className="btn-icon danger" onClick={() => deleteRule(rule.id)}><Trash2 size={16} /></button>
                         </div>
                       )}
                     </div>
@@ -411,9 +411,9 @@ export function AlertRules() {
       <style>{`
         .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--brand-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .btn-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; alignItems: center; justifyContent: center; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; background: transparent; transition: all 0.2s; }
-        .btn-icon:hover { border-color: var(--brand-primary); color: var(--brand-primary); background: #f1f0ff; }
-        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: #fff1f1; }
+        .btn-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; background: #ffffff; transition: all 0.2s; box-shadow: var(--shadow-sm); }
+        .btn-icon:hover { border-color: var(--brand-primary); color: var(--brand-primary); background: #eff6ff; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: #fef2f2; }
       `}</style>
     </div>
   )
