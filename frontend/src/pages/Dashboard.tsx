@@ -124,18 +124,27 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
             { label: 'CPU', value: metric.cpu_percent, icon: <Cpu size={12} /> },
             { label: 'MEM', value: metric.mem_percent, icon: <MemoryStick size={12} /> },
             { label: 'DISK', value: metric.disk_percent, icon: <HardDrive size={12} /> },
-          ].map(({ label, value, icon }) => (
+            { label: 'NET', value: 0, icon: <Wifi size={12} />, display: `${metric.net_rx_mbps.toFixed(2)} / ${metric.net_tx_mbps.toFixed(2)} MB/s` },
+          ].map(({ label, value, icon, display }) => (
             <div key={label} className="metric-row">
               <div className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {icon} {label}
               </div>
-              <MetricBar value={value} />
-              <span className="metric-percent" style={{
-                color: value >= 80 ? 'var(--danger)' : value >= 60 ? 'var(--warning)' : 'var(--text-secondary)',
-                fontWeight: 600,
-              }}>
-                {value.toFixed(0)}%
-              </span>
+              {label === 'NET' ? (
+                <div style={{ flex: 1, textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  {display}
+                </div>
+              ) : (
+                <>
+                  <MetricBar value={value} />
+                  <span className="metric-percent" style={{
+                    color: value >= 80 ? 'var(--danger)' : value >= 60 ? 'var(--warning)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                  }}>
+                    {value.toFixed(0)}%
+                  </span>
+                </>
+              )}
             </div>
           ))}
         </div>

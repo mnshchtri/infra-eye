@@ -21,7 +21,17 @@ import (
 var (
 	collectors   = map[uint]context.CancelFunc{}
 	collectorsMu sync.Mutex
+
+	// Track previous network readings for rate calculation
+	lastNetStats   = map[uint]netStat{}
+	lastNetStatsMu sync.Mutex
 )
+
+type netStat struct {
+	rx        float64
+	tx        float64
+	timestamp time.Time
+}
 
 // Script run on remote server to collect metrics
 const linuxMetricsScript = `
@@ -45,10 +55,19 @@ DISK_PCT=$(echo $DISK_LINE | awk '{print $5}' | tr -d '%')
 # Load average
 LOAD=$(cat /proc/loadavg | awk '{print $1}')
 
-# Uptime in seconds
-UPTIME=$(cat /proc/uptime | awk '{print int($1)}')
+# Network RX/TX (Total cumulative bytes)
+if [ -f /proc/net/dev ]; then
+  NET_STATS=$(awk 'NR>2 {rx+=$2; tx+=$10} END {printf "%.0f,%.0f", rx, tx}' /proc/net/dev)
+  NET_RX=$(echo $NET_STATS | cut -d',' -f1)
+  NET_TX=$(echo $NET_STATS | cut -d',' -f2)
+else
+  NET_RX="0"
+  NET_TX="0"
+fi
+[ -z "$NET_RX" ] && NET_RX="0"
+[ -z "$NET_TX" ] && NET_TX="0"
 
-echo "{\"cpu\":$CPU,\"mem_used\":$MEM_USED,\"mem_total\":$MEM_TOTAL,\"mem_pct\":$MEM_PCT,\"disk_used\":$DISK_USED,\"disk_total\":$DISK_TOTAL,\"disk_pct\":$DISK_PCT,\"load\":$LOAD,\"uptime\":$UPTIME}"
+echo "{\"cpu\":$CPU,\"mem_used\":$MEM_USED,\"mem_total\":$MEM_TOTAL,\"mem_pct\":$MEM_PCT,\"disk_used\":$DISK_USED,\"disk_total\":$DISK_TOTAL,\"disk_pct\":$DISK_PCT,\"net_rx\":$NET_RX,\"net_tx\":$NET_TX,\"load\":$LOAD,\"uptime\":$UPTIME}"
 `
 
 const darwinMetricsScript = `
@@ -70,7 +89,14 @@ BOOT_TIME=$(sysctl -n kern.boottime | awk '{print $4}' | sed 's/,//g')
 NOW=$(date +%s)
 UPTIME=$((NOW - BOOT_TIME))
 
-echo "{\"cpu\":$CPU,\"mem_used\":$MEM_USED,\"mem_total\":$MEM_TOTAL,\"mem_pct\":$MEM_PCT,\"disk_used\":$DISK_USED,\"disk_total\":$DISK_TOTAL,\"disk_pct\":$DISK_PCT,\"load\":$LOAD,\"uptime\":$UPTIME}"
+# Network RX/TX (Total cumulative bytes)
+NET_STATS=$(netstat -ibn | awk '/^en/ {rx+=$7; tx+=$10} END {printf "%.0f,%.0f", rx, tx}' 2>/dev/null)
+NET_RX=$(echo $NET_STATS | cut -d',' -f1)
+NET_TX=$(echo $NET_STATS | cut -d',' -f2)
+[ -z "$NET_RX" ] && NET_RX="0"
+[ -z "$NET_TX" ] && NET_TX="0"
+
+echo "{\"cpu\":$CPU,\"mem_used\":$MEM_USED,\"mem_total\":$MEM_TOTAL,\"mem_pct\":$MEM_PCT,\"disk_used\":$DISK_USED,\"disk_total\":$DISK_TOTAL,\"disk_pct\":$DISK_PCT,\"net_rx\":$NET_RX,\"net_tx\":$NET_TX,\"load\":$LOAD,\"uptime\":$UPTIME}"
 `
 
 type rawMetrics struct {
@@ -81,6 +107,8 @@ type rawMetrics struct {
 	DiskUsed  float64 `json:"disk_used"`
 	DiskTotal float64 `json:"disk_total"`
 	DiskPct   float64 `json:"disk_pct"`
+	NetRx     float64 `json:"net_rx"` // Cumulative bytes
+	NetTx     float64 `json:"net_tx"` // Cumulative bytes
 	Load      float64 `json:"load"`
 	Uptime    int64   `json:"uptime"`
 }
@@ -184,9 +212,28 @@ func collect(server models.Server) {
 		return
 	}
 
+	// Calculate network rates (MB/s)
+	var netRxMBps, netTxMBps float64
+	now := time.Now()
+	lastNetStatsMu.Lock()
+	if prev, ok := lastNetStats[server.ID]; ok {
+		dur := now.Sub(prev.timestamp).Seconds()
+		if dur > 0 {
+			netRxMBps = (raw.NetRx - prev.rx) / dur / (1024 * 1024)
+			netTxMBps = (raw.NetTx - prev.tx) / dur / (1024 * 1024)
+			if netRxMBps < 0 { netRxMBps = 0 }
+			if netTxMBps < 0 { netTxMBps = 0 }
+			log.Printf("📊 Net Metrics Server %d: RX_Total=%.0f TX_Total=%.0f | RX_Rate=%.4f TX_Rate=%.4f MB/s", server.ID, raw.NetRx, raw.NetTx, netRxMBps, netTxMBps)
+		}
+	} else {
+		log.Printf("📊 First sample for Server %d: RX_Total=%.0f TX_Total=%.0f", server.ID, raw.NetRx, raw.NetTx)
+	}
+	lastNetStats[server.ID] = netStat{rx: raw.NetRx, tx: raw.NetTx, timestamp: now}
+	lastNetStatsMu.Unlock()
+
 	m := models.Metric{
 		ServerID:    server.ID,
-		Timestamp:   time.Now(),
+		Timestamp:   now,
 		CPUPercent:  raw.CPU,
 		MemPercent:  raw.MemPct,
 		MemUsedMB:   raw.MemUsed,
@@ -194,6 +241,8 @@ func collect(server models.Server) {
 		DiskPercent: raw.DiskPct,
 		DiskUsedGB:  raw.DiskUsed,
 		DiskTotalGB: raw.DiskTotal,
+		NetRxMBps:   netRxMBps,
+		NetTxMBps:   netTxMBps,
 		LoadAvg1:    raw.Load,
 		Uptime:      raw.Uptime,
 	}

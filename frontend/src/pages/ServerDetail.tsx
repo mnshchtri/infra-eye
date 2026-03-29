@@ -341,8 +341,8 @@ export function ServerDetail() {
               { label: 'CPU LOAD',   value: latest ? `${latest.cpu_percent.toFixed(1)}%`  : '—', icon: Cpu,          color: 'var(--brand-primary)' },
               { label: 'MEMORY',      value: latest ? `${latest.mem_percent.toFixed(1)}%`  : '—', icon: MemoryStick,   color: '#10b981' },
               { label: 'DISK USAGE',   value: latest ? `${latest.disk_percent.toFixed(1)}%` : '—', icon: HardDrive,     color: '#f59e0b' },
-              { label: 'NET RX/TX',    value: latest ? `${latest.net_rx_mbps.toFixed(1)} MB/s` : '—', icon: Wifi,       color: '#3b82f6' },
-            ].map(({ label, value, icon: Icon, color }) => (
+              { label: 'NET RX / TX',  value: latest ? `${latest.net_rx_mbps.toFixed(2)} / ${latest.net_tx_mbps.toFixed(2)}` : '—', icon: Wifi, color: '#3b82f6', unit: 'MB/s' },
+            ].map(({ label, value, icon: Icon, color, unit }) => (
               <div key={label} className="card stat-card" style={{ padding: 24, border: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div style={{ 
@@ -353,14 +353,22 @@ export function ServerDetail() {
                     <Icon size={20} color={color} />
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{value}</div>
+                    <div style={{ 
+                      fontSize: value.length > 10 ? 18 : 24, 
+                      fontWeight: 800, 
+                      color: 'var(--text-primary)', 
+                      lineHeight: 1 
+                    }}>
+                      {value}
+                      {unit && <span style={{ fontSize: 12, marginLeft: 4, opacity: 0.7 }}>{unit}</span>}
+                    </div>
                     <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.05em' }}>{label}</div>
                   </div>
                 </div>
                 <div style={{ height: 6, background: 'var(--bg-app)', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{ 
                     height: '100%', 
-                    width: value.includes('%') ? value : '50%', 
+                    width: value.includes('%') ? value : (label.includes('NET') ? '0%' : '50%'), 
                     background: color,
                     borderRadius: 3,
                     boxShadow: `0 0 10px ${color}40`
