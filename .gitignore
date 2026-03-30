@@ -5,6 +5,7 @@
 
 # Go build artifacts
 backend/bin/
+backend/server
 *.exe
 *.out
 
