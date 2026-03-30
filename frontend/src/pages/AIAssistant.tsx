@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Sparkles, Server, User, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
+import { Send, Server, User, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
 import { api } from '../api/client'
 import Markdown from 'react-markdown'
+import chatbotLogo from '../assets/chatbot-logo.png'
 
 interface ServerData { id: number; name: string }
 
@@ -129,11 +130,12 @@ export function AIAssistant() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
             width: 42, height: 42, borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))',
+            background: 'var(--bg-card)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 16px var(--brand-glow)',
+            overflow: 'hidden', padding: 4, border: '1px solid var(--border-bright)'
           }}>
-            <Sparkles size={20} color="#fff" />
+            <img src={chatbotLogo} alt="Kikagaku" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
@@ -231,13 +233,17 @@ export function AIAssistant() {
                 width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: msg.role === 'assistant' 
-                  ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))' 
+                  ? 'var(--bg-card)' 
                   : 'var(--bg-elevated)',
-                border: msg.role === 'assistant' ? 'none' : '1px solid var(--border)',
-                color: '#fff',
+                border: '1px solid var(--border-bright)',
+                overflow: 'hidden', padding: msg.role === 'assistant' ? 4 : 0,
                 boxShadow: msg.role === 'assistant' ? '0 4px 12px var(--brand-glow)' : 'none'
               }}>
-                {msg.role === 'assistant' ? <Sparkles size={18} /> : <User size={18} color="var(--text-muted)" />}
+                {msg.role === 'assistant' ? (
+                  <img src={chatbotLogo} alt="AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <User size={18} color="var(--text-muted)" />
+                )}
               </div>
 
               <div style={{
@@ -314,10 +320,20 @@ export function AIAssistant() {
               <div style={{
                 width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-bright)',
+                overflow: 'hidden', padding: 4,
                 boxShadow: '0 4px 12px var(--brand-glow)',
               }}>
-                <Loader2 size={18} color="#fff" style={{ animation: 'spin 1.2s linear infinite' }} />
+                <img 
+                  src={chatbotLogo} 
+                  alt="Loading" 
+                  style={{ 
+                    width: '100%', height: '100%', objectFit: 'contain',
+                    animation: 'pulseScale 1.8s ease-in-out infinite',
+                    filter: 'drop-shadow(0 2px 4px var(--brand-glow))'
+                  }} 
+                />
               </div>
               <div style={{ padding: '8px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out infinite' }} />
@@ -431,6 +447,7 @@ export function AIAssistant() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        @keyframes pulseScale { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.92); opacity: 0.8; } }
       `}</style>
     </div>
   )
