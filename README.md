@@ -1,8 +1,9 @@
 <div align="center">
 
-# <img src="frontend/public/logo.png" alt="Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px; margin-bottom: 2px" />InfraEye
+<img src="frontend/public/logo.png" alt="InfraEye Logo" width="160" />
 
-**Professional DevOps Observability & Self-Healing Platform**
+# InfraEye
+**The Intelligent DevOps Observability & Self-Healing Platform**
 
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?style=flat-square&logo=go)](https://golang.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://reactjs.org)
