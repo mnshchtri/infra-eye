@@ -18,8 +18,10 @@ import (
 )
 
 type chatRequest struct {
-	ServerID uint   `json:"server_id"`
-	Question string `json:"question" binding:"required"`
+	ServerID      uint   `json:"server_id"`
+	Question      string `json:"question" binding:"required"`
+	ImageBase64   string `json:"image_base64"`
+	ImageMimeType string `json:"image_mime_type"`
 }
 
 type openAIMessage struct {
@@ -41,14 +43,24 @@ type openAIResponse struct {
 	} `json:"error"`
 }
 
-// Gemini REST API Support
+// Gemini REST API Support (Multimodal)
 type geminiRequest struct {
-	Contents []struct {
-		Role  string `json:"role"`
-		Parts []struct {
-			Text string `json:"text"`
-		} `json:"parts"`
-	} `json:"contents"`
+	Contents []geminiContent `json:"contents"`
+}
+
+type geminiContent struct {
+	Role  string       `json:"role"`
+	Parts []geminiPart `json:"parts"`
+}
+
+type geminiPart struct {
+	Text       string      `json:"text,omitempty"`
+	InlineData *inlineData `json:"inline_data,omitempty"`
+}
+
+type inlineData struct {
+	MimeType string `json:"mime_type"`
+	Data     string `json:"data"`
 }
 
 type geminiResponse struct {
@@ -72,7 +84,8 @@ func AIChat(c *gin.Context) {
 	}
 
 	context := buildContext(req.ServerID)
-	answer := askAI(context, req.Question)
+	// Pass image data to askAI
+	answer := askAI(context, req.Question, req.ImageBase64, req.ImageMimeType)
 
 	c.JSON(http.StatusOK, gin.H{
 		"answer":    answer,
@@ -82,8 +95,8 @@ func AIChat(c *gin.Context) {
 }
 
 func buildContext(serverID uint) string {
-	ctx := "You are an expert DevOps/SRE AI assistant. Help diagnose and fix server issues.\n\n"
-
+	ctx := "You are an expert DevOps/SRE AI assistant named Kikagaku. Help diagnose and fix server issues.\n\n"
+	
 	if serverID > 0 {
 		var server models.Server
 		if err := db.DB.First(&server, serverID).Error; err == nil {
@@ -155,10 +168,10 @@ func buildContext(serverID uint) string {
 	return ctx
 }
 
-func askAI(systemContext, question string) string {
-	// 1. Try Gemini (Priority)
+func askAI(systemContext, question, imageBase64, imageMime string) string {
+	// 1. Try Gemini (Priority - Gemini Flash is great for Multimodal)
 	if config.C.GeminiKey != "" {
-		return askGemini(systemContext, question)
+		return askGemini(systemContext, question, imageBase64, imageMime)
 	}
 
 	// 2. Fallback to OpenAI
@@ -170,22 +183,29 @@ func askAI(systemContext, question string) string {
 	return mockAIResponse(question)
 }
 
-func askGemini(systemContext, question string) string {
+func askGemini(systemContext, question, imageBase64, imageMime string) string {
 	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s", config.C.GeminiKey)
 
-	reqBody := geminiRequest{}
+	parts := []geminiPart{
+		{Text: "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question},
+	}
 
-	reqBody.Contents = []struct {
-		Role  string `json:"role"`
-		Parts []struct {
-			Text string `json:"text"`
-		} `json:"parts"`
-	}{
-		{
-			Role: "user",
-			Parts: []struct {
-				Text string `json:"text"`
-			}{{Text: "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question}},
+	// Add image if provided
+	if imageBase64 != "" && imageMime != "" {
+		parts = append(parts, geminiPart{
+			InlineData: &inlineData{
+				MimeType: imageMime,
+				Data:     imageBase64,
+			},
+		})
+	}
+
+	reqBody := geminiRequest{
+		Contents: []geminiContent{
+			{
+				Role:  "user",
+				Parts: parts,
+			},
 		},
 	}
 

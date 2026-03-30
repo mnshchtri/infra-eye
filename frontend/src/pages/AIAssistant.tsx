@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Sparkles, Server, User, ChevronDown } from 'lucide-react'
+import { Send, Loader2, Sparkles, Server, User, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
 import { api } from '../api/client'
 import Markdown from 'react-markdown'
 
@@ -10,6 +10,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  image?: string // Base64 preview for user messages
 }
 
 const SUGGESTIONS = [
@@ -26,12 +27,18 @@ export function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1', role: 'assistant', timestamp: new Date(),
-      content: "Hello! I'm your **InfraEye AI Assistant** — powered by live server context.\n\nSelect a server above and ask me to diagnose issues, analyze logs, generate remediation scripts, or explain Kubernetes errors.",
+      content: "Hello! I'm **Kikagaku** — your multimodal infrastructure intelligence engine.\n\nYou can ask me to diagnose issues, analyze logs, or even **upload a screenshot** of your dashboard for visual analysis.",
     }
   ])
   const [loading, setLoading] = useState(false)
+  
+  // Multimodal state
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [imageMime, setImageMime] = useState<string | null>(null)
+  
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     api.get('/api/servers').then(res => setServers(res.data)).catch(() => {})
@@ -41,16 +48,50 @@ export function AIAssistant() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string
+      // base64 contains the data:image/... prefix
+      setSelectedImage(base64)
+      setImageMime(file.type)
+    }
+    reader.readAsDataURL(file)
+  }
+
   async function askQuestion(q?: string) {
     const text = q || question
-    if (!text.trim() || loading) return
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() }
+    if (!text.trim() && !selectedImage) return
+    if (loading) return
+
+    // Extract the raw base64 data without the prefix for the backend
+    const base64Data = selectedImage ? selectedImage.split(',')[1] : ''
+
+    const userMsg: Message = { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: text, 
+      timestamp: new Date(),
+      image: selectedImage || undefined
+    }
+    
     setMessages(prev => [...prev, userMsg])
     setQuestion('')
+    setSelectedImage(null)
+    setImageMime(null)
     setLoading(true)
+
     try {
       const serverId = selectedServer ? Number(selectedServer) : 0
-      const res = await api.post('/api/ai/chat', { server_id: serverId, question: text })
+      const res = await api.post('/api/ai/chat', { 
+        server_id: serverId, 
+        question: text,
+        image_base64: base64Data,
+        image_mime_type: imageMime
+      })
       setMessages(prev => [...prev, {
         id: Date.now().toString() + 'r', role: 'assistant',
         content: res.data.answer, timestamp: new Date()
@@ -58,7 +99,7 @@ export function AIAssistant() {
     } catch (err: any) {
       setMessages(prev => [...prev, {
         id: Date.now().toString() + 'e', role: 'assistant',
-        content: `**Error:** ${err.response?.data?.error || 'Failed to reach AI service. Please check your API key configuration.'}`,
+        content: `**Error:** ${err.response?.data?.error || 'Failed to reach Kikagaku service. Please check your Gemini API key configuration.'}`,
         timestamp: new Date()
       }])
     } finally {
@@ -78,7 +119,7 @@ export function AIAssistant() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
 
-      {/* Full-Width Header aligned to edges */}
+      {/* Kikagaku Header */}
       <div style={{
         width: '100%', padding: '24px 60px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -96,21 +137,21 @@ export function AIAssistant() {
           </div>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-              InfraEye Assistant
+              Kikagaku
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Gemini 2.5 Flash
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
+                Multimodal Infrastructure Intelligence
               </span>
               <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-                Live Infrastructure Session
+                Live Session
               </span>
             </div>
           </div>
         </div>
 
-        {/* Display-Aligned Server Switcher */}
+        {/* Server Switcher */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Target Cluster</div>
@@ -135,11 +176,11 @@ export function AIAssistant() {
         </div>
       </div>
 
-      {/* Main Conversation spanning the display */}
+      {/* Main Conversation Track */}
       <div style={{
         flex: 1, overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        padding: '40px 60px 140px', // Extra bottom padding for floating bar
+        padding: '40px 60px 160px', // Extra bottom padding for floating bar + preview
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
           
@@ -186,7 +227,6 @@ export function AIAssistant() {
                 alignItems: 'flex-start'
               }}
             >
-              {/* Avatar on the respective side */}
               <div style={{
                 width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -200,19 +240,23 @@ export function AIAssistant() {
                 {msg.role === 'assistant' ? <Sparkles size={18} /> : <User size={18} color="var(--text-muted)" />}
               </div>
 
-              {/* Message Content anchored to edge */}
               <div style={{
                 maxWidth: '75%',
                 display: 'flex', flexDirection: 'column',
                 alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
               }}>
-                {/* Sender Tag */}
                 <div style={{ 
                   fontSize: 10, color: 'var(--text-muted)', fontWeight: 800, 
                   textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em' 
                 }}>
-                  {msg.role === 'assistant' ? 'InfraEye AI' : 'You'}
+                  {msg.role === 'assistant' ? 'Kikagaku' : 'You'}
                 </div>
+
+                {msg.image && (
+                  <div style={{ marginBottom: 12, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                    <img src={msg.image} alt="User media" style={{ maxWidth: '100%', maxHeight: 300, display: 'block' }} />
+                  </div>
+                )}
 
                 <div style={{
                   padding: msg.role === 'assistant' ? '0' : '16px 22px',
@@ -258,7 +302,6 @@ export function AIAssistant() {
                   )}
                 </div>
                 
-                {/* Timestamp */}
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, marginTop: 8, opacity: 0.5 }}>
                   {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
@@ -266,7 +309,6 @@ export function AIAssistant() {
             </div>
           ))}
 
-          {/* Loading Indicator aligned to left */}
           {loading && (
             <div style={{ display: 'flex', gap: 24, alignSelf: 'flex-start' }} className="fade-up">
               <div style={{
@@ -288,59 +330,101 @@ export function AIAssistant() {
         </div>
       </div>
 
-      {/* Display-Aligned Floating Input Bar */}
+      {/* Floating Multimodal Input */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         padding: '24px 60px 48px',
         background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)',
         pointerEvents: 'none'
       }}>
-        <div style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-bright)',
-            borderRadius: 20, padding: '10px 10px 10px 24px',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
-            display: 'flex', gap: 16, alignItems: 'center',
-            pointerEvents: 'auto',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-            onFocusCapture={e => { e.currentTarget.style.borderColor = 'var(--brand-primary)' }}
-            onBlurCapture={e => { e.currentTarget.style.borderColor = 'var(--border-bright)' }}
-        >
-          <textarea
-            ref={inputRef}
-            value={question}
-            onChange={e => setQuestion(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message to InfraEye Assistant..."
-            disabled={loading}
-            rows={1}
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--text-primary)', fontSize: 16, padding: '12px 0', resize: 'none',
-              fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 180,
-            }}
-            onInput={e => {
-              const el = e.currentTarget
-              el.style.height = 'auto'
-              el.style.height = Math.min(el.scrollHeight, 180) + 'px'
-            }}
-          />
-          <button
-            onClick={() => askQuestion()}
-            disabled={!question.trim() || loading}
-            style={{
-              width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-              background: question.trim() && !loading
-                ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))'
-                : 'var(--bg-elevated)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 0.2s', cursor: question.trim() && !loading ? 'pointer' : 'not-allowed',
-              border: 'none', boxShadow: question.trim() && !loading ? '0 4px 12px var(--brand-glow)' : 'none',
-            }}
+        <div style={{ maxWidth: 1000, margin: '0 auto', pointerEvents: 'auto' }}>
+          
+          {/* Image Preview Overlay */}
+          {selectedImage && (
+            <div className="fade-in" style={{
+              padding: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
+              borderRadius: '20px 20px 0 0', display: 'inline-flex', alignItems: 'center', gap: 12,
+              marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 24,
+              boxShadow: '0 -10px 30px rgba(0,0,0,0.1)'
+            }}>
+              <img src={selectedImage} alt="Preview" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Image Ready</div>
+              <button 
+                onClick={() => { setSelectedImage(null); setImageMime(null) }}
+                style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-bright)',
+              borderRadius: selectedImage ? '0 24px 24px 24px' : 24, 
+              padding: '10px 10px 10px 24px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+              display: 'flex', gap: 10, alignItems: 'center',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+              onFocusCapture={e => { e.currentTarget.style.borderColor = 'var(--brand-primary)' }}
+              onBlurCapture={e => { e.currentTarget.style.borderColor = 'var(--border-bright)' }}
           >
-            <Send size={20} color={question.trim() && !loading ? '#fff' : 'var(--text-muted)'} />
-          </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              hidden 
+              accept="image/*" 
+              onChange={handleImageSelect} 
+            />
+            <button
+               onClick={() => fileInputRef.current?.click()}
+               style={{
+                 width: 44, height: 44, borderRadius: 14, background: 'var(--bg-elevated)',
+                 border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                 cursor: 'pointer', color: 'var(--text-muted)', transition: 'all 0.2s'
+               }}
+               onMouseEnter={e => e.currentTarget.style.color = 'var(--brand-primary)'}
+               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
+              <ImageIcon size={20} />
+            </button>
+
+            <textarea
+              ref={inputRef}
+              value={question}
+              onChange={e => setQuestion(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Kikagaku anything, or upload a screenshot..."
+              disabled={loading}
+              rows={1}
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--text-primary)', fontSize: 16, padding: '12px 0', resize: 'none',
+                fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 180,
+              }}
+              onInput={e => {
+                const el = e.currentTarget
+                el.style.height = 'auto'
+                el.style.height = Math.min(el.scrollHeight, 180) + 'px'
+              }}
+            />
+            <button
+              onClick={() => askQuestion()}
+              disabled={(!question.trim() && !selectedImage) || loading}
+              style={{
+                width: 48, height: 48, borderRadius: 16, flexShrink: 0,
+                background: (question.trim() || selectedImage) && !loading
+                  ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))'
+                  : 'var(--bg-elevated)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s', cursor: (question.trim() || selectedImage) && !loading ? 'pointer' : 'not-allowed',
+                border: 'none', boxShadow: (question.trim() || selectedImage) && !loading ? '0 4px 12px var(--brand-glow)' : 'none',
+              }}
+            >
+              <Send size={20} color={(question.trim() || selectedImage) && !loading ? '#fff' : 'var(--text-muted)'} />
+            </button>
+          </div>
         </div>
       </div>
 
