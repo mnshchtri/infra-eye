@@ -25,6 +25,7 @@ const emptyForm = {
 const CONDITION_COLORS: Record<string, string> = {
   cpu: 'var(--warning)', mem: 'var(--info)', disk: 'var(--brand-primary)',
   load: 'var(--success)', log_keyword: 'var(--danger)',
+  pod_status: 'var(--info)',
 }
 
 export function AlertRules() {
@@ -231,9 +232,10 @@ export function AlertRules() {
                   <option value="disk">Disk %</option>
                   <option value="load">Load Average</option>
                   <option value="log_keyword">Log Keyword</option>
+                  <option value="pod_status">Pods Not Running (K8s)</option>
                 </select>
               </div>
-              <div className="input-group">
+              <div className="input-group" style={{ display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}>
                 <label className="input-label">Operator</label>
                 <select className="input" value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}>
                   <option value="gt">Greater than (&gt;)</option>
@@ -241,7 +243,7 @@ export function AlertRules() {
                   <option value="gte">Greater or equal (&gt;=)</option>
                 </select>
               </div>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1', display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}>
                 <label className="input-label">Threshold Value</label>
                 <input className="input" value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} placeholder="80" />
               </div>

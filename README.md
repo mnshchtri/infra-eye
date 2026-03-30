@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ InfraEye
+# <img src="frontend/public/logo.png" alt="Logo" width="32" height="32" style="vertical-align: middle; margin-right: 8px; margin-bottom: 2px" />InfraEye
 
 **Professional DevOps Observability & Self-Healing Platform**
 
@@ -115,6 +115,13 @@ REDIS_ADDR=localhost:6379
 
 # JWT
 JWT_SECRET=your-super-secret-key
+
+# AI Intelligence
+GEMINI_API_KEY=AIzaSy...
+
+# Notifications
+GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/...
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 
 # Server
 PORT=8080

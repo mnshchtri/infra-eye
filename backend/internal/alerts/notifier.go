@@ -103,3 +103,102 @@ func SendToGoogleChat(ruleName, serverName, info, severity, status string) {
 		log.Printf("✅ Alert [%s] successfully sent to Google Chat", ruleName)
 	}
 }
+
+// SendToSlack sends a formatted alert message to a Slack webhook
+func SendToSlack(ruleName, serverName, info, severity, status string) {
+	url := config.C.SlackWebhookURL
+	if url == "" {
+		log.Println("⚠️ Slack Webhook URL not configured, skipping notification")
+		return
+	}
+
+	icon := "⚪"
+	color := "#94a3b8" // gray
+	switch strings.ToLower(severity) {
+	case "critical":
+		icon = "🔴"
+		color = "#ef4444" // red
+	case "warning":
+		icon = "🟡"
+		color = "#f59e0b" // amber
+	case "info":
+		icon = "🔵"
+		color = "#3b82f6" // blue
+	}
+
+	payload := map[string]interface{}{
+		"attachments": []map[string]interface{}{
+			{
+				"color": color,
+				"blocks": []map[string]interface{}{
+					{
+						"type": "header",
+						"text": map[string]interface{}{
+							"type": "plain_text",
+							"text": fmt.Sprintf("%s Alert: %s", icon, ruleName),
+						},
+					},
+					{
+						"type": "section",
+						"fields": []map[string]interface{}{
+							{
+								"type": "mrkdwn",
+								"text": fmt.Sprintf("*Server:*\n%s", serverName),
+							},
+							{
+								"type": "mrkdwn",
+								"text": fmt.Sprintf("*Severity:*\n%s", severity),
+							},
+						},
+					},
+					{
+						"type": "section",
+						"text": map[string]interface{}{
+							"type": "mrkdwn",
+							"text": fmt.Sprintf("*Status:*\n%s", status),
+						},
+					},
+					{
+						"type": "section",
+						"text": map[string]interface{}{
+							"type": "mrkdwn",
+							"text": fmt.Sprintf("*Details:*\n%s", info),
+						},
+					},
+					{
+						"type": "actions",
+						"elements": []map[string]interface{}{
+							{
+								"type": "button",
+								"text": map[string]interface{}{
+									"type": "plain_text",
+									"text": "Open Dashboard",
+								},
+								"url": "http://localhost:5173",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("❌ Slack Marshal Error: %v", err)
+		return
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("❌ Slack Webhook Error: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ Slack Webhook returned non-200 status: %d", resp.StatusCode)
+	} else {
+		log.Printf("✅ Alert [%s] successfully sent to Slack", ruleName)
+	}
+}

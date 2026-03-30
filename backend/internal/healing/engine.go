@@ -1,6 +1,7 @@
 package healing
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -12,6 +13,9 @@ import (
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	"github.com/infra-eye/backend/internal/ws"
 	"github.com/infra-eye/backend/internal/alerts"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var lastFired = map[uint]time.Time{}
@@ -86,13 +90,15 @@ func evaluateCondition(rule models.AlertRule, server models.Server) (bool, strin
 	case "load":
 		actual = metric.LoadAvg1
 		label = fmt.Sprintf("Load=%.2f", actual)
-	case "log_keyword":
-		var entry models.LogEntry
-		result := db.DB.Where("server_id = ? AND message ILIKE ? AND timestamp > ?",
-			server.ID, "%"+rule.ConditionValue+"%", time.Now().Add(-5*time.Minute)).
-			Order("timestamp DESC").First(&entry)
-		if result.Error == nil {
-			return true, fmt.Sprintf("Log keyword '%s' found: %s", rule.ConditionValue, entry.Message)
+	case "pod_status":
+		// This checks for any pods NOT in Running/Succeeded state
+		// We reuse the Pulse logic from ai.go which is already optimized
+		failing, err := getFailingPodsCount(server)
+		if err != nil {
+			return false, ""
+		}
+		if failing > 0 {
+			return true, fmt.Sprintf("%d pods are NOT running/succeeded", failing)
 		}
 		return false, ""
 	default:
@@ -163,6 +169,36 @@ func fireAction(rule models.AlertRule, server models.Server, info string) {
 		"status":      action.Status,
 	})
 
-	// Dispatch to external Google Chat Webhook
+	// Dispatch to external Webhooks
 	go alerts.SendToGoogleChat(rule.Name, server.Name, info, rule.Severity, action.Status)
+	go alerts.SendToSlack(rule.Name, server.Name, info, rule.Severity, action.Status)
+}
+
+func getFailingPodsCount(server models.Server) (int, error) {
+	if server.KubeConfig == "" {
+		return 0, nil
+	}
+
+	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(server.KubeConfig))
+	if err != nil {
+		return 0, err
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return 0, err
+	}
+
+	pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return 0, err
+	}
+
+	failing := 0
+	for _, p := range pods.Items {
+		if p.Status.Phase != "Running" && p.Status.Phase != "Succeeded" {
+			failing++
+		}
+	}
+	return failing, nil
 }

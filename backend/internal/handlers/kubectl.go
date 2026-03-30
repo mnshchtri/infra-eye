@@ -325,6 +325,7 @@ func RunPodTerminal(c *gin.Context) {
 	pod := c.Query("pod")
 	ns := c.Query("namespace")
 	mode := c.Query("mode")
+	container := c.Query("container")
 
 	var server models.Server
 	if err := db.DB.First(&server, id).Error; err != nil {
@@ -347,8 +348,18 @@ func RunPodTerminal(c *gin.Context) {
 			return
 		}
 		
+		// If container is empty, try to find the first container in the pod
+		if container == "" {
+			podInfo, err := clientset.CoreV1().Pods(ns).Get(context.TODO(), pod, metav1.GetOptions{})
+			if err == nil && len(podInfo.Spec.Containers) > 0 {
+				container = podInfo.Spec.Containers[0].Name
+				log.Printf("ℹ️ No container specified, defaulting to: %s", container)
+			}
+		}
+
 		tailLines := int64(100)
 		req := clientset.CoreV1().Pods(ns).GetLogs(pod, &corev1.PodLogOptions{
+			Container: container,
 			Follow:    true,
 			TailLines: &tailLines,
 		})
@@ -411,7 +422,11 @@ func RunPodTerminal(c *gin.Context) {
 		return
 	}
 
-	cmd := fmt.Sprintf("%s exec -it %s -n %s -- /bin/sh", baseCmd, pod, ns)
+	containerFlag := ""
+	if container != "" {
+		containerFlag = fmt.Sprintf("-c %s", container)
+	}
+	cmd := fmt.Sprintf("%s exec -it %s %s -n %s -- /bin/sh", baseCmd, pod, containerFlag, ns)
 
 	if err := session.Start(cmd); err != nil {
 		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec error: %v\r\n", err)))

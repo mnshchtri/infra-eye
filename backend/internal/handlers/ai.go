@@ -2,16 +2,19 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type chatRequest struct {
@@ -106,6 +109,46 @@ func buildContext(serverID uint) string {
 				metric.DiskPercent, metric.DiskUsedGB, metric.DiskTotalGB,
 				metric.NetRxMBps, metric.NetTxMBps,
 				metric.LoadAvg1, metric.Uptime)
+		}
+
+		// LIVE KUBERNETES CONTEXT (if cluster)
+		if server.KubeConfig != "" {
+			if clientset, err := GetK8sClient(server.KubeConfig); err == nil {
+				k8sCtx := context.TODO()
+				ctx += "--- LIVE KUBERNETES PULSE ---\n"
+				
+				// Fetch failing pods
+				if pods, err := clientset.CoreV1().Pods("").List(k8sCtx, metav1.ListOptions{}); err == nil {
+					failingPods := 0
+					var summary strings.Builder
+					for _, p := range pods.Items {
+						if p.Status.Phase != "Running" && p.Status.Phase != "Succeeded" {
+							failingPods++
+							if failingPods <= 10 { // Limit to 10 failing pods to avoid context bloat
+								summary.WriteString(fmt.Sprintf("- pod/%s [%s] namespace=%s\n", p.Name, p.Status.Phase, p.Namespace))
+							}
+						}
+					}
+					ctx += fmt.Sprintf("Cluster Status: %d total pods, %d pods NOT running.\n", len(pods.Items), failingPods)
+					if summary.Len() > 0 {
+						ctx += "Failing Pods:\n" + summary.String()
+					}
+				}
+
+				// Fetch last 10 non-Normal events
+				if events, err := clientset.CoreV1().Events("").List(k8sCtx, metav1.ListOptions{
+					Limit: 10,
+				}); err == nil {
+					if len(events.Items) > 0 {
+						ctx += "Recent Cluster Events:\n"
+						for i, e := range events.Items {
+							if i >= 10 { break }
+							ctx += fmt.Sprintf("- [%s] %s: %s (%s)\n", e.Type, e.Reason, e.Message, e.InvolvedObject.Name)
+						}
+					}
+				}
+				ctx += "----------------------------\n\n"
+			}
 		}
 	}
 

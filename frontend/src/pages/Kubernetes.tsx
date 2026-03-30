@@ -148,12 +148,12 @@ export function Kubernetes() {
          else if (e.key === 'l' && activeRes === 'pods') {
              e.preventDefault()
              const item = filteredData[selectedIndex];
-             setDrawer({ open: true, mode: 'logs', pod: item.metadata.name, ns: item.metadata.namespace })
+             setDrawer({ open: true, mode: 'logs', pod: item.metadata.name, ns: item.metadata.namespace, container: item.spec?.containers?.[0]?.name })
          }
          else if (e.key === 's' && activeRes === 'pods') {
              e.preventDefault()
              const item = filteredData[selectedIndex];
-             setDrawer({ open: true, mode: 'shell', pod: item.metadata.name, ns: item.metadata.namespace })
+             setDrawer({ open: true, mode: 'shell', pod: item.metadata.name, ns: item.metadata.namespace, container: item.spec?.containers?.[0]?.name })
          }
          else if (e.key === 'd') {
              e.preventDefault()
@@ -538,8 +538,8 @@ export function Kubernetes() {
              actions={ (p: any) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('pod', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
-                  <button className="btn-icon" title="Logs" onClick={() => setDrawer({ open: true, mode: 'logs', pod: p.metadata.name, ns: p.metadata.namespace })}><List size={14} /></button>
-                  <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace })}><Terminal size={14} /></button>
+                  <button className="btn-icon" title="Logs" onClick={() => setDrawer({ open: true, mode: 'logs', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><List size={14} /></button>
+                  <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><Terminal size={14} /></button>
                 </>
              )}
           />}
@@ -564,6 +564,7 @@ export function Kubernetes() {
           serverID={selectedCluster.id} 
           pod={drawer.pod!} 
           namespace={drawer.ns!} 
+          container={drawer.container}
           mode={drawer.mode} 
           onClose={() => setDrawer(curr => curr ? { ...curr, open: false } : null)} 
         />
@@ -920,7 +921,7 @@ function ConfigViewer({ content, onChange, fullPage }: any) {
   )
 }
 
-function TerminalPortal({ serverID, pod, namespace, mode, onClose }: any) {
+function TerminalPortal({ serverID, pod, namespace, container, mode, onClose }: any) {
   const terminalRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -930,14 +931,15 @@ function TerminalPortal({ serverID, pod, namespace, mode, onClose }: any) {
     term.open(terminalRef.current)
     fitAddon.fit()
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/servers/${serverID}/kubectl/pod-terminal?pod=${pod}&namespace=${namespace}&mode=${mode}&token=${localStorage.getItem('token')}`)
+    const containerParam = container ? `&container=${container}` : ''
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/servers/${serverID}/kubectl/pod-terminal?pod=${pod}&namespace=${namespace}&mode=${mode}${containerParam}&token=${localStorage.getItem('token')}`)
     ws.onmessage = (ev) => {
         if (typeof ev.data === 'string') { term.write(ev.data) }
         else { ev.data.arrayBuffer().then((buf: any) => term.write(new Uint8Array(buf))) }
     }
     term.onData((data) => ws.send(data))
     return () => { ws.close(); term.dispose(); }
-  }, [serverID, pod, namespace, mode])
+  }, [serverID, pod, namespace, container, mode])
 
   return (
     <div className="fade-in" style={{ position: 'fixed', right: 0, top: 0, width: '45vw', height: '100vh', background: '#fff', borderLeft: '1px solid var(--border)', zIndex: 1200, display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>

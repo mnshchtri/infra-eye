@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
-  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, Apple, HelpCircle
+  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, Apple, HelpCircle,
+  Boxes
 } from 'lucide-react'
 import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
 import {
@@ -14,6 +15,7 @@ interface ServerData {
   id: number; name: string; host: string; status: string;
   tags: string; description: string; port: number; ssh_user: string;
   os: string;
+  is_k8s: boolean;
 }
 interface MetricData {
   cpu_percent: number; mem_percent: number; disk_percent: number;
@@ -205,9 +207,10 @@ export function Dashboard() {
 
   useEffect(() => { loadData() }, [])
 
+  const total   = servers.length
+  const k8sServers = servers.filter(s => s.is_k8s).length
   const online  = servers.filter(s => s.status === 'online').length
   const offline = servers.filter(s => s.status === 'offline').length
-  const total   = servers.length
   const metricValues = Object.values(metrics)
   const avgCpu = metricValues.length > 0
     ? (metricValues.reduce((a, m) => a + m.cpu_percent, 0) / metricValues.length).toFixed(1) + '%'
@@ -246,9 +249,15 @@ export function Dashboard() {
       <div className="grid-stats" style={{ marginBottom: 48 }}>
         <StatCard
           label="Total Servers"
-          value={loading ? '—' : total}
+          value={loading ? '—' : (total - k8sServers)}
           icon={Server}
           color="var(--brand-primary)"
+        />
+        <StatCard
+          label="K8s Clusters"
+          value={loading ? '—' : k8sServers}
+          icon={Boxes}
+          color="var(--info)"
         />
         <StatCard
           label="Status Online"

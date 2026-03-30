@@ -19,6 +19,7 @@ type Config struct {
 	MetricsInterval      int
 	LogMaxLines          int
 	GoogleChatWebhookURL string
+	SlackWebhookURL      string
 }
 
 var C Config
@@ -39,7 +40,8 @@ func Load() {
 		GeminiKey:       getEnv("GEMINI_API_KEY", ""),
 		MetricsInterval: getEnvInt("METRICS_INTERVAL", 30),
 		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
-		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", "https://chat.googleapis.com/v1/spaces/AAQAvxUvZX4/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=x0s8a9y1DPn1neN1jkgiKyIc28fiv2NBohwP1D6AUX0"),
+		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", ""),
+		SlackWebhookURL:        getEnv("SLACK_WEBHOOK_URL", ""),
 	}
 }
 
