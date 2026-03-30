@@ -18,6 +18,7 @@ import (
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	gossh "golang.org/x/crypto/ssh"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -337,6 +338,50 @@ func RunPodTerminal(c *gin.Context) {
 	}
 	defer wsConn.Close()
 
+	if mode == "logs" {
+		log.Printf("📝 Starting native logs for %s/%s", ns, pod)
+		clientset, err := GetK8sClient(server.KubeConfig)
+		if err != nil {
+			log.Printf("K8s client err: %v", err)
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("K8s client error: %v\r\n", err)))
+			return
+		}
+		
+		tailLines := int64(100)
+		req := clientset.CoreV1().Pods(ns).GetLogs(pod, &corev1.PodLogOptions{
+			Follow:    true,
+			TailLines: &tailLines,
+		})
+
+		stream, err := req.Stream(context.TODO())
+		if err != nil {
+			log.Printf("Stream request err: %v", err)
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Failed to open logs stream: %v\r\n", err)))
+			return
+		}
+		defer stream.Close()
+
+		buf := make([]byte, 8192)
+		for {
+			n, err := stream.Read(buf)
+			if n > 0 {
+				log.Printf("Streamed %d bytes to ws", n)
+				
+				// Fix newline CR translation for pure \n log streams to render in xterm correctly!
+				// Xterm requires \r\n to go back to the beginning of the line.
+				chunk := string(buf[:n])
+				chunk = strings.ReplaceAll(chunk, "\n", "\r\n")
+				
+				wsConn.WriteMessage(websocket.BinaryMessage, []byte(chunk))
+			}
+			if err != nil {
+				log.Printf("Stream closed: %v", err)
+				break
+			}
+		}
+		return
+	}
+
 	sshClient, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH connect error: %v\r\n", err)))
@@ -366,12 +411,7 @@ func RunPodTerminal(c *gin.Context) {
 		return
 	}
 
-	var cmd string
-	if mode == "logs" {
-		cmd = fmt.Sprintf("%s logs -f %s -n %s --tail=100", baseCmd, pod, ns)
-	} else {
-		cmd = fmt.Sprintf("%s exec -it %s -n %s -- /bin/sh", baseCmd, pod, ns)
-	}
+	cmd := fmt.Sprintf("%s exec -it %s -n %s -- /bin/sh", baseCmd, pod, ns)
 
 	if err := session.Start(cmd); err != nil {
 		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec error: %v\r\n", err)))

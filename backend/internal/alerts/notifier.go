@@ -30,13 +30,58 @@ func SendToGoogleChat(ruleName, serverName, info, severity, status string) {
 		icon = "🔵"
 	}
 
-	// Format text message
-	messageText := fmt.Sprintf("%s *ALERT: %s*\n*Server:* %s\n*Detail:* %s\n*Severity:* %s\n*System Status:* %s",
-		icon, ruleName, serverName, info, severity, status)
-
-	// Google Chat simple message payload
+	// Rich Google Chat Card V2 payload for better visualization
 	payload := map[string]interface{}{
-		"text": messageText,
+		"cardsV2": []map[string]interface{}{
+			{
+				"cardId": "incident-alert",
+				"card": map[string]interface{}{
+					"header": map[string]interface{}{
+						"title":    fmt.Sprintf("%s Alert Raised: %s", icon, ruleName),
+						"subtitle": fmt.Sprintf("Target Server: %s", serverName),
+					},
+					"sections": []map[string]interface{}{
+						{
+							"header": "Incident Details",
+							"widgets": []map[string]interface{}{
+								{
+									"decoratedText": map[string]interface{}{
+										"topLabel": "Severity",
+										"text":     severity,
+									},
+								},
+								{
+									"decoratedText": map[string]interface{}{
+										"topLabel": "Current Status",
+										"text":     status,
+										"wrapText": true,
+									},
+								},
+								{
+									"textParagraph": map[string]interface{}{
+										"text": fmt.Sprintf("<b>Diagnostic Info:</b><br>%s", info),
+									},
+								},
+								{
+									"buttonList": map[string]interface{}{
+										"buttons": []map[string]interface{}{
+											{
+												"text": "Open InfraEye Dashboard",
+												"onClick": map[string]interface{}{
+													"openLink": map[string]interface{}{
+														"url": "http://localhost:5173", // URL of the frontend dashboard
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	jsonData, err := json.Marshal(payload)
