@@ -35,10 +35,10 @@ export function Login() {
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <img src={logo} alt="InfraEye" style={{ height: 56, objectFit: 'contain' }} />
+            <img src={logo} alt="InfraEye" style={{ height: 84, objectFit: 'contain' }} />
             <span style={{
-              fontSize: 14,
-              fontWeight: 700,
+              fontSize: 16,
+              fontWeight: 800,
               color: 'var(--brand-primary)',
               background: 'rgba(79, 70, 229, 0.06)',
               padding: '4px 12px',

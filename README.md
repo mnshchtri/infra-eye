@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="InfraEye Logo" width="160" />
+<img src="frontend/public/logo.png" alt="InfraEye Logo" width="240" />
 
 # InfraEye
 **The Intelligent DevOps Observability & Self-Healing Platform**

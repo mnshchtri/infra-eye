@@ -129,11 +129,11 @@ export function AIAssistant() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
-            width: 42, height: 42, borderRadius: 12,
+            width: 52, height: 52, borderRadius: 14,
             background: 'var(--bg-card)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 16px var(--brand-glow)',
-            overflow: 'hidden', padding: 4, border: '1px solid var(--border-bright)'
+            overflow: 'hidden', padding: 6, border: '1px solid var(--border-bright)'
           }}>
             <img src={chatbotLogo} alt="Kikagaku" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
@@ -230,13 +230,13 @@ export function AIAssistant() {
               }}
             >
               <div style={{
-                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                width: 46, height: 46, borderRadius: 12, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: msg.role === 'assistant' 
                   ? 'var(--bg-card)' 
                   : 'var(--bg-elevated)',
                 border: '1px solid var(--border-bright)',
-                overflow: 'hidden', padding: msg.role === 'assistant' ? 4 : 0,
+                overflow: 'hidden', padding: msg.role === 'assistant' ? 6 : 0,
                 boxShadow: msg.role === 'assistant' ? '0 4px 12px var(--brand-glow)' : 'none'
               }}>
                 {msg.role === 'assistant' ? (
@@ -318,11 +318,11 @@ export function AIAssistant() {
           {loading && (
             <div style={{ display: 'flex', gap: 24, alignSelf: 'flex-start' }} className="fade-up">
               <div style={{
-                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                width: 46, height: 46, borderRadius: 12, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border-bright)',
-                overflow: 'hidden', padding: 4,
+                overflow: 'hidden', padding: 6,
                 boxShadow: '0 4px 12px var(--brand-glow)',
               }}>
                 <img 
