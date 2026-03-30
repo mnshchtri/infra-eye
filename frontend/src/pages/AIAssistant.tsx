@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, Send, Loader2, Sparkles, Server, User, ChevronDown } from 'lucide-react'
+import { Send, Loader2, Sparkles, Server, User, ChevronDown } from 'lucide-react'
 import { api } from '../api/client'
 import Markdown from 'react-markdown'
 
@@ -76,240 +76,261 @@ export function AIAssistant() {
   const selectedServerName = servers.find(s => s.id === Number(selectedServer))?.name
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
 
-      {/* Top bar */}
+      {/* Full-Width Header aligned to edges */}
       <div style={{
-        padding: '20px 40px', borderBottom: '1px solid var(--border)',
-        background: 'var(--bg-card)', zIndex: 10,
+        width: '100%', padding: '24px 60px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexShrink: 0,
+        flexShrink: 0, borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--bg-card)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
-            width: 42, height: 42, borderRadius: 13,
+            width: 42, height: 42, borderRadius: 12,
             background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 14px var(--brand-glow)',
+            boxShadow: '0 8px 16px var(--brand-glow)',
           }}>
-            <Bot size={20} color="#fff" />
+            <Sparkles size={20} color="#fff" />
           </div>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
-              AI Assistant
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+              InfraEye Assistant
             </h1>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Gemini 2.5 Flash · {messages.length - 1} messages
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Gemini 2.5 Flash
+              </span>
+              <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
+                Live Infrastructure Session
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Server selector */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Server size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 14, pointerEvents: 'none' }} />
-          <select
-            className="input"
-            value={selectedServer}
-            onChange={e => setSelectedServer(Number(e.target.value) || '')}
-            style={{
-              paddingLeft: 36, paddingRight: 36, paddingTop: 10, paddingBottom: 10,
-              width: 220, fontSize: 13, background: 'var(--bg-elevated)',
-              appearance: 'none', cursor: 'pointer',
-            }}
-          >
-            <option value="">General Context</option>
-            {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <ChevronDown size={14} color="var(--text-muted)" style={{ position: 'absolute', right: 14, pointerEvents: 'none' }} />
+        {/* Display-Aligned Server Switcher */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Target Cluster</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+               <Server size={14} color="var(--brand-primary)" />
+               <select
+                 className="input-minimal"
+                 value={selectedServer}
+                 onChange={e => setSelectedServer(Number(e.target.value) || '')}
+                 style={{
+                   background: 'transparent', border: 'none', color: 'var(--text-primary)',
+                   fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none',
+                   padding: 0, appearance: 'none'
+                 }}
+               >
+                 <option value="">Global Infrastructure</option>
+                 {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+               </select>
+               <ChevronDown size={14} color="var(--text-muted)" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Context badge */}
-      {selectedServer && (
-        <div style={{
-          padding: '8px 40px', background: 'rgba(129, 140, 248, 0.06)',
-          borderBottom: '1px solid rgba(129, 140, 248, 0.15)',
-          display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
-        }}>
-          <Sparkles size={12} color="var(--brand-primary)" />
-          <span style={{ fontSize: 12, color: 'var(--brand-primary)', fontWeight: 600 }}>
-            Active context: {selectedServerName}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            — metrics, logs, and server state are available
-          </span>
-        </div>
-      )}
-
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-        {/* Suggestions (show only if 1 message) */}
-        {messages.length === 1 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
-            {SUGGESTIONS.map(s => (
-              <button
-                key={s}
-                onClick={() => askQuestion(s)}
-                style={{
-                  padding: '8px 14px', borderRadius: 20,
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#eff6ff'
-                  e.currentTarget.style.borderColor = 'var(--brand-glow)'
-                  e.currentTarget.style.color = 'var(--brand-primary)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'var(--bg-elevated)'
-                  e.currentTarget.style.borderColor = 'var(--border)'
-                  e.currentTarget.style.color = 'var(--text-secondary)'
-                }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            className="fade-up"
-            style={{
-              display: 'flex', gap: 14, maxWidth: 760,
-              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-            }}
-          >
-            {/* Avatar */}
-            <div style={{
-              width: 36, height: 36, borderRadius: 11, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800,
-              ...(msg.role === 'assistant'
-                ? { background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))', boxShadow: '0 4px 12px var(--brand-glow)', color: 'var(--text-primary)' }
-                : { background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }
-              ),
-            }}>
-              {msg.role === 'assistant' ? <Sparkles size={15} /> : <User size={15} />}
-            </div>
-
-            {/* Bubble */}
-            <div style={{
-              padding: '14px 18px', borderRadius: 18, fontSize: 14, lineHeight: 1.65,
-              ...(msg.role === 'assistant'
-                ? { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderTopLeftRadius: 4 }
-                : { background: '#eff6ff', border: '1px solid #bfdbfe', borderTopRightRadius: 4 }
-              ),
-            }}>
-              {msg.role === 'assistant' ? (
-                <Markdown
-                  components={{
-                    p: ({ children }) => <p style={{ marginBottom: 8, color: 'var(--text-primary)' }}>{children}</p>,
-                    code: ({ children }) => (
-                      <code style={{
-                        background: '#f1f5f9', padding: '2px 6px', borderRadius: 5,
-                        fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--brand-dark)',
-                      }}>{children}</code>
-                    ),
-                    pre: ({ children }) => (
-                      <pre style={{
-                        background: '#f8fafc', padding: '12px 16px', borderRadius: 10,
-                        fontSize: 12, overflow: 'auto', margin: '8px 0', border: '1px solid var(--border)',
-                        fontFamily: '"JetBrains Mono", monospace',
-                      }}>{children}</pre>
-                    ),
-                    strong: ({ children }) => <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{children}</strong>,
-                    ul: ({ children }) => <ul style={{ paddingLeft: 20, marginBottom: 8 }}>{children}</ul>,
-                    li: ({ children }) => <li style={{ marginBottom: 4, color: 'var(--text-secondary)' }}>{children}</li>,
-                  }}
-                >
-                  {msg.content}
-                </Markdown>
-              ) : (
-                <span style={{ color: 'var(--text-primary)' }}>{msg.content}</span>
-              )}
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, textAlign: msg.role === 'user' ? 'right' : 'left' }}>
-                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {/* Main Conversation spanning the display */}
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        padding: '40px 60px 140px', // Extra bottom padding for floating bar
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
+          
+          {/* Landing State Suggestions */}
+          {messages.length === 1 && (
+            <div style={{ padding: '20px 0 60px', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 20 }}>
+                Suggested Insights
+              </h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {SUGGESTIONS.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => askQuestion(s)}
+                    style={{
+                      padding: '12px 20px', borderRadius: 12,
+                      background: 'var(--bg-card)', border: '1px solid var(--border)',
+                      color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer',
+                      transition: 'all 0.2s', fontWeight: 600
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--brand-primary)'
+                      e.currentTarget.style.background = 'var(--bg-elevated)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border)'
+                      e.currentTarget.style.background = 'var(--bg-card)'
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
-        ))}
+          )}
 
-        {/* Loading indicator */}
-        {loading && (
-          <div style={{ display: 'flex', gap: 14, maxWidth: 760, alignSelf: 'flex-start' }} className="fade-up">
-            <div style={{
-              width: 36, height: 36, borderRadius: 11, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))',
-              boxShadow: '0 4px 12px var(--brand-glow)',
-            }}>
-              <Loader2 size={15} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
+          {messages.map((msg, i) => (
+            <div
+              key={msg.id}
+              className="fade-up"
+              style={{
+                display: 'flex', gap: 24, width: '100%',
+                flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                alignItems: 'flex-start'
+              }}
+            >
+              {/* Avatar on the respective side */}
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: msg.role === 'assistant' 
+                  ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))' 
+                  : 'var(--bg-elevated)',
+                border: msg.role === 'assistant' ? 'none' : '1px solid var(--border)',
+                color: '#fff',
+                boxShadow: msg.role === 'assistant' ? '0 4px 12px var(--brand-glow)' : 'none'
+              }}>
+                {msg.role === 'assistant' ? <Sparkles size={18} /> : <User size={18} color="var(--text-muted)" />}
+              </div>
+
+              {/* Message Content anchored to edge */}
+              <div style={{
+                maxWidth: '75%',
+                display: 'flex', flexDirection: 'column',
+                alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
+              }}>
+                {/* Sender Tag */}
+                <div style={{ 
+                  fontSize: 10, color: 'var(--text-muted)', fontWeight: 800, 
+                  textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em' 
+                }}>
+                  {msg.role === 'assistant' ? 'InfraEye AI' : 'You'}
+                </div>
+
+                <div style={{
+                  padding: msg.role === 'assistant' ? '0' : '16px 22px',
+                  borderRadius: 18, fontSize: 15, lineHeight: 1.7,
+                  color: 'var(--text-primary)',
+                  ...(msg.role === 'user' && {
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-sm)',
+                    borderTopRightRadius: 2
+                  }),
+                  ...(msg.role === 'assistant' && {
+                    borderTopLeftRadius: 0
+                  })
+                }}>
+                  {msg.role === 'assistant' ? (
+                    <Markdown
+                      components={{
+                        p: ({ children }) => <p style={{ marginBottom: 16 }}>{children}</p>,
+                        code: ({ children }) => (
+                          <code style={{
+                            background: 'rgba(129, 140, 248, 0.1)', padding: '2px 6px', borderRadius: 4,
+                            fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--brand-primary)',
+                            fontWeight: 700
+                          }}>{children}</code>
+                        ),
+                        pre: ({ children }) => (
+                          <pre style={{
+                            background: '#0f172a', padding: '20px', borderRadius: 12,
+                            fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid #1e293b',
+                            fontFamily: '"JetBrains Mono", monospace', color: '#cbd5e1', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.3)'
+                          }}>{children}</pre>
+                        ),
+                        strong: ({ children }) => <strong style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{children}</strong>,
+                        ul: ({ children }) => <ul style={{ paddingLeft: 24, marginBottom: 16, listStyleType: 'square' }}>{children}</ul>,
+                        li: ({ children }) => <li style={{ marginBottom: 8 }}>{children}</li>,
+                      }}
+                    >
+                      {msg.content}
+                    </Markdown>
+                  ) : (
+                    <div style={{ fontWeight: 600 }}>{msg.content}</div>
+                  )}
+                </div>
+                
+                {/* Timestamp */}
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, marginTop: 8, opacity: 0.5 }}>
+                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
             </div>
-            <div style={{
-              padding: '14px 20px', borderRadius: 18, borderTopLeftRadius: 4,
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out infinite' }} />
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out 0.2s infinite' }} />
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out 0.4s infinite' }} />
+          ))}
+
+          {/* Loading Indicator aligned to left */}
+          {loading && (
+            <div style={{ display: 'flex', gap: 24, alignSelf: 'flex-start' }} className="fade-up">
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))',
+                boxShadow: '0 4px 12px var(--brand-glow)',
+              }}>
+                <Loader2 size={18} color="#fff" style={{ animation: 'spin 1.2s linear infinite' }} />
+              </div>
+              <div style={{ padding: '8px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out 0.2s infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s ease-in-out 0.4s infinite' }} />
+              </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* Input Area */}
+      {/* Display-Aligned Floating Input Bar */}
       <div style={{
-        padding: '16px 40px 24px',
-        borderTop: '1px solid var(--border)',
-        background: 'var(--bg-card)',
-        zIndex: 10, flexShrink: 0,
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        padding: '24px 60px 48px',
+        background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)',
+        pointerEvents: 'none'
       }}>
         <div style={{
-          display: 'flex', gap: 12, alignItems: 'flex-end',
-          background: 'var(--bg-app)',
-          border: '1px solid var(--border)',
-          borderRadius: 18, padding: '4px 4px 4px 18px',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-bright)',
+            borderRadius: 20, padding: '10px 10px 10px 24px',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+            display: 'flex', gap: 16, alignItems: 'center',
+            pointerEvents: 'auto',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
-          onFocusCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--brand-primary)'
-            e.currentTarget.style.boxShadow = '0 0 0 3px var(--brand-glow)'
-          }}
-          onBlurCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--border)'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
+            onFocusCapture={e => { e.currentTarget.style.borderColor = 'var(--brand-primary)' }}
+            onBlurCapture={e => { e.currentTarget.style.borderColor = 'var(--border-bright)' }}
         >
           <textarea
             ref={inputRef}
             value={question}
             onChange={e => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about CPU spikes, log errors, kubectl commands… (Enter to send)"
+            placeholder="Type your message to InfraEye Assistant..."
             disabled={loading}
             rows={1}
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--text-primary)', fontSize: 14, padding: '12px 0', resize: 'none',
-              fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120,
+              color: 'var(--text-primary)', fontSize: 16, padding: '12px 0', resize: 'none',
+              fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 180,
             }}
             onInput={e => {
               const el = e.currentTarget
               el.style.height = 'auto'
-              el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+              el.style.height = Math.min(el.scrollHeight, 180) + 'px'
             }}
           />
           <button
             onClick={() => askQuestion()}
             disabled={!question.trim() || loading}
             style={{
-              width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+              width: 48, height: 48, borderRadius: 14, flexShrink: 0,
               background: question.trim() && !loading
                 ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-dark))'
                 : 'var(--bg-elevated)',
@@ -318,12 +339,9 @@ export function AIAssistant() {
               border: 'none', boxShadow: question.trim() && !loading ? '0 4px 12px var(--brand-glow)' : 'none',
             }}
           >
-            <Send size={16} color={question.trim() && !loading ? '#fff' : 'var(--text-muted)'} />
+            <Send size={20} color={question.trim() && !loading ? '#fff' : 'var(--text-muted)'} />
           </button>
         </div>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-          Shift+Enter for new line · Enter to send
-        </p>
       </div>
 
       <style>{`
