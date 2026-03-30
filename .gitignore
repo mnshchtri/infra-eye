@@ -1,0 +1,32 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Go build artifacts
+backend/bin/
+*.exe
+*.out
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Kubernetes configs (sensitive)
+*.kubeconfig
+kubeconfigs/
