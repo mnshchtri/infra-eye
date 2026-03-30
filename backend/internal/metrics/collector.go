@@ -165,6 +165,7 @@ func collect(server models.Server) {
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		log.Printf("Metrics SSH error server %d: %v", server.ID, err)
+		sshclient.Remove(server.ID) // Clear stale connection from pool
 		updateStatus(server.ID, "offline")
 		return
 	}
@@ -198,6 +199,7 @@ func collect(server models.Server) {
 		if !strings.Contains(output, "{") {
 			errMsg := fmt.Sprintf("Metrics collection failed: %v, stderr: %s", err, stderr)
 			log.Printf("Metrics SSH error server %d: %s", server.ID, errMsg)
+			sshclient.Remove(server.ID) // Clear stale connection from pool
 			logger.RecordLog(server.ID, "diagnostic", "error", errMsg)
 			updateStatus(server.ID, "offline")
 			return

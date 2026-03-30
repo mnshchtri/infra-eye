@@ -29,18 +29,32 @@ func init() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		for range ticker.C {
+			keys := []uint{}
 			poolMu.RLock()
-			for id, client := range pool {
-				go func(id uint, c *Client) {
-					// Minimal TCP-level check or simple cmd
-					_, _, err := c.RunCommand("echo 1")
-					if err != nil {
-						// log.Printf("Background keep-alive failed for server %d", id)
-						// We don't remove here, let the next GetOrCreate or RunCommand handle it
-					}
-				}(id, client)
+			for id := range pool {
+				keys = append(keys, id)
 			}
 			poolMu.RUnlock()
+
+			for _, id := range keys {
+				poolMu.RLock()
+				c, ok := pool[id]
+				poolMu.RUnlock()
+				if !ok {
+					continue
+				}
+
+				go func(serverID uint, client *Client) {
+					// Minimal check: try to open a session and close it
+					session, err := client.client.NewSession()
+					if err != nil {
+						// Connection is likely dead, remove it
+						Remove(serverID)
+						return
+					}
+					session.Close()
+				}(id, c)
+			}
 		}
 	}()
 }
@@ -74,10 +88,22 @@ func NewClient(serverID uint, host string, port int, user, keyPath, password, au
 		Timeout:         10 * time.Second,
 	}
 
-	addr := fmt.Sprintf("%s:%d", host, port)
-	conn, err := gossh.Dial("tcp", addr, config)
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
+
+	// Create a dialer with TCP keep-alive
+	dialer := &net.Dialer{
+		Timeout:   config.Timeout,
+		KeepAlive: 30 * time.Second,
+	}
+
+	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial SSH %s: %w", addr, err)
+		return nil, fmt.Errorf("dial TCP %s: %w", addr, err)
+	}
+
+	sshConn, chans, reqs, err := gossh.NewClientConn(conn, addr, config)
+	if err != nil {
+		return nil, fmt.Errorf("ssh handshake %s: %w", addr, err)
 	}
 
 	return &Client{
@@ -85,7 +111,7 @@ func NewClient(serverID uint, host string, port int, user, keyPath, password, au
 		Host:     host,
 		Port:     port,
 		User:     user,
-		client:   conn,
+		client:   gossh.NewClient(sshConn, chans, reqs),
 	}, nil
 }
 

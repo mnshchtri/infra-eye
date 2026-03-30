@@ -3,6 +3,7 @@ import { Plus, Bell, Trash2, Pencil, History, X, Zap, Activity, FileCode } from 
 import { api } from '../api/client'
 import { format } from 'date-fns'
 import { usePermission } from '../hooks/usePermission'
+import { useToastStore } from '../store/toastStore'
 
 interface Rule {
   id: number; name: string; server_id: number;
@@ -37,6 +38,8 @@ export function AlertRules() {
   const [tab, setTab] = useState<'rules' | 'history' | 'xml'>('rules')
   const [xmlContent, setXmlContent] = useState('')
   const { can } = usePermission()
+  const toast = useToastStore()
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -62,7 +65,10 @@ export function AlertRules() {
       else await api.post('/api/alert-rules', { ...form, server_id: Number(form.server_id) })
       setShowForm(false)
       loadData()
-    } catch (e: any) { alert(e.response?.data?.error || 'Save failed') }
+      toast.success(editId ? 'Rule updated' : 'Rule created', 'The self-healing rule is now active.')
+    } catch (e: any) {
+      toast.error('Save failed', e.response?.data?.error || 'Could not save rule')
+    }
   }
 
   async function toggleEnable(rule: Rule) {
@@ -71,9 +77,15 @@ export function AlertRules() {
   }
 
   async function deleteRule(id: number) {
-    if (!confirm('Delete this rule?')) return
-    await api.delete(`/api/alert-rules/${id}`)
-    loadData()
+    try {
+      await api.delete(`/api/alert-rules/${id}`)
+      toast.success('Rule deleted', 'The self-healing rule has been removed.')
+      setConfirmDelete(null)
+      loadData()
+    } catch (e: any) {
+      toast.error('Delete failed', e.response?.data?.error || 'Could not delete rule')
+      setConfirmDelete(null)
+    }
   }
 
   function getServerName(id: number) {
@@ -114,11 +126,11 @@ export function AlertRules() {
       if (newRules.length === 0) throw new Error("No valid rules found in XML")
       
       await api.post('/api/alert-rules/batch', newRules)
-      alert("Infrastructure sync complete. " + newRules.length + " rules updated.")
+      toast.success("Infrastructure synchronized", `${newRules.length} rules updated.`)
       setTab('rules')
       loadData()
     } catch (e: any) {
-      alert("Sync Failed: " + (e.response?.data?.error || e.message))
+      toast.error("Sync Failed", e.response?.data?.error || e.message)
     } finally {
       setLoading(false)
     }
@@ -341,7 +353,24 @@ export function AlertRules() {
                       {can('manage-alerts') && (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn-icon" onClick={() => { setForm(rule as any); setEditId(rule.id); setShowForm(true) }}><Pencil size={16} /></button>
-                          <button className="btn-icon danger" onClick={() => deleteRule(rule.id)}><Trash2 size={16} /></button>
+                          {confirmDelete === rule.id ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                onClick={() => deleteRule(rule.id)}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                onClick={() => setConfirmDelete(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button className="btn-icon danger" onClick={() => setConfirmDelete(rule.id)}><Trash2 size={16} /></button>
+                          )}
                         </div>
                       )}
                     </div>

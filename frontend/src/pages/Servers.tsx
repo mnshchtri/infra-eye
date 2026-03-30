@@ -4,6 +4,7 @@ import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
+import { useToastStore } from '../store/toastStore'
 
 interface ServerData {
   id: number; name: string; host: string; port: number;
@@ -28,6 +29,7 @@ export function Servers() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { can } = usePermission()
+  const toast = useToastStore()
   const [servers, setServers] = useState<ServerData[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -37,6 +39,7 @@ export function Servers() {
   const [testing, setTesting] = useState<number | null>(null)
   const [disconnecting, setDisconnecting] = useState<number | null>(null)
   const [testResults, setTestResults] = useState<Record<number, { ok: boolean; msg: string }>>({})
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
 
   useEffect(() => {
     loadServers()
@@ -61,9 +64,10 @@ export function Servers() {
       setShowForm(false)
       setEditId(null)
       setForm(emptyForm)
+      toast.success(editId ? 'Server updated' : 'Server added', 'SSH credentials saved successfully.')
       loadServers()
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Save failed')
+      toast.error('Save failed', err.response?.data?.error || 'Could not save server.')
     } finally {
       setSaving(false)
     }
@@ -80,9 +84,15 @@ export function Servers() {
   }
 
   async function deleteServer(id: number) {
-    if (!confirm('Delete this server? This cannot be undone.')) return
-    await api.delete(`/api/servers/${id}`)
-    loadServers()
+    try {
+      await api.delete(`/api/servers/${id}`)
+      toast.success('Server deleted', 'Server and all data permanently removed.')
+      setConfirmDelete(null)
+      loadServers()
+    } catch (err: any) {
+      toast.error('Delete failed', err.response?.data?.error)
+      setConfirmDelete(null)
+    }
   }
 
   async function testConnection(id: number) {
@@ -92,9 +102,13 @@ export function Servers() {
       setTestResults(prev => ({ ...prev, [id]: { ok: res.data.status === 'online', msg: res.data.output || '' } }))
       if (res.data.status === 'online') {
         setServers(prev => prev.map(s => s.id === id ? { ...s, status: 'online', os: res.data.os } : s))
+        toast.success('Connected', `Server is online (${res.data.os || 'linux'})`)
+      } else {
+        toast.error('Connection failed', 'Could not reach the server.')
       }
     } catch {
       setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Connection failed' } }))
+      toast.error('Connection failed', 'Could not reach the server.')
     } finally {
       setTesting(null)
     }
@@ -106,10 +120,10 @@ export function Servers() {
       await api.post(`/api/servers/${id}/disconnect`)
       setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Disconnected' } }))
       setServers(prev => prev.map(s => s.id === id ? { ...s, status: 'offline' } : s))
+      toast.info('Disconnected', 'SSH session closed and metrics collection stopped.')
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.message || 'Disconnect failed'
-      console.error('Disconnect error:', err)
-      alert(`Disconnect failed: ${errorMsg}`)
+      toast.error('Disconnect failed', errorMsg)
     } finally {
       setDisconnecting(null)
     }
@@ -424,20 +438,45 @@ export function Servers() {
                         </button>
                       )}
                       {can('delete-server') && (
-                        <button
-                          title="Delete"
-                          style={{
-                            padding: '7px 10px', borderRadius: 8, fontSize: 12,
-                            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                            color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
-                            display: 'flex', alignItems: 'center',
-                          }}
-                          onClick={() => deleteServer(s.id)}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        confirmDelete === s.id ? (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              style={{
+                                padding: '7px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                                background: 'var(--danger)', border: 'none',
+                                color: '#fff', cursor: 'pointer',
+                              }}
+                              onClick={() => deleteServer(s.id)}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              style={{
+                                padding: '7px 10px', borderRadius: 8, fontSize: 11,
+                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                color: 'var(--text-muted)', cursor: 'pointer',
+                              }}
+                              onClick={() => setConfirmDelete(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            title="Delete"
+                            style={{
+                              padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                              color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
+                              display: 'flex', alignItems: 'center',
+                            }}
+                            onClick={() => setConfirmDelete(s.id)}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )
                       )}
                     </div>
                   </td>

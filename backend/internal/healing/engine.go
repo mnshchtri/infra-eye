@@ -10,6 +10,7 @@ import (
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
+	"github.com/infra-eye/backend/internal/ws"
 )
 
 var lastFired = map[uint]time.Time{}
@@ -149,4 +150,15 @@ func fireAction(rule models.AlertRule, server models.Server, info string) {
 	}
 
 	db.DB.Create(&action)
+
+	// Broadcast to the global alerts room so connected frontends get a real-time toast
+	ws.GlobalHub.Broadcast("alerts", "alert_fired", map[string]interface{}{
+		"rule_name":   rule.Name,
+		"server_name": server.Name,
+		"server_id":   server.ID,
+		"trigger_info": info,
+		"severity":    rule.Severity,
+		"action_type": rule.ActionType,
+		"status":      action.Status,
+	})
 }

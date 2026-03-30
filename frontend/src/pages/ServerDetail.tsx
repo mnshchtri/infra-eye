@@ -15,6 +15,7 @@ import {
 import { api, buildWsUrl } from '../api/client'
 import { format } from 'date-fns'
 import { usePermission } from '../hooks/usePermission'
+import { useToastStore } from '../store/toastStore'
 
 interface Server {
   id: number; name: string; host: string; port: number; ssh_user: string;
@@ -41,6 +42,7 @@ export function ServerDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { can } = usePermission()
+  const toast = useToastStore()
   const [server, setServer] = useState<Server | null>(null)
   const [metrics, setMetrics] = useState<Metric[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -52,6 +54,12 @@ export function ServerDetail() {
   const [kubectlLoading, setKubectlLoading] = useState(false)
   const [rebooting, setRebooting] = useState(false)
   const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
+  // Preferences form
+  const [prefName, setPrefName] = useState('')
+  const [prefTags, setPrefTags] = useState('')
+  const [prefDesc, setPrefDesc] = useState('')
+  const [prefSaving, setPrefSaving] = useState(false)
+  const [purgingMetrics, setPurgingMetrics] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const logWsRef = useRef<WebSocket | null>(null)
@@ -88,6 +96,10 @@ export function ServerDetail() {
     try {
       const res = await api.get(`/api/servers/${id}`)
       setServer(res.data)
+      // Sync pref fields when server loads
+      setPrefName(res.data.name || '')
+      setPrefTags(res.data.tags || '')
+      setPrefDesc(res.data.description || '')
     } finally {
       setLoading(false)
     }
@@ -195,25 +207,23 @@ export function ServerDetail() {
   }
 
   async function runDiagnostics() {
-    if (!confirm('Run system diagnostics? This will generate real-time logs for connectivity, disk, memory, and services.')) return
     try {
       await api.post(`/api/servers/${id}/diagnose`)
-      // The logs will flow in via WebSocket/room broadcast automatically, 
-      // but we signal that it started.
+      toast.info('Diagnostics Started', 'Real-time diagnostic logs will appear in the output.')
     } catch (err: any) {
       console.error('Diagnostic trigger failed:', err)
       const errorMsg = err.response?.data?.error || err.message || 'Unknown error'
-      alert(`Diagnostic trigger failed: ${errorMsg}`)
+      toast.error('Diagnostic failed', errorMsg)
     }
   }
 
   async function clearLogs() {
-    if (!confirm('Are you sure you want to delete all historical logs for this server? This action cannot be undone.')) return
     try {
       await api.delete(`/api/servers/${id}/logs`)
-      setLogs([]) // Clear local state immediately
+      setLogs([])
+      toast.success('Logs cleared', 'All historical log entries removed.')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to clear logs')
+      toast.error('Clear failed', err.response?.data?.error || 'Failed to clear logs')
     }
   }
 
@@ -230,40 +240,56 @@ export function ServerDetail() {
   )
 
   async function handleDeleteServer() {
-    if (!confirm('PERMANENTLY DELETE this server and ALL associated metrics/logs? This action CANNOT be undone.')) return
     try {
       await api.delete(`/api/servers/${id}`)
+      toast.success('Server deleted', 'All data has been permanently removed.')
       navigate('/servers')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Delete failed')
+      toast.error('Delete failed', err.response?.data?.error || 'Delete failed')
     }
   }
 
   async function handleReboot() {
-    if (!confirm('🚨 ARE YOU SURE YOU WANT TO RESTART THIS SERVER?\n\nThis will issue a command locally to the system and disrupt active workloads.')) return
     setRebooting(true)
     try {
       await api.post(`/api/servers/${id}/reboot`)
       setServer(prev => prev ? { ...prev, status: 'offline' } : null)
-      alert("Reboot command sent to " + server?.name)
+      toast.warning('Reboot initiated', `${server?.name} is restarting. It will come back online shortly.`)
       navigate('/servers')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Reboot failed')
+      toast.error('Reboot failed', err.response?.data?.error || 'Reboot command failed')
     } finally {
       setRebooting(false)
     }
   }
 
-  async function handleClearHistory(type: 'logs' | 'metrics') {
-    if (!confirm(`Clear all ${type} for this server?`)) return
+  async function handleSavePreferences() {
+    setPrefSaving(true)
     try {
-      // We'll use the DeleteServer logic but scoped if we had endpoints, 
-      // but for now let's just implement the server-wide delete or simple placeholder
-      // Actually, since I didn't add specific clear-logs endpoints (only healing history), 
-      // I should probably just focus on the Hard Delete for now or add them.
-      alert('Feature coming soon: Selective clearing of logs/metrics.')
-    } catch (err) {
-      console.error(err)
+      const res = await api.patch(`/api/servers/${id}/preferences`, {
+        name: prefName,
+        tags: prefTags,
+        description: prefDesc,
+      })
+      setServer(res.data)
+      toast.success('Preferences saved', 'Server display settings have been updated.')
+    } catch (err: any) {
+      toast.error('Save failed', err.response?.data?.error || 'Could not save preferences.')
+    } finally {
+      setPrefSaving(false)
+    }
+  }
+
+  async function handlePurgeMetrics() {
+    setPurgingMetrics(true)
+    try {
+      await api.delete(`/api/servers/${id}/metrics`)
+      setMetrics([])
+      toast.success('Metrics purged', 'All historical performance data removed.')
+    } catch (err: any) {
+      toast.error('Purge failed', err.response?.data?.error || 'Could not purge metrics.')
+    } finally {
+      setPurgingMetrics(false)
     }
   }
 
@@ -637,13 +663,24 @@ export function ServerDetail() {
                 
                 <div className="input-group">
                   <label className="input-label">Display Name</label>
-                  <input className="input" defaultValue={server.name} />
+                  <input className="input" value={prefName} onChange={e => setPrefName(e.target.value)} placeholder={server.name} />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Description / Tags</label>
-                  <input className="input" defaultValue={server.tags} placeholder="e.g. production, aws-us-east-1" />
+                  <label className="input-label">Tags</label>
+                  <input className="input" value={prefTags} onChange={e => setPrefTags(e.target.value)} placeholder="e.g. production, aws-us-east-1" />
                 </div>
-                <button className="btn btn-primary" style={{ marginTop: 8 }}>Save Preferences</button>
+                <div className="input-group">
+                  <label className="input-label">Description</label>
+                  <input className="input" value={prefDesc} onChange={e => setPrefDesc(e.target.value)} placeholder="Optional note" />
+                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: 8 }}
+                  onClick={handleSavePreferences}
+                  disabled={prefSaving}
+                >
+                  {prefSaving ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : 'Save Preferences'}
+                </button>
              </div>
 
              <div className="card" style={{ border: '1px solid rgba(239, 68, 68, 0.1)', background: 'rgba(239, 68, 68, 0.02)' }}>
@@ -660,7 +697,14 @@ export function ServerDetail() {
                         <div style={{ fontSize: 14, fontWeight: 700 }}>Purge Metric History</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Permanently delete all performance data for this server.</div>
                       </div>
-                      <button className="btn btn-secondary" onClick={() => handleClearHistory('metrics')}>Purge</button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={handlePurgeMetrics}
+                        disabled={purgingMetrics}
+                        style={{ color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)' }}
+                      >
+                        {purgingMetrics ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : 'Purge'}
+                      </button>
                    </div>
                    
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -668,7 +712,10 @@ export function ServerDetail() {
                         <div style={{ fontSize: 14, fontWeight: 700 }}>Rotate SSH Credentials</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Force a reconnection with updated authentication tokens.</div>
                       </div>
-                      <button className="btn btn-secondary">Rotate</button>
+                      <button className="btn btn-secondary" onClick={() => {
+                        // Re-open the edit server modal on the Servers page
+                        navigate(`/servers?edit=${id}`)
+                      }}>Rotate</button>
                    </div>
 
                    <div style={{ paddingTop: 20, marginTop: 10, borderTop: '1px solid rgba(239, 68, 68, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

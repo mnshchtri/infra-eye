@@ -3,6 +3,7 @@ import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight } from 'luci
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { usePermission } from '../hooks/usePermission'
+import { useToastStore } from '../store/toastStore'
 
 interface UserData {
   id: number
@@ -15,6 +16,7 @@ interface UserData {
 export function Settings() {
   const { user: currentUser } = useAuthStore()
   const { can } = usePermission()
+  const toast = useToastStore()
   
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile')
   const [users, setUsers] = useState<UserData[]>([])
@@ -58,10 +60,10 @@ export function Settings() {
       
       const res = await api.put('/api/auth/me', payload)
       useAuthStore.getState().setAuth(useAuthStore.getState().token!, res.data)
-      alert('Profile updated successfully')
+      toast.success('Profile updated', 'Your account details have been saved.')
       setProfilePassword('')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Update failed')
+      toast.error('Update failed', err.response?.data?.error || 'Could not update profile.')
     } finally {
       setProfileSaving(false)
     }
@@ -72,7 +74,6 @@ export function Settings() {
     setUserSaving(true)
     try {
       if (editUserId) {
-        // Edit mode doesn't send username
         const { role, email, is_active, password } = userForm
         const payload: any = { role, email, is_active }
         if (password) payload.password = password
@@ -81,21 +82,22 @@ export function Settings() {
         await api.post('/api/users', userForm)
       }
       setShowUserForm(false)
+      toast.success(editUserId ? 'User updated' : 'User created', editUserId ? 'User account has been updated.' : 'New user provisioned successfully.')
       loadUsers()
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Save failed')
+      toast.error('Save failed', err.response?.data?.error || 'Could not save user.')
     } finally {
       setUserSaving(false)
     }
   }
 
   async function deleteUser(id: number, username: string) {
-    if (!confirm(`Permanently delete user ${username}?`)) return
     try {
       await api.delete(`/api/users/${id}`)
+      toast.success('User removed', `${username} has been deleted.`)
       loadUsers()
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Delete failed')
+      toast.error('Delete failed', err.response?.data?.error || 'Could not delete user.')
     }
   }
 

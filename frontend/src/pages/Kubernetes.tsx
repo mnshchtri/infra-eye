@@ -10,6 +10,7 @@ import { api } from '../api/client'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { useToastStore } from '../store/toastStore'
 
 interface Cluster {
   id: number;
@@ -28,6 +29,10 @@ export function Kubernetes() {
   const [loading, setLoading] = useState(false)
   const [yamlConfig, setYamlConfig] = useState('')
   const [showAddCluster, setShowAddCluster] = useState(false)
+  const toast = useToastStore()
+  
+  const [confirmDisconnect, setConfirmDisconnect] = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   
   // Namespaces
   const [namespaces, setNamespaces] = useState<string[]>([])
@@ -84,22 +89,28 @@ export function Kubernetes() {
     } catch (e) { console.error("NS Fetch error:", e) }
   }, [namespaces])
 
-  const handleDisconnect = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation()
-    if (!window.confirm("Stop managing this server as a Kubernetes cluster? The server monitoring data will remain.")) return
+  const handleDisconnect = async (id: number) => {
     try {
       await api.post(`/api/servers/${id}/k8s/disconnect`)
+      toast.success('Cluster disconnected', 'This server is no longer managed via Kubernetes.')
+      setConfirmDisconnect(null)
       loadClusters()
-    } catch (e) { console.error(e) }
+    } catch (e: any) {
+      toast.error('Disconnect failed', e.response?.data?.error || 'Could not disconnect')
+      setConfirmDisconnect(null)
+    }
   }
 
-  const handleDelete = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation()
-    if (!window.confirm("PERMANENTLY delete this server and all its data? This cannot be undone.")) return
+  const handleDelete = async (id: number) => {
     try {
       await api.delete(`/api/servers/${id}`)
+      toast.success('Server deleted', 'All node data destroyed.')
+      setConfirmDelete(null)
       loadClusters()
-    } catch (e) { console.error(e) }
+    } catch (e: any) {
+      toast.error('Delete failed', e.response?.data?.error || 'Could not delete server')
+      setConfirmDelete(null)
+    }
   }
 
   const fetchK8sData = useCallback(async (clusterId: number, resource: ResourceType) => {
@@ -266,8 +277,24 @@ export function Kubernetes() {
               <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                  <div className="badge badge-online">Connected</div>
                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button className="btn-icon" title="Disconnect" onClick={(e) => handleDisconnect(e, cluster.id)}><Unlink size={14} /></button>
-                    <button className="btn-icon" title="Delete" onClick={(e) => handleDelete(e, cluster.id)} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
+                    {confirmDisconnect === cluster.id ? (
+                      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11, background: 'var(--warning)', color: '#fff', border: 'none' }} onClick={() => handleDisconnect(cluster.id)}>Confirm</button>
+                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => setConfirmDisconnect(null)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <button className="btn-icon" title="Disconnect" onClick={(e) => { e.stopPropagation(); setConfirmDisconnect(cluster.id) }}><Unlink size={14} /></button>
+                    )}
+                    
+                    {confirmDelete === cluster.id ? (
+                      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11, background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={() => handleDelete(cluster.id)}>Confirm</button>
+                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <button className="btn-icon" title="Delete" onClick={(e) => { e.stopPropagation(); setConfirmDelete(cluster.id) }} style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
+                    )}
+                    
                     <ChevronRight size={16} color="var(--text-muted)" />
                  </div>
               </div>
@@ -414,7 +441,7 @@ export function Kubernetes() {
                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: 16 }}>
-                   <button className="btn btn-secondary" style={{ padding: '6px 12px' }} onClick={() => { navigator.clipboard.writeText(editingYaml.content); alert('Copied to clipboard!') }}>Copy</button>
+                   <button className="btn btn-secondary" style={{ padding: '6px 12px' }} onClick={() => { navigator.clipboard.writeText(editingYaml.content); toast.success('Copied', 'YAML content copied to clipboard.') }}>Copy</button>
                    <button className="btn btn-secondary" onClick={() => setEditingYaml({ ...editingYaml, open: false })}>Cancel</button>
                    <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying...' : 'Save & Apply'}</button>
                 </div>
@@ -560,7 +587,10 @@ function AddClusterModal({ onClose, onSuccess }: any) {
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null)
 
   const testConnection = async () => {
-    if (!form.host || !form.kube_config) return alert('Host and KubeConfig are required for testing')
+    if (!form.host || !form.kube_config) {
+      useToastStore.getState().error('Missing fields', 'Host and KubeConfig are required for testing')
+      return
+    }
     setLoading(true)
     setTestResult(null)
     try {

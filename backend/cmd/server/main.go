@@ -15,6 +15,7 @@ import (
 	"github.com/infra-eye/backend/internal/middleware"
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/seed"
+	wshub "github.com/infra-eye/backend/internal/ws"
 )
 
 func main() {
@@ -109,6 +110,10 @@ func main() {
 		api.DELETE("/healing-actions", middleware.RequireRole("admin"), handlers.ClearHealingHistory)
 	}
 
+	// ── Additional server management endpoints ────────────────
+	api.PATCH("/servers/:id/preferences", middleware.RequireRole("admin", "devops"), handlers.UpdateServerPreferences)
+	api.DELETE("/servers/:id/metrics", middleware.RequireRole("admin", "devops"), handlers.ClearServerMetrics)
+
 	// ── WebSocket routes (auth via query param token) ──────────
 	ws := r.Group("/ws")
 	ws.Use(wsAuthMiddleware())
@@ -117,6 +122,7 @@ func main() {
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
 		ws.GET("/servers/:id/kubectl/pod-terminal", handlers.RunPodTerminal)
+		ws.GET("/alerts", alertsWsHandler)
 	}
 
 	addr := fmt.Sprintf(":%s", config.C.Port)
@@ -162,6 +168,16 @@ func metricsWsHandler(c *gin.Context) {
 	}
 
 	handlers.MetricsWSHandler(conn, id)
+}
+
+// alertsWsHandler subscribes a client to the global alerts room
+func alertsWsHandler(c *gin.Context) {
+	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	if err != nil {
+		return
+	}
+	client := wshub.GlobalHub.Register(conn, "alerts")
+	client.ReadPump(wshub.GlobalHub, nil)
 }
 
 func startMetricsForExistingServers() {

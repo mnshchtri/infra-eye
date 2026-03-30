@@ -113,16 +113,31 @@ func SSHTerminal(c *gin.Context) {
 	}
 	defer wsConn.Close()
 
-	sshClient, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
-	if err != nil {
-		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH connect error: %v\r\n", err)))
-		return
+	// Try to get a session, with one retry if it fails (likely due to a stale connection in the pool)
+	var session *gossh.Session
+	var sshClient *sshclient.Client
+	sshClient, err = sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+	if err == nil {
+		session, err = sshClient.NewSession()
 	}
 
-	session, err := sshClient.NewSession()
 	if err != nil {
-		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH session error: %v\r\n", err)))
-		return
+		log.Printf("⚠️ SSH session failed for server %d, retrying once: %v", server.ID, err)
+		sshclient.Remove(server.ID) // Force removal of potentially stale connection
+		
+		// Wait a tiny bit and retry
+		time.Sleep(500 * time.Millisecond)
+		
+		sshClient, err = sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+		if err != nil {
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH reconnect error: %v\r\n", err)))
+			return
+		}
+		session, err = sshClient.NewSession()
+		if err != nil {
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH session error (retry): %v\r\n", err)))
+			return
+		}
 	}
 	defer session.Close()
 

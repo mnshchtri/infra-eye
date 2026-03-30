@@ -354,3 +354,50 @@ func DiagnoseServer(c *gin.Context) {
 
 	c.JSON(http.StatusAccepted, gin.H{"message": "Diagnostic sequence initiated"})
 }
+
+// UpdateServerPreferences — PATCH /api/servers/:id/preferences
+// Updates display-only fields (name, tags, description) without touching SSH credentials.
+func UpdateServerPreferences(c *gin.Context) {
+	id := c.Param("id")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Tags        string `json:"tags"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	updates["tags"] = req.Tags
+	updates["description"] = req.Description
+
+	if err := db.DB.Model(&server).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update preferences"})
+		return
+	}
+	// Reload and return
+	db.DB.First(&server, id)
+	c.JSON(http.StatusOK, server)
+}
+
+// ClearServerMetrics — DELETE /api/servers/:id/metrics
+// Permanently purges all metric history for a server.
+func ClearServerMetrics(c *gin.Context) {
+	id := c.Param("id")
+	if err := db.DB.Where("server_id = ?", id).Delete(&models.Metric{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to purge metrics"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "metric history purged"})
+}
