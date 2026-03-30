@@ -104,8 +104,17 @@ REDIS_ADDR=localhost:6379
 # JWT
 JWT_SECRET=your-super-secret-key
 
-# AI Features (optional — AI Assistant page requires this)
-OPENAI_API_KEY=sk-...
+# AI Assistant (Google Gemini)
+GEMINI_API_KEY=AIzaSy...
+
+# Database
+DB_DSN=postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable
+
+# Redis
+REDIS_ADDR=localhost:6379
+
+# JWT
+JWT_SECRET=your-super-secret-key
 
 # Server
 PORT=8080

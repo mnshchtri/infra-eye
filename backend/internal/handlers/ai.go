@@ -229,7 +229,7 @@ func mockAIResponse(question string) string {
 			"# Check disk\ndf -h\n"+
 			"# Check failed services\nsystemctl --failed\n"+
 			"%s\n\n"+
-			"> Configure your OpenAI API key in %sbackend/.env%s for intelligent AI-powered analysis.",
+			"> Configure your Gemini API key in %sbackend/.env%s for intelligent AI-powered analysis.",
 		question,
 		backtick, backtick,
 		backtick, backtick,
