@@ -4,13 +4,18 @@ import {
   RefreshCw, FileCode,
   Boxes, ChevronRight, Activity,
   Globe, X, Terminal,
-  List, Zap, Trash2, Unlink
+  List, Zap, Trash2, Unlink,
+  Shield, Key, Lock, HardDrive,
+  Database, Gauge, Cpu, Layers,
+  ChevronDown, ChevronUp
 } from 'lucide-react'
 import { api, buildWsUrl } from '../api/client'
+import CodeEditor from '@uiw/react-textarea-code-editor'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useToastStore } from '../store/toastStore'
+import { usePermission } from '../hooks/usePermission'
 
 interface Cluster {
   id: number;
@@ -19,7 +24,23 @@ interface Cluster {
   kube_config?: string;
 }
 
-type ResourceType = 'pulse' | 'nodes' | 'pods' | 'deployments' | 'services' | 'events' | 'yaml';
+interface PortForwardSession {
+  id: string
+  target: string
+  namespace: string
+  local_port: number
+  remote_port: number
+  pid: string
+  created_at: string
+}
+
+type ResourceType = 
+  | 'pulse' | 'nodes' | 'pods' | 'deployments' | 'daemonsets' | 'statefulsets' | 'replicasets' | 'jobs' | 'cronjobs'
+  | 'configmaps' | 'secrets' | 'resourcequotas' | 'hpa'
+  | 'services' | 'endpoints' | 'ingresses' | 'networkpolicies'
+  | 'pvcs' | 'pvs' | 'storageclasses'
+  | 'serviceaccounts' | 'roles' | 'clusterroles' | 'rolebindings' | 'clusterrolebindings'
+  | 'events' | 'yaml';
 
 export function Kubernetes() {
   const [clusters, setClusters] = useState<Cluster[]>([])
@@ -31,6 +52,8 @@ export function Kubernetes() {
   const [yamlConfig, setYamlConfig] = useState('')
   const [showAddCluster, setShowAddCluster] = useState(false)
   const toast = useToastStore()
+  const { can } = usePermission()
+  const canUseKubectl = can('use-kubectl')
   
   const [confirmDisconnect, setConfirmDisconnect] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
@@ -61,6 +84,20 @@ export function Kubernetes() {
   const cmdInputRef = useRef<HTMLInputElement>(null)
   const [cmdError, setCmdError] = useState(false)
   
+  // Sidebar expanded categories
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
+    cluster: true,
+    workloads: true,
+    config: false,
+    network: false,
+    storage: false,
+    rbac: false
+  })
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }))
+  }
+  
   const filteredData = data.filter((item: any) => {
     if (!filterQuery) return true;
     const name = item.metadata?.name?.toLowerCase() || '';
@@ -73,7 +110,9 @@ export function Kubernetes() {
   }, [activeRes, selectedNS, filterQuery])
 
   // K9s Logic - Terminal/Logs Drawer
-  const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; pod?: string; ns?: string } | null>(null)
+  const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; pod?: string; ns?: string; container?: string } | null>(null)
+  const [showPortForward, setShowPortForward] = useState(false)
+  const [portForwards, setPortForwards] = useState<PortForwardSession[]>([])
 
   const handleDeleteResource = async (item: any) => {
     if (!selectedCluster) return;
@@ -150,11 +189,15 @@ export function Kubernetes() {
              const item = filteredData[selectedIndex];
              setDrawer({ open: true, mode: 'logs', pod: item.metadata.name, ns: item.metadata.namespace, container: item.spec?.containers?.[0]?.name })
          }
-         else if (e.key === 's' && activeRes === 'pods') {
+        else if (e.key === 's' && activeRes === 'pods' && canUseKubectl) {
              e.preventDefault()
              const item = filteredData[selectedIndex];
              setDrawer({ open: true, mode: 'shell', pod: item.metadata.name, ns: item.metadata.namespace, container: item.spec?.containers?.[0]?.name })
          }
+        else if (e.key.toLowerCase() === 'f' && e.shiftKey && canUseKubectl) {
+            e.preventDefault()
+            setShowPortForward(true)
+        }
          else if (e.key === 'd') {
              e.preventDefault()
              const item = filteredData[selectedIndex];
@@ -164,7 +207,7 @@ export function Kubernetes() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showCommandBar, activeRes, filteredData, selectedIndex, selectedCluster, editingYaml.open, drawer?.open])
+  }, [showCommandBar, activeRes, filteredData, selectedIndex, selectedCluster, editingYaml.open, drawer?.open, canUseKubectl])
 
   async function loadClusters() {
     try {
@@ -287,6 +330,20 @@ export function Kubernetes() {
     }
   }, [selectedCluster, activeRes, selectedNS])
 
+  const fetchPortForwards = useCallback(async () => {
+    if (!selectedCluster || !canUseKubectl) return
+    try {
+      const res = await api.get(`/api/servers/${selectedCluster.id}/kubectl/port-forward`)
+      setPortForwards(res.data.sessions || [])
+    } catch (e: any) {
+      toast.error('Port-forward list failed', e.response?.data?.error || 'Unable to load sessions')
+    }
+  }, [selectedCluster, canUseKubectl, toast])
+
+  useEffect(() => {
+    if (showPortForward) fetchPortForwards()
+  }, [showPortForward, fetchPortForwards])
+
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const input = commandInput.trim().toLowerCase()
@@ -298,12 +355,27 @@ export function Kubernetes() {
        else if (namespaces.includes(ns)) setSelectedNS(ns)
     } else {
        const routes: Record<string, ResourceType> = {
-         'p': 'pods', 'po': 'pods', 'pods': 'pods', 'pod': 'pods',
-         'n': 'nodes', 'no': 'nodes', 'nodes': 'nodes', 'node': 'nodes',
-         'd': 'deployments', 'dp': 'deployments', 'deploy': 'deployments', 'deployments': 'deployments',
-         's': 'services', 'svc': 'services', 'services': 'services', 'service': 'services',
-         'e': 'events', 'ev': 'events', 'events': 'events', 'pulse': 'pulse', 'y': 'yaml'
-       }
+          'p': 'pods', 'po': 'pods', 'pods': 'pods', 'pod': 'pods',
+          'n': 'nodes', 'no': 'nodes', 'nodes': 'nodes', 'node': 'nodes',
+          'd': 'deployments', 'dp': 'deployments', 'deploy': 'deployments', 'deployments': 'deployments',
+          'ds': 'daemonsets', 'daemonset': 'daemonsets',
+          'sts': 'statefulsets', 'statefulset': 'statefulsets',
+          'rs': 'replicasets', 'replicaset': 'replicasets',
+          'job': 'jobs', 'jobs': 'jobs',
+          'cj': 'cronjobs', 'cronjob': 'cronjobs',
+          'cm': 'configmaps', 'configmap': 'configmaps',
+          'sec': 'secrets', 'secret': 'secrets',
+          'rq': 'resourcequotas', 'quota': 'resourcequotas',
+          'hpa': 'hpa',
+          's': 'services', 'svc': 'services', 'services': 'services', 'service': 'services',
+          'ep': 'endpoints', 'endpoint': 'endpoints',
+          'ing': 'ingresses', 'ingress': 'ingresses',
+          'np': 'networkpolicies', 'netpol': 'networkpolicies',
+          'pvc': 'pvcs', 'pv': 'pvs', 'sc': 'storageclasses',
+          'sa': 'serviceaccounts', 'role': 'roles', 'crole': 'clusterroles',
+          'rb': 'rolebindings', 'crb': 'clusterrolebindings',
+          'e': 'events', 'ev': 'events', 'events': 'events', 'pulse': 'pulse', 'y': 'yaml'
+        }
        if (routes[input]) {
            setActiveRes(routes[input])
            setCmdError(false)
@@ -446,27 +518,74 @@ export function Kubernetes() {
       {/* Floating Overlays */}
       {showAddCluster && <AddClusterModal onClose={() => setShowAddCluster(false)} onSuccess={loadClusters} />}
 
-      {/* Internal Sidebar - Light Palette */}
-      <div style={{ width: 220, background: '#fff', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 8px' }}>
-        <div style={{ padding: '0 12px 24px', display: 'flex', alignItems: 'center', gap: 10 }}>
-           <button className="btn-icon" onClick={() => setSelectedCluster(null)}><ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} /></button>
-           <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)' }}>{selectedCluster.name}</span>
+      {/* Internal Sidebar - Lens Style */}
+      <div style={{ width: 240, background: '#fff', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden' }}>
+        <div style={{ padding: '16px 12px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)' }}>
+           <button className="btn-icon" onClick={() => setSelectedCluster(null)} style={{ padding: 4 }}>
+             <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
+           </button>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10 }}>
+                {selectedCluster.name.substring(0, 2).toUpperCase()}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
+                  {selectedCluster.name}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Kubernetes Cluster</span>
+              </div>
+           </div>
         </div>
 
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
-          <ResNavLink active={activeRes === 'pulse'} onClick={() => setActiveRes('pulse')} icon={Activity} label="Pulse" />
+        <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }} className="k8s-sidebar-nav">
+          <ResNavLink active={activeRes === 'pulse'} onClick={() => setActiveRes('pulse')} icon={Activity} label="Pulse Dashboard" />
           
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '20px 14px 8px', letterSpacing: '0.08em' }}>Workloads</div>
-          <ResNavLink active={activeRes === 'nodes'} onClick={() => setActiveRes('nodes')} icon={Server} label="Nodes" />
-          <ResNavLink active={activeRes === 'pods'} onClick={() => setActiveRes('pods')} icon={Boxes} label="Pods" />
-          <ResNavLink active={activeRes === 'deployments'} onClick={() => setActiveRes('deployments')} icon={LayoutGrid} label="Deployments" />
-          
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '20px 14px 8px', letterSpacing: '0.08em' }}>Networking</div>
-          <ResNavLink active={activeRes === 'services'} onClick={() => setActiveRes('services')} icon={Globe} label="Services" />
-          
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '20px 14px 8px', letterSpacing: '0.08em' }}>Configuration</div>
-          <ResNavLink active={activeRes === 'events'} onClick={() => setActiveRes('events')} icon={List} label="Events" />
-          <ResNavLink active={activeRes === 'yaml'} onClick={() => setActiveRes('yaml')} icon={FileCode} label="Raw Config" />
+          <NavCategory label="Cluster" icon={Gauge} isOpen={expandedCats.cluster} onToggle={() => toggleCategory('cluster')}>
+            <ResNavLink active={activeRes === 'nodes'} onClick={() => setActiveRes('nodes')} icon={Server} label="Nodes" isSub />
+            <ResNavLink active={activeRes === 'events'} onClick={() => setActiveRes('events')} icon={List} label="Events" isSub />
+          </NavCategory>
+
+          <NavCategory label="Workloads" icon={Layers} isOpen={expandedCats.workloads} onToggle={() => toggleCategory('workloads')}>
+            <ResNavLink active={activeRes === 'pods'} onClick={() => setActiveRes('pods')} icon={Boxes} label="Pods" isSub />
+            <ResNavLink active={activeRes === 'deployments'} onClick={() => setActiveRes('deployments')} icon={LayoutGrid} label="Deployments" isSub />
+            <ResNavLink active={activeRes === 'daemonsets'} onClick={() => setActiveRes('daemonsets')} icon={Cpu} label="DaemonSets" isSub />
+            <ResNavLink active={activeRes === 'statefulsets'} onClick={() => setActiveRes('statefulsets')} icon={Database} label="StatefulSets" isSub />
+            <ResNavLink active={activeRes === 'replicasets'} onClick={() => setActiveRes('replicasets')} icon={Layers} label="ReplicaSets" isSub />
+            <ResNavLink active={activeRes === 'jobs'} onClick={() => setActiveRes('jobs')} icon={Activity} label="Jobs" isSub />
+            <ResNavLink active={activeRes === 'cronjobs'} onClick={() => setActiveRes('cronjobs')} icon={Activity} label="CronJobs" isSub />
+          </NavCategory>
+
+          <NavCategory label="Config" icon={Lock} isOpen={expandedCats.config} onToggle={() => toggleCategory('config')}>
+            <ResNavLink active={activeRes === 'configmaps'} onClick={() => setActiveRes('configmaps')} icon={FileCode} label="ConfigMaps" isSub />
+            <ResNavLink active={activeRes === 'secrets'} onClick={() => setActiveRes('secrets')} icon={Key} label="Secrets" isSub />
+            <ResNavLink active={activeRes === 'resourcequotas'} onClick={() => setActiveRes('resourcequotas')} icon={Shield} label="ResourceQuotas" isSub />
+            <ResNavLink active={activeRes === 'hpa'} onClick={() => setActiveRes('hpa')} icon={Activity} label="HPA" isSub />
+          </NavCategory>
+
+          <NavCategory label="Network" icon={Globe} isOpen={expandedCats.network} onToggle={() => toggleCategory('network')}>
+            <ResNavLink active={activeRes === 'services'} onClick={() => setActiveRes('services')} icon={Globe} label="Services" isSub />
+            <ResNavLink active={activeRes === 'endpoints'} onClick={() => setActiveRes('endpoints')} icon={List} label="Endpoints" isSub />
+            <ResNavLink active={activeRes === 'ingresses'} onClick={() => setActiveRes('ingresses')} icon={Globe} label="Ingresses" isSub />
+            <ResNavLink active={activeRes === 'networkpolicies'} onClick={() => setActiveRes('networkpolicies')} icon={Shield} label="NetworkPolicies" isSub />
+          </NavCategory>
+
+          <NavCategory label="Storage" icon={HardDrive} isOpen={expandedCats.storage} onToggle={() => toggleCategory('storage')}>
+            <ResNavLink active={activeRes === 'pvcs'} onClick={() => setActiveRes('pvcs')} icon={Database} label="PVCs" isSub />
+            <ResNavLink active={activeRes === 'pvs'} onClick={() => setActiveRes('pvs')} icon={Database} label="PVs" isSub />
+            <ResNavLink active={activeRes === 'storageclasses'} onClick={() => setActiveRes('storageclasses')} icon={HardDrive} label="StorageClasses" isSub />
+          </NavCategory>
+
+          <NavCategory label="Access Control" icon={Shield} isOpen={expandedCats.rbac} onToggle={() => toggleCategory('rbac')}>
+            <ResNavLink active={activeRes === 'serviceaccounts'} onClick={() => setActiveRes('serviceaccounts')} icon={Server} label="ServiceAccounts" isSub />
+            <ResNavLink active={activeRes === 'clusterroles'} onClick={() => setActiveRes('clusterroles')} icon={Lock} label="ClusterRoles" isSub />
+            <ResNavLink active={activeRes === 'roles'} onClick={() => setActiveRes('roles')} icon={Lock} label="Roles" isSub />
+            <ResNavLink active={activeRes === 'clusterrolebindings'} onClick={() => setActiveRes('clusterrolebindings')} icon={Lock} label="CRB" isSub />
+            <ResNavLink active={activeRes === 'rolebindings'} onClick={() => setActiveRes('rolebindings')} icon={Lock} label="RoleBindings" isSub />
+          </NavCategory>
+
+          <div style={{ marginTop: 12 }}>
+            <ResNavLink active={activeRes === 'yaml'} onClick={() => setActiveRes('yaml')} icon={FileCode} label="Raw Configuration" />
+          </div>
         </nav>
       </div>
 
@@ -480,7 +599,12 @@ export function Kubernetes() {
            </div>
            
            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>PRESS <kbd style={{ background: '#f1f5f9', padding: '2px 4px', border: '1px solid #e2e8f0', borderRadius: 4 }}>:</kbd> FOR CLI</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>PRESS <kbd style={{ background: '#f1f5f9', padding: '2px 4px', border: '1px solid #e2e8f0', borderRadius: 4 }}>:</kbd> FOR CLI {canUseKubectl ? ' • SHIFT+F for Port Forward' : ''}</div>
+              {canUseKubectl && (
+                <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setShowPortForward(true)}>
+                  Port Forward
+                </button>
+              )}
               
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 12px', borderRadius: 8, border: '1px solid var(--brand-primary)40' }}>
                  <Globe size={14} color="var(--brand-primary)" />
@@ -527,7 +651,7 @@ export function Kubernetes() {
             </div>
           )}
           {activeRes === 'pulse' && <PulseDashboard cluster={selectedCluster} stats={stats} error={pulseError} connecting={connecting} onJump={(r: ResourceType) => setActiveRes(r)} onResync={() => watchK8sData(selectedCluster.id, activeRes)} />}
-          {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+          {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version', 'Internal-IP']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
              actions={(n: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('node', n.metadata.name)}><FileCode size={14} /></button>} 
           />}
           {activeRes === 'pods' && <KTable 
@@ -539,15 +663,47 @@ export function Kubernetes() {
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('pod', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
                   <button className="btn-icon" title="Logs" onClick={() => setDrawer({ open: true, mode: 'logs', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><List size={14} /></button>
-                  <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><Terminal size={14} /></button>
+                  {canUseKubectl && (
+                    <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><Terminal size={14} /></button>
+                  )}
                 </>
              )}
           />}
-          {activeRes === 'deployments' && <KTable columns={['Name', 'Namespace', 'Ready', 'Available']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
-             actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('deployment', d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
+          {['deployments', 'daemonsets', 'statefulsets', 'replicasets'].includes(activeRes) && <KTable columns={['Name', 'Namespace', 'Ready', 'Available', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
           />}
-          {activeRes === 'services' && <KTable columns={['Name', 'Namespace', 'Type', 'Cluster-IP']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+          {['jobs', 'cronjobs'].includes(activeRes) && <KTable columns={['Name', 'Namespace', 'Status', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {['configmaps', 'secrets', 'resourcequotas', 'serviceaccounts'].includes(activeRes) && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'hpa' && <KTable columns={['Name', 'Namespace', 'Targets', 'MinPods', 'MaxPods', 'Replicas']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('horizontalpodautoscaler', d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'services' && <KTable columns={['Name', 'Namespace', 'Type', 'Cluster-IP', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
              actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('service', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'endpoints' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('endpoints', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'ingresses' && <KTable columns={['Name', 'Namespace', 'Hosts', 'Address', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('ingress', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'networkpolicies' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('networkpolicy', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'pvcs' && <KTable columns={['Name', 'Namespace', 'Status', 'Volume', 'Capacity', 'AccessModes', 'StorageClass', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('persistentvolumeclaim', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'pvs' && <KTable columns={['Name', 'Capacity', 'AccessModes', 'ReclaimPolicy', 'Status', 'Claim', 'StorageClass', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('persistentvolume', s.metadata.name)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'storageclasses' && <KTable columns={['Name', 'Provisioner', 'ReclaimPolicy', 'VolumeBindingMode', 'AllowVolumeExpansion', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('storageclass', s.metadata.name)}><FileCode size={14} /></button>}
+          />}
+          {['roles', 'clusterroles', 'rolebindings', 'clusterrolebindings'].includes(activeRes) && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
+             actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
           />}
           {activeRes === 'events' && <KTable columns={['Type', 'Reason', 'Object', 'Message', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} />}
           {activeRes === 'yaml' && <ConfigViewer content={yamlConfig} onChange={setYamlConfig} />}
@@ -559,7 +715,16 @@ export function Kubernetes() {
         </main>
       </div>
 
-      {drawer?.open && (
+      {showPortForward && selectedCluster && canUseKubectl && (
+        <PortForwardModal
+          serverID={selectedCluster.id}
+          sessions={portForwards}
+          onClose={() => setShowPortForward(false)}
+          onRefresh={fetchPortForwards}
+        />
+      )}
+
+      {drawer?.open && canUseKubectl && (
         <TerminalPortal 
           serverID={selectedCluster.id} 
           pod={drawer.pod!} 
@@ -611,9 +776,19 @@ export function Kubernetes() {
       )}
 
       <style>{`
-        .res-nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); }
-        .res-nav-link:hover { background: #f8fafc; color: var(--text-primary); }
-        .res-nav-link.active { background: var(--brand-glow); color: var(--brand-primary); }
+        .res-nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); margin-bottom: 2px; }
+        .res-nav-link:hover { background: #f1f5f9; color: var(--text-primary); }
+        .res-nav-link.active { background: var(--brand-glow); color: var(--brand-primary); box-shadow: 0 4px 12px -4px var(--brand-primary)40; }
+        .res-nav-link.sub { padding: 8px 12px 8px 36px; font-size: 12px; font-weight: 500; opacity: 0.8; }
+        .res-nav-link.sub:hover { opacity: 1; }
+        .res-nav-link.sub.active { opacity: 1; font-weight: 700; background: var(--brand-primary)08; }
+        
+        .nav-cat { margin-bottom: 4px; }
+        .nav-cat-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background 0.15s; color: var(--text-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .nav-cat-header:hover { background: #f8fafc; color: var(--text-primary); }
+        .nav-cat-header.open { color: var(--text-primary); }
+        .nav-cat-body { padding-left: 4px; border-left: 1px solid #f1f5f9; margin-left: 18px; margin-top: 2px; margin-bottom: 8px; }
+
         .k-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
         .k-table th { text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; background: #fafafa; border-bottom: 2px solid var(--border); letter-spacing: 0.05em; }
         .k-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; vertical-align: middle; }
@@ -627,11 +802,30 @@ export function Kubernetes() {
   )
 }
 
-function ResNavLink({ active, onClick, icon: Icon, label }: any) {
+function ResNavLink({ active, onClick, icon: Icon, label, isSub }: any) {
   return (
-    <div className={`res-nav-link ${active ? 'active' : ''}`} onClick={onClick}>
-      <Icon size={16} />
+    <div className={`res-nav-link ${active ? 'active' : ''} ${isSub ? 'sub' : ''}`} onClick={onClick}>
+      <Icon size={isSub ? 13 : 15} strokeWidth={active ? 2.5 : 1.5} />
       <span>{label}</span>
+    </div>
+  )
+}
+
+function NavCategory({ label, icon: Icon, children, isOpen, onToggle }: any) {
+  return (
+    <div className="nav-cat">
+      <div className={`nav-cat-header ${isOpen ? 'open' : ''}`} onClick={onToggle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Icon size={14} strokeWidth={1.5} color="var(--text-muted)" />
+          <span>{label}</span>
+        </div>
+        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </div>
+      {isOpen && (
+        <div className="nav-cat-body fade-down">
+          {children}
+        </div>
+      )}
     </div>
   )
 }
@@ -719,12 +913,31 @@ function KTable({ columns, data, actions, selectedIndex, loading }: any) {
       case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
       case 'role': return item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'control-plane' : 'worker');
       case 'version': return item.status?.nodeInfo?.kubeletVersion;
-      case 'ready': return `${item.status?.readyReplicas || 0}/${item.spec?.replicas || 0}`;
-      case 'available': return item.status?.availableReplicas || 0;
+      case 'ready': return `${item.status?.readyReplicas || item.status?.numberReady || 0}/${item.spec?.replicas || item.status?.desiredNumberScheduled || 0}`;
+      case 'available': return item.status?.availableReplicas || item.status?.numberAvailable || 0;
       case 'type': return item.type || item.spec?.type || '—';
       case 'reason': return item.reason || '—';
       case 'object': return item.involvedObject ? `${item.involvedObject.kind}/${item.involvedObject.name}` : '—';
       case 'message': return item.message || '—';
+      case 'targets': {
+         const current = item.status?.currentCPUUtilizationPercentage ?? '?';
+         const target = item.spec?.targetCPUUtilizationPercentage ?? '?';
+         return `${current}% / ${target}%`;
+      }
+      case 'minpods': return item.spec?.minReplicas ?? 0;
+      case 'maxpods': return item.spec?.maxReplicas ?? 0;
+      case 'replicas': return item.status?.currentReplicas ?? 0;
+      case 'hosts': return item.spec?.rules?.[0]?.host || '—';
+      case 'address': return item.status?.loadBalancer?.ingress?.[0]?.ip || item.status?.loadBalancer?.ingress?.[0]?.hostname || '—';
+      case 'volume': return item.spec?.volumeName || '—';
+      case 'capacity': return item.status?.capacity?.storage || item.spec?.resources?.requests?.storage || '—';
+      case 'accessmodes': return item.spec?.accessModes?.join(', ') || '—';
+      case 'storageclass': return item.spec?.storageClassName || '—';
+      case 'claim': return item.spec?.claimRef ? `${item.spec.claimRef.namespace}/${item.spec.claimRef.name}` : '—';
+      case 'reclaimpolicy': return item.spec?.persistentVolumeReclaimPolicy || item.reclaimPolicy || '—';
+      case 'provisioner': return item.provisioner || '—';
+      case 'volumebindingmode': return item.volumeBindingMode || '—';
+      case 'allowvolumeexpansion': return item.allowVolumeExpansion ? 'True' : 'False';
       case 'age': {
           if (!item.lastTimestamp && !item.creationTimestamp) return '—';
           const ts = new Date(item.lastTimestamp || item.creationTimestamp).getTime();
@@ -894,29 +1107,98 @@ function ConfigViewer({ content, onChange, fullPage }: any) {
       position: 'relative', 
       overflow: 'hidden' 
     }}>
-       <textarea 
-         className="input"
-         value={content}
-         onChange={e => onChange(e.target.value)}
-         spellCheck={false}
-         style={{ 
-            width: '100%', 
-            height: '100%', 
-            border: 'none', 
-            background: 'transparent', 
-            color: 'var(--text-primary)',
-            caretColor: 'var(--brand-primary)',
-            fontFamily: '"JetBrains Mono", monospace', 
-            fontSize: 13, 
-            lineHeight: 1.6,
-            padding: 32, 
-            resize: 'none', 
-            position: 'relative', 
-            zIndex: 1,
-            outline: 'none',
-            boxShadow: 'none'
-         }}
-       />
+      <CodeEditor
+        value={content}
+        language="yaml"
+        placeholder="Write or paste Kubernetes manifest YAML..."
+        onChange={(evn) => onChange(evn.target.value)}
+        padding={16}
+        data-color-mode="light"
+        style={{
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 13,
+          backgroundColor: 'transparent',
+          minHeight: '100%',
+          overflow: 'auto'
+        }}
+      />
+    </div>
+  )
+}
+
+function PortForwardModal({ serverID, sessions, onClose, onRefresh }: any) {
+  const toast = useToastStore()
+  const [form, setForm] = useState({ namespace: 'default', target: '', local_port: '', remote_port: '' })
+  const [busy, setBusy] = useState(false)
+
+  const createPortForward = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await api.post(`/api/servers/${serverID}/kubectl/port-forward`, {
+        namespace: form.namespace,
+        target: form.target,
+        local_port: Number(form.local_port),
+        remote_port: Number(form.remote_port)
+      })
+      toast.success('Port forward started', `${form.target} ${form.local_port}:${form.remote_port}`)
+      setForm((prev: any) => ({ ...prev, target: '', local_port: '', remote_port: '' }))
+      onRefresh()
+    } catch (e: any) {
+      toast.error('Port-forward failed', e.response?.data?.error || 'Unable to start port-forward')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const stopPortForward = async (id: string) => {
+    try {
+      await api.delete(`/api/servers/${serverID}/kubectl/port-forward/${id}`)
+      toast.success('Port forward stopped', `Session ${id} terminated`)
+      onRefresh()
+    } catch (e: any) {
+      toast.error('Stop failed', e.response?.data?.error || 'Unable to stop port-forward')
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(2px)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="card fade-up" style={{ width: 760, maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ margin: 0 }}>Kubernetes Port Forward Manager</h3>
+          <button className="btn-icon" onClick={onClose}><X size={16} /></button>
+        </div>
+        <form onSubmit={createPortForward} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr auto', gap: 10, marginBottom: 16 }}>
+          <input className="input" placeholder="Namespace" value={form.namespace} onChange={(e) => setForm({ ...form, namespace: e.target.value })} required />
+          <input className="input" placeholder="Target (svc/my-service or pod/my-pod)" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required />
+          <input className="input" placeholder="Local" value={form.local_port} onChange={(e) => setForm({ ...form, local_port: e.target.value })} required />
+          <input className="input" placeholder="Remote" value={form.remote_port} onChange={(e) => setForm({ ...form, remote_port: e.target.value })} required />
+          <button className="btn btn-primary" disabled={busy}>{busy ? 'Starting...' : 'Start'}</button>
+        </form>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          <table className="k-table">
+            <thead>
+              <tr>
+                <th>Target</th><th>Namespace</th><th>Ports</th><th>PID</th><th>Started</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sessions.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>No active port forwards</td></tr>
+              ) : sessions.map((s: PortForwardSession) => (
+                <tr key={s.id}>
+                  <td>{s.target}</td>
+                  <td>{s.namespace}</td>
+                  <td>{s.local_port}:{s.remote_port}</td>
+                  <td>{s.pid}</td>
+                  <td>{new Date(s.created_at).toLocaleString()}</td>
+                  <td><button className="btn btn-secondary" style={{ padding: '4px 10px' }} onClick={() => stopPortForward(s.id)}>Stop</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
@@ -930,27 +1212,44 @@ function TerminalPortal({ serverID, pod, namespace, container, mode, onClose }: 
     term.loadAddon(fitAddon)
     term.open(terminalRef.current)
     fitAddon.fit()
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const containerParam = container ? `&container=${container}` : ''
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/servers/${serverID}/kubectl/pod-terminal?pod=${pod}&namespace=${namespace}&mode=${mode}${containerParam}&token=${localStorage.getItem('token')}`)
+    const params = new URLSearchParams({
+      pod,
+      namespace,
+      mode,
+    })
+    if (container) params.set('container', container)
+    const ws = new WebSocket(buildWsUrl(`/ws/servers/${serverID}/kubectl/pod-terminal?${params.toString()}`))
     ws.onmessage = (ev) => {
         if (typeof ev.data === 'string') { term.write(ev.data) }
         else { ev.data.arrayBuffer().then((buf: any) => term.write(new Uint8Array(buf))) }
     }
-    term.onData((data) => ws.send(data))
+    ws.onerror = () => {
+      term.writeln('\r\n[infra-eye] websocket error while opening pod stream.\r\n')
+    }
+    ws.onclose = () => {
+      term.writeln('\r\n[infra-eye] pod stream closed.\r\n')
+    }
+    // Logs streams are read-only; shell streams are interactive.
+    if (mode === 'shell') {
+      term.onData((data) => ws.send(data))
+    }
     return () => { ws.close(); term.dispose(); }
   }, [serverID, pod, namespace, container, mode])
 
   return (
-    <div className="fade-in" style={{ position: 'fixed', right: 0, top: 0, width: '45vw', height: '100vh', background: '#fff', borderLeft: '1px solid var(--border)', zIndex: 1200, display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
-       <div style={{ height: 50, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', background: '#f8fafc' }}>
+    <div className="fade-up" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: '38vh', minHeight: 260, maxHeight: '60vh', background: '#fff', borderTop: '1px solid var(--border)', zIndex: 1200, display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
+       <div style={{ height: 46, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#f8fafc' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
              <Terminal size={14} color="var(--brand-primary)" />
-             <span style={{ fontSize: 12, fontWeight: 700 }}>POD {mode.toUpperCase()}: {pod}</span>
+             <span style={{ fontSize: 12, fontWeight: 700 }}>POD {mode.toUpperCase()} • {namespace}/{pod}</span>
+             <span className="badge badge-online" style={{ fontSize: 10 }}>LIVE</span>
           </div>
-          <button onClick={onClose}><X size={16} color="var(--text-muted)" /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Esc to close</span>
+            <button onClick={onClose}><X size={16} color="var(--text-muted)" /></button>
+          </div>
        </div>
-       <div ref={terminalRef} style={{ flex: 1, padding: 20, background: '#0f172a' }} />
+       <div ref={terminalRef} style={{ flex: 1, padding: 10, background: '#0f172a' }} />
     </div>
   )
 }

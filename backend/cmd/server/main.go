@@ -93,6 +93,9 @@ func main() {
 		api.POST("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectl)
 		api.DELETE("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.DeleteKubectl)
 		api.POST("/servers/:id/kubectl/apply", middleware.RequireRole("admin", "devops"), handlers.ApplyKubectl)
+		api.POST("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.StartPortForward)
+		api.GET("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.ListPortForwards)
+		api.DELETE("/servers/:id/kubectl/port-forward/:sessionId", middleware.RequireRole("admin", "devops"), handlers.StopPortForward)
 		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
 
 		// ── AI ────────────────────────────────────────────────────
@@ -127,8 +130,8 @@ func main() {
 		ws.GET("/servers/:id/logs", handlers.StreamLogs)
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
-		ws.GET("/servers/:id/kubectl/pod-terminal", handlers.RunPodTerminal)
-		ws.GET("/servers/:id/k8s/watch", handlers.WatchKubectl)
+		ws.GET("/servers/:id/kubectl/pod-terminal", middleware.RequireRole("admin", "devops"), handlers.RunPodTerminal)
+		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
 	}
 
