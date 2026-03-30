@@ -4,7 +4,8 @@ import {
   ArrowLeft, Cpu, MemoryStick, HardDrive, Activity,
   ScrollText, Terminal as TerminalIcon, Boxes, RefreshCw, Wifi, Shield,
   Search, Download, Power, Settings as SettingsIcon, Loader2,
-  ChevronRight, Gauge, Layers, Server, ArrowRight, Info, Apple, HelpCircle
+  ChevronRight, Gauge, Layers, Server, ArrowRight, Info, Apple, HelpCircle,
+  Trash2, Maximize2, Minimize2
 } from 'lucide-react'
 import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
 import {
@@ -50,10 +51,12 @@ export function ServerDetail() {
   const [kubectlOutput, setKubectlOutput] = useState('')
   const [kubectlLoading, setKubectlLoading] = useState(false)
   const [rebooting, setRebooting] = useState(false)
+  const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const logWsRef = useRef<WebSocket | null>(null)
   const xtermRef = useRef<any>(null)
+  const fitAddonRef = useRef<any>(null)
 
   useEffect(() => {
     loadServer()
@@ -149,6 +152,7 @@ export function ServerDetail() {
     xterm.open(terminalRef.current!)
     fitAddon.fit()
     xtermRef.current = xterm
+    fitAddonRef.current = fitAddon
 
     const ws = new WebSocket(buildWsUrl(`/ws/servers/${id}/terminal`))
     logWsRef.current = ws
@@ -168,6 +172,15 @@ export function ServerDetail() {
     })
   }
 
+  function toggleTerminalFullscreen() {
+    setIsTerminalFullscreen(!isTerminalFullscreen)
+    // Delay fit by one event loop cycle to allow CSS to apply
+    setTimeout(() => {
+      fitAddonRef.current?.fit()
+      xtermRef.current?.focus()
+    }, 50)
+  }
+
   async function runKubectl() {
     if (!kubectlCmd.trim()) return
     setKubectlLoading(true)
@@ -178,6 +191,29 @@ export function ServerDetail() {
       setKubectlOutput(e.response?.data?.error || 'Command failed')
     } finally {
       setKubectlLoading(false)
+    }
+  }
+
+  async function runDiagnostics() {
+    if (!confirm('Run system diagnostics? This will generate real-time logs for connectivity, disk, memory, and services.')) return
+    try {
+      await api.post(`/api/servers/${id}/diagnose`)
+      // The logs will flow in via WebSocket/room broadcast automatically, 
+      // but we signal that it started.
+    } catch (err: any) {
+      console.error('Diagnostic trigger failed:', err)
+      const errorMsg = err.response?.data?.error || err.message || 'Unknown error'
+      alert(`Diagnostic trigger failed: ${errorMsg}`)
+    }
+  }
+
+  async function clearLogs() {
+    if (!confirm('Are you sure you want to delete all historical logs for this server? This action cannot be undone.')) return
+    try {
+      await api.delete(`/api/servers/${id}/logs`)
+      setLogs([]) // Clear local state immediately
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to clear logs')
     }
   }
 
@@ -431,26 +467,41 @@ export function ServerDetail() {
                 </div>
                 <span style={{ fontWeight: 800, fontSize: 14 }}>Log Explorer</span>
               </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                 <div className="search-box" style={{ position: 'relative' }}>
-                   <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                   <input className="input" placeholder="Search logs…" value={logSearch} 
-                    onChange={e => setLogSearch(e.target.value)} 
-                    style={{ paddingLeft: 34, height: 36, fontSize: 13, minWidth: 280, background: '#fff' }} />
-                 </div>
-                 <button className="btn btn-secondary" onClick={loadLogs} style={{ height: 36, fontSize: 12 }}><RefreshCw size={14} /></button>
-                 <button className="btn btn-secondary" style={{ height: 36, fontSize: 12 }}><Download size={14} /></button>
-              </div>
+               <div style={{ display: 'flex', gap: 12 }}>
+                  <div className="search-box" style={{ position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input className="input" placeholder="Search logs…" value={logSearch} 
+                     onChange={e => setLogSearch(e.target.value)} 
+                     style={{ paddingLeft: 34, height: 36, fontSize: 13, minWidth: 280, background: '#fff' }} />
+                  </div>
+                  <button className="btn btn-secondary" onClick={runDiagnostics} style={{ height: 36, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 'bold' }}>
+                    <Activity size={14} color="var(--brand-primary)" /> Run Diagnostics
+                  </button>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={clearLogs} 
+                    style={{ height: 36, fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger-glow)' }}
+                    title="Clear Historical Logs"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button className="btn btn-secondary" onClick={loadLogs} style={{ height: 36, fontSize: 12 }}><RefreshCw size={14} /></button>
+                  <button className="btn btn-secondary" style={{ height: 36, fontSize: 12 }}><Download size={14} /></button>
+               </div>
             </div>
             
-            <div className="log-viewer" style={{ border: 'none', borderRadius: 0, height: 500, background: '#0a0c12' }}>
+            <div className="log-viewer" style={{ border: 'none', borderRadius: 0, height: 500, background: '#0a101f', overflowY: 'auto' }}>
               {filteredLogs.length === 0
                 ? <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>No log entries matching your criteria</div>
                 : filteredLogs.map(log => (
-                  <div key={log.id} className={`log-line log-${log.level}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <span className="log-ts">{format(new Date(log.timestamp), 'HH:mm:ss.SSS')}</span>
-                    <span className={`log-badge log-badge-${log.level}`} style={{ borderRadius: 4, width: 'auto', padding: '0 8px', fontSize: 10, fontWeight: 900 }}>{log.level.toUpperCase()}</span>
-                    <span className="log-msg" style={{ fontFamily: '"JetBrains Mono", monospace', opacity: 0.9 }}>{log.message}</span>
+                  <div key={log.id} className="log-line" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', padding: '6px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <span className="log-ts" style={{ color: '#64748b', fontSize: 11, minWidth: 85, fontFamily: 'monospace' }}>{format(new Date(log.timestamp), 'HH:mm:ss.SSS')}</span>
+                    <span className="log-badge" style={{ 
+                      borderRadius: 4, width: 44, textAlign: 'center', flexShrink: 0, padding: '1px 0', fontSize: 9, fontWeight: 900,
+                      background: log.level === 'error' ? 'var(--danger)' : log.level === 'warn' ? 'var(--warning)' : 'var(--brand-primary)',
+                      color: '#fff'
+                    }}>{log.level.toUpperCase()}</span>
+                    <span className="log-msg" style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: '#e2e8f0', wordBreak: 'break-all' }}>{log.message}</span>
                   </div>
                 ))
               }
@@ -461,9 +512,18 @@ export function ServerDetail() {
 
       {/* ── Terminal Tab ── */}
       {activeTab === 'Terminal' && can('use-terminal') && (
-        <div className="fade-in">
-          <div className="card" style={{ padding: 0, overflow: 'hidden', background: '#0a0c12', border: '1px solid #1e293b' }}>
-            <div style={{ padding: '12px 20px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className={`fade-in ${isTerminalFullscreen ? 'terminal-fullscreen' : ''}`} style={isTerminalFullscreen ? {
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, background: '#0a0c12', padding: 0
+        } : {}}>
+          <div className="card" style={{ 
+            padding: 0, 
+            overflow: 'hidden', 
+            background: '#0a0c12', 
+            border: isTerminalFullscreen ? 'none' : '1px solid #1e293b',
+            height: isTerminalFullscreen ? '100%' : 'auto',
+            borderRadius: isTerminalFullscreen ? 0 : 'var(--radius-lg)'
+          }}>
+            <div style={{ padding: '8px 20px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56' }} />
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e' }} />
@@ -473,9 +533,15 @@ export function ServerDetail() {
                 <TerminalIcon size={12} />
                 SSH TERMINAL — {server.ssh_user}@{server.host}
               </div>
-              <div style={{ width: 40 }} />
+              <button 
+                onClick={toggleTerminalFullscreen}
+                style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600 }}
+              >
+                {isTerminalFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                {isTerminalFullscreen ? 'MINIMIZE' : 'MAXIMIZE'}
+              </button>
             </div>
-            <div ref={terminalRef} style={{ height: 600, padding: '16px 4px' }} className="terminal-container" />
+            <div ref={terminalRef} style={{ height: isTerminalFullscreen ? 'calc(100vh - 40px)' : 600, padding: '16px 4px' }} className="terminal-container" />
           </div>
         </div>
       )}

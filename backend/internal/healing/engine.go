@@ -133,9 +133,10 @@ func fireAction(rule models.AlertRule, server models.Server, info string) {
 			action.Output = fmt.Sprintf("SSH connect error: %v", err)
 			action.Status = "failed"
 		} else {
-			output, err := client.RunCommand(rule.ActionCommand)
-			action.Output = output
+			stdout, stderr, err := client.RunCommand(rule.ActionCommand)
+			action.Output = stdout
 			if err != nil {
+				action.Output = fmt.Sprintf("Error: %v\nStderr: %s\nStdout: %s", err, stderr, stdout)
 				action.Status = "failed"
 			} else {
 				action.Status = "success"

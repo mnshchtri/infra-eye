@@ -102,7 +102,7 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
                 color: server.os === 'darwin' ? '#fff' : 'var(--brand-primary)',
                 textTransform: 'uppercase', letterSpacing: '0.04em', border: '1px solid rgba(255,255,255,0.05)'
               }}>
-                {server.os === 'darwin' ? 'MacOS' : server.os === 'windows' ? 'Windows' : 'Linux'}
+                {server.os === 'darwin' ? 'macOS' : server.os === 'windows' ? 'Windows' : server.os === 'linux' ? 'Linux' : 'Unknown'}
               </span>
             </div>
             <div className="server-host">{server.ssh_user}@{server.host}</div>

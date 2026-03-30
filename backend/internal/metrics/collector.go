@@ -12,6 +12,7 @@ import (
 
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/logger"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	"github.com/infra-eye/backend/internal/ws"
@@ -44,7 +45,7 @@ CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1 2>/dev/null ||
 MEM_LINE=$(free -m | grep Mem)
 MEM_USED=$(echo $MEM_LINE | awk '{print $3}')
 MEM_TOTAL=$(echo $MEM_LINE | awk '{print $2}')
-MEM_PCT=$(awk "BEGIN {printf \"%.1f\", ($MEM_USED/$MEM_TOTAL)*100}")
+MEM_PCT=$(awk -v u=$MEM_USED -v t=$MEM_TOTAL "BEGIN {if(t>0) printf \"%.1f\", (u/t)*100; else print \"0\"}")
 
 # Disk (root partition)
 DISK_LINE=$(df -BG / | tail -1)
@@ -53,7 +54,10 @@ DISK_TOTAL=$(echo $DISK_LINE | awk '{print $2}' | tr -d 'G')
 DISK_PCT=$(echo $DISK_LINE | awk '{print $5}' | tr -d '%')
 
 # Load average
-LOAD=$(cat /proc/loadavg | awk '{print $1}')
+LOAD=$(cat /proc/loadavg | awk '{print $1}' 2>/dev/null || echo "0")
+
+# Uptime (seconds)
+UPTIME=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo "0")
 
 # Network RX/TX (Total cumulative bytes)
 if [ -f /proc/net/dev ]; then
@@ -165,17 +169,21 @@ func collect(server models.Server) {
 		return
 	}
 
-	// Detect OS if unknown
-	if server.OS == "unknown" || server.OS == "" {
-		out, err := client.RunCommand("uname -s")
+	// Detect OS if unknown or misidentified
+	if server.OS == "unknown" || server.OS == "" || server.OS == "linux" {
+		out, _, err := client.RunCommand("uname -s")
 		if err == nil {
+			out = strings.TrimSpace(strings.ToLower(out))
 			osType := "linux"
-			if strings.Contains(strings.ToLower(out), "darwin") {
+			if strings.Contains(out, "darwin") {
 				osType = "darwin"
 			}
-			server.OS = osType
-			db.DB.Model(&server).Update("os", osType)
-			log.Printf("🔄 Auto-detected OS for server %d: %s", server.ID, osType)
+			
+			if server.OS != osType {
+				server.OS = osType
+				db.DB.Model(&server).Update("os", osType)
+				log.Printf("🔄 Auto-detected/Corrected OS for server %d: %s", server.ID, osType)
+			}
 		}
 	}
 
@@ -184,11 +192,13 @@ func collect(server models.Server) {
 		script = darwinMetricsScript
 	}
 
-	output, err := client.RunCommand(script)
+	output, stderr, err := client.RunCommand(script)
 	if err != nil {
 		// try JSON parse anyway (non-zero exit but output present)
 		if !strings.Contains(output, "{") {
-			log.Printf("Metrics collection failed server %d: %v", server.ID, err)
+			errMsg := fmt.Sprintf("Metrics collection failed: %v, stderr: %s", err, stderr)
+			log.Printf("Metrics SSH error server %d: %s", server.ID, errMsg)
+			logger.RecordLog(server.ID, "diagnostic", "error", errMsg)
 			updateStatus(server.ID, "offline")
 			return
 		}

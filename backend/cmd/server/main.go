@@ -77,6 +77,8 @@ func main() {
 		api.POST("/servers/:id/test", middleware.RequireRole("admin", "devops"), handlers.TestServerConnection)
 		api.POST("/servers/:id/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectServer)
 		api.POST("/servers/:id/reboot", middleware.RequireRole("admin", "devops"), handlers.RebootServer)
+		api.POST("/servers/:id/diagnose", middleware.RequireRole("admin", "devops"), handlers.DiagnoseServer)
+		api.POST("/servers/test-k8s", middleware.RequireRole("admin", "devops"), handlers.TestK8sConnection)
 
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)
@@ -84,9 +86,12 @@ func main() {
 
 		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)
+		api.DELETE("/servers/:id/logs", middleware.RequireRole("admin", "devops"), handlers.ClearLogs)
 
 		// ── Kubectl ───────────────────────────────────────────────
 		api.POST("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectl)
+		api.POST("/servers/:id/kubectl/apply", middleware.RequireRole("admin", "devops"), handlers.ApplyKubectl)
+		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
 
 		// ── AI ────────────────────────────────────────────────────
 		api.POST("/ai/chat", middleware.RequireRole("admin", "devops", "trainee"), handlers.AIChat)

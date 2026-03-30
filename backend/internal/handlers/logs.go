@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -61,6 +62,15 @@ func GetLogs(c *gin.Context) {
 	})
 }
 
+func ClearLogs(c *gin.Context) {
+	id := c.Param("id")
+	if err := db.DB.Where("server_id = ?", id).Delete(&models.LogEntry{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to clear logs"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "logs cleared successfully"})
+}
+
 // StreamLogs — WebSocket that tails /var/log/syslog live
 func StreamLogs(c *gin.Context) {
 	id := c.Param("id")
@@ -107,10 +117,22 @@ func tailLogs(server models.Server, room string) {
 	}
 	session.Stderr = nil
 
-	cmd := "tail -F /var/log/syslog 2>/dev/null || tail -F /var/log/messages 2>/dev/null || tail -F /var/log/system.log 2>/dev/null || journalctl -f --no-pager 2>/dev/null"
+	// Use sudo for journalctl and tail if possible (to catch restricted logs)
+	// Fallback to non-sudo if it fails or password is not available.
+	cmd := "sudo journalctl -n 50 -f 2>/dev/null || sudo tail -n 50 -F /var/log/syslog 2>/dev/null || journalctl -n 50 -f 2>/dev/null || tail -n 50 -F /var/log/syslog 2>/dev/null || tail -n 50 -F /var/log/messages 2>/dev/null"
+	
 	if server.OS == "darwin" {
-		cmd = "log stream --level info 2>/dev/null"
+		cmd = "log show --last 2m 2>/dev/null; log stream --level info 2>/dev/null"
+	} else if server.OS == "windows" {
+		// Windows Event Log tailing via PowerShell with 50 initial events
+		cmd = `powershell -Command "$lastTime = [DateTime]::Now; Get-WinEvent -LogName System -MaxEvents 50 | Sort-Object TimeCreated; while($true) { $newEvents = Get-WinEvent -LogName System -FilterHashtable @{LogName='System'; StartTime=$lastTime} -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -gt $lastTime } | Sort-Object TimeCreated; if ($newEvents) { $newEvents | ForEach-Object { Write-Host \"[$($_.TimeCreated.ToString('HH:mm:ss'))] [$($_.LevelDisplayName)] $($_.Message)\" }; $lastTime = $newEvents[-1].TimeCreated }; Start-Sleep -Milliseconds 1000 }"`
 	}
+
+	if server.AuthType == "password" && server.SSHPassword != "" && server.SSHUser != "root" && server.OS == "linux" {
+		// Wrap command in sudo with password pipe if needed
+		cmd = fmt.Sprintf("echo '%s' | sudo -S sh -c '%s' 2>/dev/null || sh -c '%s'", server.SSHPassword, cmd, cmd)
+	}
+
 	if err := session.Start(cmd); err != nil {
 		ws.GlobalHub.Broadcast(room, "error", gin.H{"message": fmt.Sprintf("Failed to start log stream: %v", err)})
 		return
@@ -138,15 +160,19 @@ func tailLogs(server models.Server, room string) {
 }
 
 func detectLevel(line string) string {
-	for _, w := range []string{"error", "ERR", "ERROR", "CRITICAL", "CRIT"} {
-		if contains(line, w) {
+	l := strings.ToLower(line)
+	for _, w := range []string{"error", "err", "critical", "crit", "fatal", "emergency"} {
+		if strings.Contains(l, w) {
 			return "error"
 		}
 	}
-	for _, w := range []string{"warn", "WARN", "WARNING"} {
-		if contains(line, w) {
+	for _, w := range []string{"warn", "warning", "alert"} {
+		if strings.Contains(l, w) {
 			return "warn"
 		}
+	}
+	if strings.Contains(l, "debug") {
+		return "info" // Could add debug level if needed
 	}
 	return "info"
 }

@@ -3,7 +3,6 @@ package ssh
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"sync"
@@ -25,6 +24,26 @@ var (
 	pool   = map[uint]*Client{}
 	poolMu sync.RWMutex
 )
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		for range ticker.C {
+			poolMu.RLock()
+			for id, client := range pool {
+				go func(id uint, c *Client) {
+					// Minimal TCP-level check or simple cmd
+					_, _, err := c.RunCommand("echo 1")
+					if err != nil {
+						// log.Printf("Background keep-alive failed for server %d", id)
+						// We don't remove here, let the next GetOrCreate or RunCommand handle it
+					}
+				}(id, client)
+			}
+			poolMu.RUnlock()
+		}
+	}()
+}
 
 func NewClient(serverID uint, host string, port int, user, keyPath, password, authType string) (*Client, error) {
 	var authMethods []gossh.AuthMethod
@@ -70,26 +89,27 @@ func NewClient(serverID uint, host string, port int, user, keyPath, password, au
 	}, nil
 }
 
-// RunCommand executes a command and returns combined stdout+stderr
-func (c *Client) RunCommand(cmd string) (string, error) {
+// RunCommand executes a command and returns (stdout, stderr, error)
+func (c *Client) RunCommand(cmd string) (string, string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	session, err := c.client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("new session: %w", err)
+		return "", "", fmt.Errorf("new session: %w", err)
 	}
 	defer session.Close()
 
-	var buf bytes.Buffer
-	session.Stdout = &buf
-	session.Stderr = &buf
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	session.Stdout = &outBuf
+	session.Stderr = &errBuf
 
 	if err := session.Run(cmd); err != nil {
-		// return output even on non-zero exit
-		return buf.String(), err
+		// return both buffers even on non-zero exit
+		return outBuf.String(), errBuf.String(), err
 	}
-	return buf.String(), nil
+	return outBuf.String(), errBuf.String(), nil
 }
 
 // NewSession returns a raw SSH session for interactive terminal use
@@ -113,13 +133,8 @@ func (c *Client) Close() {
 func GetOrCreate(serverID uint, host string, port int, user, keyPath, password, authType string) (*Client, error) {
 	poolMu.RLock()
 	if c, ok := pool[serverID]; ok {
-		// Ping to check alive
-		_, err := c.RunCommand("echo ping")
-		if err == nil {
-			poolMu.RUnlock()
-			return c, nil
-		}
-		log.Printf("SSH pool connection dead for server %d, reconnecting", serverID)
+		poolMu.RUnlock()
+		return c, nil
 	}
 	poolMu.RUnlock()
 
@@ -131,6 +146,9 @@ func GetOrCreate(serverID uint, host string, port int, user, keyPath, password, 
 	poolMu.Lock()
 	pool[serverID] = c
 	poolMu.Unlock()
+
+	// Start a background keep-alive for this connection if not already running
+	// (Simple version: one global ticker for the whole pool)
 	return c, nil
 }
 

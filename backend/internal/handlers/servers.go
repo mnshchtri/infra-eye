@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/logger"
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/metrics"
 	sshpool "github.com/infra-eye/backend/internal/ssh"
@@ -180,9 +181,9 @@ func TestServerConnection(c *gin.Context) {
 		return
 	}
 
-	out, err := client.RunCommand("uname -s && hostname && uptime")
+	out, stderr, err := client.RunCommand("uname -s && hostname && uptime")
 	if err != nil {
-		log.Printf("⚠️ SSH command failed for server %d (%s): %v", server.ID, server.Host, err)
+		log.Printf("⚠️ SSH command failed for server %d (%s): %v, stderr: %s", server.ID, server.Host, err, stderr)
 	}
 
 	osType := "linux"
@@ -277,4 +278,79 @@ func RebootServer(c *gin.Context) {
 	db.DB.Model(&server).Update("status", "offline")
 
 	c.JSON(http.StatusOK, gin.H{"message": "Reboot command issued successfully", "status": "offline"})
+}
+func DiagnoseServer(c *gin.Context) {
+	id := c.Param("id")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	go func() {
+		sid := server.ID
+		logger.RecordLog(sid, "diagnostic", "info", "🔍 Starting diagnostic suite...")
+
+		client, err := sshpool.GetOrCreate(sid, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+		if err != nil {
+			logger.RecordLog(sid, "diagnostic", "error", fmt.Sprintf("❌ SSH Connection failed: %v", err))
+			return
+		}
+		logger.RecordLog(sid, "diagnostic", "info", "✅ SSH Connectivity verified.")
+
+		// Disk Check
+		logger.RecordLog(sid, "diagnostic", "info", "💾 Checking disk usage...")
+		diskOut, _, err := client.RunCommand("df -h / | tail -1 | awk '{print $5}' | tr -d '%'")
+		if err == nil {
+			usage, _ := strconv.Atoi(strings.TrimSpace(diskOut))
+			if usage > 90 {
+				logger.RecordLog(sid, "diagnostic", "error", fmt.Sprintf("🚨 CRITICAL: Root partition is %d%% full!", usage))
+			} else if usage > 75 {
+				logger.RecordLog(sid, "diagnostic", "warn", fmt.Sprintf("⚠️ WARNING: Root partition is %d%% full.", usage))
+			} else {
+				logger.RecordLog(sid, "diagnostic", "info", fmt.Sprintf("✅ Disk space OK (%d%% used).", usage))
+			}
+		}
+
+		// Memory Check
+		logger.RecordLog(sid, "diagnostic", "info", "🧠 Checking memory pressure...")
+		if server.OS != "darwin" {
+			memOut, _, err := client.RunCommand("free -m | grep Mem | awk '{print $3/$2*100}'")
+			if err == nil {
+				usage, _ := strconv.ParseFloat(strings.TrimSpace(memOut), 64)
+				if usage > 90 {
+					logger.RecordLog(sid, "diagnostic", "error", fmt.Sprintf("🚨 CRITICAL: Memory usage is %.1f%%!", usage))
+				} else {
+					logger.RecordLog(sid, "diagnostic", "info", fmt.Sprintf("✅ Memory pressure OK (%.1f%% used).", usage))
+				}
+			}
+		}
+
+		// Network Check
+		logger.RecordLog(sid, "diagnostic", "info", "🌐 Testing network reachability (google.com)...")
+		_, _, err = client.RunCommand("ping -c 1 google.com")
+		if err != nil {
+			logger.RecordLog(sid, "diagnostic", "error", "❌ Outside world unreachable (ping google.com failed).")
+		} else {
+			logger.RecordLog(sid, "diagnostic", "info", "✅ Outside world is reachable.")
+		}
+
+		// OS Specific Checks
+		if server.OS == "linux" {
+			logger.RecordLog(sid, "diagnostic", "info", "🐧 Checking critical services (Linux)...")
+			services := []string{"docker", "kubelet", "sshd"}
+			for _, s := range services {
+				status, _, _ := client.RunCommand(fmt.Sprintf("systemctl is-active %s", s))
+				if strings.TrimSpace(status) == "active" {
+					logger.RecordLog(sid, "diagnostic", "info", fmt.Sprintf("✅ Service %s is running.", s))
+				} else {
+					logger.RecordLog(sid, "diagnostic", "warn", fmt.Sprintf("⚠️ Service %s is NOT active (%s).", s, strings.TrimSpace(status)))
+				}
+			}
+		}
+
+		logger.RecordLog(sid, "diagnostic", "info", "🏁 Diagnostic suite completed.")
+	}()
+
+	c.JSON(http.StatusAccepted, gin.H{"message": "Diagnostic sequence initiated"})
 }

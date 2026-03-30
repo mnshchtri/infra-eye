@@ -34,7 +34,6 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Operations',
     items: [
-      { to: '/terminal',   icon: Terminal,        label: 'Terminal',    action: 'use-terminal' },
       { to: '/ai',         icon: Bot,             label: 'AI Assistant', action: 'use-ai' },
     ]
   },
