@@ -18,6 +18,7 @@ import (
 )
 
 type chatRequest struct {
+	ThreadID      uint   `json:"thread_id"`
 	ServerID      uint   `json:"server_id"`
 	Question      string `json:"question" binding:"required"`
 	ImageBase64   string `json:"image_base64"`
@@ -83,19 +84,174 @@ func AIChat(c *gin.Context) {
 		return
 	}
 
-	context := buildContext(req.ServerID)
-	// Pass image data to askAI
-	answer := askAI(context, req.Question, req.ImageBase64, req.ImageMimeType)
+	userID, _ := c.Get("user_id")
+	uID := userID.(uint)
+
+	// 1. Ensure Thread exists
+	var thread models.ChatThread
+	if req.ThreadID > 0 {
+		if err := db.DB.Where("id = ? AND user_id = ?", req.ThreadID, uID).First(&thread).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Chat thread not found"})
+			return
+		}
+	} else {
+		// Auto-create thread if none provided
+		title := req.Question
+		if len(title) > 40 {
+			title = title[:37] + "..."
+		}
+		thread = models.ChatThread{
+			UserID:   uID,
+			ServerID: req.ServerID,
+			Title:    title,
+		}
+		db.DB.Create(&thread)
+	}
+
+	// 2. Save User Message
+	userMsg := models.ChatMessage{
+		ThreadID: thread.ID,
+		Role:     "user",
+		Content:  req.Question,
+		ServerID: req.ServerID,
+		ImageB64: req.ImageBase64,
+	}
+	db.DB.Create(&userMsg)
+
+	// 3. Fetch Recent History for Context (last 10 messages in THIS thread)
+	var history []models.ChatMessage
+	db.DB.Where("thread_id = ?", thread.ID).Order("created_at DESC").Limit(10).Find(&history)
+	
+	// Format history for the AI
+	historyCtx := ""
+	if len(history) > 0 {
+		historyCtx = "--- RECENT CONVERSATION HISTORY ---\n"
+		// Reverse to chronological order
+		for i := len(history) - 1; i >= 0; i-- {
+			historyCtx += fmt.Sprintf("[%s]: %s\n", strings.ToUpper(history[i].Role), history[i].Content)
+		}
+		historyCtx += "-----------------------------------\n\n"
+	}
+
+	systemCtx := buildContext(req.ServerID)
+	fullCtx := systemCtx + historyCtx
+
+	// 4. Get AI Response
+	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType)
+
+	// 5. Save Assistant Response
+	assistantMsg := models.ChatMessage{
+		ThreadID: thread.ID,
+		Role:     "assistant",
+		Content:  answer,
+		ServerID: req.ServerID,
+	}
+	db.DB.Create(&assistantMsg)
+
+	// Update thread's UpdatedAt
+	db.DB.Model(&thread).Update("updated_at", time.Now())
 
 	c.JSON(http.StatusOK, gin.H{
 		"answer":    answer,
-		"server_id": req.ServerID,
+		"thread_id": thread.ID,
 		"asked_at":  time.Now(),
 	})
 }
 
+func ListThreads(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	serverID := c.Query("server_id")
+	
+	var threads []models.ChatThread
+	query := db.DB.Where("user_id = ?", userID)
+	if serverID != "" {
+		query = query.Where("server_id = ?", serverID)
+	}
+	
+	if err := query.Order("updated_at DESC").Find(&threads).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch threads"})
+		return
+	}
+	c.JSON(http.StatusOK, threads)
+}
+
+func CreateThread(c *gin.Context) {
+	var thread models.ChatThread
+	if err := c.ShouldBindJSON(&thread); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	userID, _ := c.Get("user_id")
+	thread.UserID = userID.(uint)
+	
+	if err := db.DB.Create(&thread).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create thread"})
+		return
+	}
+	c.JSON(http.StatusOK, thread)
+}
+
+func GetChatHistory(c *gin.Context) {
+	threadID := c.Param("id")
+	userID, _ := c.Get("user_id")
+	
+	var messages []models.ChatMessage
+	// Verify user owns the thread
+	var thread models.ChatThread
+	if err := db.DB.Where("id = ? AND user_id = ?", threadID, userID).First(&thread).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	if err := db.DB.Where("thread_id = ?", threadID).Order("created_at ASC").Find(&messages).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, messages)
+}
+
+func DeleteThread(c *gin.Context) {
+	threadID := c.Param("id")
+	userID, _ := c.Get("user_id")
+	
+	// Verify ownership
+	if err := db.DB.Where("id = ? AND user_id = ?", threadID, userID).Delete(&models.ChatThread{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete thread"})
+		return
+	}
+	
+	// Cascade delete messages
+	db.DB.Where("thread_id = ?", threadID).Delete(&models.ChatMessage{})
+	
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func ClearChatHistory(c *gin.Context) {
+	// Keep for global clear if needed, but DeleteThread is preferred now.
+	serverIDStr := c.Query("server_id")
+	userID, _ := c.Get("user_id")
+	
+	query := db.DB.Where("user_id = ?", userID)
+	if serverIDStr != "" {
+		query = query.Where("server_id = ?", serverIDStr)
+	} else {
+		query = query.Where("server_id = 0")
+	}
+	
+	if err := query.Delete(&models.ChatMessage{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear history"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{"status": "cleared"})
+}
+
 func buildContext(serverID uint) string {
-	ctx := "You are an expert DevOps/SRE AI assistant named Kikagaku. Help diagnose and fix server issues.\n\n"
+	ctx := "You are नेत्र (Netra), a veteran DevOps, SRE, and Platform Engineer with OG-level systems knowledge. " +
+		"You are blunt, professional, and highly technical. You prioritize stability, performance, and automation. " +
+		"Diagnose issues with surgical precision. If you see a hacky fix, call it out.\n\n"
 	
 	if serverID > 0 {
 		var server models.Server

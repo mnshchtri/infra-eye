@@ -96,7 +96,12 @@ func main() {
 		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
 
 		// ── AI ────────────────────────────────────────────────────
-		api.POST("/ai/chat", middleware.RequireRole("admin", "devops", "trainee"), handlers.AIChat)
+		api.GET("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.ListThreads)
+		api.POST("/api/ai/threads", middleware.RequireRole("admin", "devops"), handlers.CreateThread)
+		api.DELETE("/ai/threads/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteThread)
+		api.POST("/ai/chat", middleware.RequireRole("admin", "devops"), handlers.AIChat)
+		api.GET("/ai/history/:id", middleware.RequireRole("admin", "devops"), handlers.GetChatHistory)
+		api.DELETE("/ai/history", middleware.RequireRole("admin", "devops"), handlers.ClearChatHistory)
 
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)

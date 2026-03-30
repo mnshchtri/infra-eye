@@ -29,7 +29,7 @@ export function usePermission() {
       case 'use-kubectl':
         return ['admin', 'devops'].includes(role)
       case 'use-ai':
-        return ['admin', 'devops', 'trainee'].includes(role)
+        return ['admin', 'devops'].includes(role)
       case 'manage-alerts':
         return ['admin', 'devops'].includes(role)
       case 'view-alerts':

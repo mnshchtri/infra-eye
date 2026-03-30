@@ -95,3 +95,22 @@ type HealingAction struct {
 	Output      string    `gorm:"type:text" json:"output"`
 	Status      string    `json:"status"` // success, failed
 }
+
+type ChatMessage struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+	ThreadID  uint      `gorm:"index" json:"thread_id"`
+	ServerID  uint      `gorm:"index" json:"server_id"` // 0 = global
+	Role      string    `gorm:"not null" json:"role"`   // user, assistant
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	ImageB64  string    `gorm:"type:text" json:"-"` // image context if any
+}
+
+type ChatThread struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Title     string    `gorm:"not null" json:"title"`
+	UserID    uint      `gorm:"index" json:"user_id"`
+	ServerID  uint      `gorm:"index" json:"server_id"`
+}
