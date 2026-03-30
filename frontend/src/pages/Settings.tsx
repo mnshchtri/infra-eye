@@ -169,66 +169,100 @@ export function Settings() {
 
       <div className="fade-up">
         {activeTab === 'profile' && (
-          <div className="card" style={{ maxWidth: 680, padding: 32 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-              <div style={{ 
-                width: 48, height: 48, borderRadius: 14, 
-                background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <User size={24} color="var(--brand-primary)" />
-              </div>
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Update your contact email and security credentials</p>
-              </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 32, alignItems: 'start' }}>
+            {/* Left: Identity Card */}
+            <div className="card shadow-md" style={{ padding: 40, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+               <div style={{ 
+                 width: 100, height: 100, borderRadius: '32px', 
+                 background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-light))',
+                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                 fontSize: 36, fontWeight: 900, color: '#fff',
+                 boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)',
+                 marginBottom: 24, textTransform: 'uppercase'
+               }}>
+                 {currentUser?.username.charAt(0)}
+               </div>
+               
+               <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{currentUser?.username}</h2>
+               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Tier {currentUser?.id} Platform Member</p>
+               
+               <div style={{ width: '100%', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Security Role</span>
+                     <span className="badge" style={{ 
+                        background: `${roleColors[currentUser?.role || 'intern']}15`, 
+                        color: roleColors[currentUser?.role || 'intern'], 
+                        border: `1px solid ${roleColors[currentUser?.role || 'intern']}25`,
+                        padding: '4px 10px'
+                      }}>
+                        {currentUser?.role.toUpperCase()}
+                      </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px var(--success)' }} />
+                         Authorized
+                      </span>
+                  </div>
+               </div>
             </div>
-            
-            <form onSubmit={updateProfile}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-                <div className="input-group">
-                  <label className="input-label">Username</label>
-                  <input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6, background: '#f8fafc' }} />
+
+            {/* Right: Detailed Settings */}
+            <div className="card shadow-md" style={{ padding: 40 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 40 }}>
+                <div style={{ 
+                  width: 44, height: 44, borderRadius: 12, 
+                  background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <User size={20} color="var(--brand-primary)" />
                 </div>
-                
-                <div className="input-group">
-                  <label className="input-label">Access Level</label>
-                  <div style={{ paddingTop: 4 }}>
-                    <span className="badge" style={{ 
-                      background: `${roleColors[currentUser?.role || 'intern']}15`, 
-                      color: roleColors[currentUser?.role || 'intern'], 
-                      border: `1px solid ${roleColors[currentUser?.role || 'intern']}25`,
-                      padding: '6px 14px'
-                    }}>
-                      {currentUser?.role.toUpperCase()}
-                    </span>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Update your contact email and security credentials</p>
+                </div>
+              </div>
+              
+              <form onSubmit={updateProfile}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
+                  <div className="input-group">
+                    <label className="input-label">Username</label>
+                    <input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6, background: '#f8fafc' }} />
+                  </div>
+                  
+                  <div className="input-group">
+                    <label className="input-label">Public Email Address</label>
+                    <div style={{ position: 'relative' }}>
+                      <Mail size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
+                      <input className="input" style={{ paddingLeft: 42 }} value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="you@example.com" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="input-group">
-                <label className="input-label">Email Address</label>
-                <div style={{ position: 'relative' }}>
-                  <Mail size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
-                  <input className="input" style={{ paddingLeft: 42 }} value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="you@example.com" />
+                <div className="danger-zone" style={{ marginTop: 0, paddingTop: 32, borderTop: '1px solid var(--border)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                      <Lock size={18} color="var(--text-muted)" />
+                      <h3 style={{ fontSize: 15, fontWeight: 700 }}>Security Rotation</h3>
+                   </div>
+                   
+                   <div className="input-group">
+                     <label className="input-label">New Account Password</label>
+                     <div style={{ position: 'relative' }}>
+                       <Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
+                       <input className="input" type="password" style={{ paddingLeft: 42 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="Keep current or enter new" minLength={6} />
+                     </div>
+                     <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Rotate your password regularly to ensure platform safety. Minimum 6 characters required.</p>
+                   </div>
                 </div>
-              </div>
 
-              <div className="input-group" style={{ marginTop: 20 }}>
-                <label className="input-label">Change Password</label>
-                <div style={{ position: 'relative' }}>
-                  <Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} />
-                  <input className="input" type="password" style={{ paddingLeft: 42 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="••••••••" minLength={6} />
+                <div style={{ marginTop: 48, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ padding: '0 32px', height: 48, fontSize: 14, fontWeight: 700 }}>
+                    {profileSaving ? 'Propagating Changes...' : 'Save Settings'}
+                  </button>
                 </div>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>Leave blank if you don't wish to change your current password.</p>
-              </div>
-
-              <div style={{ marginTop: 40, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ padding: '12px 28px', height: 46 }}>
-                  {profileSaving ? 'Saving Changes...' : 'Save Settings'}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         )}
 

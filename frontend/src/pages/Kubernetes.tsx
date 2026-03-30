@@ -819,7 +819,7 @@ function AddClusterModal({ onClose, onSuccess }: any) {
     e.preventDefault()
     setLoading(true)
     try {
-      await api.post('/api/servers', { ...form, auth_type: 'password', tags: 'kubernetes' }) 
+      await api.post('/api/servers', { ...form, auth_type: 'password', tags: 'kubernetes', is_k8s: true }) 
       onSuccess()
       onClose()
     } catch (e) {

@@ -68,6 +68,7 @@ func CreateServer(c *gin.Context) {
 		Tags:        req.Tags,
 		Description: req.Description,
 		KubeConfig:  req.KubeConfig,
+		IsK8s:       req.KubeConfig != "",
 		Status:      "unknown",
 		OS:          "unknown",
 	}
@@ -110,6 +111,7 @@ func UpdateServer(c *gin.Context) {
 		server.AuthType = req.AuthType
 	}
 	server.KubeConfig = req.KubeConfig
+	server.IsK8s = req.KubeConfig != ""
 
 	// Remove stale SSH connection
 	sshpool.Remove(uint(id))

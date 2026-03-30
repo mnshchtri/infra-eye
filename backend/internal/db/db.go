@@ -43,4 +43,7 @@ func Connect() {
 	}
 
 	log.Println("✅ Database migrated")
+	
+	// Ensure all servers with KubeConfig are flagged as IsK8s
+	DB.Model(&models.Server{}).Where("kube_config != ? AND is_k8s = ?", "", false).Update("is_k8s", true)
 }
