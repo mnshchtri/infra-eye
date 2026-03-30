@@ -91,6 +91,7 @@ func main() {
 
 		// ── Kubectl ───────────────────────────────────────────────
 		api.POST("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectl)
+		api.DELETE("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.DeleteKubectl)
 		api.POST("/servers/:id/kubectl/apply", middleware.RequireRole("admin", "devops"), handlers.ApplyKubectl)
 		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
 
@@ -122,6 +123,7 @@ func main() {
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
 		ws.GET("/servers/:id/kubectl/pod-terminal", handlers.RunPodTerminal)
+		ws.GET("/servers/:id/k8s/watch", handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
 	}
 

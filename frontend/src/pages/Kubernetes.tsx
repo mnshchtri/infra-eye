@@ -4,9 +4,9 @@ import {
   RefreshCw, FileCode,
   Boxes, ChevronRight, Activity,
   Globe, X, Terminal,
-  List, Zap, Shield, Trash2, Unlink, MoreVertical
+  List, Zap, Trash2, Unlink
 } from 'lucide-react'
-import { api } from '../api/client'
+import { api, buildWsUrl } from '../api/client'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -27,6 +27,7 @@ export function Kubernetes() {
   const [activeRes, setActiveRes] = useState<ResourceType>('pulse')
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [connecting, setConnecting] = useState(false) // true while waiting for first WS frame
   const [yamlConfig, setYamlConfig] = useState('')
   const [showAddCluster, setShowAddCluster] = useState(false)
   const toast = useToastStore()
@@ -43,6 +44,7 @@ export function Kubernetes() {
   
   // Stats for Pulse View
   const [stats, setStats] = useState({ nodes: 0, pods: 0, deployments: 0, services: 0, events: 0 })
+  const [pulseError, setPulseError] = useState<string | null>(null)
 
   // Real-time Apply Logic
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)
@@ -51,24 +53,118 @@ export function Kubernetes() {
   const [showCommandBar, setShowCommandBar] = useState(false)
   const [commandInput, setCommandInput] = useState('')
   
+  // K9s Logic - Filter & Select
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [showSearch, setShowSearch] = useState(false)
+  const [filterQuery, setFilterQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const cmdInputRef = useRef<HTMLInputElement>(null)
+  const [cmdError, setCmdError] = useState(false)
+  
+  const filteredData = data.filter((item: any) => {
+    if (!filterQuery) return true;
+    const name = item.metadata?.name?.toLowerCase() || '';
+    return name.includes(filterQuery.toLowerCase());
+  })
+
+  // Reset selection when data changes
+  useEffect(() => {
+     setSelectedIndex(0)
+  }, [activeRes, selectedNS, filterQuery])
+
   // K9s Logic - Terminal/Logs Drawer
   const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; pod?: string; ns?: string } | null>(null)
+
+  const handleDeleteResource = async (item: any) => {
+    if (!selectedCluster) return;
+    const kind = item.kind || activeRes.slice(0, -1);
+    if (!window.confirm(`Delete ${kind} ${item.metadata.name}?`)) return;
+    try {
+      await api.delete(`/api/servers/${selectedCluster.id}/kubectl`, {
+        data: { kind, name: item.metadata.name, namespace: item.metadata.namespace }
+      })
+      toast.success('Resource deleted', `Deleted ${item.metadata.name}`)
+      // The websocket streams the updated state automatically.
+    } catch (e: any) {
+      toast.error('Delete failed', e.response?.data?.error || 'Failed to delete resource')
+    }
+  }
 
   useEffect(() => {
     loadClusters()
     
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === ':' && !showCommandBar) {
+      // Don't intercept if user is typing in generic inputs
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+         if (e.key === 'Escape') {
+             setShowSearch(false)
+             setFilterQuery('')
+             target.blur()
+         }
+         return;
+      }
+
+      if (e.key === ':' && !showCommandBar && !showSearch) {
         e.preventDefault()
         setShowCommandBar(true)
-      } else if (e.key === 'Escape') {
+        setCmdError(false)
+        setTimeout(() => cmdInputRef.current?.focus(), 50)
+        return
+      }
+      
+      if (e.key === 'Escape') {
         setShowCommandBar(false)
+        setShowSearch(false)
+        setFilterQuery('')
         setDrawer(curr => curr ? { ...curr, open: false } : null)
+        return
+      }
+
+      // K9s Navigation logic
+      if (activeRes !== 'pulse' && activeRes !== 'yaml' && activeRes !== 'events' && filteredData.length > 0 && selectedCluster && !editingYaml.open && !drawer?.open) {
+         if (e.key === 'j' || e.key === 'ArrowDown') {
+             e.preventDefault()
+             setSelectedIndex(curr => Math.min(curr + 1, filteredData.length - 1))
+         }
+         else if (e.key === 'k' || e.key === 'ArrowUp') {
+             e.preventDefault()
+             setSelectedIndex(curr => Math.max(curr - 1, 0))
+         }
+         else if (e.key === '/') {
+             e.preventDefault()
+             setShowSearch(true)
+             setTimeout(() => searchInputRef.current?.focus(), 50)
+         }
+         else if (e.key === '0') {
+             e.preventDefault()
+             setSelectedNS('All')
+         }
+         else if (e.key === 'e') {
+             e.preventDefault()
+             const item = filteredData[selectedIndex];
+             fetchYaml(item.kind?.toLowerCase() || activeRes.slice(0, -1), item.metadata.name, item.metadata.namespace)
+         }
+         else if (e.key === 'l' && activeRes === 'pods') {
+             e.preventDefault()
+             const item = filteredData[selectedIndex];
+             setDrawer({ open: true, mode: 'logs', pod: item.metadata.name, ns: item.metadata.namespace })
+         }
+         else if (e.key === 's' && activeRes === 'pods') {
+             e.preventDefault()
+             const item = filteredData[selectedIndex];
+             setDrawer({ open: true, mode: 'shell', pod: item.metadata.name, ns: item.metadata.namespace })
+         }
+         else if (e.key === 'd') {
+             e.preventDefault()
+             const item = filteredData[selectedIndex];
+             handleDeleteResource(item)
+         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showCommandBar])
+  }, [showCommandBar, activeRes, filteredData, selectedIndex, selectedCluster, editingYaml.open, drawer?.open])
 
   async function loadClusters() {
     try {
@@ -77,8 +173,7 @@ export function Kubernetes() {
     } catch (e) { console.error(e) }
   }
 
-  const fetchNamespaces = useCallback(async (clusterId: number, force = false) => {
-    if (namespaces.length > 0 && !force) return
+  const fetchNamespaces = useCallback(async (clusterId: number) => {
     try {
       const res = await api.post(`/api/servers/${clusterId}/kubectl`, { command: 'get namespaces -o json' })
       if (res.data.success) {
@@ -87,7 +182,7 @@ export function Kubernetes() {
         setNamespaces(nsList)
       }
     } catch (e) { console.error("NS Fetch error:", e) }
-  }, [namespaces])
+  }, [])
 
   const handleDisconnect = async (id: number) => {
     try {
@@ -113,61 +208,84 @@ export function Kubernetes() {
     }
   }
 
-  const fetchK8sData = useCallback(async (clusterId: number, resource: ResourceType) => {
+  const activeWsRef = useRef<WebSocket | null>(null)
+
+  const watchK8sData = useCallback((clusterId: number, resource: ResourceType) => {
     if (resource === 'yaml') return;
     setLoading(true)
-    try {
-      let command = ''
-      const nsFlag = selectedNS === 'All' ? '-A' : `-n ${selectedNS}`
-      
-      switch(resource) {
-        case 'nodes': command = 'get nodes -o json'; break; // Nodes are cluster-scoped
-        case 'pods': command = `get pods ${nsFlag} -o json`; break;
-        case 'deployments': command = `get deployments ${nsFlag} -o json`; break;
-        case 'services': command = `get services ${nsFlag} -o json`; break;
-        case 'events': command = `get events ${nsFlag} --sort-by=.metadata.creationTimestamp -o json`; break;
-        case 'pulse': command = `get nodes,pods,deployments,services,events ${nsFlag} -o json`; break;
-      }
-
-      const res = await api.post(`/api/servers/${clusterId}/kubectl`, { command })
-      if (res.data.success) {
-        try {
-          const parsed = JSON.parse(res.data.output)
-          if (resource === 'pulse') {
-            // aggregate counts for real data pulse
-            const items = parsed.items || []
-            const nodeCount = items.filter((i: any) => i.kind === 'Node').length
-            const podCount = items.filter((i: any) => i.kind === 'Pod').length
-            const depCount = items.filter((i: any) => i.kind === 'Deployment').length
-            const svcCount = items.filter((i: any) => i.kind === 'Service').length
-            const evCount = items.filter((i: any) => i.kind === 'Event').length
-            setStats({ nodes: nodeCount, pods: podCount, deployments: depCount, services: svcCount, events: evCount })
-            setData(items)
-          } else {
-            setData(parsed.items || [])
-          }
-        } catch (parseErr) {
-          console.error("JSON Parse Error:", parseErr, "Raw Output:", res.data.output)
-          // Fallback: show error message in the data area if possible
-          setData([])
-        }
-      } else {
-          console.error("Kubectl Error:", res.data.error, "Stderr:", res.data.stderr)
-          setData([])
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
+    setConnecting(true)
+    setData([])
+    
+    if (activeWsRef.current) {
+       activeWsRef.current.close()
     }
+
+    const ws = new WebSocket(buildWsUrl(`/ws/servers/${clusterId}/k8s/watch?resource=${resource}&namespace=${selectedNS}`));
+    activeWsRef.current = ws;
+
+    ws.onmessage = (event) => {
+        setLoading(false)
+        setConnecting(false)
+        try {
+           const parsed = JSON.parse(event.data);
+           if (parsed.error) {
+              console.error("Kubectl Error:", parsed.error, "Stderr:", parsed.stderr, "Cmd:", parsed.cmd)
+              if (resource === 'pulse') setPulseError(parsed.details || parsed.stderr || parsed.error)
+              else setPulseError(parsed.details || parsed.stderr || parsed.error)
+              setData([])
+              return
+           }
+           setPulseError(null)
+
+           if (resource === 'pulse') {
+             if (parsed.kind === 'Pulse') {
+               setStats(parsed.stats)
+               setData([])
+             }
+           } else {
+             setData(parsed.items || [])
+           }
+        } catch(e) {
+           console.error("JSON parse error:", e, event.data?.substring?.(0, 200));
+           setData([]);
+        }
+    }
+    
+    ws.onerror = (err) => {
+       console.error("WS error:", err);
+       setLoading(false)
+       setConnecting(false)
+       setPulseError('WebSocket connection failed. Check that the backend is running and the server is reachable.')
+    }
+    ws.onclose = (ev) => {
+       console.log("K8s WS closed", ev.code, ev.reason)
+       setConnecting(false)
+    }
+  }, [selectedNS])
+
+  useEffect(() => {
+     return () => {
+        if (activeWsRef.current) activeWsRef.current.close()
+     }
   }, [])
+
+  // Reset namespaces and data when cluster changes
+  useEffect(() => {
+    if (selectedCluster) {
+      setNamespaces([])
+      setSelectedNS('All')
+      setData([])
+      setPulseError(null)
+      setStats({ nodes: 0, pods: 0, deployments: 0, services: 0, events: 0 })
+      fetchNamespaces(selectedCluster.id)
+    }
+  }, [selectedCluster])
 
   useEffect(() => {
     if (selectedCluster) {
-      fetchNamespaces(selectedCluster.id)
-      fetchK8sData(selectedCluster.id, activeRes)
+      watchK8sData(selectedCluster.id, activeRes)
     }
-  }, [selectedCluster, activeRes, selectedNS, fetchK8sData, fetchNamespaces])
+  }, [selectedCluster, activeRes, selectedNS])
 
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -180,12 +298,20 @@ export function Kubernetes() {
        else if (namespaces.includes(ns)) setSelectedNS(ns)
     } else {
        const routes: Record<string, ResourceType> = {
-         'p': 'pods', 'pods': 'pods', 'n': 'nodes', 'nodes': 'nodes',
-         'd': 'deployments', 'deployments': 'deployments',
-         's': 'services', 'services': 'services',
-         'e': 'events', 'events': 'events', 'pulse': 'pulse', 'y': 'yaml'
+         'p': 'pods', 'po': 'pods', 'pods': 'pods', 'pod': 'pods',
+         'n': 'nodes', 'no': 'nodes', 'nodes': 'nodes', 'node': 'nodes',
+         'd': 'deployments', 'dp': 'deployments', 'deploy': 'deployments', 'deployments': 'deployments',
+         's': 'services', 'svc': 'services', 'services': 'services', 'service': 'services',
+         'e': 'events', 'ev': 'events', 'events': 'events', 'pulse': 'pulse', 'y': 'yaml'
        }
-       if (routes[input]) setActiveRes(routes[input])
+       if (routes[input]) {
+           setActiveRes(routes[input])
+           setCmdError(false)
+       } else {
+           setCmdError(true)
+           setTimeout(() => setCmdError(false), 800)
+           return // don't close command bar on error
+       }
     }
     
     setShowCommandBar(false)
@@ -214,8 +340,7 @@ export function Kubernetes() {
       const res = await api.post(`/api/servers/${selectedCluster.id}/kubectl/apply`, { yaml: editingYaml.content })
       if (res.data.success) {
         setApplyResult({ success: true, msg: res.data.output || "Resource applied successfully" })
-        // Background refresh
-        fetchK8sData(selectedCluster.id, activeRes)
+        // The WebSocket handles refresh automatically now, so we just let it run
       } else {
         setApplyResult({ success: false, msg: res.data.stderr || res.data.error || "Application failed" })
       }
@@ -318,24 +443,8 @@ export function Kubernetes() {
 
   return (
     <div className="page" style={{ padding: 0, flexDirection: 'row', overflow: 'hidden', maxWidth: 'none', margin: 0 }}>
-      {/* Command Bar Overlay */}
-      {showCommandBar && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 1000, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', paddingTop: '15vh' }}>
-           <form onSubmit={handleCommandSubmit} className="fade-down" style={{ width: '400px' }}>
-              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'center', padding: '12px 20px', boxShadow: 'var(--shadow-lg)' }}>
-                 <span style={{ color: 'var(--brand-primary)', fontWeight: 900, fontSize: 20, marginRight: 12 }}>:</span>
-                 <input 
-                   autoFocus 
-                   className="input" 
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 18, padding: 0, boxShadow: 'none' }}
-                   placeholder="resource name..."
-                   value={commandInput}
-                   onChange={e => setCommandInput(e.target.value)}
-                 />
-              </div>
-           </form>
-        </div>
-      )}
+      {/* Floating Overlays */}
+      {showAddCluster && <AddClusterModal onClose={() => setShowAddCluster(false)} onSuccess={loadClusters} />}
 
       {/* Internal Sidebar - Light Palette */}
       <div style={{ width: 220, background: '#fff', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 8px' }}>
@@ -385,20 +494,47 @@ export function Kubernetes() {
                  </select>
               </div>
 
-              <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => fetchK8sData(selectedCluster.id, activeRes)}>
-                <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Refresh
+              <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} disabled={activeRes === 'yaml'} onClick={() => { if(selectedCluster) watchK8sData(selectedCluster.id, activeRes) }}>
+                <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Resync
               </button>
            </div>
         </header>
 
-        <main style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
-          {activeRes === 'pulse' && <PulseDashboard cluster={selectedCluster} stats={stats} onJump={(r: ResourceType) => setActiveRes(r)} />}
-          {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version']} data={data} 
+         <main style={{ flex: 1, overflowY: 'auto', padding: 24, position: 'relative' }}>
+          {(showSearch || showCommandBar) && (
+            <div className="fade-down" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--error)' : '1px solid var(--border-bright)', borderRadius: 12, marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)', transition: 'border-color 0.2s' }}>
+              <span style={{ color: cmdError ? 'var(--error)' : 'var(--brand-primary)', fontWeight: 800, marginRight: 12 }}>{showSearch ? '/' : ':'}</span>
+              {showSearch ? (
+                  <input 
+                    ref={searchInputRef}
+                    value={filterQuery}
+                    onChange={e => setFilterQuery(e.target.value)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, outline: 'none', width: '100%' }}
+                    placeholder="Fuzzy search resources..."
+                  />
+              ) : (
+                 <form onSubmit={handleCommandSubmit} style={{ flex: 1, margin: 0 }}>
+                    <input 
+                      ref={cmdInputRef}
+                      value={commandInput}
+                      onChange={e => setCommandInput(e.target.value)}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, outline: 'none', width: '100%' }}
+                      placeholder="resource (e.g. pods, pos, deploy, ns default)..."
+                    />
+                 </form>
+              )}
+              <button className="btn-icon" onClick={() => { setShowSearch(false); setShowCommandBar(false); setFilterQuery(''); setCommandInput('') }}><X size={14}/></button>
+            </div>
+          )}
+          {activeRes === 'pulse' && <PulseDashboard cluster={selectedCluster} stats={stats} error={pulseError} connecting={connecting} onJump={(r: ResourceType) => setActiveRes(r)} onResync={() => watchK8sData(selectedCluster.id, activeRes)} />}
+          {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
              actions={(n: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('node', n.metadata.name)}><FileCode size={14} /></button>} 
           />}
           {activeRes === 'pods' && <KTable 
              columns={['Name', 'Namespace', 'Restarts', 'Status']} 
-             data={data} 
+             data={filteredData} 
+             loading={connecting}
+             selectedIndex={selectedIndex}
              actions={ (p: any) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('pod', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
@@ -407,14 +543,19 @@ export function Kubernetes() {
                 </>
              )}
           />}
-          {activeRes === 'deployments' && <KTable columns={['Name', 'Namespace', 'Ready', 'Available']} data={data} 
+          {activeRes === 'deployments' && <KTable columns={['Name', 'Namespace', 'Ready', 'Available']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
              actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('deployment', d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
           />}
-          {activeRes === 'services' && <KTable columns={['Name', 'Namespace', 'Type', 'Cluster-IP']} data={data} 
+          {activeRes === 'services' && <KTable columns={['Name', 'Namespace', 'Type', 'Cluster-IP']} data={filteredData} loading={connecting} selectedIndex={selectedIndex}
              actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('service', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
           />}
-          {activeRes === 'events' && <EventLogger data={data} />}
+          {activeRes === 'events' && <KTable columns={['Type', 'Reason', 'Object', 'Message', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} />}
           {activeRes === 'yaml' && <ConfigViewer content={yamlConfig} onChange={setYamlConfig} />}
+          {pulseError && activeRes !== 'pulse' && (
+            <div className="fade-in" style={{ marginTop: 24, padding: '16px 20px', borderRadius: 12, background: 'var(--danger-glow, #fff1f2)', border: '1px solid var(--danger, #ef4444)', color: 'var(--danger, #ef4444)', fontSize: 13 }}>
+              <strong>⚠ Cluster Error:</strong> {pulseError}
+            </div>
+          )}
         </main>
       </div>
 
@@ -472,10 +613,14 @@ export function Kubernetes() {
         .res-nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); }
         .res-nav-link:hover { background: #f8fafc; color: var(--text-primary); }
         .res-nav-link.active { background: var(--brand-glow); color: var(--brand-primary); }
-        .k-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-        .k-table th { text-align: left; padding: 16px; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; background: #fafafa; border-bottom: 1px solid var(--border); }
-        .k-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); }
-        .k-table tr:hover td { background: #fbfbfc; }
+        .k-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+        .k-table th { text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; background: #fafafa; border-bottom: 2px solid var(--border); letter-spacing: 0.05em; }
+        .k-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; vertical-align: middle; }
+        .k-table tr { transition: background-color 0.15s ease; }
+        .k-table tr:hover td { background: var(--bg-card); cursor: pointer; }
+        .k-row-selected td { background: var(--brand-glow) !important; color: var(--text-primary) !important; font-weight: 600; }
+        .k-row-selected td:first-child { border-left: 3px solid var(--brand-primary); }
+        @keyframes pulse-skeleton { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
       `}</style>
     </div>
   )
@@ -490,45 +635,78 @@ function ResNavLink({ active, onClick, icon: Icon, label }: any) {
   )
 }
 
-function PulseDashboard({ cluster, stats, onJump }: any) {
+function PulseDashboard({ cluster, stats, error, connecting, onJump, onResync }: any) {
   return (
     <div className="fade-in">
-       <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700 }}>{cluster.name}</h1>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Live cluster topology and workload distribution</p>
-       </div>
-
-       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
-          <PulseStat label="Nodes" count={stats.nodes} icon={Server} color="var(--brand-primary)" onClick={() => onJump('nodes')} />
-          <PulseStat label="Pods" count={stats.pods} icon={Boxes} color="var(--info)" onClick={() => onJump('pods')} />
-          <PulseStat label="Deployments" count={stats.deployments} icon={LayoutGrid} color="var(--success)" onClick={() => onJump('deployments')} />
-          <PulseStat label="Active Events" count={stats.events} icon={Activity} color="var(--warning)" onClick={() => onJump('events')} />
-       </div>
-
-       <div className="card" style={{ marginTop: 32, padding: 32, textAlign: 'center' }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--success-glow)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-             <Shield size={32} />
+       <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700 }}>{cluster.name}</h1>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Live cluster topology and workload distribution</p>
           </div>
-          <h3 style={{ fontWeight: 700, fontSize: 18 }}>System Pulsing Normal</h3>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>Latency and scheduling rates are within standardized thresholds for this production cluster.</p>
+          <button className="btn btn-secondary" onClick={onResync} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RefreshCw size={14} className={connecting ? 'spin' : ''} />
+            <span>{connecting ? 'Connecting…' : 'Force Resync'}</span>
+          </button>
        </div>
+
+       {error ? (
+         <div className="card" style={{ padding: 40, textAlign: 'center', border: '1px solid #fca5a5', background: '#fff1f2' }}>
+            <div style={{ color: '#dc2626', marginBottom: 16 }}>
+               <Zap size={40} />
+            </div>
+            <h3 style={{ fontWeight: 700, color: 'var(--text-primary)' }}>K8s Telemetry Offline</h3>
+            <p style={{ fontSize: 13, color: '#7f1d1d', marginTop: 8, maxWidth: 560, margin: '8px auto', fontFamily: 'monospace', background: '#fee2e2', padding: '12px 16px', borderRadius: 8, textAlign: 'left', wordBreak: 'break-all' }}>
+               {error}
+            </p>
+            <div style={{ marginTop: 20, fontSize: 12, color: 'var(--text-muted)', textAlign: 'left', maxWidth: 480, margin: '20px auto 0', lineHeight: 2 }}>
+               <strong>Common fixes:</strong><br />
+               • Ensure <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>kubectl</code> is installed on the server<br />
+               • Verify the kubeconfig servers[].server URL is reachable from the proxy host<br />
+               • If using k3s: paste output of <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>sudo k3s kubectl config view --raw</code><br />
+               • Check that kubeconfig context is correct: <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>kubectl config current-context</code>
+            </div>
+            <button className="btn btn-secondary" onClick={onResync} style={{ marginTop: 24 }}>Retry Connection</button>
+         </div>
+       ) : connecting ? (
+         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+            {['Nodes', 'Pods', 'Deployments', 'Active Events'].map(label => (
+              <div key={label} className="card" style={{ padding: 28, opacity: 0.5, animation: 'pulse-skeleton 1.5s ease infinite' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: '#e2e8f0', marginBottom: 20 }} />
+                <div style={{ height: 40, background: '#e2e8f0', borderRadius: 8, marginBottom: 8, width: '40%' }} />
+                <div style={{ height: 12, background: '#e2e8f0', borderRadius: 4, width: '60%' }} />
+              </div>
+            ))}
+         </div>
+       ) : (
+         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+            <PulseStat label="Nodes" count={stats.nodes} icon={Server} color="var(--brand-primary)" onClick={() => onJump('nodes')} />
+            <PulseStat label="Pods" count={stats.pods} icon={Boxes} color="var(--info)" onClick={() => onJump('pods')} />
+            <PulseStat label="Deployments" count={stats.deployments} icon={LayoutGrid} color="var(--success)" onClick={() => onJump('deployments')} />
+            <PulseStat label="Active Events" count={stats.events} icon={Activity} color="var(--warning)" onClick={() => onJump('events')} />
+         </div>
+       )}
     </div>
   )
 }
 
 function PulseStat({ label, count, icon: Icon, color, onClick }: any) {
   return (
-    <div className="card hover-lift" style={{ cursor: 'pointer', padding: 24 }} onClick={onClick}>
-       <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}10`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <Icon size={20} />
+    <div className="card hover-lift" style={{ cursor: 'pointer', padding: 28, position: 'relative', overflow: 'hidden', border: `1px solid ${color}20`, background: `linear-gradient(145deg, #ffffff, ${color}03)` }} onClick={onClick}>
+       <div style={{ position: 'absolute', top: -20, right: -20, opacity: 0.05, color, transform: 'rotate(-10deg)' }}>
+          <Icon size={140} />
        </div>
-       <div style={{ fontSize: 32, fontWeight: 800 }}>{count}</div>
-       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+       <div style={{ width: 44, height: 44, borderRadius: 12, background: `${color}15`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+          <Icon size={22} />
+       </div>
+       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+          <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1, color: 'var(--text-primary)' }}>{count}</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+       </div>
     </div>
   )
 }
 
-function KTable({ columns, data, actions }: any) {
+function KTable({ columns, data, actions, selectedIndex, loading }: any) {
   const getVal = (item: any, col: string) => {
     switch(col.toLowerCase()) {
       case 'name': return item.metadata.name;
@@ -542,12 +720,26 @@ function KTable({ columns, data, actions }: any) {
       case 'version': return item.status?.nodeInfo?.kubeletVersion;
       case 'ready': return `${item.status?.readyReplicas || 0}/${item.spec?.replicas || 0}`;
       case 'available': return item.status?.availableReplicas || 0;
-      case 'type': return item.spec?.type;
+      case 'type': return item.type || item.spec?.type || '—';
+      case 'reason': return item.reason || '—';
+      case 'object': return item.involvedObject ? `${item.involvedObject.kind}/${item.involvedObject.name}` : '—';
+      case 'message': return item.message || '—';
+      case 'age': {
+          if (!item.lastTimestamp && !item.creationTimestamp) return '—';
+          const ts = new Date(item.lastTimestamp || item.creationTimestamp).getTime();
+          const diff = (Date.now() - ts) / 1000;
+          if (diff < 60) return `${Math.floor(diff)}s`;
+          if (diff < 3600) return `${Math.floor(diff/60)}m`;
+          if (diff < 86400) return `${Math.floor(diff/3600)}h`;
+          return `${Math.floor(diff/86400)}d`;
+      }
       case 'cluster-ip': return item.spec?.clusterIP;
       case 'internal-ip': return item.status?.addresses?.find((a: any) => a.type === 'InternalIP')?.address;
       default: return '—';
     }
   }
+
+  const colCount = columns.length + (actions ? 1 : 0)
 
   return (
     <div style={{ overflow: 'hidden', borderRadius: 12, border: '1px solid var(--border)' }}>
@@ -559,8 +751,22 @@ function KTable({ columns, data, actions }: any) {
              </tr>
           </thead>
           <tbody>
-             {data.map((item: any, i: number) => (
-                <tr key={i}>
+             {loading ? (
+               Array.from({ length: 5 }).map((_, i) => (
+                 <tr key={`skel-${i}`}>
+                   {Array.from({ length: colCount }).map((_, j) => (
+                     <td key={j}><div style={{ height: 14, background: '#f1f5f9', borderRadius: 4, width: j === 0 ? '60%' : '40%', animation: 'pulse-skeleton 1.5s ease infinite' }} /></td>
+                   ))}
+                 </tr>
+               ))
+             ) : data.length === 0 ? (
+               <tr>
+                 <td colSpan={colCount} style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+                   No resources found
+                 </td>
+               </tr>
+             ) : data.map((item: any, i: number) => (
+                <tr key={i} className={selectedIndex === i ? 'k-row-selected' : ''}>
                    {columns.map((c: string) => (
                       <td key={c} style={c === 'Name' ? { fontWeight: 700, color: 'var(--brand-primary)' } : {}}>
                          {getVal(item, c)}
@@ -678,22 +884,6 @@ function AddClusterModal({ onClose, onSuccess }: any) {
   )
 }
 
-function EventLogger({ data }: any) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-       {data.map((ev: any, i: number) => (
-          <div key={i} className="card" style={{ borderRadius: 0, border: 'none', borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', gap: 16, background: '#fff' }}>
-             <div style={{ fontSize: 10, fontWeight: 900, color: ev.type === 'Warning' ? 'var(--danger)' : 'var(--success)', width: 60 }}>{ev.type.toUpperCase()}</div>
-             <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{ev.reason}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{ev.message}</div>
-             </div>
-             <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>{ev.involvedObject.kind}/{ev.involvedObject.name}</div>
-          </div>
-       ))}
-    </div>
-  )
-}
 
 function ConfigViewer({ content, onChange, fullPage }: any) {
   return (

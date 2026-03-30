@@ -11,6 +11,7 @@ import (
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	"github.com/infra-eye/backend/internal/ws"
+	"github.com/infra-eye/backend/internal/alerts"
 )
 
 var lastFired = map[uint]time.Time{}
@@ -161,4 +162,7 @@ func fireAction(rule models.AlertRule, server models.Server, info string) {
 		"action_type": rule.ActionType,
 		"status":      action.Status,
 	})
+
+	// Dispatch to external Google Chat Webhook
+	go alerts.SendToGoogleChat(rule.Name, server.Name, info, rule.Severity, action.Status)
 }

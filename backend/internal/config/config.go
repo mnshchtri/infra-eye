@@ -16,8 +16,9 @@ type Config struct {
 	JWTSecret       string
 	OpenAIKey       string
 	GeminiKey       string
-	MetricsInterval int
-	LogMaxLines     int
+	MetricsInterval      int
+	LogMaxLines          int
+	GoogleChatWebhookURL string
 }
 
 var C Config
@@ -37,7 +38,8 @@ func Load() {
 		OpenAIKey:       getEnv("OPENAI_API_KEY", ""),
 		GeminiKey:       getEnv("GEMINI_API_KEY", ""),
 		MetricsInterval: getEnvInt("METRICS_INTERVAL", 30),
-		LogMaxLines:     getEnvInt("LOG_MAX_LINES", 500),
+		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
+		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", "https://chat.googleapis.com/v1/spaces/AAQAvxUvZX4/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=x0s8a9y1DPn1neN1jkgiKyIc28fiv2NBohwP1D6AUX0"),
 	}
 }
 
