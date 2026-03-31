@@ -1,16 +1,17 @@
 import { memo } from 'react'
-import { Server, Boxes, LayoutGrid, Zap, RefreshCw, Globe, FileCode, Key, Database, Layers, Cpu, Activity } from 'lucide-react'
+import { Server, Boxes, LayoutGrid, Zap, RefreshCw, Globe, FileCode, Key, Database, Layers, Cpu, Activity, Shield } from 'lucide-react'
 
 interface PulseDashboardProps {
   cluster: any;
   stats: any;
+  namespace: string;
   error: string | null;
   connecting: boolean;
   onJump: (r: any) => void;
   onResync: () => void;
 }
 
-export const PulseDashboard = memo(({ cluster, stats, error, connecting, onJump, onResync }: PulseDashboardProps) => {
+export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecting, onJump, onResync }: PulseDashboardProps) => {
   return (
     <div className="fade-in">
        <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -21,10 +22,18 @@ export const PulseDashboard = memo(({ cluster, stats, error, connecting, onJump,
                <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{cluster.host} • K8s Native Engine</span>
             </div>
           </div>
-          <button className="btn btn-secondary" onClick={onResync} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36 }}>
-            <RefreshCw size={14} className={connecting ? 'spin' : ''} />
-            <span style={{ fontSize: 13, fontWeight: 700 }}>{connecting ? 'Syncing...' : 'Refresh'}</span>
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '6px 16px', borderRadius: 10, border: '1px solid var(--brand-primary)20' }}>
+               <Globe size={14} color="var(--brand-primary)" />
+               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {namespace === 'All' ? 'All Namespaces' : `Namespace: ${namespace}`}
+               </span>
+            </div>
+            <button className="btn btn-secondary" onClick={onResync} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36, width: '100%', justifyContent: 'center' }}>
+              <RefreshCw size={14} className={connecting ? 'spin' : ''} />
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{connecting ? 'Syncing...' : 'Refresh'}</span>
+            </button>
+          </div>
        </div>
 
        {error ? (
@@ -84,8 +93,11 @@ export const PulseDashboard = memo(({ cluster, stats, error, connecting, onJump,
                   <MiniStat label="Endpoints" count={stats.endpoints} icon={Activity} onClick={() => onJump('endpoints')} />
                   <MiniStat label="ConfigMaps" count={stats.configmaps} icon={FileCode} onClick={() => onJump('configmaps')} />
                   <MiniStat label="Secrets" count={stats.secrets} icon={Key} onClick={() => onJump('secrets')} />
+                  <MiniStat label="PVCs" count={stats.pvcs} icon={Database} onClick={() => onJump('pvcs')} />
                   <MiniStat label="PersistentVolumes" count={stats.pvs} icon={Database} onClick={() => onJump('pvs')} />
                   <MiniStat label="StorageClasses" count={stats.storageclasses} icon={Layers} onClick={() => onJump('storageclasses')} />
+                  <MiniStat label="ResourceQuotas" count={stats.resourcequotas} icon={Shield} onClick={() => onJump('resourcequotas')} />
+                  <MiniStat label="HPA" count={stats.hpa} icon={Activity} onClick={() => onJump('hpa')} />
                   <MiniStat label="CronJobs" count={stats.cronjobs} icon={Activity} onClick={() => onJump('cronjobs')} />
                </div>
             </div>

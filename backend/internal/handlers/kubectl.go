@@ -722,116 +722,210 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 			if err != nil { errs[key] = err.Error() }
 		}
 
-		// Nodes
+		// Nodes (cluster-scoped - always use empty string)
 		nl, nlErr := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 		capture("nodes", nlErr)
 		if nlErr == nil {
 			nodes = len(nl.Items)
 			for _, n := range nl.Items {
 				for _, c := range n.Status.Conditions {
-					if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue { nodesReady++; break }
+					log.Printf("[PULSE DEBUG] Node=%s Condition.Type=%q Condition.Status=%q", n.Name, c.Type, c.Status)
+					if strings.EqualFold(string(c.Type), "Ready") && strings.EqualFold(string(c.Status), "True") {
+						nodesReady++
+						break
+					}
+				}
+			}
+		} else {
+			log.Printf("[PULSE DEBUG] Nodes list error: %v", nlErr)
+		}
+
+		// Workloads
+		pl, plErr := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
+		capture("pods", plErr)
+		if plErr == nil {
+			pods = len(pl.Items)
+			for _, p := range pl.Items {
+				isReady := false
+				for _, c := range p.Status.Conditions {
+					if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+						isReady = true
+						break
+					}
+				}
+				if isReady {
+					podsRunning++
+				}
+			}
+			log.Printf("[PULSE DEBUG] Pods: total=%d ready=%d ns=%q", pods, podsRunning, ns)
+		} else {
+			log.Printf("[PULSE DEBUG] Pods list error: %v", plErr)
+		}
+
+		dl, dlErr := clientset.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
+		capture("deployments", dlErr)
+		if dlErr == nil {
+			deps = len(dl.Items)
+			for _, d := range dl.Items {
+				desired := int32(1)
+				if d.Spec.Replicas != nil {
+					desired = *d.Spec.Replicas
+				}
+				log.Printf("[PULSE DEBUG] Deploy=%s desired=%d available=%d ready=%d", d.Name, desired, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
+				if desired == 0 {
+					depsReady++
+				} else if d.Status.ReadyReplicas >= desired {
+					depsReady++
+				}
+			}
+			log.Printf("[PULSE DEBUG] Deployments: total=%d ready=%d", deps, depsReady)
+		}
+
+		rl, rlErr := clientset.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
+		capture("replicasets", rlErr)
+		if rlErr == nil {
+			rss = len(rl.Items)
+			for _, r := range rl.Items {
+				desired := int32(1)
+				if r.Spec.Replicas != nil {
+					desired = *r.Spec.Replicas
+				}
+				if desired == 0 || r.Status.ReadyReplicas >= desired {
+					rssReady++
 				}
 			}
 		}
 
-		// Workloads
-		pl, plErr := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
-		capture("pods", plErr)
-		if plErr == nil {
-			pods = len(pl.Items)
-			for _, p := range pl.Items { if p.Status.Phase == corev1.PodRunning { podsRunning++ } }
-		}
-		
-		dl, dlErr := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
-		capture("deployments", dlErr)
-		if dlErr == nil {
-			deps = len(dl.Items)
-			for _, d := range dl.Items { if d.Status.AvailableReplicas >= d.Status.Replicas { depsReady++ } }
-		}
-		
-		rl, rlErr := clientset.AppsV1().ReplicaSets("").List(ctx, metav1.ListOptions{})
-		capture("replicasets", rlErr)
-		if rlErr == nil {
-			rss = len(rl.Items)
-			for _, r := range rl.Items { if r.Status.ReadyReplicas >= r.Status.Replicas { rssReady++ } }
-		}
-		
-		sl, slErr := clientset.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{})
+		sl, slErr := clientset.AppsV1().StatefulSets(ns).List(ctx, metav1.ListOptions{})
 		capture("statefulsets", slErr)
 		if slErr == nil {
 			stss = len(sl.Items)
-			for _, s := range sl.Items { if s.Status.ReadyReplicas >= s.Status.Replicas { stssReady++ } }
+			for _, s := range sl.Items {
+				desired := int32(1)
+				if s.Spec.Replicas != nil {
+					desired = *s.Spec.Replicas
+				}
+				if desired == 0 || s.Status.ReadyReplicas >= desired {
+					stssReady++
+				}
+			}
 		}
-		
-		dsl, dslErr := clientset.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{})
+
+		dsl, dslErr := clientset.AppsV1().DaemonSets(ns).List(ctx, metav1.ListOptions{})
 		capture("daemonsets", dslErr)
 		if dslErr == nil {
 			dss = len(dsl.Items)
-			for _, d := range dsl.Items { if d.Status.NumberReady >= d.Status.DesiredNumberScheduled { dssReady++ } }
+			for _, d := range dsl.Items {
+				if d.Status.DesiredNumberScheduled == 0 || d.Status.NumberReady >= d.Status.DesiredNumberScheduled {
+					dssReady++
+				}
+			}
 		}
-		
-		jl, jlErr := clientset.BatchV1().Jobs("").List(ctx, metav1.ListOptions{})
+
+		jl, jlErr := clientset.BatchV1().Jobs(ns).List(ctx, metav1.ListOptions{})
 		capture("jobs", jlErr)
-		if jlErr == nil { jobs = len(jl.Items) }
-		
-		cjl, cjlErr := clientset.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{})
+		if jlErr == nil {
+			jobs = len(jl.Items)
+		}
+
+		cjl, cjlErr := clientset.BatchV1().CronJobs(ns).List(ctx, metav1.ListOptions{})
 		capture("cronjobs", cjlErr)
-		if cjlErr == nil { cjs = len(cjl.Items) }
+		if cjlErr == nil {
+			cjs = len(cjl.Items)
+		}
 
 		// Network
-		svcl, svcErr := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		svcl, svcErr := clientset.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
 		capture("services", svcErr)
-		if svcErr == nil { svcs = len(svcl.Items) }
-		
-		epl, epErr := clientset.CoreV1().Endpoints("").List(ctx, metav1.ListOptions{})
+		if svcErr == nil {
+			svcs = len(svcl.Items)
+		}
+
+		epl, epErr := clientset.CoreV1().Endpoints(ns).List(ctx, metav1.ListOptions{})
 		capture("endpoints", epErr)
-		if epErr == nil { eps = len(epl.Items) }
-		
-		ingl, ingErr := clientset.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
+		if epErr == nil {
+			eps = len(epl.Items)
+		}
+
+		ingl, ingErr := clientset.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
 		capture("ingresses", ingErr)
-		if ingErr == nil { ings = len(ingl.Items) }
+		if ingErr == nil {
+			ings = len(ingl.Items)
+		}
 
 		// Configuration & Storage
-		cml, cmErr := clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+		cml, cmErr := clientset.CoreV1().ConfigMaps(ns).List(ctx, metav1.ListOptions{})
 		capture("configmaps", cmErr)
-		if cmErr == nil { cms = len(cml.Items) }
-		
-		secl, secErr := clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
+		if cmErr == nil {
+			cms = len(cml.Items)
+		}
+
+		secl, secErr := clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
 		capture("secrets", secErr)
-		if secErr == nil { secs = len(secl.Items) }
-		
+		if secErr == nil {
+			secs = len(secl.Items)
+		}
+
 		pvl, pvErr := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
 		capture("pvs", pvErr)
-		if pvErr == nil { pvs = len(pvl.Items) }
-		
+		if pvErr == nil {
+			pvs = len(pvl.Items)
+		}
+
+		pvcl, pvcErr := clientset.CoreV1().PersistentVolumeClaims(ns).List(ctx, metav1.ListOptions{})
+		capture("pvcs", pvcErr)
+		var pvcs int
+		if pvcErr == nil {
+			pvcs = len(pvcl.Items)
+		}
+
 		scl, scErr := clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
 		capture("storageclasses", scErr)
-		if scErr == nil { scs = len(scl.Items) }
+		if scErr == nil {
+			scs = len(scl.Items)
+		}
+
+		rql, rqErr := clientset.CoreV1().ResourceQuotas(ns).List(ctx, metav1.ListOptions{})
+		capture("resourcequotas", rqErr)
+		var rqs int
+		if rqErr == nil {
+			rqs = len(rql.Items)
+		}
+
+		hpal, hpaErr := clientset.AutoscalingV1().HorizontalPodAutoscalers(ns).List(ctx, metav1.ListOptions{})
+		capture("hpa", hpaErr)
+		var hpas int
+		if hpaErr == nil {
+			hpas = len(hpal.Items)
+		}
 
 		payload = map[string]interface{}{
 			"kind": "Pulse",
 			"stats": map[string]int{
-				"nodes":            nodes,
-				"nodesReady":       nodesReady,
-				"pods":             pods,
-				"podsRunning":      podsRunning,
-				"deployments":      deps,
-				"deploymentsReady": depsReady,
-				"replicasets":      rss,
-				"replicasetsReady": rssReady,
-				"statefulsets":     stss,
+				"nodes":             nodes,
+				"nodesReady":        nodesReady,
+				"pods":              pods,
+				"podsRunning":       podsRunning,
+				"deployments":       deps,
+				"deploymentsReady":  depsReady,
+				"replicasets":       rss,
+				"replicasetsReady":  rssReady,
+				"statefulsets":      stss,
 				"statefulsetsReady": stssReady,
-				"daemonsets":       dss,
-				"daemonsetsReady":  dssReady,
-				"jobs":             jobs,
-				"cronjobs":         cjs,
-				"services":         svcs,
-				"endpoints":        eps,
-				"ingresses":        ings,
-				"configmaps":       cms,
-				"secrets":          secs,
-				"pvs":              pvs,
-				"storageclasses":   scs,
+				"daemonsets":        dss,
+				"daemonsetsReady":   dssReady,
+				"jobs":              jobs,
+				"cronjobs":          cjs,
+				"services":          svcs,
+				"endpoints":         eps,
+				"ingresses":         ings,
+				"configmaps":        cms,
+				"secrets":           secs,
+				"pvs":               pvs,
+				"pvcs":              pvcs,
+				"storageclasses":    scs,
+				"resourcequotas":    rqs,
+				"hpa":               hpas,
 			},
 			"errors": errs,
 		}
