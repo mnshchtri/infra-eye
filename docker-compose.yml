@@ -37,7 +37,7 @@ services:
     image: ghcr.io/containers/kubernetes-mcp-server:latest
     container_name: infra-eye-mcp
     restart: unless-stopped
-    command: ["--port", "8090", "--read-only=false"]
+    command: ["--port", "8090", "--read-only=false", "--kubeconfig", "/root/.kube/config"]
     volumes:
       - ~/.kube:/root/.kube:ro
     ports:

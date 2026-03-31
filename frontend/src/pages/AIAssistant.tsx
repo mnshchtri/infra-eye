@@ -251,10 +251,11 @@ export function AIAssistant() {
         askQuestion(`[MCP_TOOL_RESULT for ${tool}]\n${output}\n\nAnalyze this output and tell me what to do next.`)
       }, 400)
     } catch (err: any) {
+      const errData = err.response?.data
       const errMsg: Message = {
         id: Date.now().toString() + '_mcperr',
         role: 'assistant',
-        content: `**⚠️ MCP Tool Error: \`${tool}\`**\n${err.response?.data?.error || err.message}`,
+        content: `**⚠️ MCP Tool Error: \`${tool}\`**\n${errData?.error || err.message}${errData?.details ? `\n\n*${errData.details}*` : ''}`,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errMsg])

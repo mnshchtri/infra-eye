@@ -37,6 +37,14 @@ const MCPToolCard = memo(({ raw, onExecute }: {
     )
   }
 
+  if (!parsed || !parsed.tool) {
+    return (
+      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 8, fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)' }}>
+        {raw}
+      </pre>
+    )
+  }
+
   const isMutating = ['pods_delete', 'pods_exec', 'resources_create_or_update', 'resources_scale'].includes(parsed.tool)
 
   const handleRun = useCallback(async () => {
