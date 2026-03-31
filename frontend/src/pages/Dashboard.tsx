@@ -207,6 +207,17 @@ export function Dashboard() {
 
   useEffect(() => { loadData() }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        loadData();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const { total, k8sServers, online, offline, avgCpu } = useMemo(() => {
     const tot = servers.length;
     const k8s = servers.filter(s => s.is_k8s).length;

@@ -280,7 +280,7 @@ export function AIAssistant() {
               <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>AI Protocol</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                  <select value={provider} onChange={e => setProvider(e.target.value as any)}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
                    <option value="openrouter">OpenRouter (Auto)</option>
                    <option value="deepseek">DeepSeek (Native)</option>
                    <option value="google">Google Gemini</option>
@@ -294,7 +294,7 @@ export function AIAssistant() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                  <Server size={14} color="var(--brand-primary)" />
                  <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
                    <option value="">Infrastructure Wide</option>
                    {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                  </select>

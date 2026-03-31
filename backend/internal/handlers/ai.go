@@ -250,21 +250,22 @@ func ClearChatHistory(c *gin.Context) {
 }
 
 func buildContext(serverID uint) string {
-	ctx := "You are नेत्र (Netra), a veteran DevOps, SRE, and Platform Engineer with OG-level systems knowledge. " +
-		"You are blunt, professional, and highly technical. You prioritize stability, performance, and automation. " +
-		"Diagnose issues with surgical precision. If you see a hacky fix, call it out.\n\n"
+	ctx := "You are नेत्र (Netra), an elite DevSecOps, SRE, and Infrastructure Security Engineer. " +
+		"You are blunt, professional, and highly technical. You prioritize stability, performance, security, and automation. " +
+		"Analyze logs, metrics, and configurations to detect performance anomalies, resource bottlenecks, misconfigurations, and active security threats. " +
+		"Diagnose issues with surgical precision. If you see a hacky fix or a security vulnerability, call it out forcefully.\n\n"
 	
 	if serverID > 0 {
 		var server models.Server
 		if err := db.DB.First(&server, serverID).Error; err == nil {
-			ctx += fmt.Sprintf("Server: %s (%s)\nStatus: %s\nTags: %s\n\n", server.Name, server.Host, server.Status, server.Tags)
+			ctx += fmt.Sprintf("TARGET CONTEXT: SINGLE SERVER\nServer: %s (%s)\nStatus: %s\nTags: %s\n\n", server.Name, server.Host, server.Status, server.Tags)
 		}
 
-		// Last 20 log entries
+		// Last 30 log entries (emphasize analyzing these for threats)
 		var logs []models.LogEntry
-		db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").Limit(20).Find(&logs)
+		db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").Limit(30).Find(&logs)
 		if len(logs) > 0 {
-			ctx += "Recent logs (newest first):\n"
+			ctx += "Recent logs (analyze for errors, warnings, and security threats):\n"
 			for _, l := range logs {
 				ctx += fmt.Sprintf("[%s] [%s] %s\n", l.Timestamp.Format("15:04:05"), l.Level, l.Message)
 			}
@@ -274,7 +275,7 @@ func buildContext(serverID uint) string {
 		// Last metric
 		var metric models.Metric
 		if err := db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").First(&metric).Error; err == nil {
-			ctx += fmt.Sprintf("Latest metrics:\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%% (Used: %.1f GB, Total: %.1f GB)\n- Network RX: %.2f MB/s, TX: %.2f MB/s\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
+			ctx += fmt.Sprintf("Latest metrics (analyze for resource exhaustion or anomalies):\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%% (Used: %.1f GB, Total: %.1f GB)\n- Network RX: %.2f MB/s, TX: %.2f MB/s\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
 				metric.CPUPercent, metric.MemPercent, metric.MemUsedMB, metric.MemTotalMB,
 				metric.DiskPercent, metric.DiskUsedGB, metric.DiskTotalGB,
 				metric.NetRxMBps, metric.NetTxMBps,
@@ -305,12 +306,12 @@ func buildContext(serverID uint) string {
 					}
 				}
 
-				// Fetch last 10 non-Normal events
+				// Fetch last 10 non-Normal events (security relevance)
 				if events, err := clientset.CoreV1().Events("").List(k8sCtx, metav1.ListOptions{
 					Limit: 10,
 				}); err == nil {
 					if len(events.Items) > 0 {
-						ctx += "Recent Cluster Events:\n"
+						ctx += "Recent Cluster Events (check for CrashLoopBackOff, OOMKilled, or RBAC issues):\n"
 						for i, e := range events.Items {
 							if i >= 10 { break }
 							ctx += fmt.Sprintf("- [%s] %s: %s (%s)\n", e.Type, e.Reason, e.Message, e.InvolvedObject.Name)
@@ -320,6 +321,31 @@ func buildContext(serverID uint) string {
 				ctx += "----------------------------\n\n"
 			}
 		}
+	} else {
+		ctx += "TARGET CONTEXT: INFRASTRUCTURE WIDE\n--- GLOBAL FLEET STATE ---\n"
+		var servers []models.Server
+		if err := db.DB.Find(&servers).Error; err == nil {
+			for _, s := range servers {
+				ctx += fmt.Sprintf("Server: %s (%s) | Status: %s | Tags: %s\n", s.Name, s.Host, s.Status, s.Tags)
+				
+				var metric models.Metric
+				if err := db.DB.Where("server_id = ?", s.ID).Order("timestamp DESC").First(&metric).Error; err == nil {
+					ctx += fmt.Sprintf("  ↳ Metrics: CPU %.1f%%, RAM %.1f%%, DISK %.1f%%\n", metric.CPUPercent, metric.MemPercent, metric.DiskPercent)
+				}
+				
+				// Get recent warning/error/critical/fatal logs for this server
+				var logs []models.LogEntry
+				db.DB.Where("server_id = ? AND level IN ?", s.ID, []string{"warn", "warning", "error", "fatal", "critical"}).Order("timestamp DESC").Limit(3).Find(&logs)
+				if len(logs) > 0 {
+					ctx += "  ↳ Recent Critical/Warning Logs (potential security or stability threats):\n"
+					for _, l := range logs {
+						ctx += fmt.Sprintf("    [%s] %s\n", l.Level, l.Message)
+					}
+				}
+				ctx += "\n"
+			}
+		}
+		ctx += "-----------------------------------\n\n"
 	}
 
 	return ctx

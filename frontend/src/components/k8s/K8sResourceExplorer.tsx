@@ -76,12 +76,12 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const activeWsRef = useRef<WebSocket | null>(null)
   
   const stateRef = useRef({
-    activeRes, data, selectedIndex, editingYaml, filterQuery, showCommandBar, showSearch
+    activeRes, data, selectedIndex, editingYaml, filterQuery, showCommandBar, showSearch, selectedNS
   })
 
   useEffect(() => {
-    stateRef.current = { activeRes, data, selectedIndex, editingYaml, filterQuery, showCommandBar, showSearch }
-  }, [activeRes, data, selectedIndex, editingYaml, filterQuery, showCommandBar, showSearch])
+    stateRef.current = { activeRes, data, selectedIndex, editingYaml, filterQuery, showCommandBar, showSearch, selectedNS }
+  }, [activeRes, data, selectedIndex, editingYaml, filterQuery, showCommandBar, showSearch, selectedNS])
 
   const toggleCategory = useCallback((cat: string) => {
     setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }))
@@ -206,8 +206,15 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const { showCommandBar, showSearch, activeRes: curRes, selectedIndex: curIdx, editingYaml: curYaml } = stateRef.current;
+      const { showCommandBar, showSearch, activeRes: curRes, selectedIndex: curIdx, editingYaml: curYaml, selectedNS: curNS } = stateRef.current;
       const target = e.target as HTMLElement;
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+         e.preventDefault();
+         watchK8sData(cluster.id, curRes, curNS);
+         return;
+      }
+
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
          if (e.key === 'Escape') { 
             e.preventDefault();
@@ -253,7 +260,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       }
     }
     window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [filteredData, fetchYaml, handleDeleteResource, canUseKubectl, drawer])
+  }, [filteredData, fetchYaml, handleDeleteResource, canUseKubectl, drawer, watchK8sData, cluster.id])
 
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault()
