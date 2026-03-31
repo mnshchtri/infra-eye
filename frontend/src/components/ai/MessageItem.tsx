@@ -1,5 +1,5 @@
-import React, { memo } from 'react'
-import { User } from 'lucide-react'
+import React, { memo, useState, useCallback } from 'react'
+import { User, Play, Loader, CheckCircle, AlertCircle, Terminal } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import chatbotLogo from '../../assets/chatbot-logo.png'
@@ -12,7 +12,115 @@ interface Message {
   image?: string
 }
 
-export const MessageItem = memo(({ msg }: { msg: Message }) => {
+interface Props {
+  msg: Message
+  onExecuteMcpTool?: (tool: string, args: Record<string, unknown>) => Promise<void>
+}
+
+// ── MCP Tool Call Card ─────────────────────────────────────────────────────
+type RunState = 'idle' | 'running' | 'done' | 'error'
+
+const MCPToolCard = memo(({ raw, onExecute }: {
+  raw: string
+  onExecute?: (tool: string, args: Record<string, unknown>) => Promise<void>
+}) => {
+  const [runState, setRunState] = useState<RunState>('idle')
+
+  let parsed: { tool: string; args?: Record<string, unknown> } | null = null
+  try {
+    parsed = JSON.parse(raw.trim())
+  } catch {
+    return (
+      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 8, fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)' }}>
+        {raw}
+      </pre>
+    )
+  }
+
+  const isMutating = ['pods_delete', 'pods_exec', 'resources_create_or_update', 'resources_scale'].includes(parsed.tool)
+
+  const handleRun = useCallback(async () => {
+    if (!onExecute || !parsed) return
+    setRunState('running')
+    try {
+      await onExecute(parsed.tool, parsed.args || {})
+      setRunState('done')
+    } catch {
+      setRunState('error')
+    }
+  }, [onExecute, parsed])
+
+  const stateColors: Record<RunState, string> = {
+    idle: isMutating ? 'var(--warning)' : 'var(--brand-primary)',
+    running: 'var(--text-muted)',
+    done: 'var(--success)',
+    error: 'var(--danger)',
+  }
+
+  return (
+    <div style={{
+      margin: '12px 0',
+      borderRadius: 12,
+      border: `1px solid ${isMutating ? 'rgba(245,158,11,0.3)' : 'rgba(79,70,229,0.3)'}`,
+      background: isMutating ? 'rgba(245,158,11,0.04)' : 'rgba(79,70,229,0.04)',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px',
+        background: isMutating ? 'rgba(245,158,11,0.08)' : 'rgba(79,70,229,0.08)',
+        borderBottom: `1px solid ${isMutating ? 'rgba(245,158,11,0.2)' : 'rgba(79,70,229,0.2)'}`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Terminal size={14} color={isMutating ? 'var(--warning)' : 'var(--brand-primary)'} />
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isMutating ? 'var(--warning)' : 'var(--brand-primary)' }}>
+            {isMutating ? '⚠ Mutating' : '🔍 Read'} · MCP Tool
+          </span>
+          <code style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', background: 'var(--bg-app)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+            {parsed.tool}
+          </code>
+        </div>
+        <button
+          onClick={handleRun}
+          disabled={runState === 'running' || runState === 'done'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 14px', borderRadius: 8, border: 'none',
+            background: runState === 'idle' ? stateColors.idle : 'var(--bg-elevated)',
+            color: runState === 'idle' ? '#fff' : stateColors[runState],
+            fontSize: 12, fontWeight: 700, cursor: runState === 'idle' ? 'pointer' : 'default',
+            transition: 'all 0.2s', opacity: runState === 'running' ? 0.7 : 1,
+          }}
+        >
+          {runState === 'idle' && <><Play size={12} /> Execute</>}
+          {runState === 'running' && <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>}
+          {runState === 'done' && <><CheckCircle size={12} /> Done</>}
+          {runState === 'error' && <><AlertCircle size={12} /> Error</>}
+        </button>
+      </div>
+
+      {/* Args preview */}
+      {parsed.args && Object.keys(parsed.args).length > 0 && (
+        <div style={{ padding: '10px 14px' }}>
+          {Object.entries(parsed.args).map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', gap: 8, marginBottom: 4, fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 600, minWidth: 100 }}>{k}</span>
+              <span style={{ color: 'var(--text-primary)', fontFamily: '"JetBrains Mono", monospace' }}>
+                {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+MCPToolCard.displayName = 'MCPToolCard'
+
+// ── MessageItem ────────────────────────────────────────────────────────────
+export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
   return (
     <div
       className="fade-up"
@@ -42,9 +150,9 @@ export const MessageItem = memo(({ msg }: { msg: Message }) => {
         display: 'flex', flexDirection: 'column',
         alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
       }}>
-        <div style={{ 
-          fontSize: 10, color: 'var(--text-muted)', fontWeight: 800, 
-          textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em' 
+        <div style={{
+          fontSize: 10, color: 'var(--text-muted)', fontWeight: 800,
+          textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em'
         }}>
           {msg.role === 'assistant' ? 'नेत्र' : 'Analyst'}
         </div>
@@ -79,7 +187,7 @@ export const MessageItem = memo(({ msg }: { msg: Message }) => {
                 blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--brand-primary)', margin: '16px 0', color: 'var(--text-secondary)', fontStyle: 'italic', background: 'var(--bg-app)', padding: '12px 16px', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }}>{children}</blockquote>,
                 strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
                 code: ({ children, className }) => {
-                  const isInline = !className;
+                  const isInline = !className
                   return isInline ? (
                     <code style={{
                       background: 'rgba(129, 140, 248, 0.1)', padding: '2px 6px', borderRadius: 4,
@@ -88,16 +196,28 @@ export const MessageItem = memo(({ msg }: { msg: Message }) => {
                     }}>{children}</code>
                   ) : (
                     <code style={{ fontFamily: '"JetBrains Mono", monospace' }}>{children}</code>
-                  );
+                  )
                 },
-                pre: ({ children }) => (
-                  <pre style={{
-                    background: 'var(--bg-app)', padding: '16px', borderRadius: 'var(--radius-lg)',
-                    fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid var(--border)',
-                    fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)',
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
-                  }}>{children}</pre>
-                ),
+                pre: ({ children, ...props }) => {
+                  // Detect MCP tool call blocks (```mcp ... ```)
+                  const child = React.Children.only(children) as React.ReactElement<{ className?: string; children?: string }>
+                  if (child?.props?.className === 'language-mcp') {
+                    return (
+                      <MCPToolCard
+                        raw={String(child.props.children ?? '').trim()}
+                        onExecute={onExecuteMcpTool}
+                      />
+                    )
+                  }
+                  return (
+                    <pre style={{
+                      background: 'var(--bg-app)', padding: '16px', borderRadius: 'var(--radius-lg)',
+                      fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid var(--border)',
+                      fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
+                    }}>{children}</pre>
+                  )
+                },
                 table: ({ children }) => (
                   <div style={{ overflowX: 'auto', marginBottom: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                     <table className="k-table" style={{ margin: 0, border: 'none', tableLayout: 'auto' }}>

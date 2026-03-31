@@ -22,6 +22,7 @@ type Config struct {
 	LogMaxLines          int
 	GoogleChatWebhookURL string
 	SlackWebhookURL      string
+	MCPServerURL         string
 }
 
 var C Config
@@ -46,6 +47,7 @@ func Load() {
 		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
 		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", ""),
 		SlackWebhookURL:        getEnv("SLACK_WEBHOOK_URL", ""),
+		MCPServerURL:           getEnv("MCP_SERVER_URL", "http://localhost:8090"),
 	}
 }
 

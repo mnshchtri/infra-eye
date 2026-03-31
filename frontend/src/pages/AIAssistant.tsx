@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
-import { Send, Server, User, ChevronDown, Image as ImageIcon, X, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Send, Server, ChevronDown, Image as ImageIcon, X, Trash2, Zap } from 'lucide-react'
 import { api } from '../api/client'
 import chatbotLogo from '../assets/chatbot-logo.png'
 
@@ -65,6 +65,7 @@ export function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google'>('openrouter')
+  const [mcpAvailable, setMcpAvailable] = useState(false)
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState<string | null>(null)
@@ -75,6 +76,10 @@ export function AIAssistant() {
 
   useEffect(() => {
     api.get('/api/servers').then(res => setServers(res.data)).catch(() => {})
+    // Check MCP server availability
+    api.get('/api/mcp/status').then(res => {
+      setMcpAvailable(res.data?.available === true)
+    }).catch(() => setMcpAvailable(false))
   }, [])
 
   const fetchThreads = useCallback(async () => {
@@ -225,6 +230,37 @@ export function AIAssistant() {
     }
   }
 
+  // MCP Tool execution — called by MessageItem when user clicks "▶ Execute"
+  const executeMcpTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
+    try {
+      const res = await api.post('/api/mcp/tool', {
+        tool,
+        arguments: args,
+        server_id: selectedServer || 0,
+      })
+      const output = res.data?.output || JSON.stringify(res.data)
+      const resultMsg: Message = {
+        id: Date.now().toString() + '_mcp',
+        role: 'assistant',
+        content: `**🔧 MCP Tool Result: \`${tool}\`**\n\`\`\`\n${output}\n\`\`\`\n\n*Analyzing results...*`,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, resultMsg])
+      // Feed output back to AI for analysis
+      setTimeout(() => {
+        askQuestion(`[MCP_TOOL_RESULT for ${tool}]\n${output}\n\nAnalyze this output and tell me what to do next.`)
+      }, 400)
+    } catch (err: any) {
+      const errMsg: Message = {
+        id: Date.now().toString() + '_mcperr',
+        role: 'assistant',
+        content: `**⚠️ MCP Tool Error: \`${tool}\`**\n${err.response?.data?.error || err.message}`,
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errMsg])
+    }
+  }, [selectedServer, askQuestion])
+
   const handleClearHistory = useCallback(async () => {
     if (!window.confirm('Clear conversation history?')) return
     try {
@@ -302,6 +338,14 @@ export function AIAssistant() {
               </div>
             </div>
           </div>
+
+          {/* MCP Status Pill */}
+          {mcpAvailable && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <Zap size={12} color="var(--success)" />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>K8s MCP</span>
+            </div>
+          )}
         </header>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '40px 60px 160px' }}>
@@ -320,7 +364,7 @@ export function AIAssistant() {
               </div>
             )}
 
-            {messages.map((msg) => <MessageItem key={msg.id} msg={msg} />)}
+            {messages.map((msg) => <MessageItem key={msg.id} msg={msg} onExecuteMcpTool={executeMcpTool} />)}
 
             {loading && (
               <div style={{ display: 'flex', gap: 24, alignSelf: 'flex-start' }} className="fade-up">

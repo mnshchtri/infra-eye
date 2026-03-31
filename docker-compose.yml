@@ -33,6 +33,21 @@ services:
       timeout: 5s
       retries: 5
 
+  mcp-server:
+    image: ghcr.io/containers/kubernetes-mcp-server:latest
+    container_name: infra-eye-mcp
+    restart: unless-stopped
+    command: ["--port", "8090", "--read-only=false"]
+    volumes:
+      - ~/.kube:/root/.kube:ro
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
   app:
     build:
       context: .
@@ -49,6 +64,7 @@ services:
     environment:
       - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
       - REDIS_URL=redis:6379
+      - MCP_SERVER_URL=http://mcp-server:8090
     ports:
       - "8081:80"
 

@@ -107,6 +107,11 @@ func main() {
 		api.GET("/ai/history/:id", middleware.RequireRole("admin", "devops"), handlers.GetChatHistory)
 		api.DELETE("/ai/history", middleware.RequireRole("admin", "devops"), handlers.ClearChatHistory)
 
+		// ── MCP (Kubernetes Model Context Protocol) ───────────────
+		api.GET("/mcp/status", middleware.RequireRole("admin", "devops"), handlers.MCPServerStatus)
+		api.GET("/mcp/tools", middleware.RequireRole("admin", "devops"), handlers.ListMCPTools)
+		api.POST("/mcp/tool", middleware.RequireRole("admin", "devops"), handlers.ExecuteMCPTool)
+
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
 		api.POST("/alert-rules", middleware.RequireRole("admin", "devops"), handlers.CreateAlertRule)
