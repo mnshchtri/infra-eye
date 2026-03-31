@@ -39,6 +39,7 @@ export function AIAssistant() {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
+  const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google'>('openrouter')
   
   // Multimodal state
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
@@ -171,7 +172,8 @@ export function AIAssistant() {
         server_id: serverId, 
         question: text,
         image_base64: base64Data,
-        image_mime_type: imageMime
+        image_mime_type: imageMime,
+        provider: provider
       })
       
       const newAssistantMsg: Message = {
@@ -419,6 +421,27 @@ export function AIAssistant() {
           {/* Server Switcher */}
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>AI Protocol</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                 <select
+                   className="input-minimal"
+                   value={provider}
+                   onChange={e => setProvider(e.target.value as any)}
+                   style={{
+                     background: 'transparent', border: 'none', color: 'var(--text-primary)',
+                     fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none',
+                     padding: 0, appearance: 'none'
+                   }}
+                 >
+                   <option value="openrouter">OpenRouter (Auto)</option>
+                   <option value="deepseek">DeepSeek (Native)</option>
+                   <option value="google">Google Gemini</option>
+                 </select>
+                 <ChevronDown size={14} color="var(--text-muted)" />
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Context</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                  <Server size={14} color="var(--brand-primary)" />
@@ -560,9 +583,9 @@ export function AIAssistant() {
                           ),
                           pre: ({ children }) => (
                             <pre style={{
-                              background: '#0f172a', padding: '20px', borderRadius: 12,
-                              fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid #1e293b',
-                              fontFamily: '"JetBrains Mono", monospace', color: '#cbd5e1'
+                              background: 'var(--bg-app)', padding: '20px', borderRadius: 12,
+                              fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid var(--border)',
+                              fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)'
                             }}>{children}</pre>
                           ),
                         }}

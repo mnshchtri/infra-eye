@@ -544,7 +544,7 @@ func TestK8sConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "output": stdout})
 }
 
-// DisconnectCluster — removes KubeConfig to stop managing server as a cluster
+// DisconnectCluster — marks cluster as disconnected but retains kubeconfig
 func DisconnectCluster(c *gin.Context) {
 	id := c.Param("id")
 	var server models.Server
@@ -553,7 +553,7 @@ func DisconnectCluster(c *gin.Context) {
 		return
 	}
 
-	server.KubeConfig = ""
+	server.K8sConnected = false
 	if err := db.DB.Save(&server).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("disconnect: %v", err)})
 		return
@@ -562,7 +562,25 @@ func DisconnectCluster(c *gin.Context) {
 	// Invalidate the kubeconfig cache for this server
 	invalidateKubeConfigCache(server.ID)
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cluster disconnected successfully. Server remains active."})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cluster disconnected successfully. State preserved."})
+}
+
+// ReconnectCluster — sets K8sConnected to true
+func ReconnectCluster(c *gin.Context) {
+	id := c.Param("id")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	server.K8sConnected = true
+	if err := db.DB.Save(&server).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("reconnect: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cluster reconnected successfully."})
 }
 
 // ApplyKubectl — applies a YAML string to the cluster via temp file

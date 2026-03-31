@@ -97,6 +97,7 @@ func main() {
 		api.GET("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.ListPortForwards)
 		api.DELETE("/servers/:id/kubectl/port-forward/:sessionId", middleware.RequireRole("admin", "devops"), handlers.StopPortForward)
 		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
+		api.POST("/servers/:id/k8s/reconnect", middleware.RequireRole("admin", "devops"), handlers.ReconnectCluster)
 
 		// ── AI ────────────────────────────────────────────────────
 		api.GET("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.ListThreads)

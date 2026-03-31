@@ -2,12 +2,12 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Cpu, MemoryStick, HardDrive, Activity,
-  ScrollText, Terminal as TerminalIcon, Boxes, RefreshCw, Wifi, Shield,
+  ScrollText, Terminal as TerminalIcon, RefreshCw, Wifi, Shield,
   Search, Download, Power, Settings as SettingsIcon, Loader2,
-  ChevronRight, Gauge, Layers, Server, ArrowRight, Info, Apple, HelpCircle,
+  ChevronRight, Gauge, Layers, Server, HelpCircle,
   Trash2, Maximize2, Minimize2
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
+import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -49,9 +49,6 @@ export function ServerDetail() {
   const [activeTab, setActiveTab] = useState('Overview')
   const [loading, setLoading] = useState(true)
   const [logSearch, setLogSearch] = useState('')
-  const [kubectlCmd, setKubectlCmd]       = useState('get pods')
-  const [kubectlOutput, setKubectlOutput] = useState('')
-  const [kubectlLoading, setKubectlLoading] = useState(false)
   const [rebooting, setRebooting] = useState(false)
   const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
   // Preferences form
@@ -193,19 +190,6 @@ export function ServerDetail() {
     }, 50)
   }
 
-  async function runKubectl() {
-    if (!kubectlCmd.trim()) return
-    setKubectlLoading(true)
-    try {
-      const res = await api.post(`/api/servers/${id}/kubectl`, { command: kubectlCmd })
-      setKubectlOutput(res.data.output || res.data.error || '')
-    } catch (e: any) {
-      setKubectlOutput(e.response?.data?.error || 'Command failed')
-    } finally {
-      setKubectlLoading(false)
-    }
-  }
-
   async function runDiagnostics() {
     try {
       await api.post(`/api/servers/${id}/diagnose`)
@@ -295,7 +279,6 @@ export function ServerDetail() {
 
   const tabs = ['Overview', 'Logs']
   if (can('use-terminal')) tabs.push('Terminal')
-  if (can('use-kubectl')) tabs.push('Kubectl')
   if (can('manage-servers')) tabs.push('Settings')
 
   if (loading && !server) return (
@@ -331,7 +314,7 @@ export function ServerDetail() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 16px var(--brand-glow)'
           }}>
-            {server.os === 'darwin' ? <Apple size={30} color="#fff" /> : 
+            {server.os === 'darwin' ? <AppleIcon size={30} color="#fff" /> : 
              server.os === 'windows' ? <WindowsIcon size={24} color="#fff" /> :
              server.os === 'linux'  ? <LinuxIcon size={26} color="#fff" /> : 
              <HelpCircle size={30} color="#fff" />}
@@ -381,7 +364,6 @@ export function ServerDetail() {
             {tab === 'Overview' && <Gauge size={16} />}
             {tab === 'Logs' && <ScrollText size={16} />}
             {tab === 'Terminal' && <TerminalIcon size={16} />}
-            {tab === 'Kubectl' && <Boxes size={16} />}
             {tab === 'Settings' && <SettingsIcon size={16} />}
             {tab}
             {activeTab === tab && (
@@ -568,83 +550,6 @@ export function ServerDetail() {
               </button>
             </div>
             <div ref={terminalRef} style={{ height: isTerminalFullscreen ? 'calc(100vh - 40px)' : 600, padding: '16px 4px' }} className="terminal-container" />
-          </div>
-        </div>
-      )}
-
-      {/* ── Kubectl Tab ── */}
-      {activeTab === 'Kubectl' && can('use-kubectl') && (
-        <div className="fade-in">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24 }}>
-            <div>
-              <div className="card" style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(79, 70, 229, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Boxes size={18} color="var(--brand-primary)" />
-                  </div>
-                  <div>
-                    <h3 style={{ fontWeight: 800, fontSize: 16 }}>Command Console</h3>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Execute kubectl commands against the connected cluster</p>
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: 12, position: 'relative' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontWeight: 800, color: 'var(--text-muted)', fontSize: 13 }}>kubectl</span>
-                    <input className="input" value={kubectlCmd}
-                      onChange={e => setKubectlCmd(e.target.value)}
-                      placeholder="get pods"
-                      onKeyDown={e => e.key === 'Enter' && runKubectl()}
-                      style={{ paddingLeft: 64, height: 44, fontSize: 14, fontWeight: 600, background: '#f8fafc' }}
-                    />
-                  </div>
-                  <button className="btn btn-primary" onClick={runKubectl} disabled={kubectlLoading} style={{ width: 100 }}>
-                    {kubectlLoading ? <div className="spinner" style={{ width: 14, height: 14 }} /> : 'Execute'}
-                  </button>
-                </div>
-              </div>
-
-              {kubectlOutput && (
-                <div className="card" style={{ padding: 0, overflow: 'hidden', background: '#0a0c12' }}>
-                   <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <span style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>OUTPUT STREAM</span>
-                     <button className="btn" style={{ height: 24, fontSize: 10, color: 'rgba(255,255,255,0.4)', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)' }} onClick={() => setKubectlOutput('')}>Clear</button>
-                   </div>
-                   <div className="kubectl-output" style={{ padding: 24, minHeight: 400, color: '#f8fafc', fontFamily: '"JetBrains Mono", monospace', fontSize: 13, lineHeight: 1.6 }}>{kubectlOutput}</div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <div className="card">
-                <h4 style={{ fontSize: 13, fontWeight: 800, marginBottom: 16, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quick Actions</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {['get pods', 'get nodes', 'get services', 'get deployments', 'top nodes', 'describe nodes', 'get namespaces'].map(cmd => (
-                    <button key={cmd} onClick={() => { setKubectlCmd(cmd); runKubectl(); }}
-                      style={{ 
-                        padding: '10px 14px', borderRadius: 10, background: 'var(--bg-app)', border: '1px solid var(--border)', 
-                        textAlign: 'left', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                      }}
-                      className="hover-lift"
-                    >
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace' }}>{cmd}</span>
-                      <ArrowRight size={14} style={{ opacity: 0.4 }} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="card" style={{ marginTop: 24, background: 'var(--brand-primary)05', border: '1px solid var(--brand-glow)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <Info size={16} color="var(--brand-primary)" />
-                  <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--brand-primary)' }}>Usage Note</span>
-                </div>
-                <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                  All commands are executed with system-level privileges on the target server's active cluster context. Use caution with destructive actions.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       )}

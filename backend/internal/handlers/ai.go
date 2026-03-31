@@ -23,6 +23,7 @@ type chatRequest struct {
 	Question      string `json:"question" binding:"required"`
 	ImageBase64   string `json:"image_base64"`
 	ImageMimeType string `json:"image_mime_type"`
+	Provider      string `json:"provider"`
 }
 
 type openAIMessage struct {
@@ -137,7 +138,7 @@ func AIChat(c *gin.Context) {
 	fullCtx := systemCtx + historyCtx
 
 	// 4. Get AI Response
-	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType)
+	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType, req.Provider)
 
 	// 5. Save Assistant Response
 	assistantMsg := models.ChatMessage{
@@ -324,18 +325,36 @@ func buildContext(serverID uint) string {
 	return ctx
 }
 
-func askAI(systemContext, question, imageBase64, imageMime string) string {
-	// 1. Try Gemini (Priority - Gemini Flash is great for Multimodal)
+func askAI(systemContext, question, imageBase64, imageMime, provider string) string {
+	
+	// Check user selected provider
+	if provider == "openrouter" && config.C.OpenRouterKey != "" {
+		return askOpenRouter(systemContext, question)
+	}
+	if provider == "deepseek" && config.C.DeepSeekKey != "" {
+		return askDeepSeek(systemContext, question)
+	}
+	if provider == "google" && config.C.GeminiKey != "" {
+		return askGemini(systemContext, question, imageBase64, imageMime)
+	}
+
+	// Default logic if no provider specified or keys missing
+	if config.C.OpenRouterKey != "" {
+		return askOpenRouter(systemContext, question)
+	}
+
+	if config.C.DeepSeekKey != "" {
+		return askDeepSeek(systemContext, question)
+	}
+
 	if config.C.GeminiKey != "" {
 		return askGemini(systemContext, question, imageBase64, imageMime)
 	}
 
-	// 2. Fallback to OpenAI
 	if config.C.OpenAIKey != "" {
 		return askOpenAI(systemContext, question)
 	}
 
-	// 3. Final Mock Fallback
 	return mockAIResponse(question)
 }
 
@@ -431,6 +450,92 @@ func askOpenAI(systemContext, question string) string {
 	return aiResp.Choices[0].Message.Content
 }
 
+func askDeepSeek(systemContext, question string) string {
+	reqBody := openAIRequest{
+		Model: "deepseek-chat",
+		Messages: []openAIMessage{
+			{Role: "system", Content: systemContext},
+			{Role: "user", Content: question},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://api.deepseek.com/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+config.C.DeepSeekKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("DeepSeek request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		return fmt.Sprintf("Parse error: %v", err)
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("DeepSeek error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from DeepSeek AI."
+	}
+
+	return aiResp.Choices[0].Message.Content
+}
+
+func askOpenRouter(systemContext, question string) string {
+	reqBody := openAIRequest{
+		Model: "deepseek/deepseek-chat", // You can change to google/gemini-2.5-flash or meta-llama/llama-3.1-8b-instruct
+		Messages: []openAIMessage{
+			{Role: "system", Content: systemContext},
+			{Role: "user", Content: question},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+config.C.OpenRouterKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("HTTP-Referer", "http://localhost:80")
+	httpReq.Header.Set("X-Title", "InfraEye")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("OpenRouter request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		return fmt.Sprintf("Parse error: %v | raw: %s", err, string(body))
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("OpenRouter error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from OpenRouter."
+	}
+
+	return aiResp.Choices[0].Message.Content
+}
+
 func mockAIResponse(question string) string {
 	backtick := "`"
 	tripleBacktick := "```"
@@ -448,7 +553,7 @@ func mockAIResponse(question string) string {
 			"# Check disk\ndf -h\n"+
 			"# Check failed services\nsystemctl --failed\n"+
 			"%s\n\n"+
-			"> Configure your Gemini API key in %sbackend/.env%s for intelligent AI-powered analysis.",
+			"> Configure your API keys (OpenRouter, DeepSeek, Gemini, or OpenAI) in %sbackend/.env%s for intelligent AI-powered analysis.",
 		question,
 		backtick, backtick,
 		backtick, backtick,

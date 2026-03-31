@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
-  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, Apple, HelpCircle,
+  Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
   Boxes
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
+import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
+import { useUIStore } from '../store/uiStore'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
@@ -90,7 +91,7 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
             background: `${statusColor}10`, border: `1px solid ${statusColor}25`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            {server.os === 'darwin' ? <Apple size={18} color={statusColor} /> :
+            {server.os === 'darwin' ? <AppleIcon size={18} color={statusColor} /> :
              server.os === 'windows'? <WindowsIcon size={16} color={statusColor} /> :
              server.os === 'linux'  ? <LinuxIcon size={16} color={statusColor} /> :
              <HelpCircle size={18} color={statusColor} />}
@@ -179,6 +180,7 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
 
 export function Dashboard() {
   const navigate = useNavigate()
+  const { darkMode } = useUIStore()
   const [servers, setServers] = useState<ServerData[]>([])
   const [metrics, setMetrics] = useState<Record<number, MetricData>>({})
   const [loading, setLoading] = useState(true)
@@ -295,14 +297,22 @@ export function Dashboard() {
           <div style={{ height: 300, marginTop: 32 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} unit="%" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} />
+                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12, boxShadow: 'var(--shadow-lg)' }}
-                  cursor={{ fill: 'var(--bg-app)' }}
+                  contentStyle={{ 
+                    background: 'var(--bg-card)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: '12px', 
+                    fontSize: '12px', 
+                    boxShadow: 'var(--shadow-lg)',
+                    color: 'var(--text-primary)'
+                  }}
+                  itemStyle={{ color: 'var(--text-primary)' }}
+                  cursor={{ fill: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 12 }} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 11, fontWeight: 500 }} />
                 <Bar dataKey="CPU" fill="var(--brand-primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 <Bar dataKey="Memory" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 <Bar dataKey="Disk" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={40} />

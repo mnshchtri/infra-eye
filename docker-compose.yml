@@ -1,4 +1,4 @@
-version: "3.9"
+
 
 services:
   postgres:
@@ -33,34 +33,22 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build: ./backend
-    container_name: infra-eye-backend
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: infra-eye-app
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
-      - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
-      - REDIS_ADDR=redis:6379
-      - JWT_SECRET=infra-eye-prod-secret
-      - PORT=8080
-      - ENV=production
-      # - OPENAI_API_KEY=your_key_here
-    ports:
-      - "8080:8080"
-
-  frontend:
-    build: 
-      context: ./frontend
-    container_name: infra-eye-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
+    env_file:
+      - .env
     ports:
       - "80:80"
+      - "8080:8080" # Optional: for direct backend access if needed
 
 volumes:
   postgres_data:

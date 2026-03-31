@@ -9,6 +9,7 @@ import {
   Database, Gauge, Cpu, Layers,
   ChevronDown, ChevronUp
 } from 'lucide-react'
+import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import { api, buildWsUrl } from '../api/client'
 import CodeEditor from '@uiw/react-textarea-code-editor'
 import { Terminal as XTerm } from '@xterm/xterm'
@@ -22,6 +23,8 @@ interface Cluster {
   name: string;
   host: string;
   kube_config?: string;
+  k8s_connected?: boolean;
+  os?: string;
 }
 
 interface PortForwardSession {
@@ -230,12 +233,22 @@ export function Kubernetes() {
   const handleDisconnect = async (id: number) => {
     try {
       await api.post(`/api/servers/${id}/k8s/disconnect`)
-      toast.success('Cluster disconnected', 'This server is no longer managed via Kubernetes.')
+      toast.success('Cluster disconnected', 'This server is no longer actively managed via Kubernetes.')
       setConfirmDisconnect(null)
       loadClusters()
     } catch (e: any) {
       toast.error('Disconnect failed', e.response?.data?.error || 'Could not disconnect')
       setConfirmDisconnect(null)
+    }
+  }
+
+  const handleReconnect = async (id: number) => {
+    try {
+      await api.post(`/api/servers/${id}/k8s/reconnect`)
+      toast.success('Cluster connected', 'Server is now actively managed via Kubernetes.')
+      loadClusters()
+    } catch (e: any) {
+      toast.error('Connect failed', e.response?.data?.error || 'Could not connect')
     }
   }
 
@@ -459,33 +472,53 @@ export function Kubernetes() {
             <div 
               key={cluster.id} 
               className="card hover-lift" 
-              style={{ animationDelay: `${i * 100}ms`, cursor: 'pointer' }}
-              onClick={() => setSelectedCluster(cluster)}
+              style={{ animationDelay: `${i * 100}ms`, cursor: 'pointer', opacity: cluster.k8s_connected ? 1 : 0.7 }}
+              onClick={() => {
+                if (!cluster.k8s_connected) {
+                  toast.error('Cluster Disconnected', 'Please reconnect the cluster before exploring.')
+                  return
+                }
+                setSelectedCluster(cluster)
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <LayoutGrid size={24} color="var(--brand-primary)" />
+                  {cluster.os === 'darwin' ? <AppleIcon size={24} color="var(--brand-primary)" /> :
+                   cluster.os === 'windows'? <WindowsIcon size={22} color="var(--brand-primary)" /> :
+                   cluster.os === 'linux'  ? <LinuxIcon size={22} color="var(--brand-primary)" /> :
+                   <LayoutGrid size={24} color="var(--brand-primary)" />}
                 </div>
                 <div>
-                  <h3 style={{ fontWeight: 700, fontSize: 16 }}>{cluster.name}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ fontWeight: 700, fontSize: 16 }}>{cluster.name}</h3>
+                    <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 4, background: 'rgba(129,140,248,0.1)', color: 'var(--brand-primary)', textTransform: 'uppercase' }}>
+                      {cluster.os || 'K8s'}
+                    </span>
+                  </div>
                   <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{cluster.host}</p>
                 </div>
               </div>
               <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                 <div className="badge badge-online">Connected</div>
+                 <div className={cluster.k8s_connected ? "badge badge-online" : "badge badge-offline"} style={!cluster.k8s_connected ? { background: 'var(--bg-elevated)', border: '1px solid var(--border)' } : {}}>
+                   {cluster.k8s_connected ? 'Connected' : 'Disconnected'}
+                 </div>
                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {confirmDisconnect === cluster.id ? (
-                      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11, background: 'var(--warning)', color: '#fff', border: 'none' }} onClick={() => handleDisconnect(cluster.id)}>Confirm</button>
-                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => setConfirmDisconnect(null)}>Cancel</button>
-                      </div>
+                    {cluster.k8s_connected ? (
+                      confirmDisconnect === cluster.id ? (
+                        <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11, background: 'var(--warning)', color: 'var(--text-primary)', border: 'none' }} onClick={() => handleDisconnect(cluster.id)}>Confirm</button>
+                          <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => setConfirmDisconnect(null)}>Cancel</button>
+                        </div>
+                      ) : (
+                        <button className="btn-icon" title="Disconnect" onClick={(e) => { e.stopPropagation(); setConfirmDisconnect(cluster.id) }}><Unlink size={14} /></button>
+                      )
                     ) : (
-                      <button className="btn-icon" title="Disconnect" onClick={(e) => { e.stopPropagation(); setConfirmDisconnect(cluster.id) }}><Unlink size={14} /></button>
+                      <button className="btn-icon" title="Reconnect" onClick={(e) => { e.stopPropagation(); handleReconnect(cluster.id) }}><Globe size={14} /></button>
                     )}
                     
                     {confirmDelete === cluster.id ? (
                       <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11, background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={() => handleDelete(cluster.id)}>Confirm</button>
+                        <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11, background: 'var(--danger)', color: 'var(--text-inverse)', border: 'none' }} onClick={() => handleDelete(cluster.id)}>Confirm</button>
                         <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => setConfirmDelete(null)}>Cancel</button>
                       </div>
                     ) : (
@@ -526,7 +559,10 @@ export function Kubernetes() {
            </button>
            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10 }}>
-                {selectedCluster.name.substring(0, 2).toUpperCase()}
+                {selectedCluster.os === 'darwin' ? <AppleIcon size={18} color="#fff" /> :
+                 selectedCluster.os === 'windows'? <WindowsIcon size={16} color="#fff" /> :
+                 selectedCluster.os === 'linux'  ? <LinuxIcon size={16} color="#fff" /> :
+                 selectedCluster.name.substring(0, 2).toUpperCase()}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>

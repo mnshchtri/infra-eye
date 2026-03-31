@@ -1,8 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Server, Terminal, Boxes,
+  LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
-  ChevronLeft, Menu
+  ChevronLeft, Menu, Code2, Sun, Moon
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -38,17 +38,17 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     ]
   },
   {
-    label: 'System',
+    label: 'Engineering',
     items: [
-      { to: '/settings',   icon: Settings,        label: 'Settings' },
-      { to: '/devtools',   icon: Terminal,        label: 'Dev Tools',   action: 'manage-users' },
+      { to: '/devtools',   icon: Code2,           label: 'Developer Hub', action: 'manage-users' },
+      { to: '/settings',   icon: Settings,        label: 'System Settings' },
     ]
   },
 ]
 
 export function Sidebar() {
   const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, toggleSidebar } = useUIStore()
+  const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode } = useUIStore()
   const { can } = usePermission()
   const navigate = useNavigate()
 
@@ -129,8 +129,20 @@ export function Sidebar() {
       </nav>
 
 
-      {/* User Footer */}
+      {/* Theme Toggle & User Footer */}
       <div className="sidebar-footer">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '0 4px' }}>
+          {!sidebarCollapsed && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Theme</span>}
+          <button 
+            className="btn-icon" 
+            onClick={toggleDarkMode}
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-app)', border: '1px solid var(--border)' }}
+          >
+            {darkMode ? <Sun size={14} color="#fcd34d" /> : <Moon size={14} color="var(--brand-primary)" />}
+          </button>
+        </div>
+
         <div className="sidebar-user">
           <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined}>
             {user?.username?.[0]?.toUpperCase() ?? 'A'}

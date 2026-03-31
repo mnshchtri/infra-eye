@@ -165,7 +165,7 @@ export function AlertRules() {
               transition: 'all 0.2s', cursor: 'pointer', border: 'none',
               display: 'flex', alignItems: 'center', gap: 7,
               ...(tab === t
-                ? { background: 'var(--brand-primary)', color: 'var(--text-primary)', boxShadow: '0 4px 12px var(--brand-glow)' }
+                ? { background: 'var(--brand-primary)', color: 'var(--text-inverse)', boxShadow: '0 4px 12px var(--brand-glow)' }
                 : { background: 'transparent', color: 'var(--text-muted)' }
               ),
             }}
@@ -182,7 +182,7 @@ export function AlertRules() {
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 999,
-            background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
+            background: 'var(--glass-bg)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
           }}
           onClick={() => setShowForm(false)}
@@ -307,7 +307,7 @@ export function AlertRules() {
               style={{
                 width: '100%', height: 450, border: 'none', borderRadius: 0,
                 fontFamily: '"JetBrains Mono", monospace', fontSize: 13, padding: 32,
-                background: '#0a0c12', color: '#818cf8', lineHeight: 1.6,
+                background: 'var(--bg-app)', color: 'var(--brand-primary)', lineHeight: 1.6,
                 resize: 'none'
               }}
               spellCheck={false}
@@ -358,7 +358,7 @@ export function AlertRules() {
                           {confirmDelete === rule.id ? (
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button
-                                style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, background: 'var(--danger)', border: 'none', color: 'var(--text-inverse)', cursor: 'pointer', fontWeight: 700 }}
                                 onClick={() => deleteRule(rule.id)}
                               >
                                 Confirm
@@ -410,7 +410,7 @@ export function AlertRules() {
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
+                <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                   {['Time', 'Server', 'Trigger Event', 'Remediation Output'].map(h => (
                     <th key={h} style={{ padding: '16px 24px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                   ))}
@@ -427,7 +427,7 @@ export function AlertRules() {
                       <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)', border: '1px solid var(--warning)25' }}>{h.trigger_info}</span>
                     </td>
                     <td style={{ padding: '20px 24px' }}>
-                       <div style={{ background: '#0a0c12', color: '#10b981', padding: '10px 14px', borderRadius: 8, fontSize: 11, fontFamily: '"JetBrains Mono", monospace', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                       <div style={{ background: 'var(--bg-app)', color: 'var(--success)', padding: '10px 14px', borderRadius: 8, fontSize: 11, fontFamily: '"JetBrains Mono", monospace', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid var(--border)' }}>
                          {h.output || 'No output produced'}
                        </div>
                     </td>
@@ -442,9 +442,9 @@ export function AlertRules() {
       <style>{`
         .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--brand-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .btn-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; background: #ffffff; transition: all 0.2s; box-shadow: var(--shadow-sm); }
-        .btn-icon:hover { border-color: var(--brand-primary); color: var(--brand-primary); background: #eff6ff; transform: translateY(-1px); box-shadow: var(--shadow-md); }
-        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: #fef2f2; }
+        .btn-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; background: var(--bg-card); transition: all 0.2s; box-shadow: var(--shadow-sm); }
+        .btn-icon:hover { border-color: var(--brand-primary); color: var(--brand-primary); background: var(--bg-elevated); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger)10; }
       `}</style>
     </div>
   )
