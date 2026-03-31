@@ -236,6 +236,25 @@ export function ServerDetail() {
     }, 50)
   }
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (activeTab === 'Terminal') {
+        const target = e.target as HTMLElement;
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.classList.contains('xterm-helper-textarea');
+        
+        if (e.key === 'Escape' && isTerminalFullscreen) {
+          e.preventDefault()
+          toggleTerminalFullscreen()
+        } else if (e.key === ' ' && !isInput) {
+          e.preventDefault();
+          toggleTerminalFullscreen();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [activeTab, isTerminalFullscreen]);
+
   const runDiagnostics = async () => {
     try {
       await api.post(`/api/servers/${id}/diagnose`)
@@ -501,18 +520,20 @@ export function ServerDetail() {
       )}
 
       {activeTab === 'Terminal' && can('use-terminal') && (
-        <div className={`fade-in ${isTerminalFullscreen ? 'terminal-fullscreen' : ''}`} style={isTerminalFullscreen ? { position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-app)' } : {}}>
-          <div className="card" style={{ padding: 0, overflow: 'hidden', height: isTerminalFullscreen ? '100%' : 'auto', borderRadius: isTerminalFullscreen ? 0 : 'var(--radius-lg)' }}>
-            <div style={{ padding: '8px 20px', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12, fontWeight: 700 }}>
+        <div className={`fade-in ${isTerminalFullscreen ? 'terminal-fullscreen' : ''}`} style={isTerminalFullscreen ? { position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0c12' } : {}}>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', height: isTerminalFullscreen ? '100%' : 'auto', borderRadius: isTerminalFullscreen ? 0 : 'var(--radius-lg)', background: '#0a0c12', border: '1px solid #1e293b' }}>
+            <div style={{ padding: '8px 20px', background: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e293b' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12, fontWeight: 700 }}>
                  <TerminalIcon size={12} />
                  SSH TERMINAL — {server.ssh_user}@{server.host}
                </div>
-               <button onClick={toggleTerminalFullscreen} style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600 }}>
-                 {isTerminalFullscreen ? 'MINIMIZE' : 'MAXIMIZE'}
-               </button>
+               <div style={{ display: 'flex', gap: 12 }}>
+                 <button onClick={toggleTerminalFullscreen} style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }}>
+                   {isTerminalFullscreen ? 'MINIMIZE (SPACE / ESC)' : 'MAXIMIZE (SPACE)'}
+                 </button>
+               </div>
             </div>
-            <div ref={terminalRef} style={{ height: isTerminalFullscreen ? 'calc(100vh - 40px)' : 600, padding: '16px 4px' }} className="terminal-container" />
+            <div ref={terminalRef} style={{ height: isTerminalFullscreen ? 'calc(100vh - 40px)' : 600, padding: '16px 4px', background: '#0a0c12' }} className="terminal-container" />
           </div>
         </div>
       )}
