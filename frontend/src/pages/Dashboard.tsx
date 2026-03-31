@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
@@ -23,7 +23,7 @@ interface MetricData {
   net_rx_mbps: number; net_tx_mbps: number; load_avg_1: number;
 }
 
-function MetricBar({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) {
+const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) => {
   const color = value >= danger
     ? 'var(--danger)'
     : value >= warn
@@ -37,14 +37,14 @@ function MetricBar({ value, danger = 80, warn = 60 }: { value: number; danger?: 
       />
     </div>
   )
-}
+})
 
-function StatCard({
+const StatCard = memo(({
   label, value, icon: Icon, color, delta
 }: {
   label: string; value: string | number; icon: any;
   color: string; delta?: string
-}) {
+}) => {
   return (
     <div className="card stat-card fade-up">
       <div
@@ -65,9 +65,9 @@ function StatCard({
       </div>
     </div>
   )
-}
+})
 
-function ServerCard({ server, metric }: { server: ServerData; metric?: MetricData }) {
+const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: MetricData }) => {
   const navigate = useNavigate()
 
   const statusColors: Record<string, string> = {
@@ -83,7 +83,6 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
       onClick={() => navigate(`/servers/${server.id}`)}
       style={{ cursor: 'pointer', padding: 24 }}
     >
-      {/* Header */}
       <div className="server-card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
@@ -105,7 +104,7 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
                 color: server.os === 'darwin' ? '#fff' : 'var(--brand-primary)',
                 textTransform: 'uppercase', letterSpacing: '0.04em', border: '1px solid rgba(255,255,255,0.05)'
               }}>
-                {server.os === 'darwin' ? 'macOS' : server.os === 'windows' ? 'Windows' : server.os === 'linux' ? 'Linux' : 'Unknown'}
+                {server.os?.toUpperCase() || 'HOST'}
               </span>
             </div>
             <div className="server-host">{server.ssh_user}@{server.host}</div>
@@ -120,7 +119,6 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
         </span>
       </div>
 
-      {/* Metrics */}
       {metric ? (
         <div className="server-metric-stack" style={{ margin: '24px 0' }}>
           {[
@@ -160,7 +158,6 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
         </div>
       )}
 
-      {/* Footer */}
       <div className="server-card-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
         <div className="server-tag-group">
           {server.tags
@@ -176,7 +173,7 @@ function ServerCard({ server, metric }: { server: ServerData; metric?: MetricDat
       </div>
     </div>
   )
-}
+})
 
 export function Dashboard() {
   const navigate = useNavigate()
@@ -189,48 +186,53 @@ export function Dashboard() {
     setLoading(true)
     try {
       const serversRes = await api.get('/api/servers')
-      setServers(serversRes.data)
-      const metricMap: Record<number, MetricData> = {}
-      await Promise.all(
-        serversRes.data.map(async (s: ServerData) => {
-          try {
-            const m = await api.get(`/api/servers/${s.id}/metrics/latest`)
-            metricMap[s.id] = m.data
-          } catch { /* no metrics yet */ }
-        })
-      )
-      setMetrics(metricMap)
+      const list = Array.isArray(serversRes.data) ? serversRes.data : []
+      setServers(list)
+      
+      // Stop full-page loading once servers are listed
+      setLoading(false)
+
+      // Fetch metrics in parallel but update state incrementally
+      list.forEach(async (s: ServerData) => {
+        try {
+          const m = await api.get(`/api/servers/${s.id}/metrics/latest`)
+          setMetrics(prev => ({ ...prev, [s.id]: m.data }))
+        } catch { /* no metrics yet */ }
+      })
     } catch (err) {
       console.error('Failed to load servers', err)
-    } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { loadData() }, [])
 
-  const total   = servers.length
-  const k8sServers = servers.filter(s => s.is_k8s).length
-  const online  = servers.filter(s => s.status === 'online').length
-  const offline = servers.filter(s => s.status === 'offline').length
-  const metricValues = Object.values(metrics)
-  const avgCpu = metricValues.length > 0
-    ? (metricValues.reduce((a, m) => a + m.cpu_percent, 0) / metricValues.length).toFixed(1) + '%'
-    : '—'
+  const { total, k8sServers, online, offline, avgCpu } = useMemo(() => {
+    const tot = servers.length;
+    const k8s = servers.filter(s => s.is_k8s).length;
+    const on = servers.filter(s => s.status === 'online').length;
+    const off = servers.filter(s => s.status === 'offline').length;
+    const vals = Object.values(metrics);
+    const cpu = vals.length > 0
+      ? (vals.reduce((a, m) => a + m.cpu_percent, 0) / vals.length).toFixed(1) + '%'
+      : '—';
+    return { total: tot, k8sServers: k8s, online: on, offline: off, avgCpu: cpu };
+  }, [servers, metrics]);
 
-  const analyticsChartData = servers.map(s => {
-    const m = metrics[s.id]
-    return {
-      name: s.name,
-      CPU: m ? parseFloat(m.cpu_percent.toFixed(1)) : 0,
-      Memory: m ? parseFloat(m.mem_percent.toFixed(1)) : 0,
-      Disk: m ? parseFloat(m.disk_percent.toFixed(1)) : 0,
-    }
-  })
+  const analyticsChartData = useMemo(() => {
+    return servers.map(s => {
+      const m = metrics[s.id]
+      return {
+        name: s.name,
+        CPU: m ? parseFloat(m.cpu_percent.toFixed(1)) : 0,
+        Memory: m ? parseFloat(m.mem_percent.toFixed(1)) : 0,
+        Disk: m ? parseFloat(m.disk_percent.toFixed(1)) : 0,
+      }
+    })
+  }, [servers, metrics])
 
   return (
     <div className="page">
-      {/* Page Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Command Center</h1>
@@ -247,42 +249,14 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid-stats" style={{ marginBottom: 48 }}>
-        <StatCard
-          label="Total Servers"
-          value={loading ? '—' : (total - k8sServers)}
-          icon={Server}
-          color="var(--brand-primary)"
-        />
-        <StatCard
-          label="K8s Clusters"
-          value={loading ? '—' : k8sServers}
-          icon={Boxes}
-          color="var(--info)"
-        />
-        <StatCard
-          label="Status Online"
-          value={loading ? '—' : online}
-          icon={Wifi}
-          color="var(--success)"
-          delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined}
-        />
-        <StatCard
-          label="Status Offline"
-          value={loading ? '—' : offline}
-          icon={AlertTriangle}
-          color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'}
-        />
-        <StatCard
-          label="Global Avg CPU"
-          value={loading ? '—' : avgCpu}
-          icon={TrendingUp}
-          color="var(--warning)"
-        />
+        <StatCard label="Total Servers" value={loading ? '—' : (total - k8sServers)} icon={Server} color="var(--brand-primary)" />
+        <StatCard label="K8s Clusters" value={loading ? '—' : k8sServers} icon={Boxes} color="var(--info)" />
+        <StatCard label="Status Online" value={loading ? '—' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
+        <StatCard label="Status Offline" value={loading ? '—' : offline} icon={AlertTriangle} color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'} />
+        <StatCard label="Global Avg CPU" value={loading ? '—' : avgCpu} icon={TrendingUp} color="var(--warning)" />
       </div>
 
-      {/* Global Performance Chart */}
       {!loading && servers.length > 0 && (
         <div className="card fade-up" style={{ marginBottom: 48, padding: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -291,28 +265,19 @@ export function Dashboard() {
             </div>
             <div>
               <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Performance Analytics</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Resource utilization across all connected servers</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Resource utilization across connected nodes</p>
             </div>
           </div>
           <div style={{ height: 300, marginTop: 32 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} unit="%" />
+                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip
-                  contentStyle={{ 
-                    background: 'var(--bg-card)', 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '12px', 
-                    fontSize: '12px', 
-                    boxShadow: 'var(--shadow-lg)',
-                    color: 'var(--text-primary)'
-                  }}
-                  itemStyle={{ color: 'var(--text-primary)' }}
-                  cursor={{ fill: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '12px' }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 11, fontWeight: 500 }} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 11 }} />
                 <Bar dataKey="CPU" fill="var(--brand-primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 <Bar dataKey="Memory" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 <Bar dataKey="Disk" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -322,46 +287,23 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Server Grid / Empty State */}
       {loading ? (
         <div className="empty-state">
-           <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            border: '3px solid var(--border)',
-            borderTopColor: 'var(--brand-primary)',
-            animation: 'spin 0.8s linear infinite',
-          }} />
+           <div className="spin" style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)' }} />
         </div>
       ) : servers.length === 0 ? (
         <div className="empty-state fade-up">
-          <div style={{
-            width: 120, height: 120, borderRadius: 36,
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'var(--shadow-lg)',
-          }}>
-            <Server size={56} color="var(--brand-primary)" />
-          </div>
+          <Server size={56} color="var(--brand-primary)" style={{ marginBottom: 24 }} />
           <p>No servers connected</p>
-          <span>Get started by adding your first server to the platform for monitoring.</span>
-          <button className="btn btn-primary" style={{ height: 48, padding: '0 32px', fontSize: 15 }} onClick={() => navigate('/servers?add=1')}>
-            <Plus size={18} /> Add Your First Server
-          </button>
+          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')}>Add Your First Server</button>
         </div>
       ) : (
         <div className="grid-cards">
-          {servers.map((s, i) => (
-            <div key={s.id} style={{ animationDelay: `${i * 50}ms` }}>
-              <ServerCard server={s} metric={metrics[s.id]} />
-            </div>
+          {servers.map((s) => (
+            <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
           ))}
         </div>
       )}
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   )
 }

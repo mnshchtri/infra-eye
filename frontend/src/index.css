@@ -45,7 +45,7 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  --glass-blur: blur(12px);
+  --glass-blur: blur(4px);
   --transition: all 0.2s ease-out;
   --transition-slow: all 0.4s ease-out;
   
@@ -91,7 +91,7 @@ body {
     radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.05), transparent 25%);
   background-attachment: fixed;
   overflow-x: hidden;
-  animation: bg-subtle-move 20s ease infinite alternate;
+  /* animation: bg-subtle-move 20s ease infinite alternate; */
 }
 
 @keyframes bg-subtle-move {
@@ -99,18 +99,13 @@ body {
   100% { background-position: 10% 10%; }
 }
 
-.fade-up {
-  animation: fade-up 0.5s ease-out forwards;
-  opacity: 0;
-}
-
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .fade-in {
-  animation: fade-in 0.4s ease-out forwards;
+  animation: fade-in 0.2s ease-out forwards;
   opacity: 0;
 }
 
@@ -122,16 +117,63 @@ body {
 /* Typography Custom Styles */
 h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.02em; }
 
-/* Scrollbar Refinement */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+/* Tables Enterprise Refinement */
+.k-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg-card);
+  table-layout: fixed; /* Ensures headers align with cells */
+}
 
-a { color: var(--brand-primary); text-decoration: none; transition: var(--transition); }
-a:hover { color: var(--brand-dark); text-decoration: underline; }
-button { cursor: pointer; border: none; background: none; font-family: inherit; }
-input, textarea, select { font-family: inherit; outline: none; }
+.k-table th, .k-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-table th {
+  background: rgba(248, 250, 252, 0.5);
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--border);
+}
+
+.dark .k-table th {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.k-row-selected {
+  background: var(--brand-glow) !important;
+}
+
+/* Specific alignments */
+.k-table td:has(.badge) {
+  padding-left: 16px; 
+}
+
+.k-table .badge {
+  display: inline-flex;
+  min-width: 72px;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+@keyframes pulse-skeleton {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
 
 /* Global Layout Utilities */
 .app-shell { 
@@ -207,19 +249,16 @@ input, textarea, select { font-family: inherit; outline: none; }
 .sidebar-link:hover { 
   background: var(--bg-app); 
   color: var(--brand-primary); 
-  transform: translateX(4px); 
 }
 .sidebar-link.active {
   background: var(--brand-glow);
   color: var(--brand-primary);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1px var(--brand-primary)40;
 }
 .dark .sidebar-link.active {
-  background: rgba(79, 70, 229, 0.15);
-  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.3);
+  background: rgba(79, 70, 229, 0.12);
 }
-.sidebar-link-arrow { margin-left: auto; opacity: 0.3; transition: var(--transition); transform: translateX(-4px); }
+.sidebar-link-arrow { margin-left: auto; opacity: 0.3; transition: var(--transition); }
 .sidebar-link:hover .sidebar-link-arrow, .sidebar-link.active .sidebar-link-arrow { opacity: 1; transform: translateX(0); }
 
 .sidebar-footer {
@@ -254,24 +293,21 @@ input, textarea, select { font-family: inherit; outline: none; }
   color: var(--text-primary);
 }
 .card:hover { 
-  box-shadow: var(--shadow-lg); 
-  border-color: var(--brand-primary)40; 
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-md); 
+  border-color: var(--border-bright); 
 }
 
 .glass-panel {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: var(--glass-blur);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
 }
 
 .glass-panel-glow {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--brand-glow);
-  box-shadow: 0 0 20px var(--brand-glow), var(--shadow-sm);
+  border: 1px solid var(--border);
 }
 
 /* Terminal & Dev Engine Styling */
@@ -441,3 +477,86 @@ input, textarea, select { font-family: inherit; outline: none; }
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
 }
+
+/* Kubernetes Specialized Sidebar */
+.k8s-sidebar-nav {
+  padding: 16px 12px;
+}
+
+.nav-cat {
+  margin-bottom: 4px;
+}
+
+.nav-cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: var(--transition);
+}
+
+.nav-cat-header:hover {
+  color: var(--text-primary);
+  background: rgba(129, 140, 248, 0.05);
+}
+
+.nav-cat-header span {
+  flex: 1;
+}
+
+.res-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  margin: 1px 0;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: none; /* Faster feedback */
+  position: relative;
+}
+
+.res-nav-link:hover {
+  background: var(--bg-app);
+  color: var(--brand-primary);
+}
+
+.res-nav-link.active {
+  background: var(--brand-glow);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+.res-nav-link.active {
+  background: var(--brand-glow);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+.res-nav-link.sub {
+  margin-left: 20px;
+  padding-left: 12px;
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+
+.res-nav-link.active.sub {
+  opacity: 1;
+}
+
+.dark .res-nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }

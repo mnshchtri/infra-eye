@@ -705,52 +705,135 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 	var fetchErr error
 
 	if resource == "pulse" {
-		var nodes, pods, deps, svcs, evs int
+		var nodes, nodesReady int
+		var pods, podsRunning int
+		var deps, depsReady int
+		var rss, rssReady int
+		var dss, dssReady int
+		var stss, stssReady int
+		var jobs, cjs int
+		var svcs, eps, ings int
+		var cms, secs, pvs, scs int
+		
+		errs := make(map[string]string)
 
-		if nodeList, e := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{}); e == nil {
-			nodes = len(nodeList.Items)
-		} else {
-			fetchErr = e
+		// Helper to capture errors
+		capture := func(key string, err error) {
+			if err != nil { errs[key] = err.Error() }
 		}
 
-		if podList, e := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{}); e == nil {
-			pods = len(podList.Items)
-		} else {
-			fetchErr = e
+		// Nodes
+		nl, nlErr := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		capture("nodes", nlErr)
+		if nlErr == nil {
+			nodes = len(nl.Items)
+			for _, n := range nl.Items {
+				for _, c := range n.Status.Conditions {
+					if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue { nodesReady++; break }
+				}
+			}
 		}
 
-		if depList, e := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{}); e == nil {
-			deps = len(depList.Items)
-		} else {
-			fetchErr = e
+		// Workloads
+		pl, plErr := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		capture("pods", plErr)
+		if plErr == nil {
+			pods = len(pl.Items)
+			for _, p := range pl.Items { if p.Status.Phase == corev1.PodRunning { podsRunning++ } }
 		}
+		
+		dl, dlErr := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
+		capture("deployments", dlErr)
+		if dlErr == nil {
+			deps = len(dl.Items)
+			for _, d := range dl.Items { if d.Status.AvailableReplicas >= d.Status.Replicas { depsReady++ } }
+		}
+		
+		rl, rlErr := clientset.AppsV1().ReplicaSets("").List(ctx, metav1.ListOptions{})
+		capture("replicasets", rlErr)
+		if rlErr == nil {
+			rss = len(rl.Items)
+			for _, r := range rl.Items { if r.Status.ReadyReplicas >= r.Status.Replicas { rssReady++ } }
+		}
+		
+		sl, slErr := clientset.AppsV1().StatefulSets("").List(ctx, metav1.ListOptions{})
+		capture("statefulsets", slErr)
+		if slErr == nil {
+			stss = len(sl.Items)
+			for _, s := range sl.Items { if s.Status.ReadyReplicas >= s.Status.Replicas { stssReady++ } }
+		}
+		
+		dsl, dslErr := clientset.AppsV1().DaemonSets("").List(ctx, metav1.ListOptions{})
+		capture("daemonsets", dslErr)
+		if dslErr == nil {
+			dss = len(dsl.Items)
+			for _, d := range dsl.Items { if d.Status.NumberReady >= d.Status.DesiredNumberScheduled { dssReady++ } }
+		}
+		
+		jl, jlErr := clientset.BatchV1().Jobs("").List(ctx, metav1.ListOptions{})
+		capture("jobs", jlErr)
+		if jlErr == nil { jobs = len(jl.Items) }
+		
+		cjl, cjlErr := clientset.BatchV1().CronJobs("").List(ctx, metav1.ListOptions{})
+		capture("cronjobs", cjlErr)
+		if cjlErr == nil { cjs = len(cjl.Items) }
 
-		if svcList, e := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{}); e == nil {
-			svcs = len(svcList.Items)
-		} else {
-			fetchErr = e
-		}
+		// Network
+		svcl, svcErr := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		capture("services", svcErr)
+		if svcErr == nil { svcs = len(svcl.Items) }
+		
+		epl, epErr := clientset.CoreV1().Endpoints("").List(ctx, metav1.ListOptions{})
+		capture("endpoints", epErr)
+		if epErr == nil { eps = len(epl.Items) }
+		
+		ingl, ingErr := clientset.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
+		capture("ingresses", ingErr)
+		if ingErr == nil { ings = len(ingl.Items) }
 
-		if evList, e := clientset.CoreV1().Events("").List(ctx, metav1.ListOptions{}); e == nil {
-			evs = len(evList.Items)
-		} else {
-			fetchErr = e
-		}
-
-		if fetchErr != nil && nodes == 0 && pods == 0 {
-			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"error":"K8s Native Fetch Failed","stderr":%q}`, fetchErr.Error())))
-			return
-		}
+		// Configuration & Storage
+		cml, cmErr := clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+		capture("configmaps", cmErr)
+		if cmErr == nil { cms = len(cml.Items) }
+		
+		secl, secErr := clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
+		capture("secrets", secErr)
+		if secErr == nil { secs = len(secl.Items) }
+		
+		pvl, pvErr := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
+		capture("pvs", pvErr)
+		if pvErr == nil { pvs = len(pvl.Items) }
+		
+		scl, scErr := clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
+		capture("storageclasses", scErr)
+		if scErr == nil { scs = len(scl.Items) }
 
 		payload = map[string]interface{}{
 			"kind": "Pulse",
 			"stats": map[string]int{
-				"nodes":       nodes,
-				"pods":        pods,
-				"deployments": deps,
-				"services":    svcs,
-				"events":      evs,
+				"nodes":            nodes,
+				"nodesReady":       nodesReady,
+				"pods":             pods,
+				"podsRunning":      podsRunning,
+				"deployments":      deps,
+				"deploymentsReady": depsReady,
+				"replicasets":      rss,
+				"replicasetsReady": rssReady,
+				"statefulsets":     stss,
+				"statefulsetsReady": stssReady,
+				"daemonsets":       dss,
+				"daemonsetsReady":  dssReady,
+				"jobs":             jobs,
+				"cronjobs":         cjs,
+				"services":         svcs,
+				"endpoints":        eps,
+				"ingresses":        ings,
+				"configmaps":       cms,
+				"secrets":          secs,
+				"pvs":              pvs,
+				"storageclasses":   scs,
 			},
+			"errors": errs,
 		}
 	} else {
 		switch resource {

@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
 import { usePermission, type PermissionAction } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
+import { KubernetesIcon } from '../OSIcons'
 
 type NavItem = {
   to: string
@@ -27,7 +28,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Infrastructure',
     items: [
-      { to: '/kubernetes', icon: Boxes,           label: 'Kubernetes',  action: 'use-kubectl' },
+      { to: '/kubernetes', icon: KubernetesIcon,  label: 'Kubernetes',  action: 'use-kubectl' },
       { to: '/alerts',     icon: Bell,            label: 'Alert Rules', action: 'view-alerts' },
     ]
   },
