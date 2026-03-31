@@ -250,27 +250,27 @@ export function AIAssistant() {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <header style={{
-          width: '100%', padding: '24px 60px',
+          width: '100%', padding: '14px 60px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0, borderBottom: '1px solid var(--border-subtle)',
+          flexShrink: 0, borderBottom: '1px solid var(--border)',
           background: 'var(--bg-card)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 14,
+              width: 44, height: 44, borderRadius: 12,
               background: 'var(--bg-card)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 16px var(--brand-glow)',
-              overflow: 'hidden', padding: 6, border: '1px solid var(--border-bright)'
+              boxShadow: '0 4px 12px var(--brand-glow)',
+              overflow: 'hidden', padding: 5, border: '1px solid var(--border-bright)'
             }}>
               <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>नेत्र</h1>
+              <h1 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 2 }}>नेत्र</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Strategic Infrastructure Intelligence</span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>Strategic Infrastructure Intelligence</span>
                 <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Active Analysis</span>
+                <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 700 }}>Active Mode</span>
               </div>
             </div>
           </div>

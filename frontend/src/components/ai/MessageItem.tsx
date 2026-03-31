@@ -1,6 +1,7 @@
 import React, { memo } from 'react'
 import { User } from 'lucide-react'
 import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import chatbotLogo from '../../assets/chatbot-logo.png'
 
 interface Message {
@@ -64,21 +65,55 @@ export const MessageItem = memo(({ msg }: { msg: Message }) => {
         }}>
           {msg.role === 'assistant' ? (
             <Markdown
+              remarkPlugins={[remarkGfm]}
               components={{
                 p: ({ children }) => <p style={{ marginBottom: 16 }}>{children}</p>,
-                code: ({ children }) => (
-                  <code style={{
-                    background: 'rgba(129, 140, 248, 0.1)', padding: '2px 6px', borderRadius: 4,
-                    fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--brand-primary)',
-                    fontWeight: 700
-                  }}>{children}</code>
-                ),
+                ul: ({ children }) => <ul style={{ marginBottom: 16, paddingLeft: 24, listStyleType: 'disc', color: 'var(--text-secondary)' }}>{children}</ul>,
+                ol: ({ children }) => <ol style={{ marginBottom: 16, paddingLeft: 24, listStyleType: 'decimal', color: 'var(--text-secondary)' }}>{children}</ol>,
+                li: ({ children }) => <li style={{ marginBottom: 6, lineHeight: 1.6, paddingLeft: 4 }}>{children}</li>,
+                h1: ({ children }) => <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, marginTop: 24, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{children}</h1>,
+                h2: ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 14, marginTop: 24, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{children}</h2>,
+                h3: ({ children }) => <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, marginTop: 20, color: 'var(--text-primary)' }}>{children}</h3>,
+                h4: ({ children }) => <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, marginTop: 16, color: 'var(--text-primary)' }}>{children}</h4>,
+                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', textDecoration: 'none', fontWeight: 500 }}>{children}</a>,
+                blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--brand-primary)', margin: '16px 0', color: 'var(--text-secondary)', fontStyle: 'italic', background: 'var(--bg-app)', padding: '12px 16px', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }}>{children}</blockquote>,
+                strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
+                code: ({ children, className }) => {
+                  const isInline = !className;
+                  return isInline ? (
+                    <code style={{
+                      background: 'rgba(129, 140, 248, 0.1)', padding: '2px 6px', borderRadius: 4,
+                      fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--brand-primary)',
+                      fontWeight: 600, border: '1px solid rgba(129, 140, 248, 0.2)'
+                    }}>{children}</code>
+                  ) : (
+                    <code style={{ fontFamily: '"JetBrains Mono", monospace' }}>{children}</code>
+                  );
+                },
                 pre: ({ children }) => (
                   <pre style={{
-                    background: 'var(--bg-app)', padding: '20px', borderRadius: 12,
+                    background: 'var(--bg-app)', padding: '16px', borderRadius: 'var(--radius-lg)',
                     fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid var(--border)',
-                    fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)'
+                    fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
                   }}>{children}</pre>
+                ),
+                table: ({ children }) => (
+                  <div style={{ overflowX: 'auto', marginBottom: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                    <table className="k-table" style={{ margin: 0, border: 'none', tableLayout: 'auto' }}>
+                      {children}
+                    </table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid var(--border)', fontSize: 11, textTransform: 'uppercase', color: 'var(--text-muted)', background: 'rgba(248, 250, 252, 0.05)', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, whiteSpace: 'normal', wordBreak: 'break-word', color: 'var(--text-secondary)', verticalAlign: 'top' }}>
+                    {children}
+                  </td>
                 ),
               }}
             >
