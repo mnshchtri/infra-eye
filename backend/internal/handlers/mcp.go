@@ -14,6 +14,7 @@ import (
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // mcpClient is a shared HTTP client for MCP communication
@@ -278,6 +279,17 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		if len(parts) > 1 {
 			rawStr = string(bytes.TrimSpace(parts[1]))
 		}
+	}
+
+	// ── Notification Handling ──
+	// JSON-RPC 2.0: Notifications (no ID) do not expect a response body.
+	if id == nil {
+		return nil, nil
+	}
+
+	// For standard requests, if the body is empty, it's an error
+	if strings.TrimSpace(rawStr) == "" {
+		return nil, fmt.Errorf("empty response for request method %s", method)
 	}
 
 	var mcpResp mcpResponse
