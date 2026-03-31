@@ -11,6 +11,7 @@ import (
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/handlers"
 	"github.com/infra-eye/backend/internal/healing"
+	"github.com/infra-eye/backend/internal/mcp"
 	"github.com/infra-eye/backend/internal/metrics"
 	"github.com/infra-eye/backend/internal/middleware"
 	"github.com/infra-eye/backend/internal/models"
@@ -24,6 +25,9 @@ func main() {
 
 	// Connect DB & migrate
 	db.Connect()
+
+	// MCP Master Config Sync
+	mcp.SyncMasterKubeconfig()
 
 	// Seed default data
 	seed.Run()
@@ -140,6 +144,17 @@ func main() {
 		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
 	}
+
+	// ── Static Frontend ────────────────────────────────────────
+	// Serve static files from the build directory
+	r.Static("/assets", "/usr/share/nginx/html/assets")
+	r.StaticFile("/favicon.ico", "/usr/share/nginx/html/favicon.ico")
+	r.StaticFile("/robots.txt", "/usr/share/nginx/html/robots.txt")
+
+	// NoRoute serves index.html for SPA (React Router) support
+	r.NoRoute(func(c *gin.Context) {
+		c.File("/usr/share/nginx/html/index.html")
+	})
 
 	addr := fmt.Sprintf(":%s", config.C.Port)
 	log.Printf("🚀 InfraEye API running on http://localhost%s", addr)

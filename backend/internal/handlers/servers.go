@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/logger"
+	"github.com/infra-eye/backend/internal/mcp"
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/metrics"
 	sshpool "github.com/infra-eye/backend/internal/ssh"
@@ -81,6 +82,11 @@ func CreateServer(c *gin.Context) {
 	// Start metrics collection in background
 	go metrics.StartCollector(server)
 
+	// Sync MCP if it's a K8s cluster
+	if server.IsK8s {
+		mcp.SyncMasterKubeconfig()
+	}
+
 	c.JSON(http.StatusCreated, server)
 }
 
@@ -117,6 +123,12 @@ func UpdateServer(c *gin.Context) {
 	sshpool.Remove(uint(id))
 
 	db.DB.Save(&server)
+
+	// Sync MCP if K8s related
+	if server.IsK8s {
+		mcp.SyncMasterKubeconfig()
+	}
+
 	c.JSON(http.StatusOK, server)
 }
 
@@ -165,6 +177,10 @@ func DeleteServer(c *gin.Context) {
 	}
 	
 	tx.Commit()
+
+	// Sync MCP as a cluster might have been removed
+	mcp.SyncMasterKubeconfig()
+
 	c.JSON(http.StatusOK, gin.H{"message": "server and all associated data permanently deleted"})
 }
 

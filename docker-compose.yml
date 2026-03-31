@@ -1,20 +1,16 @@
-
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: infra-eye-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: infraeye
-      POSTGRES_PASSWORD: infraeye123
-      POSTGRES_DB: infraeye
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=infraeye
+      - POSTGRES_PASSWORD=infraeye123
+      - POSTGRES_DB=infraeye
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U infraeye"]
+      test: ["CMD-SHELL", "pg_isready -U infraeye -d infraeye"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,30 +19,34 @@ services:
     image: redis:7-alpine
     container_name: infra-eye-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # Tiny helper to ensure the sidecar doesn't crash on first boot
+  mcp-init:
+    image: alpine:latest
+    container_name: infra-eye-mcp-init
+    volumes:
+      - mcp_shared:/mcp
+    command: >
+      sh -c "mkdir -p /mcp && chmod 777 /mcp"
+
   mcp-server:
     image: ghcr.io/containers/kubernetes-mcp-server:latest
     container_name: infra-eye-mcp
     restart: unless-stopped
-    command: ["--port", "8090", "--read-only=false", "--kubeconfig", "/root/.kube/config"]
+    depends_on:
+      - mcp-init
     volumes:
-      - ~/.kube:/root/.kube:ro
+      - mcp_shared:/mcp:ro
+    command: ["--port", "8090", "--read-only=false", "--kubeconfig", "/mcp/kubeconfig"]
     ports:
       - "8090:8090"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   app:
     build:
@@ -59,15 +59,23 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mcp-server:
+        condition: service_started
     env_file:
       - .env
     environment:
       - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
       - REDIS_URL=redis:6379
-      - MCP_SERVER_URL=http://mcp-server:8090
+      - MCP_SERVER_URL=http://infra-eye-mcp:8090 # Use the container name for safer DNS
+      - GIN_MODE=release
     ports:
-      - "8081:80"
+      - "8080:8080"
+    volumes:
+      - mcp_shared:/shared_mcp
+      - ~/.kube/config:/kubeconfig_host:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data:
-  redis_data:
+  mcp_shared:

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +23,7 @@ var mcpClient = &http.Client{Timeout: 30 * time.Second}
 
 type mcpRequest struct {
 	JSONRPC string      `json:"jsonrpc"`
-	ID      int         `json:"id"`
+	ID      *int        `json:"id,omitempty"`
 	Method  string      `json:"method"`
 	Params  interface{} `json:"params,omitempty"`
 }
@@ -75,13 +77,31 @@ func ExecuteMCPTool(c *gin.Context) {
 	if req.ServerID > 0 {
 		var server models.Server
 		if err := db.DB.First(&server, req.ServerID).Error; err == nil && server.KubeConfig != "" {
-			// Pass cluster context via the MCP "context" argument if supported
 			if req.Arguments == nil {
 				req.Arguments = map[string]interface{}{}
 			}
-			// kubernetes-mcp-server multi-cluster: pass kubeconfig inline as context name
-			// For now, rely on the mounted ~/.kube/config — server-specific kubeconfig
-			// support can be added later via dynamic MCP server spawning.
+			
+			// Load the config to find the correct context name
+			prefix := fmt.Sprintf("server-%d", server.ID)
+			cfg, err := clientcmd.Load([]byte(server.KubeConfig))
+			if err == nil {
+				// Use current context if it matches our prefix, or find first matching one
+				selectedCtx := ""
+				for name := range cfg.Contexts {
+					if strings.HasPrefix(name, prefix) {
+						selectedCtx = name
+						break
+					}
+				}
+				// If no match, fallback to the standard prefix-plus-default name
+				if selectedCtx == "" {
+					selectedCtx = prefix + "-default"
+				}
+				req.Arguments["context"] = selectedCtx
+			} else {
+				// Fallback if load fails
+				req.Arguments["context"] = prefix + "-default"
+			}
 		}
 	}
 
@@ -149,9 +169,75 @@ func MCPServerStatus(c *gin.Context) {
 	})
 }
 
+var (
+	mcpInitialized bool
+	mcpInitMutex   sync.Mutex
+)
+
 // ── callMCPMethod ────────────────────────────────────────────────────────────
-// Internal helper: sends a JSON-RPC 2.0 request to the MCP HTTP server
+// Internal helper: sends a JSON-RPC 2.0 request to the MCP HTTP server.
+// It handles SSE response parsing and automated initialization with retry logic.
 func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, error) {
+	// 1. Ensure the session is initialized
+	if err := ensureMCPInitialized(); err != nil {
+		return nil, err
+	}
+
+	// 2. Perform the actual call
+	result, err := callMCPMethodRaw(method, params, intPtr(id))
+
+	// 3. Robust Retry: If the server restarted and claims we are uninitialized, 
+	// reset local state and try again once.
+	if err != nil && strings.Contains(err.Error(), "is invalid during session initialization") {
+		// Reset state
+		mcpInitMutex.Lock()
+		mcpInitialized = false
+		mcpInitMutex.Unlock()
+
+		// Re-initialize and retry call
+		if err := ensureMCPInitialized(); err != nil {
+			return nil, err
+		}
+		return callMCPMethodRaw(method, params, intPtr(id))
+	}
+
+	return result, err
+}
+
+func ensureMCPInitialized() error {
+	mcpInitMutex.Lock()
+	defer mcpInitMutex.Unlock()
+
+	if mcpInitialized {
+		return nil
+	}
+
+	initParams := map[string]interface{}{
+		"protocolVersion": "2024-11-05", // Standard MCP version
+		"capabilities":    map[string]interface{}{},
+		"clientInfo": map[string]string{
+			"name":    "infra-eye-backend",
+			"version": "1.0.0",
+		},
+	}
+
+	// Step A: Initialize
+	if _, err := callMCPMethodRaw("initialize", initParams, intPtr(999)); err != nil {
+		return fmt.Errorf("handshake[initialize] failed: %v", err)
+	}
+
+	// Step B: Notifications/Initialized
+	if _, err := callMCPMethodRaw("notifications/initialized", nil, nil); err != nil {
+		return fmt.Errorf("handshake[initialized notification] failed: %v", err)
+	}
+
+	mcpInitialized = true
+	return nil
+}
+
+func intPtr(i int) *int { return &i }
+
+func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessage, error) {
 	reqBody := mcpRequest{
 		JSONRPC: "2.0",
 		ID:      id,
@@ -164,6 +250,8 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 		return nil, fmt.Errorf("marshal error: %v", err)
 	}
 
+	// The MCP server expects POSTs to the /mcp or session-specific endpoint
+	// For this sidecar, we use a single global endpoint
 	httpReq, err := http.NewRequest("POST", config.C.MCPServerURL+"/mcp", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("request creation failed: %v", err)
@@ -173,7 +261,7 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 
 	resp, err := mcpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("MCP server unreachable at %s: %v", config.C.MCPServerURL, err)
+		return nil, fmt.Errorf("MCP server unreachable: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -182,9 +270,19 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 		return nil, fmt.Errorf("read response: %v", err)
 	}
 
+	// Handle SSE format: strip "event: message\ndata: "
+	rawStr := string(body)
+	if bytes.Contains(body, []byte("data: ")) {
+		// Quick extraction of the data part
+		parts := bytes.Split(body, []byte("data: "))
+		if len(parts) > 1 {
+			rawStr = string(bytes.TrimSpace(parts[1]))
+		}
+	}
+
 	var mcpResp mcpResponse
-	if err := json.Unmarshal(body, &mcpResp); err != nil {
-		return nil, fmt.Errorf("parse MCP response: %v | raw: %s", err, string(body))
+	if err := json.Unmarshal([]byte(rawStr), &mcpResp); err != nil {
+		return nil, fmt.Errorf("parse MCP response: %v | raw: %s", err, rawStr)
 	}
 
 	if mcpResp.Error != nil {
