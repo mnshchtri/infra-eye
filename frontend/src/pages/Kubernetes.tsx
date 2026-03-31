@@ -552,16 +552,16 @@ export function Kubernetes() {
       {showAddCluster && <AddClusterModal onClose={() => setShowAddCluster(false)} onSuccess={loadClusters} />}
 
       {/* Internal Sidebar - Lens Style */}
-      <div style={{ width: 240, background: '#fff', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden' }}>
-        <div style={{ padding: '16px 12px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)' }}>
+      <div style={{ width: 240, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden' }}>
+        <div style={{ padding: '16px 12px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
            <button className="btn-icon" onClick={() => setSelectedCluster(null)} style={{ padding: 4 }}>
              <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
            </button>
            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10 }}>
-                {selectedCluster.os === 'darwin' ? <AppleIcon size={18} color="#fff" /> :
-                 selectedCluster.os === 'windows'? <WindowsIcon size={16} color="#fff" /> :
-                 selectedCluster.os === 'linux'  ? <LinuxIcon size={16} color="#fff" /> :
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10 }}>
+                {selectedCluster.os === 'darwin' ? <AppleIcon size={18} color="var(--text-inverse)" /> :
+                 selectedCluster.os === 'windows'? <WindowsIcon size={16} color="var(--text-inverse)" /> :
+                 selectedCluster.os === 'linux'  ? <LinuxIcon size={16} color="var(--text-inverse)" /> :
                  selectedCluster.name.substring(0, 2).toUpperCase()}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -627,7 +627,7 @@ export function Kubernetes() {
 
       {/* Main Area - Clean Background */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-app)' }}>
-        <header style={{ height: 60, background: '#fff', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className="badge badge-online">REAL-TIME</div>
               <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'capitalize' }}>{activeRes} Explorer</h2>
@@ -635,7 +635,7 @@ export function Kubernetes() {
            </div>
            
            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>PRESS <kbd style={{ background: '#f1f5f9', padding: '2px 4px', border: '1px solid #e2e8f0', borderRadius: 4 }}>:</kbd> FOR CLI {canUseKubectl ? ' • SHIFT+F for Port Forward' : ''}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>PRESS <kbd style={{ background: 'var(--bg-elevated)', padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}>:</kbd> FOR CLI {canUseKubectl ? ' • SHIFT+F for Port Forward' : ''}</div>
               {canUseKubectl && (
                 <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setShowPortForward(true)}>
                   Port Forward

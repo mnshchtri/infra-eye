@@ -129,7 +129,7 @@ export function Settings() {
         gap: 8, 
         marginBottom: 40, 
         padding: 6, 
-        background: '#f1f5f9', 
+        background: 'var(--bg-elevated)', 
         borderRadius: 16, 
         width: 'fit-content',
         border: '1px solid var(--border)'
@@ -141,7 +141,7 @@ export function Settings() {
             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', cursor: 'pointer', border: 'none',
             display: 'flex', alignItems: 'center', gap: 8,
             ...(activeTab === 'profile'
-              ? { background: '#fff', color: 'var(--brand-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
+              ? { background: 'var(--bg-card)', color: 'var(--brand-primary)', boxShadow: 'var(--shadow-md)' }
               : { background: 'transparent', color: 'var(--text-muted)' }
             ),
           }}
@@ -157,7 +157,7 @@ export function Settings() {
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', cursor: 'pointer', border: 'none',
               display: 'flex', alignItems: 'center', gap: 8,
               ...(activeTab === 'users'
-                ? { background: '#fff', color: 'var(--brand-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
+                ? { background: 'var(--bg-card)', color: 'var(--brand-primary)', boxShadow: 'var(--shadow-md)' }
                 : { background: 'transparent', color: 'var(--text-muted)' }
               ),
             }}
@@ -176,7 +176,7 @@ export function Settings() {
                  width: 100, height: 100, borderRadius: '32px', 
                  background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-light))',
                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                 fontSize: 36, fontWeight: 900, color: '#fff',
+                 fontSize: 36, fontWeight: 900, color: 'var(--text-inverse)',
                  boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)',
                  marginBottom: 24, textTransform: 'uppercase'
                }}>
@@ -228,7 +228,7 @@ export function Settings() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
                   <div className="input-group">
                     <label className="input-label">Username</label>
-                    <input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6, background: '#f8fafc' }} />
+                    <input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6, background: 'var(--bg-elevated)' }} />
                   </div>
                   
                   <div className="input-group">
@@ -290,7 +290,7 @@ export function Settings() {
 
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--border)' }}>
+                  <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                     {['User Information', 'Role', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '14px 32px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                     ))}
@@ -342,7 +342,7 @@ export function Settings() {
                       <td style={{ padding: '20px 32px' }}>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button style={{ 
-                            padding: '8px 12px', borderRadius: 10, background: '#fff', border: '1px solid var(--border)', 
+                            padding: '8px 12px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border)', 
                             color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
                             boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' 
                           }} onClick={() => editUser(u)} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--brand-primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
@@ -350,10 +350,10 @@ export function Settings() {
                           </button>
                           {currentUser?.id !== u.id && (
                             <button style={{ 
-                              padding: '8px 12px', borderRadius: 10, background: '#fff', border: '1px solid #fecaca', 
+                              padding: '8px 12px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--danger)40', 
                               color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
                               boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' 
-                            }} onClick={() => deleteUser(u.id, u.username)} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                            }} onClick={() => deleteUser(u.id, u.username)} onMouseEnter={e => e.currentTarget.style.background = 'var(--danger)10'} onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--danger)40' }}>
                               <Trash2 size={15} />
                             </button>
                           )}
@@ -370,7 +370,7 @@ export function Settings() {
 
       {/* User Form Modal */}
       {showUserForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'var(--glass-bg)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="card fade-up" style={{ width: '100%', maxWidth: 460, padding: 32, boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 32 }}>
               <div style={{ 
@@ -409,7 +409,7 @@ export function Settings() {
                 </div>
               </div>
               {!!editUserId && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, padding: '14px', background: '#f8fafc', borderRadius: 12, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, padding: '14px', background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}>
                   <input type="checkbox" id="activeCheckbox" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} style={{ width: 18, height: 18, cursor: 'pointer' }} />
                   <label htmlFor="activeCheckbox" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', marginBottom: 0 }}>Authorization Active</label>
                 </div>
@@ -425,7 +425,7 @@ export function Settings() {
       
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .spinner { border: 2px solid rgba(0,0,0,0.1); border-top-color: var(--brand-primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        .spinner { border: 2px solid var(--border); border-top-color: var(--brand-primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
       `}</style>
     </div>
   )

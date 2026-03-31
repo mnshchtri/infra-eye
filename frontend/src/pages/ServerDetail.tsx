@@ -468,7 +468,7 @@ export function ServerDetail() {
       {activeTab === 'Logs' && (
         <div className="fade-in">
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(79, 70, 229, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ScrollText size={16} color="var(--brand-primary)" />
@@ -480,7 +480,7 @@ export function ServerDetail() {
                     <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                     <input className="input" placeholder="Search logs…" value={logSearch} 
                      onChange={e => setLogSearch(e.target.value)} 
-                     style={{ paddingLeft: 34, height: 36, fontSize: 13, minWidth: 280, background: '#fff' }} />
+                     style={{ paddingLeft: 34, height: 36, fontSize: 13, minWidth: 280, background: 'var(--bg-card)' }} />
                   </div>
                   <button className="btn btn-secondary" onClick={runDiagnostics} style={{ height: 36, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 'bold' }}>
                     <Activity size={14} color="var(--brand-primary)" /> Run Diagnostics
@@ -498,7 +498,7 @@ export function ServerDetail() {
                </div>
             </div>
             
-            <div className="log-viewer" style={{ border: 'none', borderRadius: 0, height: 500, background: '#0a101f', overflowY: 'auto' }}>
+            <div className="log-viewer" style={{ border: 'none', borderRadius: 0, height: 500, background: 'var(--bg-app)', overflowY: 'auto' }}>
               {filteredLogs.length === 0
                 ? <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>No log entries matching your criteria</div>
                 : filteredLogs.map(log => (
@@ -507,9 +507,9 @@ export function ServerDetail() {
                     <span className="log-badge" style={{ 
                       borderRadius: 4, width: 44, textAlign: 'center', flexShrink: 0, padding: '1px 0', fontSize: 9, fontWeight: 900,
                       background: log.level === 'error' ? 'var(--danger)' : log.level === 'warn' ? 'var(--warning)' : 'var(--brand-primary)',
-                      color: '#fff'
+                      color: 'var(--text-inverse)'
                     }}>{log.level.toUpperCase()}</span>
-                    <span className="log-msg" style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: '#e2e8f0', wordBreak: 'break-all' }}>{log.message}</span>
+                    <span className="log-msg" style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{log.message}</span>
                   </div>
                 ))
               }
@@ -521,23 +521,23 @@ export function ServerDetail() {
       {/* ── Terminal Tab ── */}
       {activeTab === 'Terminal' && can('use-terminal') && (
         <div className={`fade-in ${isTerminalFullscreen ? 'terminal-fullscreen' : ''}`} style={isTerminalFullscreen ? {
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, background: '#0a0c12', padding: 0
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, background: 'var(--bg-app)', padding: 0
         } : {}}>
           <div className="card" style={{ 
             padding: 0, 
             overflow: 'hidden', 
-            background: '#0a0c12', 
-            border: isTerminalFullscreen ? 'none' : '1px solid #1e293b',
+            background: 'var(--bg-app)', 
+            border: isTerminalFullscreen ? 'none' : '1px solid var(--border)',
             height: isTerminalFullscreen ? '100%' : 'auto',
             borderRadius: isTerminalFullscreen ? 0 : 'var(--radius-lg)'
           }}>
-            <div style={{ padding: '8px 20px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '8px 20px', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56' }} />
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e' }} />
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#27c93f' }} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12, fontWeight: 700 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12, fontWeight: 700 }}>
                 <TerminalIcon size={12} />
                 SSH TERMINAL — {server.ssh_user}@{server.host}
               </div>
