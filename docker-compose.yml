@@ -46,9 +46,11 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
+      - REDIS_URL=redis:6379
     ports:
-      - "80:80"
-      - "8080:8080" # Optional: for direct backend access if needed
+      - "8081:80"
 
 volumes:
   postgres_data:
