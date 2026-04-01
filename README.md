@@ -1,248 +1,177 @@
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="InfraEye Logo" width="240" />
+<img src="frontend/public/logo.png" alt="InfraEye Logo" width="280" />
 
 # InfraEye
 
-**The Intelligent DevOps Observability & Self-Healing Platform**
+**Observing the Unseen • Healing the Broken**
 
-[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?style=flat-square&logo=go)](https://golang.org)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://reactjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript)](https://typescriptlang.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)](https://postgresql.org)
-[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis)](https://redis.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript)](https://typescriptlang.org)
+[![Docker](https://img.shields.io/badge/Docker-24+-2496ED?style=for-the-badge&logo=docker)](https://docker.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F5A623?style=for-the-badge)](LICENSE)
 
-A premium-grade, open-source platform for DevOps engineers to monitor infrastructure, stream real-time logs, execute Kubernetes commands, and leverage AI-driven self-healing — all from one unified dashboard.
+**InfraEye** is an enterprise-grade, agentless observability platform designed for modern DevOps teams. It provides a unified "Command Center" for your entire infrastructure—from bare-metal Linux servers to complex Kubernetes clusters—featuring real-time telemetry, AI-driven diagnostics, and a proactive self-healing engine.
+
+[Explore Documentation](documentation.md) • [Report Bug](https://github.com/mnshchtri/infra-eye/issues) • [Request Feature](https://github.com/mnshchtri/infra-eye/issues)
 
 </div>
 
 ---
 
-## ✨ Features
+## Vision
 
-| Feature                              | Description                                                                       |
-| ------------------------------------ | --------------------------------------------------------------------------------- |
-| 🖥️**Multi-Server Dashboard** | Real-time CPU, memory, disk & network metrics across all connected servers        |
-| 📡**Live Log Streaming**       | WebSocket-powered log tailing with instant search & level filtering               |
-| 💻**SSH Web Terminal**         | Full browser-based `xterm.js` terminal over SSH — no local config needed       |
-| ☸️**Kubernetes Runner**      | Execute `kubectl` commands remotely with built-in command suggestions           |
-| 🤖**AI Assistant**             | GPT-4o powered analysis of server logs & metrics with actionable fix suggestions  |
-| 🔔**Self-Healing Engine**      | Define alert rules that automatically trigger SSH remediation commands            |
-| 🔐**JWT Auth**                 | Secure multi-user access with role-based control                                  |
-| 📊**Recharts Visualizations**  | Historical metric charts with real-time WebSocket updates                         |
-| 🛡️**MCP (Experimental)**     | **[COMING SOON]** AI-driven Kubernetes toolset for real-time cluster fixing |
+In an era of microservices and ephemeral infrastructure, observability shouldn't be expensive or complex. InfraEye bridges the gap between raw metrics and actionable intelligence by providing a high-fidelity, real-time cockpit that doesn't just tell you what's wrong, but helps you fix it—automatically.
 
----
+## Key Modules
 
-## 🛠️ Tech Stack
-
-| Layer              | Technology                                                         |
-| ------------------ | ------------------------------------------------------------------ |
-| **Frontend** | React 19, TypeScript, Vite, Recharts, Zustand, react-router-dom v7 |
-| **Backend**  | Go 1.22, Gin, GORM, WebSocket (gorilla)                            |
-| **Database** | PostgreSQL 16                                                      |
-| **Cache**    | Redis 7                                                            |
-| **AI Agent** | OpenAI GPT-4o (configurable)                                       |
-| **Terminal** | xterm.js + golang.org/x/crypto/ssh                                 |
-| **Infra**    | Docker, Docker Compose                                             |
+| Module                             | Description                                                                            | status           |
+| :--------------------------------- | :------------------------------------------------------------------------------------- | :--------------- |
+| **Infrastructure Navigator** | Unified view of Linux servers with real-time CPU, Mem, Disk & Network telemetry.       | `Production`   |
+| **Kubernetes 'Lens'**        | Advanced resource explorer for Pods, Deployments, and Events with 1-click diagnostics. | `Production`   |
+| **Netra AI Assistant**       | LLM-powered (GPT-4o/Gemini) infrastructure consulting and log analysis.                | `Beta`         |
+| **Self-Healing Engine**      | XML-defined alert rules that trigger automated SSH remediation commands.               | `Production`   |
+| **MCP Sidecar**              | Model Context Protocol integration for AI-driven cluster troubleshooting.              | `Experimental` |
+| **SSH Terminal**             | Full browser-based `xterm.js` terminal over secure SSH tunnels.                      | `Production`   |
 
 ---
 
-## 🚀 Quick Start
+## Architecture
 
-### Option A — Local Development (Recommended)
+InfraEye uses a **Distributed Bridge** architecture. Instead of installing heavy agents on every node, our Go-backend establishes secure, lightweight SSH connections to gather metrics and stream logs.
 
-Fastest way to run — databases in Docker, app runs natively.
-
-**Prerequisites:** Docker, Go 1.22+, Node.js 20+
-
-```bash
-# 1. Clone the repo
-git clone https://github.com/your-username/infra-eye.git
-cd infra-eye
-
-# 2. Start Postgres + Redis only (no Docker build required)
-make infra
-
-# 3. Install dependencies
-make backend-install && make frontend-install
-
-# 4. Configure environment
-cp backend/.env.example backend/.env
-# Edit backend/.env with your settings (defaults work out of the box)
-
-# 5. Run backend and frontend in separate terminals
-make backend    # Terminal 1  →  http://localhost:8080
-make frontend   # Terminal 2  →  http://localhost:5173
+```mermaid
+graph TD
+    User((DevOps Engineer)) -->|HTTPS/WSS| Web[React Frontend]
+    Web -->|API/RPC| API[Go Backend]
+    API -->|Port 22/SSH| DB[Target Servers]
+    API -->|Port 6443/API| K8s[Kubernetes Clusters]
+    API -->|JSON-RPC/SSE| MCP[MCP Sidecar]
+    API -->|GORM| DB_PG[(PostgreSQL)]
+    API -->|Pub/Sub| REDIS[(Redis)]
+    MCP -->|Tools| K8s
 ```
 
-Open **http://localhost:5173** and sign in with:
+---
+
+## Docker Setup (Recommended)
+
+The fastest way to deploy InfraEye is using Docker Compose. This setup includes the backend, frontend, PostgreSQL, Redis, and the MCP sidecar.
+
+### 1. Prerequisites
+
+- **Docker 24.0.0+**
+- **Docker Compose v2.20.0+**
+- A `.env` file in the root (see `.env.example`)
+
+### 2. Environment Configuration
+
+Create a `.env` file in the root directory:
+
+```env
+# AI & Large Language Models
+DEEPSEEK_API_KEY=your_key_here
+GEMINI_API_KEY=your_key_here
+OPENROUTER_API_KEY=your_key_here
+MISTRAL_API_KEY=your_key_here
+
+# Database & Cache
+DB_DSN=postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable
+REDIS_ADDR=localhost:6379
+
+# Security & Auth
+JWT_SECRET=generate-a-long-random-string
+PORT=8080
+ENV=development
+
+# System Settings
+METRICS_INTERVAL=30
+LOG_MAX_LINES=500
+
+# Notifications
+GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/...
+
+# Kubeconfig Path (for MCP sidecar tools)
+KUBECONFIG_PATH=~/.kube/config
+```
+
+### 3. Launching the Stack
+
+```bash
+# Start all services in the background
+docker-compose up -d
+
+# Check status
+docker-compose ps
+```
+
+The platform will be available at:
+
+- **Frontend**: [http://localhost](http://localhost) (via Nginx)
+- **Backend API**: [http://localhost:8080](http://localhost:8080)
+- **MCP Server**: [http://localhost:8090](http://localhost:8090)
+
+**Default Login:**
 
 - **Username:** `admin`
 - **Password:** `admin123`
 
-### Option B — Full Docker (Production)
+---
 
-> **Note:** Requires working Docker network (no DNS restrictions). See troubleshooting below.
+## Developer Setup (Hybrid Mode)
+
+For active development, we recommend running databases in Docker and the app natively.
 
 ```bash
-docker-compose up -d
-```
+# 1. Start core infrastructure
+make infra
 
-Open **http://localhost** (served via Nginx on port 80).
+# 2. Install dependencies
+make backend-install
+make frontend-install
 
----
-
-## ⚙️ Environment Variables
-
-Copy `backend/.env.example` to `backend/.env` and configure:
-
-```env
-# Database
-DB_DSN=postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable
-
-# Redis
-REDIS_ADDR=localhost:6379
-
-# JWT
-JWT_SECRET=your-super-secret-key
-
-# AI Assistant (Google Gemini)
-GEMINI_API_KEY=AIzaSy...
-
-# Database
-DB_DSN=postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable
-
-# Redis
-REDIS_ADDR=localhost:6379
-
-# JWT
-JWT_SECRET=your-super-secret-key
-
-# AI Intelligence
-GEMINI_API_KEY=AIzaSy...
-
-# Notifications
-GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/...
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-
-# Server
-PORT=8080
-ENV=development
-```
-
----
-
-## 📁 Project Structure
-
-```
-infra-eye/
-├── backend/
-│   ├── cmd/
-│   │   └── server/
-│   │       └── main.go          # Entrypoint
-│   ├── internal/
-│   │   ├── db/                  # GORM database setup & migrations
-│   │   ├── handlers/            # Gin HTTP handlers
-│   │   ├── middleware/          # JWT auth, CORS
-│   │   ├── models/              # GORM models
-│   │   ├── seed/                # Default user seeding
-│   │   └── selfheal/            # Self-healing engine
-│   ├── Dockerfile
-│   └── go.mod
-│
-├── frontend/
-│   ├── src/
-│   │   ├── api/                 # Axios API client
-│   │   ├── components/
-│   │   │   └── layout/          # Sidebar, Layout
-│   │   ├── pages/               # Dashboard, Servers, AI, Alerts, etc.
-│   │   ├── store/               # Zustand auth store
-│   │   ├── index.css            # Global design system
-│   │   └── App.tsx              # Router
-│   ├── Dockerfile
-│   └── vite.config.ts
-│
-├── docker-compose.yml
-├── Makefile
-└── README.md
-```
-
----
-
-## 🧰 Makefile Commands
-
-| Command                   | Description                                  |
-| ------------------------- | -------------------------------------------- |
-| `make infra`            | Start only Postgres & Redis in Docker        |
-| `make infra-down`       | Stop all Docker services                     |
-| `make backend`          | Run Go backend (`localhost:8080`)          |
-| `make frontend`         | Run Vite frontend (`localhost:5173`)       |
-| `make dev-local`        | Start infra + backend + frontend all at once |
-| `make backend-install`  | Run `go mod tidy`                          |
-| `make frontend-install` | Run `npm install`                          |
-| `make build`            | Build production binaries                    |
-| `make clean`            | Remove build artifacts                       |
-
----
-
-## 🤖 AI Assistant Setup
-
-The AI Assistant requires an OpenAI API key. Without it, the chat endpoint returns an error but the rest of the platform works normally.
-
-1. Get a key from [platform.openai.com](https://platform.openai.com)
-2. Add it to `backend/.env`:
-   ```env
-   OPENAI_API_KEY=sk-your-key-here
-   ```
-3. Restart the backend
-
----
-
-## 🩹 Troubleshooting
-
-### `make infra` fails with Docker DNS error
-
-When running the **full** Docker build (`docker-compose up -d`), Alpine Linux can't reach package repositories. **Solution:** Use `make dev-local` instead to run the app natively.
-
-### Port 8080 already in use
-
-```bash
-lsof -ti:8080 | xargs kill -9
+# 3. Run Development Servers
+# Terminal 1: Backend
 make backend
+
+# Terminal 2: Frontend
+make frontend
 ```
 
-### Frontend can't connect to backend
+---
 
-Ensure the backend is running on `:8080`. The Vite proxy in `vite.config.ts` forwards `/api` and `/ws` to `localhost:8080` automatically.
+## Upcoming Features (Roadmap)
+
+We are constantly evolving. Here's what's currently in the pipeline:
+
+- [ ] **OIDC / SSO Integration**: Support for Google, GitHub, and Okta authentication.
+- [ ] **Infrastructure-as-Code Sync**: Sync your server list and alert rules directly from a Git repo.
+- [ ] **Terraform Bridge**: Visualize and drift-detect Terraform-managed resources.
+- [ ] **Metric Persistence**: Long-term data retention using Prometheus/VictoriaMetrics.
+- [ ] **Mobile Command Center**: A dedicated PWA optimized for "on-call" emergency status checks.
+- [ ] **Dynamic Alert Builder**: A visual drag-and-drop builder for "Self-Healing" conditions.
 
 ---
 
-## 🚀 Next Up: MCP Integration
+## Contributing
 
-We are actively working on implementing the **Model Context Protocol (MCP)** to allow your local AI agents to securely interact with your infrastructure logs and metrics in real-time.
+We ❤️ contributions! Whether you're fixing a bug, adding a new feature, or improving documentation, your help is appreciated.
 
----
+1. **Fork** the repository.
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`).
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`).
+4. **Push** to the branch (`git push origin feature/amazing-feature`).
+5. **Open** a Pull Request.
 
-## 🗺️ Roadmap
+**How you can help right now:**
 
-- [X] **AI-Driven Kubernetes MCP Toolset** (Real-time cluster diagnostics & remediation)
-- [X] Slack / PagerDuty alert integrations
-- [X] Multi-node Kubernetes cluster view
-- [X] Custom dashboard widgets (drag & drop)
-- [ ] Metric retention policies
-- [ ] RBAC (role-based access control)
-- [ ] Dark / light theme toggle
-
----
-
-## 📄 License
-
-MIT © 2026 InfraEye Contributors
+- Help us improve the **Kubernetes Resource Explorer** with more resource types (CRDs, NetworkPolicies).
+- Add support for **different OS collectors** (BSD, Windows).
+- Improve the **AI Assistant's prompt engineering** for better infrastructure diagnostics.
 
 ---
 
 <div align="center">
-Built with ❤️ for DevOps engineers who demand observability without complexity.
+
 </div>
