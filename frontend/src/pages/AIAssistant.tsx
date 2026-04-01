@@ -285,9 +285,9 @@ export function AIAssistant() {
         onToggle={setIsSidebarCollapsed}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
         <header style={{
-          width: '100%', padding: '14px 60px',
+          width: '100%', padding: '14px 30px', 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0, borderBottom: '1px solid var(--border)',
           background: 'var(--bg-card)'
@@ -350,7 +350,7 @@ export function AIAssistant() {
           )}
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 60px 160px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 30px 160px' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 48 }}>
             {messages.length <= 1 && (
               <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
@@ -384,7 +384,7 @@ export function AIAssistant() {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '24px 60px 48px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '24px 30px 48px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', pointerEvents: 'auto' }}>
             {selectedImage && (
               <div className="fade-in" style={{ padding: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '20px 20px 0 0', display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 24, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>

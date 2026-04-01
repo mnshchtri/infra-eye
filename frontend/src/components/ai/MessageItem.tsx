@@ -31,7 +31,7 @@ const MCPToolCard = memo(({ raw, onExecute }: {
     parsed = JSON.parse(raw.trim())
   } catch {
     return (
-      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 8, fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)' }}>
+      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 8, fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {raw}
       </pre>
     )
@@ -39,7 +39,7 @@ const MCPToolCard = memo(({ raw, onExecute }: {
 
   if (!parsed || !parsed.tool) {
     return (
-      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 8, fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)' }}>
+      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 8, fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {raw}
       </pre>
     )
@@ -220,9 +220,9 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   return (
                     <pre style={{
                       background: 'var(--bg-app)', padding: '16px', borderRadius: 'var(--radius-lg)',
-                      fontSize: 13, overflow: 'auto', margin: '16px 0', border: '1px solid var(--border)',
+                      fontSize: 13, overflowX: 'auto', margin: '16px 0', border: '1px solid var(--border)',
                       fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
                     }}>{children}</pre>
                   )
                 },
