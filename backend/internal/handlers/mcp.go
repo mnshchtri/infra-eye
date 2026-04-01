@@ -203,11 +203,11 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 	result, err := callMCPMethodRaw(method, params, intPtr(id))
 
 	// 3. Robust Retry: If the server claims we are uninitialized or session is lost
-	if err != nil && (strings.Contains(err.Error(), "invalid during session initialization") || 
+	if err != nil && (strings.Contains(err.Error(), "invalid during session initialization") ||
 		strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "session not found")) {
-		
+
 		log.Printf("🔄 MCP: Session lost or invalid, re-initializing: %v", err)
-		
+
 		// Reset state
 		mcpInitMutex.Lock()
 		if mcpSSEConnection != nil {
@@ -238,7 +238,7 @@ func ensureMCPInitialized() error {
 
 	// Step 0: Establish SSE Session (with retry loop for sidecar startup)
 	log.Printf("🔗 MCP: Establishing SSE session at %s/sse", config.C.MCPServerURL)
-	
+
 	var resp *http.Response
 	var err error
 	for i := 0; i < 5; i++ {
@@ -362,7 +362,7 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 	if err != nil {
 		return nil, fmt.Errorf("request creation failed: %v", err)
 	}
-	
+
 	// Add session ID header if available in the URL
 	if strings.Contains(targetURL, "sessionid=") {
 		parts := strings.Split(targetURL, "sessionid=")
@@ -370,7 +370,7 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 			httpReq.Header.Set("Mcp-Session-Id", parts[1])
 		}
 	}
-	
+
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json, text/event-stream")
 
