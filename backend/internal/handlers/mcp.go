@@ -284,8 +284,10 @@ func ensureMCPInitialized() error {
 	}
 
 	if endpoint == "" {
+		log.Printf("⚠️ MCP: No endpoint event found in SSE stream. Check sidecar logs.")
 		return fmt.Errorf("no endpoint received from /sse")
 	}
+	log.Printf("📡 MCP: Session endpoint received: %s", endpoint)
 
 	// Step 1: Start Background Body Drainer to keep SSE session alive
 	go func(body io.ReadCloser) {
@@ -380,7 +382,11 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %v", err)
+		return nil, fmt.Errorf("read response (status %d): %v", resp.StatusCode, err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("MCP server error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Handle SSE format: strip "event: message\ndata: "
@@ -401,7 +407,7 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 
 	// For standard requests, if the body is empty, it's an error
 	if strings.TrimSpace(rawStr) == "" {
-		return nil, fmt.Errorf("empty response for request method %s", method)
+		return nil, fmt.Errorf("empty response (status %d) for method %s. Check sidecar health.", resp.StatusCode, method)
 	}
 
 	var mcpResp mcpResponse
