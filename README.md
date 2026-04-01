@@ -3,6 +3,7 @@
 <img src="frontend/public/logo.png" alt="InfraEye Logo" width="240" />
 
 # InfraEye
+
 **The Intelligent DevOps Observability & Self-Healing Platform**
 
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?style=flat-square&logo=go)](https://golang.org)
@@ -20,30 +21,31 @@ A premium-grade, open-source platform for DevOps engineers to monitor infrastruc
 
 ## ✨ Features
 
-| Feature | Description |
-|---|---|
-| 🖥️ **Multi-Server Dashboard** | Real-time CPU, memory, disk & network metrics across all connected servers |
-| 📡 **Live Log Streaming** | WebSocket-powered log tailing with instant search & level filtering |
-| 💻 **SSH Web Terminal** | Full browser-based `xterm.js` terminal over SSH — no local config needed |
-| ☸️ **Kubernetes Runner** | Execute `kubectl` commands remotely with built-in command suggestions |
-| 🤖 **AI Assistant** | GPT-4o powered analysis of server logs & metrics with actionable fix suggestions |
-| 🔔 **Self-Healing Engine** | Define alert rules that automatically trigger SSH remediation commands |
-| 🔐 **JWT Auth** | Secure multi-user access with role-based control |
-| 📊 **Recharts Visualizations** | Historical metric charts with real-time WebSocket updates |
+| Feature                              | Description                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------- |
+| 🖥️**Multi-Server Dashboard** | Real-time CPU, memory, disk & network metrics across all connected servers        |
+| 📡**Live Log Streaming**       | WebSocket-powered log tailing with instant search & level filtering               |
+| 💻**SSH Web Terminal**         | Full browser-based `xterm.js` terminal over SSH — no local config needed       |
+| ☸️**Kubernetes Runner**      | Execute `kubectl` commands remotely with built-in command suggestions           |
+| 🤖**AI Assistant**             | GPT-4o powered analysis of server logs & metrics with actionable fix suggestions  |
+| 🔔**Self-Healing Engine**      | Define alert rules that automatically trigger SSH remediation commands            |
+| 🔐**JWT Auth**                 | Secure multi-user access with role-based control                                  |
+| 📊**Recharts Visualizations**  | Historical metric charts with real-time WebSocket updates                         |
+| 🛡️**MCP (Experimental)**     | **[COMING SOON]** AI-driven Kubernetes toolset for real-time cluster fixing |
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|---|---|
+| Layer              | Technology                                                         |
+| ------------------ | ------------------------------------------------------------------ |
 | **Frontend** | React 19, TypeScript, Vite, Recharts, Zustand, react-router-dom v7 |
-| **Backend** | Go 1.22, Gin, GORM, WebSocket (gorilla) |
-| **Database** | PostgreSQL 16 |
-| **Cache** | Redis 7 |
-| **AI Agent** | OpenAI GPT-4o (configurable) |
-| **Terminal** | xterm.js + golang.org/x/crypto/ssh |
-| **Infra** | Docker, Docker Compose |
+| **Backend**  | Go 1.22, Gin, GORM, WebSocket (gorilla)                            |
+| **Database** | PostgreSQL 16                                                      |
+| **Cache**    | Redis 7                                                            |
+| **AI Agent** | OpenAI GPT-4o (configurable)                                       |
+| **Terminal** | xterm.js + golang.org/x/crypto/ssh                                 |
+| **Infra**    | Docker, Docker Compose                                             |
 
 ---
 
@@ -76,8 +78,9 @@ make frontend   # Terminal 2  →  http://localhost:5173
 ```
 
 Open **http://localhost:5173** and sign in with:
+
 - **Username:** `admin`
-- **Password:** `infra123`
+- **Password:** `admin123`
 
 ### Option B — Full Docker (Production)
 
@@ -170,17 +173,17 @@ infra-eye/
 
 ## 🧰 Makefile Commands
 
-| Command | Description |
-|---|---|
-| `make infra` | Start only Postgres & Redis in Docker |
-| `make infra-down` | Stop all Docker services |
-| `make backend` | Run Go backend (`localhost:8080`) |
-| `make frontend` | Run Vite frontend (`localhost:5173`) |
-| `make dev-local` | Start infra + backend + frontend all at once |
-| `make backend-install` | Run `go mod tidy` |
-| `make frontend-install` | Run `npm install` |
-| `make build` | Build production binaries |
-| `make clean` | Remove build artifacts |
+| Command                   | Description                                  |
+| ------------------------- | -------------------------------------------- |
+| `make infra`            | Start only Postgres & Redis in Docker        |
+| `make infra-down`       | Stop all Docker services                     |
+| `make backend`          | Run Go backend (`localhost:8080`)          |
+| `make frontend`         | Run Vite frontend (`localhost:5173`)       |
+| `make dev-local`        | Start infra + backend + frontend all at once |
+| `make backend-install`  | Run `go mod tidy`                          |
+| `make frontend-install` | Run `npm install`                          |
+| `make build`            | Build production binaries                    |
+| `make clean`            | Remove build artifacts                       |
 
 ---
 
@@ -200,24 +203,34 @@ The AI Assistant requires an OpenAI API key. Without it, the chat endpoint retur
 ## 🩹 Troubleshooting
 
 ### `make infra` fails with Docker DNS error
+
 When running the **full** Docker build (`docker-compose up -d`), Alpine Linux can't reach package repositories. **Solution:** Use `make dev-local` instead to run the app natively.
 
 ### Port 8080 already in use
+
 ```bash
 lsof -ti:8080 | xargs kill -9
 make backend
 ```
 
 ### Frontend can't connect to backend
+
 Ensure the backend is running on `:8080`. The Vite proxy in `vite.config.ts` forwards `/api` and `/ws` to `localhost:8080` automatically.
+
+---
+
+## 🚀 Next Up: MCP Integration
+
+We are actively working on implementing the **Model Context Protocol (MCP)** to allow your local AI agents to securely interact with your infrastructure logs and metrics in real-time.
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Slack / PagerDuty alert integrations
-- [ ] Multi-node Kubernetes cluster view
-- [ ] Custom dashboard widgets (drag & drop)
+- [X] **AI-Driven Kubernetes MCP Toolset** (Real-time cluster diagnostics & remediation)
+- [X] Slack / PagerDuty alert integrations
+- [X] Multi-node Kubernetes cluster view
+- [X] Custom dashboard widgets (drag & drop)
 - [ ] Metric retention policies
 - [ ] RBAC (role-based access control)
 - [ ] Dark / light theme toggle
