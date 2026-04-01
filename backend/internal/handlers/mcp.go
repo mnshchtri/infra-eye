@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/mcp"
 	"github.com/infra-eye/backend/internal/models"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -81,7 +84,7 @@ func ExecuteMCPTool(c *gin.Context) {
 			if req.Arguments == nil {
 				req.Arguments = map[string]interface{}{}
 			}
-			
+
 			// Load the config to find the correct context name
 			prefix := fmt.Sprintf("server-%d", server.ID)
 			cfg, err := clientcmd.Load([]byte(server.KubeConfig))
@@ -150,29 +153,41 @@ func ExecuteMCPTool(c *gin.Context) {
 }
 
 // ── MCPServerStatus ─────────────────────────────────────────────────────────
-// GET /api/mcp/status — Check if MCP server is reachable
 func MCPServerStatus(c *gin.Context) {
-	resp, err := mcpClient.Get(config.C.MCPServerURL + "/health")
+	// Force a fresh sync of the master kubeconfig before checking status
+	if err := mcp.SyncMasterKubeconfig(); err != nil {
+		log.Printf("⚠️ MCP: Kubeconfig sync failed: %v", err)
+	}
+
+	resp, err := mcpClient.Get(config.C.MCPServerURL + "/healthz")
+	if err != nil {
+		// Try fallback to root if /health 404s or fails
+		resp, err = mcpClient.Get(config.C.MCPServerURL + "/sse")
+	}
+
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"available": false,
 			"url":       config.C.MCPServerURL,
 			"error":     err.Error(),
+			"hint":      "Check if mcp-server container is running and port 8090 is open",
 		})
 		return
 	}
 	defer resp.Body.Close()
 
 	c.JSON(http.StatusOK, gin.H{
-		"available":   resp.StatusCode == 200,
+		"available":   resp.StatusCode == 200 || resp.StatusCode == 404, // 404 means server is up but endpoint missing
 		"url":         config.C.MCPServerURL,
 		"status_code": resp.StatusCode,
 	})
 }
 
 var (
-	mcpInitialized bool
-	mcpInitMutex   sync.Mutex
+	mcpInitialized   bool
+	mcpSessionURL    string
+	mcpSSEConnection io.ReadCloser
+	mcpInitMutex     sync.Mutex
 )
 
 // ── callMCPMethod ────────────────────────────────────────────────────────────
@@ -187,12 +202,20 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 	// 2. Perform the actual call
 	result, err := callMCPMethodRaw(method, params, intPtr(id))
 
-	// 3. Robust Retry: If the server restarted and claims we are uninitialized, 
-	// reset local state and try again once.
-	if err != nil && strings.Contains(err.Error(), "is invalid during session initialization") {
+	// 3. Robust Retry: If the server claims we are uninitialized or session is lost
+	if err != nil && (strings.Contains(err.Error(), "invalid during session initialization") || 
+		strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "session not found")) {
+		
+		log.Printf("🔄 MCP: Session lost or invalid, re-initializing: %v", err)
+		
 		// Reset state
 		mcpInitMutex.Lock()
+		if mcpSSEConnection != nil {
+			mcpSSEConnection.Close()
+			mcpSSEConnection = nil
+		}
 		mcpInitialized = false
+		mcpSessionURL = ""
 		mcpInitMutex.Unlock()
 
 		// Re-initialize and retry call
@@ -209,9 +232,85 @@ func ensureMCPInitialized() error {
 	mcpInitMutex.Lock()
 	defer mcpInitMutex.Unlock()
 
-	if mcpInitialized {
+	if mcpInitialized && mcpSessionURL != "" {
 		return nil
 	}
+
+	// Step 0: Establish SSE Session (with retry loop for sidecar startup)
+	log.Printf("🔗 MCP: Establishing SSE session at %s/sse", config.C.MCPServerURL)
+	
+	var resp *http.Response
+	var err error
+	for i := 0; i < 5; i++ {
+		resp, err = mcpClient.Get(config.C.MCPServerURL + "/sse")
+		if err == nil {
+			break
+		}
+		log.Printf("⏳ MCP: Sidecar not ready (attempt %d/5): %v", i+1, err)
+		time.Sleep(2 * time.Second)
+	}
+
+	if err != nil {
+		return fmt.Errorf("sidecar unreachable after retries: %v", err)
+	}
+	// DO NOT CLOSE resp.Body here! The MCP session is tied to the life of this connection.
+	mcpSSEConnection = resp.Body
+
+	// Wait for the 'endpoint' event (robust parsing)
+	reader := bufio.NewReader(resp.Body)
+	endpoint := ""
+	for i := 0; i < 10; i++ { // Check first 10 lines
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+		if strings.HasPrefix(line, "data: ") {
+			endpoint = strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+			break
+		}
+	}
+
+	if endpoint == "" {
+		// Fallback to reading a chunk if no newline found
+		buf := make([]byte, 512)
+		n, _ := reader.Read(buf)
+		content := string(buf[:n])
+		if strings.Contains(content, "data: ") {
+			parts := strings.Split(content, "data: ")
+			if len(parts) > 1 {
+				endpoint = strings.TrimSpace(strings.Split(parts[1], "\n")[0])
+			}
+		}
+	}
+
+	if endpoint == "" {
+		return fmt.Errorf("no endpoint received from /sse")
+	}
+
+	// Step 1: Start Background Body Drainer to keep SSE session alive
+	go func(body io.ReadCloser) {
+		buf := make([]byte, 2048)
+		for {
+			_, err := body.Read(buf)
+			if err != nil {
+				log.Printf("📡 MCP: SSE Connection closed: %v. Resetting session.", err)
+				mcpInitMutex.Lock()
+				mcpInitialized = false
+				mcpSessionURL = ""
+				mcpSSEConnection = nil
+				mcpInitMutex.Unlock()
+				return
+			}
+		}
+	}(mcpSSEConnection)
+
+	// Prepend host if it's a relative path
+	if strings.HasPrefix(endpoint, "/") {
+		mcpSessionURL = config.C.MCPServerURL + endpoint
+	} else {
+		mcpSessionURL = endpoint
+	}
+	log.Printf("✅ MCP: Session established: %s", mcpSessionURL)
 
 	initParams := map[string]interface{}{
 		"protocolVersion": "2024-11-05", // Standard MCP version
@@ -251,18 +350,31 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		return nil, fmt.Errorf("marshal error: %v", err)
 	}
 
-	// The MCP server expects POSTs to the /mcp or session-specific endpoint
-	// For this sidecar, we use a single global endpoint
-	httpReq, err := http.NewRequest("POST", config.C.MCPServerURL+"/mcp", bytes.NewBuffer(jsonData))
+	// Use the established session URL, or fallback to default if not yet established
+	targetURL := mcpSessionURL
+	if targetURL == "" {
+		targetURL = config.C.MCPServerURL + "/mcp"
+	}
+
+	httpReq, err := http.NewRequest("POST", targetURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("request creation failed: %v", err)
 	}
+	
+	// Add session ID header if available in the URL
+	if strings.Contains(targetURL, "sessionid=") {
+		parts := strings.Split(targetURL, "sessionid=")
+		if len(parts) > 1 {
+			httpReq.Header.Set("Mcp-Session-Id", parts[1])
+		}
+	}
+	
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json, text/event-stream")
 
 	resp, err := mcpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("MCP server unreachable: %v", err)
+		return nil, fmt.Errorf("MCP server unreachable at %s: %v", targetURL, err)
 	}
 	defer resp.Body.Close()
 

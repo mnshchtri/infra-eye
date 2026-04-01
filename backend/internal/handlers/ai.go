@@ -27,8 +27,8 @@ type chatRequest struct {
 }
 
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }
 
 type openAIRequest struct {
@@ -401,6 +401,9 @@ func askAI(systemContext, question, imageBase64, imageMime, provider string) str
 	if provider == "google" && config.C.GeminiKey != "" {
 		return askGemini(systemContext, question, imageBase64, imageMime)
 	}
+	if provider == "mistral" && config.C.MistralKey != "" {
+		return askMistral(systemContext, question, imageBase64, imageMime)
+	}
 
 	// Default logic if no provider specified or keys missing
 	if config.C.OpenRouterKey != "" {
@@ -413,6 +416,10 @@ func askAI(systemContext, question, imageBase64, imageMime, provider string) str
 
 	if config.C.GeminiKey != "" {
 		return askGemini(systemContext, question, imageBase64, imageMime)
+	}
+
+	if config.C.MistralKey != "" {
+		return askMistral(systemContext, question, imageBase64, imageMime)
 	}
 
 	if config.C.OpenAIKey != "" {
@@ -511,7 +518,7 @@ func askOpenAI(systemContext, question string) string {
 		return "No response from AI."
 	}
 
-	return aiResp.Choices[0].Message.Content
+	return aiResp.Choices[0].Message.Content.(string)
 }
 
 func askDeepSeek(systemContext, question string) string {
@@ -553,7 +560,7 @@ func askDeepSeek(systemContext, question string) string {
 		return "No response from DeepSeek AI."
 	}
 
-	return aiResp.Choices[0].Message.Content
+	return aiResp.Choices[0].Message.Content.(string)
 }
 
 func askOpenRouter(systemContext, question string) string {
@@ -597,7 +604,69 @@ func askOpenRouter(systemContext, question string) string {
 		return "No response from OpenRouter."
 	}
 
-	return aiResp.Choices[0].Message.Content
+	return aiResp.Choices[0].Message.Content.(string)
+}
+
+func askMistral(systemContext, question, imageBase64, imageMime string) string {
+	model := "mistral-large-latest"
+	var content interface{} = "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question
+
+	// If there's an image, switch to the multimodal-enabled model (Pixtral)
+	if imageBase64 != "" && imageMime != "" {
+		model = "pixtral-12b-2409"
+		content = []interface{}{
+			map[string]interface{}{
+				"type": "text",
+				"text": "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question,
+			},
+			map[string]interface{}{
+				"type": "image_url",
+				"image_url": map[string]string{
+					"url": fmt.Sprintf("data:%s;base64,%s", imageMime, imageBase64),
+				},
+			},
+		}
+	}
+
+	reqBody := openAIRequest{
+		Model: model,
+		Messages: []openAIMessage{
+			{Role: "user", Content: content},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://api.mistral.ai/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+config.C.MistralKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 90 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("Mistral request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		// Return friendly error if JSON parsing fails
+		return fmt.Sprintf("Mistral response error: %v (likely service timeout or quota limit).", err)
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("Mistral error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from Mistral AI Vision."
+	}
+
+	return aiResp.Choices[0].Message.Content.(string)
 }
 
 func mockAIResponse(question string) string {

@@ -50,17 +50,27 @@ func SyncMasterKubeconfig() error {
 		mergeConfigs(masterConfig, cfg, prefix)
 	}
 
-	// 3. Write to shared volume
+	// 3. Write to shared volume using a temporary file for atomicity
 	dir := filepath.Dir(MasterConfigPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create shared directory: %v", err)
 	}
 
-	if err := clientcmd.WriteToFile(*masterConfig, MasterConfigPath); err != nil {
-		return fmt.Errorf("failed to write master config: %v", err)
+	tempPath := MasterConfigPath + ".tmp"
+	if err := clientcmd.WriteToFile(*masterConfig, tempPath); err != nil {
+		return fmt.Errorf("failed to write temp master config: %v", err)
 	}
 
-	log.Printf("🔄 MCP: Merged %d clusters into master kubeconfig", len(servers))
+	// Double check we have actual data before swapping
+	if st, err := os.Stat(tempPath); err == nil && st.Size() > 0 {
+		if err := os.Rename(tempPath, MasterConfigPath); err != nil {
+			return fmt.Errorf("failed to move master config to final path: %v", err)
+		}
+	} else {
+		return fmt.Errorf("master config write produced empty file")
+	}
+
+	log.Printf("🔄 MCP: Merged %d clusters into master kubeconfig at %s", len(masterConfig.Clusters), MasterConfigPath)
 	return nil
 }
 
@@ -68,18 +78,37 @@ func SyncMasterKubeconfig() error {
 func mergeConfigs(dest, src *api.Config, prefix string) {
 	for name, cluster := range src.Clusters {
 		uniqueName := fmt.Sprintf("%s-%s", prefix, name)
-		// Patch for Docker-to-Host connectivity — Replace localhost/127.0.0.1 with host.docker.internal
+		// Patch for Docker-to-Host connectivity
 		patchedCluster := cluster.DeepCopy()
 		originalServer := patchedCluster.Server
-		if strings.Contains(patchedCluster.Server, "localhost") {
-			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "localhost", "host.docker.internal")
-		}
-		if strings.Contains(patchedCluster.Server, "127.0.0.1") {
-			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "127.0.0.1", "host.docker.internal")
+		
+		// 1. Handle localhost/127.0.0.1
+		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "localhost", "host.docker.internal")
+		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "127.0.0.1", "host.docker.internal")
+		
+		// 2. Handle common LAN/Private IPs (likely the host machine)
+		// We use a broader match to ensure any host-facing IP is redirected to the gateway
+		if strings.Contains(patchedCluster.Server, "192.168.") || 
+		   strings.Contains(patchedCluster.Server, "10.") || 
+		   strings.Contains(patchedCluster.Server, "172.16.") || 
+		   strings.Contains(patchedCluster.Server, "172.17.") || 
+		   strings.Contains(patchedCluster.Server, "172.18.") || 
+		   strings.Contains(patchedCluster.Server, "172.19.") || 
+		   strings.Contains(patchedCluster.Server, "172.2") || 
+		   strings.Contains(patchedCluster.Server, "172.3") {
+			
+			// Remove protocol and split by port to isolate the host/IP
+			hostWithPort := strings.TrimPrefix(strings.TrimPrefix(patchedCluster.Server, "https://"), "http://")
+			hostOnly := strings.Split(hostWithPort, ":")[0]
+			
+			// Replace the specific IP with host.docker.internal
+			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, hostOnly, "host.docker.internal")
 		}
 		
 		if originalServer != patchedCluster.Server {
-			log.Printf("🔌 MCP: Patched cluster %s: %s -> %s", uniqueName, originalServer, patchedCluster.Server)
+			log.Printf("🔌 MCP Sync: Patched cluster [%s] %s -> %s", uniqueName, originalServer, patchedCluster.Server)
+		} else {
+			log.Printf("🔌 MCP Sync: Cluster [%s] server %s (NO PATCH NEEDED)", uniqueName, originalServer)
 		}
 		dest.Clusters[uniqueName] = patchedCluster
 	}

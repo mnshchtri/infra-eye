@@ -32,6 +32,9 @@ func main() {
 	// Seed default data
 	seed.Run()
 
+	// Re-sync after seeding ensures any default clusters are patched
+	mcp.SyncMasterKubeconfig()
+
 	// Start metrics collection for existing servers
 	go startMetricsForExistingServers()
 

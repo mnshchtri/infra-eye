@@ -18,6 +18,7 @@ type Config struct {
 	GeminiKey       string
 	DeepSeekKey     string
 	OpenRouterKey   string
+	MistralKey      string
 	MetricsInterval      int
 	LogMaxLines          int
 	GoogleChatWebhookURL string
@@ -43,6 +44,7 @@ func Load() {
 		GeminiKey:       getEnv("GEMINI_API_KEY", ""),
 		DeepSeekKey:     getEnv("DEEPSEEK_API_KEY", ""),
 		OpenRouterKey:   getEnv("OPENROUTER_API_KEY", ""),
+		MistralKey:      getEnv("MISTRAL_API_KEY", ""),
 		MetricsInterval: getEnvInt("METRICS_INTERVAL", 30),
 		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
 		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", ""),

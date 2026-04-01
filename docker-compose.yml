@@ -29,10 +29,11 @@ services:
   mcp-init:
     image: alpine:latest
     container_name: infra-eye-mcp-init
+    restart: unless-stopped
     volumes:
       - mcp_shared:/mcp
     command: >
-      sh -c "mkdir -p /mcp && chmod 777 /mcp"
+      sh -c "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 777 /mcp && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume initialized. Keeping container alive for status.' && tail -f /dev/null"
 
   mcp-server:
     image: ghcr.io/containers/kubernetes-mcp-server:latest
@@ -40,13 +41,20 @@ services:
     restart: unless-stopped
     depends_on:
       - mcp-init
+      - app
     volumes:
       - mcp_shared:/mcp:ro
-    command: ["--port", "8090", "--read-only=false", "--kubeconfig", "/mcp/kubeconfig"]
+    command: ["--port", "8090", "--kubeconfig", "/mcp/kubeconfig"]
     ports:
       - "8090:8090"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   app:
     build:
@@ -59,7 +67,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mcp-server:
+      mcp-init:
         condition: service_started
     env_file:
       - .env
@@ -68,6 +76,7 @@ services:
       - REDIS_URL=redis:6379
       - MCP_SERVER_URL=http://infra-eye-mcp:8090 # Use the container name for safer DNS
       - GIN_MODE=release
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     ports:
       - "8080:8080"
     volumes:
