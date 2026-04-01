@@ -23,11 +23,12 @@ type chatRequest struct {
 	Question      string `json:"question" binding:"required"`
 	ImageBase64   string `json:"image_base64"`
 	ImageMimeType string `json:"image_mime_type"`
+	Provider      string `json:"provider"`
 }
 
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }
 
 type openAIRequest struct {
@@ -137,7 +138,7 @@ func AIChat(c *gin.Context) {
 	fullCtx := systemCtx + historyCtx
 
 	// 4. Get AI Response
-	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType)
+	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType, req.Provider)
 
 	// 5. Save Assistant Response
 	assistantMsg := models.ChatMessage{
@@ -249,21 +250,60 @@ func ClearChatHistory(c *gin.Context) {
 }
 
 func buildContext(serverID uint) string {
-	ctx := "You are नेत्र (Netra), a veteran DevOps, SRE, and Platform Engineer with OG-level systems knowledge. " +
-		"You are blunt, professional, and highly technical. You prioritize stability, performance, and automation. " +
-		"Diagnose issues with surgical precision. If you see a hacky fix, call it out.\n\n"
-	
+	ctx := `You are नेत्र (Netra), an elite DevSecOps, SRE, and Infrastructure Security Engineer embedded in InfraEye.
+You are blunt, professional, and highly technical. You prioritize stability, performance, security, and automation.
+
+## YOUR CAPABILITIES
+You have access to a live Kubernetes MCP (Model Context Protocol) server. You can request real-time data from the cluster and ask the user to execute fix commands — all from within this chat.
+
+## HOW TO USE MCP TOOLS
+When you need to inspect or fix the cluster, emit a fenced code block with the language tag ` + "`" + `mcp` + "`" + ` containing ONLY a JSON object like this:
+
+` + "```mcp" + `
+{"tool": "pods_list", "args": {"namespace": "kube-system"}}
+` + "```" + `
+
+The user will see an "▶ Execute" button. After they click it, the output will be sent back to you automatically so you can analyze it and recommend the next step.
+
+## AVAILABLE MCP TOOLS
+| Tool | Description | Key Args |
+|---|---|---|
+| ` + "`pods_list`" + ` | List all pods | namespace (opt) |
+| ` + "`pods_log`" + ` | Get pod logs | name, namespace, tail (opt) |
+| ` + "`pods_delete`" + ` | Delete a stuck pod | name, namespace |
+| ` + "`pods_exec`" + ` | Run command in pod | name, namespace, command (array) |
+| ` + "`events_list`" + ` | Get cluster events | namespace (opt) |
+| ` + "`resources_get`" + ` | Get a resource | apiVersion, kind, name, namespace |
+| ` + "`resources_list`" + ` | List resources | apiVersion, kind, namespace (opt) |
+| ` + "`resources_create_or_update`" + ` | Apply YAML fix | resource (YAML string) |
+| ` + "`resources_scale`" + ` | Scale deployment | apiVersion, kind, name, namespace, scale |
+| ` + "`namespaces_list`" + ` | List namespaces | (none) |
+
+## WORKFLOW FOR FIXING ISSUES
+1. Use ` + "`events_list`" + ` or ` + "`pods_list`" + ` to gather evidence
+2. Use ` + "`pods_log`" + ` to read error logs
+3. Emit a ` + "`resources_create_or_update`" + ` or ` + "`resources_scale`" + ` tool call to fix
+4. Verify with another ` + "`pods_list`" + ` after the fix
+
+## RULES
+- For read-only tools (list, get, log), emit them freely.
+- For mutating tools (delete, exec, scale, create/update), always explain WHY before emitting the tool call.
+- Never guess. If you need data, request it with a tool call first.
+- If the issue is on a server (not K8s), use standard bash suggestions in ` + "```bash" + ` blocks instead.
+
+`
+
 	if serverID > 0 {
 		var server models.Server
 		if err := db.DB.First(&server, serverID).Error; err == nil {
-			ctx += fmt.Sprintf("Server: %s (%s)\nStatus: %s\nTags: %s\n\n", server.Name, server.Host, server.Status, server.Tags)
+			ctx += fmt.Sprintf("TARGET CONTEXT: SINGLE SERVER\nServer: %s (%s)\nStatus: %s\nTags: %s\n\n", server.Name, server.Host, server.Status, server.Tags)
 		}
 
-		// Last 20 log entries
+		// Last 30 log entries (emphasize analyzing these for threats)
 		var logs []models.LogEntry
-		db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").Limit(20).Find(&logs)
+		db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").Limit(30).Find(&logs)
 		if len(logs) > 0 {
-			ctx += "Recent logs (newest first):\n"
+			ctx += "Recent logs (analyze for errors, warnings, and security threats):\n"
 			for _, l := range logs {
 				ctx += fmt.Sprintf("[%s] [%s] %s\n", l.Timestamp.Format("15:04:05"), l.Level, l.Message)
 			}
@@ -273,7 +313,7 @@ func buildContext(serverID uint) string {
 		// Last metric
 		var metric models.Metric
 		if err := db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").First(&metric).Error; err == nil {
-			ctx += fmt.Sprintf("Latest metrics:\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%% (Used: %.1f GB, Total: %.1f GB)\n- Network RX: %.2f MB/s, TX: %.2f MB/s\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
+			ctx += fmt.Sprintf("Latest metrics (analyze for resource exhaustion or anomalies):\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%% (Used: %.1f GB, Total: %.1f GB)\n- Network RX: %.2f MB/s, TX: %.2f MB/s\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
 				metric.CPUPercent, metric.MemPercent, metric.MemUsedMB, metric.MemTotalMB,
 				metric.DiskPercent, metric.DiskUsedGB, metric.DiskTotalGB,
 				metric.NetRxMBps, metric.NetTxMBps,
@@ -304,12 +344,12 @@ func buildContext(serverID uint) string {
 					}
 				}
 
-				// Fetch last 10 non-Normal events
+				// Fetch last 10 non-Normal events (security relevance)
 				if events, err := clientset.CoreV1().Events("").List(k8sCtx, metav1.ListOptions{
 					Limit: 10,
 				}); err == nil {
 					if len(events.Items) > 0 {
-						ctx += "Recent Cluster Events:\n"
+						ctx += "Recent Cluster Events (check for CrashLoopBackOff, OOMKilled, or RBAC issues):\n"
 						for i, e := range events.Items {
 							if i >= 10 { break }
 							ctx += fmt.Sprintf("- [%s] %s: %s (%s)\n", e.Type, e.Reason, e.Message, e.InvolvedObject.Name)
@@ -319,23 +359,73 @@ func buildContext(serverID uint) string {
 				ctx += "----------------------------\n\n"
 			}
 		}
+	} else {
+		ctx += "TARGET CONTEXT: INFRASTRUCTURE WIDE\n--- GLOBAL FLEET STATE ---\n"
+		var servers []models.Server
+		if err := db.DB.Find(&servers).Error; err == nil {
+			for _, s := range servers {
+				ctx += fmt.Sprintf("Server: %s (%s) | Status: %s | Tags: %s\n", s.Name, s.Host, s.Status, s.Tags)
+				
+				var metric models.Metric
+				if err := db.DB.Where("server_id = ?", s.ID).Order("timestamp DESC").First(&metric).Error; err == nil {
+					ctx += fmt.Sprintf("  ↳ Metrics: CPU %.1f%%, RAM %.1f%%, DISK %.1f%%\n", metric.CPUPercent, metric.MemPercent, metric.DiskPercent)
+				}
+				
+				// Get recent warning/error/critical/fatal logs for this server
+				var logs []models.LogEntry
+				db.DB.Where("server_id = ? AND level IN ?", s.ID, []string{"warn", "warning", "error", "fatal", "critical"}).Order("timestamp DESC").Limit(3).Find(&logs)
+				if len(logs) > 0 {
+					ctx += "  ↳ Recent Critical/Warning Logs (potential security or stability threats):\n"
+					for _, l := range logs {
+						ctx += fmt.Sprintf("    [%s] %s\n", l.Level, l.Message)
+					}
+				}
+				ctx += "\n"
+			}
+		}
+		ctx += "-----------------------------------\n\n"
 	}
 
 	return ctx
 }
 
-func askAI(systemContext, question, imageBase64, imageMime string) string {
-	// 1. Try Gemini (Priority - Gemini Flash is great for Multimodal)
+func askAI(systemContext, question, imageBase64, imageMime, provider string) string {
+	
+	// Check user selected provider
+	if provider == "openrouter" && config.C.OpenRouterKey != "" {
+		return askOpenRouter(systemContext, question)
+	}
+	if provider == "deepseek" && config.C.DeepSeekKey != "" {
+		return askDeepSeek(systemContext, question)
+	}
+	if provider == "google" && config.C.GeminiKey != "" {
+		return askGemini(systemContext, question, imageBase64, imageMime)
+	}
+	if provider == "mistral" && config.C.MistralKey != "" {
+		return askMistral(systemContext, question, imageBase64, imageMime)
+	}
+
+	// Default logic if no provider specified or keys missing
+	if config.C.OpenRouterKey != "" {
+		return askOpenRouter(systemContext, question)
+	}
+
+	if config.C.DeepSeekKey != "" {
+		return askDeepSeek(systemContext, question)
+	}
+
 	if config.C.GeminiKey != "" {
 		return askGemini(systemContext, question, imageBase64, imageMime)
 	}
 
-	// 2. Fallback to OpenAI
+	if config.C.MistralKey != "" {
+		return askMistral(systemContext, question, imageBase64, imageMime)
+	}
+
 	if config.C.OpenAIKey != "" {
 		return askOpenAI(systemContext, question)
 	}
 
-	// 3. Final Mock Fallback
 	return mockAIResponse(question)
 }
 
@@ -428,7 +518,155 @@ func askOpenAI(systemContext, question string) string {
 		return "No response from AI."
 	}
 
-	return aiResp.Choices[0].Message.Content
+	return aiResp.Choices[0].Message.Content.(string)
+}
+
+func askDeepSeek(systemContext, question string) string {
+	reqBody := openAIRequest{
+		Model: "deepseek-chat",
+		Messages: []openAIMessage{
+			{Role: "system", Content: systemContext},
+			{Role: "user", Content: question},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://api.deepseek.com/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+config.C.DeepSeekKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("DeepSeek request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		return fmt.Sprintf("Parse error: %v", err)
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("DeepSeek error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from DeepSeek AI."
+	}
+
+	return aiResp.Choices[0].Message.Content.(string)
+}
+
+func askOpenRouter(systemContext, question string) string {
+	reqBody := openAIRequest{
+		Model: "deepseek/deepseek-chat", // You can change to google/gemini-2.5-flash or meta-llama/llama-3.1-8b-instruct
+		Messages: []openAIMessage{
+			{Role: "system", Content: systemContext},
+			{Role: "user", Content: question},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+config.C.OpenRouterKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("HTTP-Referer", "http://localhost:80")
+	httpReq.Header.Set("X-Title", "InfraEye")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("OpenRouter request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		return fmt.Sprintf("Parse error: %v | raw: %s", err, string(body))
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("OpenRouter error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from OpenRouter."
+	}
+
+	return aiResp.Choices[0].Message.Content.(string)
+}
+
+func askMistral(systemContext, question, imageBase64, imageMime string) string {
+	model := "mistral-large-latest"
+	var content interface{} = "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question
+
+	// If there's an image, switch to the multimodal-enabled model (Pixtral)
+	if imageBase64 != "" && imageMime != "" {
+		model = "pixtral-12b-2409"
+		content = []interface{}{
+			map[string]interface{}{
+				"type": "text",
+				"text": "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question,
+			},
+			map[string]interface{}{
+				"type": "image_url",
+				"image_url": map[string]string{
+					"url": fmt.Sprintf("data:%s;base64,%s", imageMime, imageBase64),
+				},
+			},
+		}
+	}
+
+	reqBody := openAIRequest{
+		Model: model,
+		Messages: []openAIMessage{
+			{Role: "user", Content: content},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://api.mistral.ai/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+config.C.MistralKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 90 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("Mistral request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		// Return friendly error if JSON parsing fails
+		return fmt.Sprintf("Mistral response error: %v (likely service timeout or quota limit).", err)
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("Mistral error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from Mistral AI Vision."
+	}
+
+	return aiResp.Choices[0].Message.Content.(string)
 }
 
 func mockAIResponse(question string) string {
@@ -448,7 +686,7 @@ func mockAIResponse(question string) string {
 			"# Check disk\ndf -h\n"+
 			"# Check failed services\nsystemctl --failed\n"+
 			"%s\n\n"+
-			"> Configure your Gemini API key in %sbackend/.env%s for intelligent AI-powered analysis.",
+			"> Configure your API keys (OpenRouter, DeepSeek, Gemini, or OpenAI) in %sbackend/.env%s for intelligent AI-powered analysis.",
 		question,
 		backtick, backtick,
 		backtick, backtick,

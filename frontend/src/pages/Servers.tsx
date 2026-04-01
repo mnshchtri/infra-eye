@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X, WifiOff, Apple, HelpCircle } from 'lucide-react'
-import { WindowsIcon, LinuxIcon } from '../components/OSIcons'
+import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X, WifiOff, HelpCircle } from 'lucide-react'
+import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
@@ -330,7 +330,7 @@ export function Servers() {
                           style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14 }}
                           onClick={() => navigate(`/servers/${s.id}`)}
                           onMouseEnter={e => e.currentTarget.style.color = 'var(--brand-primary)'}
-                          onMouseLeave={e => e.currentTarget.style.color = '#fff'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
                         >
                           {s.name}
                         </div>
@@ -340,7 +340,7 @@ export function Servers() {
                   </td>
                   <td style={{ padding: '18px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {s.os === 'darwin' ? <Apple size={16} color="var(--text-primary)" /> : 
+                      {s.os === 'darwin' ? <AppleIcon size={16} color="var(--text-primary)" /> : 
                        s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" /> :
                        s.os === 'linux' ? <LinuxIcon size={15} color="var(--brand-primary)" /> : 
                        <HelpCircle size={16} color="var(--text-muted)" />}
@@ -432,7 +432,7 @@ export function Servers() {
                           }}
                           onClick={() => editServer(s)}
                           onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
                         >
                           <Pencil size={13} />
                         </button>

@@ -35,9 +35,10 @@ type Server struct {
 	Tags        string         `json:"tags"`    // comma-separated
 	Status      string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
 	Description string         `json:"description"`
-	KubeConfig  string         `json:"kube_config"`
-	IsK8s       bool           `gorm:"default:false" json:"is_k8s"`
-	OS          string         `json:"os"`           // linux, darwin, unknown
+	KubeConfig   string         `json:"kube_config"`
+	IsK8s        bool           `gorm:"default:false" json:"is_k8s"`
+	K8sConnected bool           `gorm:"default:true" json:"k8s_connected"`
+	OS           string         `json:"os"`           // linux, darwin, unknown
 }
 
 type Metric struct {

@@ -1,95 +1,93 @@
-# InfraEye: Next-Gen Infrastructure Observability & Self-Healing
+# InfraEye: Technical Documentation & User Guide
 
-InfraEye is an enterprise-grade DevOps platform designed for unified infrastructure management. It combines real-time server monitoring, remote Kubernetes administration, and automated "Self-Healing" remediation into a single, high-density dashboard.
-
-## 🏗️ System Architecture
-
-InfraEye follows a **Distributed Bridge** architecture. Instead of requiring complex agents on every target server, the backend establishes secure SSH tunnels to gather metrics and execute commands, significantly reducing the maintenance overhead of your monitoring fleet.
-
-### Data Flow Path
-1.  **Backend (Go)**: Connects to target servers via SSH keys/passwords.
-2.  **Collectors**: Periodically streams `lscpu`, `free`, `df`, and `netstat` data.
-3.  **WebSocket Layer**: Pushes real-time metrics and logs to the client.
-4.  **Frontend (React)**: Visualizes the data using high-performance charts and Lens-style resource explorers.
+Welcome to the detailed documentation for **InfraEye**. This guide covers the architectural principles, module deep-dives, and advanced configuration options.
 
 ---
 
-## 🛠️ Core Modules
+## 🏗️ Architectural Deep-Dive
+
+### The "Distributed Bridge" Pattern
+Unlike traditional monitoring tools (e.g., Zabbix, Prometheus Node Exporter) that require an agent to be installed on every target server, InfraEye uses an **Agentless Bridge**.
+
+1.  **Backend (Go)**: Acts as the central orchestrator. It manages a pool of SSH connections.
+2.  **Telemetry Collectors**: Every 10-60 seconds (configurable), the backend executes lightweight commands (`top`, `df`, `free`, `ifconfig`) via SSH.
+3.  **Real-time Stream**: Results are parsed into JSON and pushed to the React frontend via **WebSockets**.
+4.  **No Persistence required on Targets**: Target servers remain clean. No open ports (except SSH) and no extra processes.
+
+---
+
+## 🛠️ Modules in Detail
 
 ### 1. Infrastructure Navigator
-Manage a fleet of Linux servers from a unified view. Each server provides:
--   **Resource Telemetry**: Real-time CPU, Memory, Disk, and Network MBps.
-*   **Terminal Integration**: Built-in xterm.js terminal over secure SSH.
--   **Log streaming**: Direct access to system logs and tailored application logs.
+The primary dashboard for server management. 
+- **Telemetry**: Visualized using high-performance Recharts. CPU usage is broken down by core if needed.
+- **Log Tailer**: Uses `tail -f` over SSH to stream any log file (Syslog, Auth, or custom App logs) directly to your browser.
+- **Smart Tags**: Group servers by environment (`prod`, `staging`), location, or role.
 
 ### 2. Kubernetes 'Lens' Resource Explorer
-A powerful browser-based alternative to command-line `kubectl`. 
--   **Resource Switcher**: Sidebar navigation for **Nodes**, **Pods**, **Deployments**, **Services**, and **Events**.
--   **Live Diagnostics**: Real-time cluster event streaming for auditing and troubleshooting.
--   **Configuration as Code**: Direct YAML viewing and potential editing for all cluster resources.
+A powerful, browser-based alternative to `kubectl`.
+- **RBAC Conscious**: Uses the kubeconfig provided in the settings.
+- **Resource Maps**: Visualize the relationship between Services -> Deployments -> Pods.
+- **Event Streaming**: Listen to cluster-wide events in real-time to catch "CrashLoopBackOff" or "ImagePullBackOff" errors instantly.
 
-### 3. Self-Healing Engine (Alert Rules)
-The platform's cerebellum. It allows for proactive maintenance through automated remediation.
--   **XML Rule Definitions**: Define rules using a clean XML schema.
--   **Remediation Loop**: If a condition (e.g., CPU > 90%) is met, the backend executes a specific SSH command (e.g., `systemctl restart nginx`) to resolve the issue without human intervention.
--   **Persistent Synchronization**: Rules are managed via an "Infrastructure Sync" bridge, allowing for version-controlled rule management.
+### 3. Self-Healing Engine (Automation)
+The most powerful feature of InfraEye. It allows you to define "If-Then" logic for infrastructure.
+- **Rule Structure (XML)**:
+  ```xml
+  <AlertRules>
+    <Rule name="Auto-Restart Nginx" serverId="1" enabled="true">
+      <Condition type="cpu" op="gt" value="85" />
+      <Action type="ssh_command">sudo systemctl restart nginx</Action>
+    </Rule>
+  </AlertRules>
+  ```
+- **Sync Bridge**: You can sync these rules via the UI or by providing a remote XML configuration URL for Infrastructure-as-Code (IaC) workflows.
 
-### 4. AI Troubleshooting Assistant
-Integrated LLM bridge for intelligent infrastructure consulting.
--   **Context Awareness**: The AI has access to your cluster state to help interpret errors.
--   **Log Analysis**: Paste error logs to receive suggested remediation actions.
-
----
-
-## 💻 Tech Stack
-
-### Backend (Golang)
--   **Engine**: Gin Gonic (HTTP/WS)
--   **Database**: PostgreSQL / GORM
--   **Communication**: `golang.org/x/crypto/ssh`
--   **Logic**: Internal collectors and a self-healing event loop.
-
-### Frontend (TypeScript / React)
--   **Build tool**: Vite
--   **Styling**: Modern CSS-in-JS and Variable-driven tokens.
--   **Icons**: Lucide React
--   **State**: Custom Store + Context hooks.
+### 4. Netra AI (Troubleshooting Assistant)
+Powered by OpenAI GPT-4o or Google Gemini.
+- **Contextual Awareness**: When you ask "Why is my server slow?", Netra automatically queries the latest metrics and logs for that server before answering.
+- **Remediation Suggestions**: Netra doesn't just explain errors; it provides the exact shell commands to fix them.
 
 ---
 
-## 🚀 Getting Started
+## 🐳 Docker Deployment Guide
 
-### Prerequisites
-- Docker & Docker Compose
-- Targets: Linux servers with SSH enabled (Password or Key-based auth).
+### Recommended Stack
+We recommend running the following containers:
+- `infra-eye-app`: The main Go + React binary.
+- `infra-eye-postgres`: Data persistence for servers, users, and alert rules.
+- `infra-eye-redis`: Real-time pub/sub for metrics.
+- `infra-eye-mcp`: The Model Context Protocol sidecar for K8s diagnostics.
 
-### Local Development
-1.  **Backend**: `cd backend && go run cmd/server/main.go`
-2.  **Frontend**: `cd frontend && npm install && npm run dev`
-3.  **Environment**: Create `.env` files based on `.env.example` in both directories.
-
-### Deployment (Docker)
-InfraEye is fully containerized for one-command deployment:
-```bash
-docker-compose up --build -d
-```
-This launches:
--   `infraeye-api`: The Go backend on port 8080.
--   `infraeye-web`: The React frontend on port 80.
--   `infraeye-db`: The PostgreSQL instance.
+### Persistence
+The following volumes should be persisted:
+- `/var/lib/postgresql/data` (Postgres)
+- `~/.kube/config` (Mounted as RO for the MCP sidecar)
 
 ---
 
-## 📜 Configuration as Code (Example)
+## 🗺️ Future Roadmap
 
-Define your self-healing logic in XML for bulk synchronization:
-```xml
-<AlertRules>
-  <Rule name="Auto-Restart Nginx" serverId="1" enabled="true">
-    <Condition type="cpu" op="gt" value="85" />
-    <Action type="ssh_command">sudo systemctl restart nginx</Action>
-  </Rule>
-</AlertRules>
-```
+### Phase 1: Security & Scale
+- **RBAC Upgrade**: Granular permissions (View-only vs. Admin).
+- **Audit Logging**: Track every SSH command executed via the platform.
 
-InfraEye — *Observing the unseen, healing the broken.*
+### Phase 2: Integrations
+- **Slack/Discord Webhooks**: Instant notifications for "Self-Healing" events.
+- **Prometheus/Grafana Export**: Export InfraEye telemetry to your existing stack.
+
+### Phase 3: AI Autonomy
+- **Autonomous Fixing**: Allow Netra TO EXECUTE remediation commands (with human-in-the-loop approval).
+
+---
+
+## 🤝 Contributing & Developer Support
+
+InfraEye is built by the community. We welcome developers of all skill levels!
+
+### Quick Help
+- **Backend**: Help us optimize the SSH connection pooler.
+- **Frontend**: We need better mobile responsiveness for the K8s Explorer.
+- **DevOps**: Help us refine the Helm charts for K8s-native deployment.
+
+*InfraEye — The future of observability is agentless and intelligent.*

@@ -51,8 +51,16 @@ function useAlertNotifications() {
 }
 
 export function Layout() {
-  const { sidebarCollapsed } = useUIStore()
+  const { sidebarCollapsed, darkMode } = useUIStore()
   useAlertNotifications()
+  
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [darkMode])
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>

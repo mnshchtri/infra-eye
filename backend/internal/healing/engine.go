@@ -170,7 +170,7 @@ func fireAction(rule models.AlertRule, server models.Server, info string) {
 	})
 
 	// Dispatch to external Webhooks
-	go alerts.SendToGoogleChat(rule.Name, server.Name, info, rule.Severity, action.Status)
+	go alerts.SendToGoogleChat(rule.Name, server.Name, info, rule.Severity, action.Status, action.Output)
 	go alerts.SendToSlack(rule.Name, server.Name, info, rule.Severity, action.Status)
 }
 

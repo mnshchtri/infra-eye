@@ -1,20 +1,16 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: infra-eye-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: infraeye
-      POSTGRES_PASSWORD: infraeye123
-      POSTGRES_DB: infraeye
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=infraeye
+      - POSTGRES_PASSWORD=infraeye123
+      - POSTGRES_DB=infraeye
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U infraeye"]
+      test: ["CMD-SHELL", "pg_isready -U infraeye -d infraeye"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,45 +19,66 @@ services:
     image: redis:7-alpine
     container_name: infra-eye-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  backend:
-    build: ./backend
-    container_name: infra-eye-backend
+  # Tiny helper to ensure the sidecar doesn't crash on first boot
+  mcp-init:
+    image: alpine:latest
+    container_name: infra-eye-mcp-init
+    restart: unless-stopped
+    volumes:
+      - mcp_shared:/mcp
+    command: >
+      sh -c "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 777 /mcp && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume initialized. Keeping container alive for status.' && tail -f /dev/null"
+
+  mcp-server:
+    image: ghcr.io/containers/kubernetes-mcp-server:latest
+    container_name: infra-eye-mcp
+    restart: unless-stopped
+    depends_on:
+      - mcp-init
+      - app
+    volumes:
+      - mcp_shared:/mcp:ro
+    command: ["--port", "8090", "--kubeconfig", "/mcp/kubeconfig", "--cluster-provider", "kubeconfig"]
+    ports:
+      - "8090:8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: infra-eye-app
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mcp-init:
+        condition: service_started
+    env_file:
+      - .env
     environment:
       - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
-      - REDIS_ADDR=redis:6379
-      - JWT_SECRET=infra-eye-prod-secret
-      - PORT=8080
-      - ENV=production
-      # - OPENAI_API_KEY=your_key_here
+      - REDIS_URL=redis:6379
+      - MCP_SERVER_URL=http://infra-eye-mcp:8090 # Use the container name for safer DNS
+      - GIN_MODE=release
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     ports:
       - "8080:8080"
-
-  frontend:
-    build: 
-      context: ./frontend
-    container_name: infra-eye-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
+    volumes:
+      - mcp_shared:/shared_mcp
+      - ~/.kube/config:/kubeconfig_host:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data:
-  redis_data:
+  mcp_shared:

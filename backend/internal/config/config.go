@@ -16,10 +16,14 @@ type Config struct {
 	JWTSecret       string
 	OpenAIKey       string
 	GeminiKey       string
+	DeepSeekKey     string
+	OpenRouterKey   string
+	MistralKey      string
 	MetricsInterval      int
 	LogMaxLines          int
 	GoogleChatWebhookURL string
 	SlackWebhookURL      string
+	MCPServerURL         string
 }
 
 var C Config
@@ -38,10 +42,14 @@ func Load() {
 		JWTSecret:       getEnv("JWT_SECRET", "dev-secret-change-in-production"),
 		OpenAIKey:       getEnv("OPENAI_API_KEY", ""),
 		GeminiKey:       getEnv("GEMINI_API_KEY", ""),
+		DeepSeekKey:     getEnv("DEEPSEEK_API_KEY", ""),
+		OpenRouterKey:   getEnv("OPENROUTER_API_KEY", ""),
+		MistralKey:      getEnv("MISTRAL_API_KEY", ""),
 		MetricsInterval: getEnvInt("METRICS_INTERVAL", 30),
 		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
 		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", ""),
 		SlackWebhookURL:        getEnv("SLACK_WEBHOOK_URL", ""),
+		MCPServerURL:           getEnv("MCP_SERVER_URL", "http://localhost:8090"),
 	}
 }
 

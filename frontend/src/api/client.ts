@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+// If VITE_API_URL isn't set, default to same-origin relative calls (/api, /ws).
+// This is required for "one container" deployments where the backend is reverse-proxied.
+const API_BASE = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL : ''
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -27,10 +29,13 @@ api.interceptors.response.use(
   }
 )
 
-export const WS_BASE = API_BASE.replace('http', 'ws')
+export const WS_BASE = API_BASE ? API_BASE.replace('http', 'ws') : ''
 
 export function buildWsUrl(path: string): string {
   const token = localStorage.getItem('token') ?? ''
   const sep = path.includes('?') ? '&' : '?'
-  return `${WS_BASE}${path}${sep}token=${encodeURIComponent(token)}`
+  const fallbackBase =
+    window.location.protocol === 'https:' ? `wss://${window.location.host}` : `ws://${window.location.host}`
+  const base = WS_BASE || fallbackBase
+  return `${base}${path}${sep}token=${encodeURIComponent(token)}`
 }

@@ -1,298 +1,337 @@
 import { useState, useEffect } from 'react'
 import { 
-  Zap, Activity, 
-  Trash2, Database, Globe, 
-  ShieldCheck, Play, RefreshCw, BarChart3,
-  TrendingUp, Settings, Cpu, Server, Lock
+  Code2, KeySquare, Clock, ArrowRightLeft, 
+  FileJson, Copy, Check, AlertCircle, Trash2
 } from 'lucide-react'
 
-interface DevLog {
-  id: number; msg: string; time: string; type: 'debug' | 'warning' | 'error' | 'success';
-}
-
 export function DevTools() {
-  const [logs, setLogs] = useState<DevLog[]>([])
-  const [activeTab, setActiveTab] = useState<'all' | 'api' | 'db' | 'system'>('all')
-
-  // Simulation of live event stream
-  useEffect(() => {
-    const events: {msg: string, type: DevLog['type']}[] = [
-      { msg: 'Auth token refreshed: mnsh-infra-9281', type: 'success' },
-      { msg: 'WebSocket connection established on fd-7', type: 'debug' },
-      { msg: 'Database query: select * from servers limit 100 [2ms]', type: 'debug' },
-      { msg: 'SSH Tunnel heartbeat acknowledged: cluster-01', type: 'debug' },
-      { msg: 'Metric aggregation completed: 4.2MB processed', type: 'debug' },
-      { msg: 'Alert rule evaluation: Critical CPU > 90% [False]', type: 'warning' },
-      { msg: 'Permission check: manage-alerts -> Success', type: 'success' },
-      { msg: 'API Request: GET /api/servers/4/metrics [200 OK]', type: 'debug' },
-      { msg: 'Deployment sync detected in region us-east-1', type: 'warning' },
-      { msg: 'Log rotation initiated for system.log', type: 'debug' }
-    ]
-    
-    const interval = setInterval(() => {
-      const event = events[Math.floor(Math.random() * events.length)]
-      setLogs((prev: DevLog[]) => [
-        { id: Date.now(), msg: event.msg, time: new Date().toLocaleTimeString(), type: event.type },
-        ...prev.slice(0, 24)
-      ])
-    }, 2000)
-    
-    return () => clearInterval(interval)
-  }, [])
+  const [activeTab, setActiveTab] = useState<'json' | 'base64' | 'epoch' | 'jwt'>('json')
 
   return (
-    <div className="page">
-      <div className="page-header">
+    <div className="page" style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+      <div className="page-header" style={{ marginBottom: 24, flexShrink: 0 }}>
         <div>
-          <h1 className="page-title">Developer Hub</h1>
-          <p className="page-subtitle">Technical overview, system configuration, and live introspection.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-secondary" style={{ height: 42, padding: '0 20px' }}>
-            <Activity size={14} style={{ marginRight: 8 }} /> Debug Mode
-          </button>
-          <button className="btn btn-primary" style={{ height: 42, padding: '0 20px' }}>
-            <Zap size={14} style={{ marginRight: 8 }} /> System Audit
-          </button>
+          <h1 className="page-title">Developer Tools</h1>
+          <p className="page-subtitle">Client-side utilities for DevOps, systems configuration, and debugging.</p>
         </div>
       </div>
 
-      {/* ── Dashboard Aligned Stats ── */}
-      <div className="grid-stats" style={{ marginBottom: 40 }}>
-          <StatCard label="API Requests (24h)" value="14.2k" icon={Globe} color="var(--brand-primary)" delta="+12% growth" />
-          <StatCard label="Active Streams" value="52" icon={Activity} color="var(--info)" delta="Stable" />
-          <StatCard label="DB Latency" value="1.8ms" icon={Database} color="var(--success)" delta="Optimal" />
-          <StatCard label="System Load" value="12%" icon={Cpu} color="var(--warning)" delta="Low" />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 480px', gap: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          
-          {/* ── Service Monitors (Server Card Style) ── */}
-          <div className="card" style={{ padding: 24 }}>
-             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ 
-                    width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.08)', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' 
-                  }}>
-                    <BarChart3 size={20} color="var(--brand-primary)" />
-                  </div>
-                  <div>
-                    <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Internal Service Hub</h3>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Backend engine health and resource distribution</p>
-                  </div>
-                </div>
-                <div className="badge badge-online">
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 8px var(--success)', marginRight: 6 }} />
-                  Healthy
-                </div>
-             </div>
-             
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-               <ServiceModule name="Core API Gateway" load={12} uptime="99.9%" icon={Globe} />
-               <ServiceModule name="SSH Proxy Engine" load={44} uptime="98.2%" icon={ShieldCheck} />
-               <ServiceModule name="PostgreSQL Cluster" load={8} uptime="100%" icon={Database} />
-               <ServiceModule name="WebSocket Server" load={22} uptime="99.7%" icon={Zap} />
-             </div>
-          </div>
-
-          {/* ── System Configuration (New technical module) ── */}
-          <div className="card" style={{ padding: 24 }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                <div style={{ 
-                  width: 40, height: 40, borderRadius: 10, background: 'rgba(245, 158, 11, 0.08)', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--warning-glow)' 
-                }}>
-                  <Settings size={20} color="var(--warning)" />
-                </div>
-                <div>
-                  <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Platform Configuration</h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Environment variables and technical metadata</p>
-                </div>
-             </div>
-             
-             <div className="glass-panel" style={{ overflow: 'hidden', borderRadius: 12 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                   <thead style={{ background: 'var(--bg-app)', borderBottom: '1px solid var(--border)' }}>
-                      <tr>
-                         <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>PARAMETER</th>
-                         <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>CURRENT VALUE</th>
-                         <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 700, color: 'var(--text-secondary)' }}>STATUS</th>
-                      </tr>
-                   </thead>
-                   <tbody>
-                      <ConfigRow label="Environment" value="Development" status="Active" icon={Server} />
-                      <ConfigRow label="API Base URL" value="http://localhost:8080" status="Reachable" icon={Globe} />
-                      <ConfigRow label="Metrics Interval" value="10s" status="Optimal" icon={Activity} />
-                      <ConfigRow label="Auth Method" value="JWT + HS256" status="Encrypted" icon={Lock} />
-                      <ConfigRow label="Build Version" value="1.2.4-stable" status="Latest" icon={Settings} />
-                   </tbody>
-                </table>
-             </div>
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, flex: 1, minHeight: 0 }}>
+        {/* Sidebar Navigation */}
+        <div className="card" style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', padding: '0 12px 12px', letterSpacing: '0.05em' }}>UTILITIES</div>
+          <TabButton active={activeTab === 'json'} icon={FileJson} label="JSON Formatter" onClick={() => setActiveTab('json')} />
+          <TabButton active={activeTab === 'base64'} icon={ArrowRightLeft} label="Base64 Encoder" onClick={() => setActiveTab('base64')} />
+          <TabButton active={activeTab === 'epoch'} icon={Clock} label="Epoch Converter" onClick={() => setActiveTab('epoch')} />
+          <TabButton active={activeTab === 'jwt'} icon={KeySquare} label="JWT Token Decoder" onClick={() => setActiveTab('jwt')} />
         </div>
 
-        {/* ── Terminal (Card Wrapped) ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 700 }}>
-            {/* Terminal Header */}
-            <div style={{ padding: '0 20px', borderBottom: '1px solid #30363d', background: '#161b22', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 52 }}>
-              <div style={{ display: 'flex', gap: 20, height: '100%', alignItems: 'center' }}>
-                <TerminalTab active={activeTab === 'all'} label="ALL" onClick={() => setActiveTab('all')} />
-                <TerminalTab active={activeTab === 'api'} label="API" onClick={() => setActiveTab('api')} />
-                <TerminalTab active={activeTab === 'db'} label="DB" onClick={() => setActiveTab('db')} />
-                <TerminalTab active={activeTab === 'system'} label="SYSTEM" onClick={() => setActiveTab('system')} />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button style={{ color: '#8b949e', cursor: 'pointer', padding: 4 }} onClick={() => setLogs([])}>
-                    <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-            
-            {/* Terminal Body */}
-            <div style={{ flex: 1, background: '#0d1117', padding: '24px', overflowY: 'auto' }}>
-              {logs.length === 0 ? (
-                <div style={{ color: '#484f58', fontStyle: 'italic', fontSize: 12, fontFamily: '"JetBrains Mono", monospace' }}>
-                    waiting for logs...
-                </div>
-              ) : (
-                logs.map((log: DevLog) => (
-                  <div key={log.id} style={{ marginBottom: 6, display: 'flex', gap: 14, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, lineHeight: '1.6' }}>
-                    <span style={{ color: '#484f58' }}>{log.time}</span>
-                    <span style={{ 
-                      color: log.type === 'error' ? '#f85149' : 
-                             log.type === 'warning' ? '#d29922' : 
-                             log.type === 'success' ? '#3fb950' : '#58a6ff' 
-                    }}>
-                      {log.msg}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Terminal Input */}
-            <div style={{ padding: '0 20px', background: '#161b22', borderTop: '1px solid #30363d', display: 'flex', alignItems: 'center', gap: 12, height: 44 }}>
-               <span style={{ color: 'var(--brand-primary)', fontWeight: 800, fontSize: 12 }}>➜</span>
-               <input 
-                  style={{ background: 'transparent', border: 'none', color: '#c9d1d9', fontSize: 12, fontFamily: '"JetBrains Mono", monospace', width: '100%', outline: 'none' }} 
-                  placeholder="infra-devtools login as admin..."
-                />
-            </div>
-          </div>
-
-          {/* Utility Card */}
-          <div className="card glass-panel-glow" style={{ padding: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                 <Play size={16} color="var(--brand-primary)" />
-                 <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)' }}>SIMULATION TOOLS</h4>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <UtilBtn label="Purge Cache" icon={RefreshCw} />
-                <UtilBtn label="Rotate Logs" icon={Activity} />
-                <UtilBtn label="Audit RBAC" icon={Lock} />
-                <UtilBtn label="Flush DB" icon={Trash2} color="var(--danger)" />
-              </div>
-          </div>
+        {/* Main Content Area */}
+        <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          {activeTab === 'json' && <JsonFormatterTool />}
+          {activeTab === 'base64' && <Base64Tool />}
+          {activeTab === 'epoch' && <EpochConverterTool />}
+          {activeTab === 'jwt' && <JwtDecoderTool />}
         </div>
       </div>
     </div>
   )
 }
 
-function StatCard({ label, value, icon: Icon, color, delta }: any) {
-    return (
-      <div className="card stat-card" style={{ padding: 24 }}>
-        <div className="stat-icon-wrapper" style={{ background: `${color}10`, border: `1px solid ${color}25` }}>
-          <Icon size={20} color={color} />
-        </div>
-        <div className="stat-val-group">
-          <div className="stat-value" style={{ fontSize: 24 }}>{value}</div>
-          <div className="stat-label">{label}</div>
-          {delta && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-              <TrendingUp size={10} color={color} />
-              <span style={{ fontSize: 10, color, fontWeight: 700 }}>{delta}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-}
-
-function ServiceModule({ name, load, uptime, icon: Icon }: any) {
-  return (
-    <div style={{ padding: '16px 20px', borderRadius: 12, background: 'var(--bg-app)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fff', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-primary)' }}>
-            <Icon size={16} />
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{name}</span>
-        </div>
-        <div className="status-dot status-dot-pulse" style={{ background: 'var(--success)' }} />
-      </div>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div>
-           <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.04em', marginBottom: 4 }}>UPTIME</div>
-           <div style={{ fontSize: 13, fontWeight: 800 }}>{uptime}</div>
-        </div>
-        <div>
-           <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.04em', marginBottom: 4 }}>LOAD</div>
-           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ flex: 1, height: 4, background: '#e2e8f0', borderRadius: 2 }}>
-                <div style={{ width: `${load}%`, height: '100%', background: 'var(--brand-primary)', borderRadius: 2 }} />
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>{load}%</span>
-           </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ConfigRow({ label, value, status, icon: Icon }: any) {
-    return (
-        <tr style={{ borderBottom: '1px solid var(--border)' }}>
-            <td style={{ padding: '12px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ color: 'var(--text-muted)' }}><Icon size={14} /></div>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
-                </div>
-            </td>
-            <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontFamily: '"JetBrains Mono", monospace', fontSize: 12 }}>{value}</td>
-            <td style={{ padding: '12px 16px' }}>
-                <span style={{ fontSize: 10, fontWeight: 800, background: 'rgba(16, 185, 129, 0.08)', color: 'var(--success)', padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    {status}
-                </span>
-            </td>
-        </tr>
-    )
-}
-
-function TerminalTab({ active, label, onClick }: any) {
+function TabButton({ active, icon: Icon, label, onClick }: any) {
   return (
     <button 
       onClick={onClick}
-      style={{ 
-        height: '100%', padding: '0 8px', fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
-        color: active ? '#fff' : '#8b949e', borderBottom: active ? '2px solid var(--brand-primary)' : '2px solid transparent',
-        transition: 'all 0.2s ease'
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10,
+        background: active ? 'var(--brand-primary)15' : 'transparent',
+        color: active ? 'var(--brand-primary)' : 'var(--text-secondary)',
+        border: active ? '1px solid var(--brand-glow)' : '1px solid transparent',
+        fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s ease',
+        textAlign: 'left'
       }}
+      className={active ? '' : 'hover-lift'}
     >
+      <Icon size={18} color={active ? 'var(--brand-primary)' : 'var(--text-muted)'} />
       {label}
     </button>
   )
 }
 
-function UtilBtn({ label, icon: Icon, color = 'var(--text-primary)' }: any) {
+// ── JSON FORMATTER ──
+
+function JsonFormatterTool() {
+  const [input, setInput] = useState('')
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  function format() {
+    if (!input.trim()) return
+    try {
+      const parsed = JSON.parse(input)
+      setInput(JSON.stringify(parsed, null, 2))
+      setError('')
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
+  function minify() {
+    if (!input.trim()) return
+    try {
+      const parsed = JSON.parse(input)
+      setInput(JSON.stringify(parsed))
+      setError('')
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
+  function copy() {
+    navigator.clipboard.writeText(input)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
-    <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', fontSize: 11, padding: '10px 12px', color }}>
-      <Icon size={14} style={{ marginRight: 8 }} />
-      {label}
-    </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-app)' }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700 }}>JSON Formatter & Validator</h3>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={() => setInput('')}><Trash2 size={14} /> Clear</button>
+          <button className="btn btn-secondary" onClick={minify}><Code2 size={14} /> Minify</button>
+          <button className="btn btn-primary" onClick={format}><FileJson size={14} /> Format</button>
+          <button className="btn btn-secondary" onClick={copy}>
+            {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />} Copy
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div style={{ padding: '12px 24px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
+      <textarea
+        value={input}
+        onChange={e => { setInput(e.target.value); setError('') }}
+        placeholder='Paste JSON here... e.g. {"name": "infra-eye"}'
+        style={{
+          flex: 1, padding: 24, border: 'none', background: 'transparent', resize: 'none', outline: 'none',
+          fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--text-primary)',
+          lineHeight: 1.6
+        }}
+        spellCheck={false}
+      />
+    </div>
+  )
+}
+
+// ── BASE64 TOOL ──
+
+function Base64Tool() {
+  const [input, setInput] = useState('')
+  const [output, setOutput] = useState('')
+  const [error, setError] = useState('')
+
+  function encode() {
+    try {
+      setOutput(btoa(input))
+      setError('')
+    } catch (e) {
+      setError('Cannot encode input to Base64 (contains invalid characters).')
+    }
+  }
+
+  function decode() {
+    try {
+      setOutput(atob(input))
+      setError('')
+    } catch (e) {
+      setError('Invalid Base64 string.')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 24, overflowY: 'auto' }}>
+      <div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Base64 Encode / Decode</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Paste your string or Base64 payload below.</p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT</label>
+        <textarea
+          className="input"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Enter text..."
+          style={{ height: 160, fontFamily: '"JetBrains Mono", monospace', padding: 16, resize: 'vertical' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button className="btn btn-primary" onClick={encode} style={{ flex: 1 }}>Encode to Base64</button>
+        <button className="btn btn-secondary" onClick={decode} style={{ flex: 1 }}>Decode from Base64</button>
+      </div>
+
+      {error && <div style={{ color: 'var(--danger)', fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><AlertCircle size={14}/> {error}</div>}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>OUTPUT</label>
+          <button className="btn" style={{ fontSize: 11, height: 24, padding: '0 8px' }} onClick={() => navigator.clipboard.writeText(output)}>Copy Output</button>
+        </div>
+        <textarea
+          className="input"
+          value={output}
+          readOnly
+          style={{ flex: 1, minHeight: 160, background: 'var(--bg-app)', fontFamily: '"JetBrains Mono", monospace', padding: 16, resize: 'none' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── EPOCH CONVERTER ──
+
+function EpochConverterTool() {
+  const [timestamp, setTimestamp] = useState(Date.now().toString())
+  
+  const tsNum = parseInt(timestamp) || 0
+  const isSeconds = timestamp.length <= 10
+  const dateObj = new Date(isSeconds ? tsNum * 1000 : tsNum)
+  
+  const isValid = !isNaN(dateObj.getTime())
+
+  // Helper method inside component to easily manage dependencies like Date.now() difference
+  const getRelativeTime = (d1: Date) => {
+    const elapsed = d1.getTime() - Date.now()
+    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+    const abs = Math.abs(elapsed)
+    if (abs < 1000 * 60) return rtf.format(Math.round(elapsed / 1000), 'second')
+    if (abs < 1000 * 60 * 60) return rtf.format(Math.round(elapsed / (1000 * 60)), 'minute')
+    if (abs < 1000 * 60 * 60 * 24) return rtf.format(Math.round(elapsed / (1000 * 60 * 60)), 'hour')
+    if (abs < 1000 * 60 * 60 * 24 * 30) return rtf.format(Math.round(elapsed / (1000 * 60 * 60 * 24)), 'day')
+    if (abs < 1000 * 60 * 60 * 24 * 365) return rtf.format(Math.round(elapsed / (1000 * 60 * 60 * 24 * 30)), 'month')
+    return rtf.format(Math.round(elapsed / (1000 * 60 * 60 * 24 * 365)), 'year')
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 32 }}>
+      <div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Unix Epoch Converter</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Convert between Unix timestamps (seconds/milliseconds) and human-readable dates.</p>
+      </div>
+
+      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 12 }}>ENTER TIMESTAMP</label>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <input 
+            className="input" 
+            value={timestamp}
+            onChange={e => setTimestamp(e.target.value)}
+            style={{ fontSize: 20, fontFamily: '"JetBrains Mono", monospace', height: 48, flex: 1 }}
+          />
+          <button className="btn btn-secondary" style={{ height: 48 }} onClick={() => setTimestamp(Date.now().toString())}>Now (ms)</button>
+          <button className="btn btn-secondary" style={{ height: 48 }} onClick={() => setTimestamp(Math.floor(Date.now()/1000).toString())}>Now (s)</button>
+        </div>
+      </div>
+
+      {isValid ? (
+         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+           <ResultBox label="Local Time" value={dateObj.toLocaleString()} />
+           <ResultBox label="UTC Time" value={dateObj.toUTCString()} />
+           <ResultBox label="ISO 8601" value={dateObj.toISOString()} />
+           <ResultBox label="Relative" value={getRelativeTime(dateObj)} />
+         </div>
+      ) : (
+         <div style={{ padding: 24, textAlign: 'center', color: 'var(--danger)' }}>Invalid Timestamp</div>
+      )}
+    </div>
+  )
+}
+
+function ResultBox({ label, value }: { label: string, value: string }) {
+  return (
+    <div style={{ padding: 16, border: '1px solid var(--border)', borderRadius: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>{label.toUpperCase()}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{value}</div>
+    </div>
+  )
+}
+
+// ── JWT DECODER ──
+
+function JwtDecoderTool() {
+  const [jwt, setJwt] = useState('')
+  const [header, setHeader] = useState('')
+  const [payload, setPayload] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!jwt.trim()) {
+      setHeader(''); setPayload(''); setError(''); return;
+    }
+    
+    try {
+      const parts = jwt.split('.')
+      if (parts.length !== 3) throw new Error('JWT must have 3 parts (header.payload.signature)')
+      
+      const decodeB64Url = (str: string) => {
+        let b64 = str.replace(/-/g, '+').replace(/_/g, '/')
+        while (b64.length % 4) b64 += '='
+        return decodeURIComponent(atob(b64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))
+      }
+
+      setHeader(JSON.stringify(JSON.parse(decodeB64Url(parts[0])), null, 2))
+      setPayload(JSON.stringify(JSON.parse(decodeB64Url(parts[1])), null, 2))
+      setError('')
+    } catch (e: any) {
+      setError(e.message || 'Invalid JWT format')
+      setHeader('')
+      setPayload('')
+    }
+  }, [jwt])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 24, overflowY: 'auto' }}>
+      <div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>JWT Decoder</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Decode base64url-encoded JSON Web Tokens instantly.</p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>TOKEN STRING</label>
+        <textarea
+          className="input"
+          value={jwt}
+          onChange={e => setJwt(e.target.value)}
+          placeholder="eyJhbGciOiJIUz... (paste your token here)"
+          style={{ height: 100, fontFamily: '"JetBrains Mono", monospace', padding: 16, resize: 'vertical', wordBreak: 'break-all' }}
+        />
+      </div>
+
+      {error ? (
+        <div style={{ padding: 16, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: 10 }}>
+          <AlertCircle size={16} style={{ marginBottom: 8 }} />
+          <div>{error}</div>
+        </div>
+      ) : (jwt && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 2fr', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#ec4899' }}>HEADER (Algorithm / Type)</label>
+            <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12, color: '#ec4899', whiteSpace: 'pre-wrap' }}>
+              {header}
+            </pre>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+             <label style={{ fontSize: 12, fontWeight: 700, color: '#a855f7' }}>PAYLOAD (Data)</label>
+            <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12, color: '#a855f7', overflowX: 'auto' }}>
+              {payload}
+            </pre>
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

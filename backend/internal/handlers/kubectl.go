@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -21,7 +22,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
 )
 
 var (
@@ -32,6 +35,9 @@ var (
 	// to disk this process lifetime. Invalidated on WS reconnect.
 	kubeconfigWritten   = map[uint]bool{}
 	kubeconfigWrittenMu sync.Mutex
+
+	portForwardSessions   = map[uint][]PortForwardSession{}
+	portForwardSessionsMu sync.RWMutex
 )
 
 type nsCacheEntry struct {
@@ -39,12 +45,36 @@ type nsCacheEntry struct {
 	timestamp time.Time
 }
 
+type PortForwardSession struct {
+	ID         string `json:"id"`
+	Target     string `json:"target"`
+	Namespace  string `json:"namespace"`
+	LocalPort  int    `json:"local_port"`
+	RemotePort int    `json:"remote_port"`
+	PID        string `json:"pid"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type wsStreamWriter struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
+func (w *wsStreamWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.conn.WriteMessage(websocket.BinaryMessage, p); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
 // writeKubeConfig safely writes a kubeconfig YAML to a temp file on the remote server.
 // Uses base64 encoding to guarantee zero shell character corruption (newlines, quotes, etc).
 // The decoding uses a cross-platform approach: -d for Linux and -D for macOS.
 func writeKubeConfig(client *sshclient.Client, content string, path string) error {
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
-	
+
 	setupCmd := fmt.Sprintf(
 		"mkdir -p /tmp/infraeye && chmod 700 /tmp/infraeye && (echo '%s' | base64 -d > %s 2>/dev/null || echo '%s' | base64 -D > %s) && chmod 600 %s",
 		encoded,
@@ -77,6 +107,15 @@ func ensureKubeConfig(client *sshclient.Client, server *models.Server) (string, 
 	kubeconfigWrittenMu.Lock()
 	alreadyWritten := kubeconfigWritten[server.ID]
 	kubeconfigWrittenMu.Unlock()
+
+	if alreadyWritten {
+		// /tmp can be cleaned by reboot/tmpfiles; verify remote file still exists.
+		checkCmd := fmt.Sprintf("if [ -f %s ]; then echo ok; fi", path)
+		existsOut, _, checkErr := client.RunCommand(checkCmd)
+		if checkErr != nil || strings.TrimSpace(existsOut) != "ok" {
+			alreadyWritten = false
+		}
+	}
 
 	if !alreadyWritten {
 		if err := writeKubeConfig(client, server.KubeConfig, path); err != nil {
@@ -347,7 +386,7 @@ func RunPodTerminal(c *gin.Context) {
 			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("K8s client error: %v\r\n", err)))
 			return
 		}
-		
+
 		// If container is empty, try to find the first container in the pod
 		if container == "" {
 			podInfo, err := clientset.CoreV1().Pods(ns).Get(context.TODO(), pod, metav1.GetOptions{})
@@ -377,12 +416,12 @@ func RunPodTerminal(c *gin.Context) {
 			n, err := stream.Read(buf)
 			if n > 0 {
 				log.Printf("Streamed %d bytes to ws", n)
-				
+
 				// Fix newline CR translation for pure \n log streams to render in xterm correctly!
 				// Xterm requires \r\n to go back to the beginning of the line.
 				chunk := string(buf[:n])
 				chunk = strings.ReplaceAll(chunk, "\n", "\r\n")
-				
+
 				wsConn.WriteMessage(websocket.BinaryMessage, []byte(chunk))
 			}
 			if err != nil {
@@ -393,80 +432,69 @@ func RunPodTerminal(c *gin.Context) {
 		return
 	}
 
-	sshClient, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(server.KubeConfig))
 	if err != nil {
-		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH connect error: %v\r\n", err)))
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("KubeConfig parse error: %v\r\n", err)))
 		return
 	}
-
-	session, err := sshClient.NewSession()
+	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("SSH session error: %v\r\n", err)))
-		return
-	}
-	defer session.Close()
-
-	// Request PTY
-	modes := gossh.TerminalModes{gossh.ECHO: 1, gossh.TTY_OP_ISPEED: 14400, gossh.TTY_OP_OSPEED: 14400}
-	if err := session.RequestPty("xterm-256color", 40, 120, modes); err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("K8s client error: %v\r\n", err)))
 		return
 	}
 
-	stdin, _ := session.StdinPipe()
-	stdout, _ := session.StdoutPipe()
-	stderr, _ := session.StderrPipe()
+	if container == "" {
+		podInfo, err := clientset.CoreV1().Pods(ns).Get(context.TODO(), pod, metav1.GetOptions{})
+		if err == nil && len(podInfo.Spec.Containers) > 0 {
+			container = podInfo.Spec.Containers[0].Name
+		}
+	}
 
-	baseCmd, err := buildBaseCmd(sshClient, &server)
+	req := clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(pod).
+		Namespace(ns).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: container,
+			Command:   []string{"sh"},
+			Stdin:     true,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
 	if err != nil {
-		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("KubeConfig setup error: %v\r\n", err)))
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec setup error: %v\r\n", err)))
 		return
 	}
 
-	containerFlag := ""
-	if container != "" {
-		containerFlag = fmt.Sprintf("-c %s", container)
-	}
-	cmd := fmt.Sprintf("%s exec -it %s %s -n %s -- /bin/sh", baseCmd, pod, containerFlag, ns)
+	stdinReader, stdinWriter := io.Pipe()
+	defer stdinReader.Close()
 
-	if err := session.Start(cmd); err != nil {
-		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec error: %v\r\n", err)))
-		return
-	}
-
-	// Bridges
 	go func() {
-		buf := make([]byte, 8192)
+		defer stdinWriter.Close()
 		for {
-			n, err := stdout.Read(buf)
-			if n > 0 {
-				wsConn.WriteMessage(websocket.BinaryMessage, buf[:n])
-			}
+			_, msg, err := wsConn.ReadMessage()
 			if err != nil {
 				return
 			}
-		}
-	}()
-	go func() {
-		buf := make([]byte, 8192)
-		for {
-			n, err := stderr.Read(buf)
-			if n > 0 {
-				wsConn.WriteMessage(websocket.BinaryMessage, buf[:n])
-			}
-			if err != nil {
+			if _, err := stdinWriter.Write(msg); err != nil {
 				return
 			}
 		}
 	}()
 
-	for {
-		_, msg, err := wsConn.ReadMessage()
-		if err != nil {
-			break
-		}
-		if _, err := stdin.Write(msg); err != nil {
-			break
-		}
+	writer := &wsStreamWriter{conn: wsConn}
+	if err := exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
+		Stdin:  stdinReader,
+		Stdout: writer,
+		Stderr: writer,
+		Tty:    true,
+	}); err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec stream error: %v\r\n", err)))
+		return
 	}
 }
 
@@ -516,7 +544,7 @@ func TestK8sConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "output": stdout})
 }
 
-// DisconnectCluster — removes KubeConfig to stop managing server as a cluster
+// DisconnectCluster — marks cluster as disconnected but retains kubeconfig
 func DisconnectCluster(c *gin.Context) {
 	id := c.Param("id")
 	var server models.Server
@@ -525,7 +553,7 @@ func DisconnectCluster(c *gin.Context) {
 		return
 	}
 
-	server.KubeConfig = ""
+	server.K8sConnected = false
 	if err := db.DB.Save(&server).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("disconnect: %v", err)})
 		return
@@ -534,7 +562,25 @@ func DisconnectCluster(c *gin.Context) {
 	// Invalidate the kubeconfig cache for this server
 	invalidateKubeConfigCache(server.ID)
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cluster disconnected successfully. Server remains active."})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cluster disconnected successfully. State preserved."})
+}
+
+// ReconnectCluster — sets K8sConnected to true
+func ReconnectCluster(c *gin.Context) {
+	id := c.Param("id")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	server.K8sConnected = true
+	if err := db.DB.Save(&server).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("reconnect: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Cluster reconnected successfully."})
 }
 
 // ApplyKubectl — applies a YAML string to the cluster via temp file
@@ -659,42 +705,229 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 	var fetchErr error
 
 	if resource == "pulse" {
-		var nodes, pods, deps, svcs, evs int
+		var nodes, nodesReady int
+		var pods, podsRunning int
+		var deps, depsReady int
+		var rss, rssReady int
+		var dss, dssReady int
+		var stss, stssReady int
+		var jobs, cjs int
+		var svcs, eps, ings int
+		var cms, secs, pvs, scs int
 		
-		if nodeList, e := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{}); e == nil {
-			nodes = len(nodeList.Items)
-		} else { fetchErr = e }
-		
-		if podList, e := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{}); e == nil {
-			pods = len(podList.Items)
-		} else { fetchErr = e }
-		
-		if depList, e := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{}); e == nil {
-			deps = len(depList.Items)
-		} else { fetchErr = e }
-		
-		if svcList, e := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{}); e == nil {
-			svcs = len(svcList.Items)
-		} else { fetchErr = e }
-		
-		if evList, e := clientset.CoreV1().Events("").List(ctx, metav1.ListOptions{}); e == nil {
-			evs = len(evList.Items)
-		} else { fetchErr = e }
+		errs := make(map[string]string)
 
-		if fetchErr != nil && nodes == 0 && pods == 0 {
-			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"error":"K8s Native Fetch Failed","stderr":%q}`, fetchErr.Error())))
-			return
+		// Helper to capture errors
+		capture := func(key string, err error) {
+			if err != nil { errs[key] = err.Error() }
+		}
+
+		// Nodes (cluster-scoped - always use empty string)
+		nl, nlErr := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		capture("nodes", nlErr)
+		if nlErr == nil {
+			nodes = len(nl.Items)
+			for _, n := range nl.Items {
+				for _, c := range n.Status.Conditions {
+					log.Printf("[PULSE DEBUG] Node=%s Condition.Type=%q Condition.Status=%q", n.Name, c.Type, c.Status)
+					if strings.EqualFold(string(c.Type), "Ready") && strings.EqualFold(string(c.Status), "True") {
+						nodesReady++
+						break
+					}
+				}
+			}
+		} else {
+			log.Printf("[PULSE DEBUG] Nodes list error: %v", nlErr)
+		}
+
+		// Workloads
+		pl, plErr := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
+		capture("pods", plErr)
+		if plErr == nil {
+			pods = len(pl.Items)
+			for _, p := range pl.Items {
+				isReady := false
+				for _, c := range p.Status.Conditions {
+					if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+						isReady = true
+						break
+					}
+				}
+				if isReady {
+					podsRunning++
+				}
+			}
+			log.Printf("[PULSE DEBUG] Pods: total=%d ready=%d ns=%q", pods, podsRunning, ns)
+		} else {
+			log.Printf("[PULSE DEBUG] Pods list error: %v", plErr)
+		}
+
+		dl, dlErr := clientset.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
+		capture("deployments", dlErr)
+		if dlErr == nil {
+			deps = len(dl.Items)
+			for _, d := range dl.Items {
+				desired := int32(1)
+				if d.Spec.Replicas != nil {
+					desired = *d.Spec.Replicas
+				}
+				log.Printf("[PULSE DEBUG] Deploy=%s desired=%d available=%d ready=%d", d.Name, desired, d.Status.AvailableReplicas, d.Status.ReadyReplicas)
+				if desired == 0 {
+					depsReady++
+				} else if d.Status.ReadyReplicas >= desired {
+					depsReady++
+				}
+			}
+			log.Printf("[PULSE DEBUG] Deployments: total=%d ready=%d", deps, depsReady)
+		}
+
+		rl, rlErr := clientset.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
+		capture("replicasets", rlErr)
+		if rlErr == nil {
+			rss = len(rl.Items)
+			for _, r := range rl.Items {
+				desired := int32(1)
+				if r.Spec.Replicas != nil {
+					desired = *r.Spec.Replicas
+				}
+				if desired == 0 || r.Status.ReadyReplicas >= desired {
+					rssReady++
+				}
+			}
+		}
+
+		sl, slErr := clientset.AppsV1().StatefulSets(ns).List(ctx, metav1.ListOptions{})
+		capture("statefulsets", slErr)
+		if slErr == nil {
+			stss = len(sl.Items)
+			for _, s := range sl.Items {
+				desired := int32(1)
+				if s.Spec.Replicas != nil {
+					desired = *s.Spec.Replicas
+				}
+				if desired == 0 || s.Status.ReadyReplicas >= desired {
+					stssReady++
+				}
+			}
+		}
+
+		dsl, dslErr := clientset.AppsV1().DaemonSets(ns).List(ctx, metav1.ListOptions{})
+		capture("daemonsets", dslErr)
+		if dslErr == nil {
+			dss = len(dsl.Items)
+			for _, d := range dsl.Items {
+				if d.Status.DesiredNumberScheduled == 0 || d.Status.NumberReady >= d.Status.DesiredNumberScheduled {
+					dssReady++
+				}
+			}
+		}
+
+		jl, jlErr := clientset.BatchV1().Jobs(ns).List(ctx, metav1.ListOptions{})
+		capture("jobs", jlErr)
+		if jlErr == nil {
+			jobs = len(jl.Items)
+		}
+
+		cjl, cjlErr := clientset.BatchV1().CronJobs(ns).List(ctx, metav1.ListOptions{})
+		capture("cronjobs", cjlErr)
+		if cjlErr == nil {
+			cjs = len(cjl.Items)
+		}
+
+		// Network
+		svcl, svcErr := clientset.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+		capture("services", svcErr)
+		if svcErr == nil {
+			svcs = len(svcl.Items)
+		}
+
+		epl, epErr := clientset.CoreV1().Endpoints(ns).List(ctx, metav1.ListOptions{})
+		capture("endpoints", epErr)
+		if epErr == nil {
+			eps = len(epl.Items)
+		}
+
+		ingl, ingErr := clientset.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
+		capture("ingresses", ingErr)
+		if ingErr == nil {
+			ings = len(ingl.Items)
+		}
+
+		// Configuration & Storage
+		cml, cmErr := clientset.CoreV1().ConfigMaps(ns).List(ctx, metav1.ListOptions{})
+		capture("configmaps", cmErr)
+		if cmErr == nil {
+			cms = len(cml.Items)
+		}
+
+		secl, secErr := clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
+		capture("secrets", secErr)
+		if secErr == nil {
+			secs = len(secl.Items)
+		}
+
+		pvl, pvErr := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
+		capture("pvs", pvErr)
+		if pvErr == nil {
+			pvs = len(pvl.Items)
+		}
+
+		pvcl, pvcErr := clientset.CoreV1().PersistentVolumeClaims(ns).List(ctx, metav1.ListOptions{})
+		capture("pvcs", pvcErr)
+		var pvcs int
+		if pvcErr == nil {
+			pvcs = len(pvcl.Items)
+		}
+
+		scl, scErr := clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
+		capture("storageclasses", scErr)
+		if scErr == nil {
+			scs = len(scl.Items)
+		}
+
+		rql, rqErr := clientset.CoreV1().ResourceQuotas(ns).List(ctx, metav1.ListOptions{})
+		capture("resourcequotas", rqErr)
+		var rqs int
+		if rqErr == nil {
+			rqs = len(rql.Items)
+		}
+
+		hpal, hpaErr := clientset.AutoscalingV1().HorizontalPodAutoscalers(ns).List(ctx, metav1.ListOptions{})
+		capture("hpa", hpaErr)
+		var hpas int
+		if hpaErr == nil {
+			hpas = len(hpal.Items)
 		}
 
 		payload = map[string]interface{}{
-			"kind":  "Pulse",
+			"kind": "Pulse",
 			"stats": map[string]int{
-				"nodes":       nodes,
-				"pods":        pods,
-				"deployments": deps,
-				"services":    svcs,
-				"events":      evs,
+				"nodes":             nodes,
+				"nodesReady":        nodesReady,
+				"pods":              pods,
+				"podsRunning":       podsRunning,
+				"deployments":       deps,
+				"deploymentsReady":  depsReady,
+				"replicasets":       rss,
+				"replicasetsReady":  rssReady,
+				"statefulsets":      stss,
+				"statefulsetsReady": stssReady,
+				"daemonsets":        dss,
+				"daemonsetsReady":   dssReady,
+				"jobs":              jobs,
+				"cronjobs":          cjs,
+				"services":          svcs,
+				"endpoints":         eps,
+				"ingresses":         ings,
+				"configmaps":        cms,
+				"secrets":           secs,
+				"pvs":               pvs,
+				"pvcs":              pvcs,
+				"storageclasses":    scs,
+				"resourcequotas":    rqs,
+				"hpa":               hpas,
 			},
+			"errors": errs,
 		}
 	} else {
 		switch resource {
@@ -704,8 +937,48 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 			payload, fetchErr = clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
 		case "deployments":
 			payload, fetchErr = clientset.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
+		case "daemonsets":
+			payload, fetchErr = clientset.AppsV1().DaemonSets(ns).List(ctx, metav1.ListOptions{})
+		case "statefulsets":
+			payload, fetchErr = clientset.AppsV1().StatefulSets(ns).List(ctx, metav1.ListOptions{})
+		case "replicasets":
+			payload, fetchErr = clientset.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
+		case "jobs":
+			payload, fetchErr = clientset.BatchV1().Jobs(ns).List(ctx, metav1.ListOptions{})
+		case "cronjobs":
+			payload, fetchErr = clientset.BatchV1().CronJobs(ns).List(ctx, metav1.ListOptions{})
+		case "configmaps":
+			payload, fetchErr = clientset.CoreV1().ConfigMaps(ns).List(ctx, metav1.ListOptions{})
+		case "secrets":
+			payload, fetchErr = clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
+		case "resourcequotas":
+			payload, fetchErr = clientset.CoreV1().ResourceQuotas(ns).List(ctx, metav1.ListOptions{})
+		case "hpa":
+			payload, fetchErr = clientset.AutoscalingV1().HorizontalPodAutoscalers(ns).List(ctx, metav1.ListOptions{})
 		case "services":
 			payload, fetchErr = clientset.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+		case "endpoints":
+			payload, fetchErr = clientset.CoreV1().Endpoints(ns).List(ctx, metav1.ListOptions{})
+		case "ingresses":
+			payload, fetchErr = clientset.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
+		case "networkpolicies":
+			payload, fetchErr = clientset.NetworkingV1().NetworkPolicies(ns).List(ctx, metav1.ListOptions{})
+		case "pvcs":
+			payload, fetchErr = clientset.CoreV1().PersistentVolumeClaims(ns).List(ctx, metav1.ListOptions{})
+		case "pvs":
+			payload, fetchErr = clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
+		case "storageclasses":
+			payload, fetchErr = clientset.StorageV1().StorageClasses().List(ctx, metav1.ListOptions{})
+		case "serviceaccounts":
+			payload, fetchErr = clientset.CoreV1().ServiceAccounts(ns).List(ctx, metav1.ListOptions{})
+		case "roles":
+			payload, fetchErr = clientset.RbacV1().Roles(ns).List(ctx, metav1.ListOptions{})
+		case "clusterroles":
+			payload, fetchErr = clientset.RbacV1().ClusterRoles().List(ctx, metav1.ListOptions{})
+		case "rolebindings":
+			payload, fetchErr = clientset.RbacV1().RoleBindings(ns).List(ctx, metav1.ListOptions{})
+		case "clusterrolebindings":
+			payload, fetchErr = clientset.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{})
 		case "events":
 			payload, fetchErr = clientset.CoreV1().Events(ns).List(ctx, metav1.ListOptions{})
 		default:
@@ -766,4 +1039,131 @@ func DeleteKubectl(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "output": stdout})
+}
+
+// StartPortForward starts a background kubectl port-forward process on the remote node.
+func StartPortForward(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		Namespace  string `json:"namespace" binding:"required"`
+		Target     string `json:"target" binding:"required"` // e.g. svc/my-service or pod/my-pod
+		LocalPort  int    `json:"local_port" binding:"required"`
+		RemotePort int    `json:"remote_port" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.LocalPort <= 0 || req.RemotePort <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ports must be positive integers"})
+		return
+	}
+
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ssh connect: " + err.Error()})
+		return
+	}
+
+	baseCmd, err := buildBaseCmd(client, &server)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "kubeconfig setup: " + err.Error()})
+		return
+	}
+
+	sessionID := fmt.Sprintf("pf-%d", time.Now().UnixNano())
+	logPath := fmt.Sprintf("/tmp/infraeye/%s.log", sessionID)
+	startCmd := fmt.Sprintf(
+		"mkdir -p /tmp/infraeye && nohup %s port-forward -n %s %s %d:%d --address 127.0.0.1 > %s 2>&1 & echo $!",
+		baseCmd, req.Namespace, req.Target, req.LocalPort, req.RemotePort, logPath,
+	)
+
+	stdout, stderr, err := client.RunCommand(startCmd)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "stderr": stderr})
+		return
+	}
+	pid := strings.TrimSpace(stdout)
+	if pid == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start port-forward process"})
+		return
+	}
+
+	entry := PortForwardSession{
+		ID:         sessionID,
+		Namespace:  req.Namespace,
+		Target:     req.Target,
+		LocalPort:  req.LocalPort,
+		RemotePort: req.RemotePort,
+		PID:        pid,
+		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+
+	portForwardSessionsMu.Lock()
+	portForwardSessions[server.ID] = append(portForwardSessions[server.ID], entry)
+	portForwardSessionsMu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "session": entry})
+}
+
+// ListPortForwards returns tracked kubectl port-forward sessions for a server.
+func ListPortForwards(c *gin.Context) {
+	id := c.Param("id")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	portForwardSessionsMu.RLock()
+	sessions := append([]PortForwardSession(nil), portForwardSessions[server.ID]...)
+	portForwardSessionsMu.RUnlock()
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "sessions": sessions})
+}
+
+// StopPortForward terminates a tracked kubectl port-forward process.
+func StopPortForward(c *gin.Context) {
+	id := c.Param("id")
+	sessionID := c.Param("sessionId")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ssh connect: " + err.Error()})
+		return
+	}
+
+	portForwardSessionsMu.Lock()
+	defer portForwardSessionsMu.Unlock()
+	sessions := portForwardSessions[server.ID]
+	idx := -1
+	var entry PortForwardSession
+	for i, s := range sessions {
+		if s.ID == sessionID {
+			idx = i
+			entry = s
+			break
+		}
+	}
+	if idx == -1 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "port-forward session not found"})
+		return
+	}
+
+	killCmd := fmt.Sprintf("kill %s", entry.PID)
+	_, _, _ = client.RunCommand(killCmd)
+
+	portForwardSessions[server.ID] = append(sessions[:idx], sessions[idx+1:]...)
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }

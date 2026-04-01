@@ -11,6 +11,7 @@ import (
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/handlers"
 	"github.com/infra-eye/backend/internal/healing"
+	"github.com/infra-eye/backend/internal/mcp"
 	"github.com/infra-eye/backend/internal/metrics"
 	"github.com/infra-eye/backend/internal/middleware"
 	"github.com/infra-eye/backend/internal/models"
@@ -25,8 +26,14 @@ func main() {
 	// Connect DB & migrate
 	db.Connect()
 
+	// MCP Master Config Sync
+	mcp.SyncMasterKubeconfig()
+
 	// Seed default data
 	seed.Run()
+
+	// Re-sync after seeding ensures any default clusters are patched
+	mcp.SyncMasterKubeconfig()
 
 	// Start metrics collection for existing servers
 	go startMetricsForExistingServers()
@@ -93,7 +100,11 @@ func main() {
 		api.POST("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectl)
 		api.DELETE("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.DeleteKubectl)
 		api.POST("/servers/:id/kubectl/apply", middleware.RequireRole("admin", "devops"), handlers.ApplyKubectl)
+		api.POST("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.StartPortForward)
+		api.GET("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.ListPortForwards)
+		api.DELETE("/servers/:id/kubectl/port-forward/:sessionId", middleware.RequireRole("admin", "devops"), handlers.StopPortForward)
 		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
+		api.POST("/servers/:id/k8s/reconnect", middleware.RequireRole("admin", "devops"), handlers.ReconnectCluster)
 
 		// ── AI ────────────────────────────────────────────────────
 		api.GET("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.ListThreads)
@@ -102,6 +113,11 @@ func main() {
 		api.POST("/ai/chat", middleware.RequireRole("admin", "devops"), handlers.AIChat)
 		api.GET("/ai/history/:id", middleware.RequireRole("admin", "devops"), handlers.GetChatHistory)
 		api.DELETE("/ai/history", middleware.RequireRole("admin", "devops"), handlers.ClearChatHistory)
+
+		// ── MCP (Kubernetes Model Context Protocol) ───────────────
+		api.GET("/mcp/status", middleware.RequireRole("admin", "devops"), handlers.MCPServerStatus)
+		api.GET("/mcp/tools", middleware.RequireRole("admin", "devops"), handlers.ListMCPTools)
+		api.POST("/mcp/tool", middleware.RequireRole("admin", "devops"), handlers.ExecuteMCPTool)
 
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
@@ -127,10 +143,21 @@ func main() {
 		ws.GET("/servers/:id/logs", handlers.StreamLogs)
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
-		ws.GET("/servers/:id/kubectl/pod-terminal", handlers.RunPodTerminal)
-		ws.GET("/servers/:id/k8s/watch", handlers.WatchKubectl)
+		ws.GET("/servers/:id/kubectl/pod-terminal", middleware.RequireRole("admin", "devops"), handlers.RunPodTerminal)
+		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
 	}
+
+	// ── Static Frontend ────────────────────────────────────────
+	// Serve static files from the build directory
+	r.Static("/assets", "/usr/share/nginx/html/assets")
+	r.StaticFile("/favicon.ico", "/usr/share/nginx/html/favicon.ico")
+	r.StaticFile("/robots.txt", "/usr/share/nginx/html/robots.txt")
+
+	// NoRoute serves index.html for SPA (React Router) support
+	r.NoRoute(func(c *gin.Context) {
+		c.File("/usr/share/nginx/html/index.html")
+	})
 
 	addr := fmt.Sprintf(":%s", config.C.Port)
 	log.Printf("🚀 InfraEye API running on http://localhost%s", addr)
