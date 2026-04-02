@@ -221,6 +221,23 @@ func RunKubectl(c *gin.Context) {
 	}
 
 	if server.Host == "" {
+		// If it's a direct connection cluster, we can still handle some common read-only kubectl commands natively
+		if req.Command == "get namespaces -o json" {
+			clientset, err := GetK8sClient(server.KubeConfig)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("native k8s client error: %v", err)})
+				return
+			}
+			nsList, err := clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("native namespaces fetch failed: %v", err)})
+				return
+			}
+			data, _ := json.Marshal(nsList)
+			c.JSON(http.StatusOK, gin.H{"success": true, "output": string(data)})
+			return
+		}
+
 		c.JSON(http.StatusOK, gin.H{"success": false, "error": "This cluster is connected via direct API (No SSH Proxy). Shell-based kubectl commands are disabled. Please use the native Pulse Dashboard or AI Assistant for cluster operations."})
 		return
 	}
@@ -767,6 +784,9 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 		var svcs, eps, ings int
 		var cms, secs, pvs, scs int
 		
+		var cpuTotal, cpuAllocatable int64 // millicores
+		var memTotal, memAllocatable int64 // bytes
+		
 		errs := make(map[string]string)
 
 		// Helper to capture errors
@@ -780,6 +800,11 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 		if nlErr == nil {
 			nodes = len(nl.Items)
 			for _, n := range nl.Items {
+				cpuTotal += n.Status.Capacity.Cpu().MilliValue()
+				cpuAllocatable += n.Status.Allocatable.Cpu().MilliValue()
+				memTotal += n.Status.Capacity.Memory().Value()
+				memAllocatable += n.Status.Allocatable.Memory().Value()
+
 				for _, c := range n.Status.Conditions {
 					log.Printf("[PULSE DEBUG] Node=%s Condition.Type=%q Condition.Status=%q", n.Name, c.Type, c.Status)
 					if strings.EqualFold(string(c.Type), "Ready") && strings.EqualFold(string(c.Status), "True") {
@@ -953,7 +978,7 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 
 		payload = map[string]interface{}{
 			"kind": "Pulse",
-			"stats": map[string]int{
+			"stats": map[string]interface{}{
 				"nodes":             nodes,
 				"nodesReady":        nodesReady,
 				"pods":              pods,
@@ -978,6 +1003,10 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 				"storageclasses":    scs,
 				"resourcequotas":    rqs,
 				"hpa":               hpas,
+				"cpuTotal":          cpuTotal,
+				"cpuAllocatable":    cpuAllocatable,
+				"memTotal":          memTotal,
+				"memAllocatable":    memAllocatable,
 			},
 			"errors": errs,
 		}
