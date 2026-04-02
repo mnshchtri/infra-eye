@@ -9,6 +9,8 @@ services:
       - POSTGRES_DB=infraeye
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U infraeye -d infraeye"]
       interval: 10s
@@ -19,6 +21,8 @@ services:
     image: redis:7-alpine
     container_name: infra-eye-redis
     restart: unless-stopped
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

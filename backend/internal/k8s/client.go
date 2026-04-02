@@ -10,6 +10,8 @@ import (
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/yaml"
 	"context"
 )
 
@@ -83,4 +85,42 @@ func GetNodeMetrics(kubeconfig string) (*metricsv1beta1.NodeMetricsList, error) 
 	}
 
 	return mClient.MetricsV1beta1().NodeMetricses().List(context.Background(), metav1.ListOptions{})
+}
+
+// GetNativeYaml fetches a resource using the dynamic client and returns its YAML representation.
+// It handles metadata preservation (apiVersion, kind) better than typed clientset.
+func GetNativeYaml(kubeconfig, group, version, resource, namespace, name string) (string, error) {
+	config, err := GetRestConfig(kubeconfig)
+	if err != nil {
+		return "", err
+	}
+	dClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return "", err
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    group,
+		Version:  version,
+		Resource: resource,
+	}
+
+	ctx := context.Background()
+	var obj interface{}
+	if namespace != "" {
+		obj, err = dClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	} else {
+		obj, err = dClient.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	// Marshaling unstructured object from dynamic client always preserves TypeMeta
+	data, err := yaml.Marshal(obj)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }

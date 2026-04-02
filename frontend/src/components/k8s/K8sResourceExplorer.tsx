@@ -422,7 +422,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                     </select>
                   </div>
                   <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} 
-                          disabled={activeRes === 'yaml'} onClick={() => watchK8sData(cluster.id, activeRes, selectedNS)}>
+                           onClick={() => watchK8sData(cluster.id, activeRes as any, selectedNS)}>
                     <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Resync
                   </button>
                 </>

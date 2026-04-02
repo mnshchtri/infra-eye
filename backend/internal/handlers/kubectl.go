@@ -23,10 +23,9 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	corev1 "k8s.io/api/core/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
@@ -268,89 +267,80 @@ func RunKubectl(c *gin.Context) {
 		// Native YAML optimized reads for clusters without SSH
 		cmdLower := strings.ToLower(req.Command)
 		if strings.HasPrefix(cmdLower, "get ") && strings.HasSuffix(cmdLower, " -o yaml") {
-			clientset, err := k8s.GetK8sClient(server.KubeConfig)
-			if err == nil {
-				fields := strings.Fields(req.Command)
-				var kind, name, ns string
-				for i := 1; i < len(fields)-1; i++ {
-					f := strings.ToLower(fields[i])
-					if f == "-n" || f == "--namespace" {
-						if i+1 < len(fields)-1 {
-							ns = fields[i+1]
-							i++
-						}
-					} else if kind == "" {
-						kind = f
-					} else if name == "" && !strings.HasPrefix(f, "-") {
-						name = fields[i]
+			fields := strings.Fields(req.Command)
+			var kind, name, ns string
+			for i := 1; i < len(fields)-1; i++ {
+				f := strings.ToLower(fields[i])
+				if f == "-n" || f == "--namespace" {
+					if i+1 < len(fields)-1 {
+						ns = fields[i+1]
+						i++
 					}
+				} else if kind == "" {
+					kind = f
+				} else if name == "" && !strings.HasPrefix(f, "-") {
+					name = fields[i]
+				}
+			}
+
+			if kind != "" && name != "" {
+				log.Printf("🔹 Native YAML Fetch Triggered: kind=%q, name=%q, ns=%q", kind, name, ns)
+				var output string
+				var fErr error
+
+				switch kind {
+				case "pod", "pods", "po":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "pods", ns, name)
+				case "node", "nodes", "no":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "nodes", "", name)
+				case "deployment", "deployments", "deploy":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "deployments", ns, name)
+				case "service", "services", "svc":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "services", ns, name)
+				case "configmap", "configmaps", "cm":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "configmaps", ns, name)
+				case "secret", "secrets":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "secrets", ns, name)
+				case "ingress", "ingresses", "ing":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "networking.k8s.io", "v1", "ingresses", ns, name)
+				case "pvc", "persistentvolumeclaims":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "persistentvolumeclaims", ns, name)
+				case "pv", "persistentvolumes":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "persistentvolumes", "", name)
+				case "daemonset", "daemonsets", "ds":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "daemonsets", ns, name)
+				case "statefulset", "statefulsets", "sts":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "statefulsets", ns, name)
+				case "replicaset", "replicasets", "rs":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "replicasets", ns, name)
+				case "job", "jobs":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "batch", "v1", "jobs", ns, name)
+				case "cronjob", "cronjobs", "cj":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "batch", "v1", "cronjobs", ns, name)
+				case "sa", "serviceaccount", "serviceaccounts":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "serviceaccounts", ns, name)
+				case "role", "roles":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "roles", ns, name)
+				case "clusterrole", "clusterroles":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "clusterroles", "", name)
+				case "rolebinding", "rolebindings":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "rolebindings", ns, name)
+				case "clusterrolebinding", "clusterrolebindings":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "clusterrolebindings", "", name)
+				default:
+					log.Printf("⚠️ Native YAML fetch not implemented for kind: %q. Falling back to CLI.", kind)
 				}
 
-				if kind != "" && name != "" {
-					log.Printf("🔹 Native YAML Fetch Triggered: kind=%q, name=%q, ns=%q", kind, name, ns)
-					var obj interface{}
-					var fErr error
-					ctx := context.Background()
+				if fErr != nil {
+					log.Printf("❌ Native YAML fetch failed for %s/%s: %v", kind, name, fErr)
+				}
 
-					switch kind {
-					case "pod", "pods", "po":
-						obj, fErr = clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
-					case "node", "nodes", "no":
-						obj, fErr = clientset.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
-					case "deployment", "deployments", "deploy":
-						obj, fErr = clientset.AppsV1().Deployments(ns).Get(ctx, name, metav1.GetOptions{})
-					case "service", "services", "svc":
-						obj, fErr = clientset.CoreV1().Services(ns).Get(ctx, name, metav1.GetOptions{})
-					case "configmap", "configmaps", "cm":
-						obj, fErr = clientset.CoreV1().ConfigMaps(ns).Get(ctx, name, metav1.GetOptions{})
-					case "secret", "secrets":
-						obj, fErr = clientset.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
-					case "ingress", "ingresses", "ing":
-						obj, fErr = clientset.NetworkingV1().Ingresses(ns).Get(ctx, name, metav1.GetOptions{})
-					case "pvc", "persistentvolumeclaims":
-						obj, fErr = clientset.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
-					case "pv", "persistentvolumes":
-						obj, fErr = clientset.CoreV1().PersistentVolumes().Get(ctx, name, metav1.GetOptions{})
-					case "daemonset", "daemonsets", "ds":
-						obj, fErr = clientset.AppsV1().DaemonSets(ns).Get(ctx, name, metav1.GetOptions{})
-					case "statefulset", "statefulsets", "sts":
-						obj, fErr = clientset.AppsV1().StatefulSets(ns).Get(ctx, name, metav1.GetOptions{})
-					case "replicaset", "replicasets", "rs":
-						obj, fErr = clientset.AppsV1().ReplicaSets(ns).Get(ctx, name, metav1.GetOptions{})
-					case "job", "jobs":
-						obj, fErr = clientset.BatchV1().Jobs(ns).Get(ctx, name, metav1.GetOptions{})
-					case "cronjob", "cronjobs", "cj":
-						obj, fErr = clientset.BatchV1().CronJobs(ns).Get(ctx, name, metav1.GetOptions{})
-					case "sa", "serviceaccount", "serviceaccounts":
-						obj, fErr = clientset.CoreV1().ServiceAccounts(ns).Get(ctx, name, metav1.GetOptions{})
-					case "role", "roles":
-						obj, fErr = clientset.RbacV1().Roles(ns).Get(ctx, name, metav1.GetOptions{})
-					case "clusterrole", "clusterroles":
-						obj, fErr = clientset.RbacV1().ClusterRoles().Get(ctx, name, metav1.GetOptions{})
-					case "rolebinding", "rolebindings":
-						obj, fErr = clientset.RbacV1().RoleBindings(ns).Get(ctx, name, metav1.GetOptions{})
-					case "clusterrolebinding", "clusterrolebindings":
-						obj, fErr = clientset.RbacV1().ClusterRoleBindings().Get(ctx, name, metav1.GetOptions{})
-					default:
-						log.Printf("⚠️ Native YAML fetch not implemented for kind: %q. Falling back to CLI.", kind)
-					}
-
-					if fErr != nil {
-						log.Printf("❌ Native YAML fetch failed for %s/%s: %v", kind, name, fErr)
-					}
-
-					if fErr == nil && obj != nil {
-						yamlData, err := yaml.Marshal(obj)
-						if err == nil {
-							c.JSON(http.StatusOK, gin.H{"success": true, "output": string(yamlData)})
-							return
-						}
-					}
-				} else {
-					log.Printf("⚠️ Native YAML fetch failed to parse fields: %v", fields)
+				if fErr == nil && output != "" {
+					c.JSON(http.StatusOK, gin.H{"success": true, "output": output})
+					return
 				}
 			} else {
-				log.Printf("❌ k8s.GetK8sClient failed: %v", err)
+				log.Printf("⚠️ Native YAML fetch failed to parse fields: %v", fields)
 			}
 		}
 
@@ -799,116 +789,71 @@ func ApplyKubectl(c *gin.Context) {
 	}
 
 	if server.Host == "" {
-		// Native YAML Apply for common types in direct API clusters
-		clientset, err := k8s.GetK8sClient(server.KubeConfig)
-		if err == nil {
-			var applyErr error
-			ctx := context.Background()
+		// Generic Dynamic Apply (Server-Side Apply)
+		// This handles ANY resource type, including CRDs.
+		var unstructuredObj map[string]interface{}
+		if err := yaml.Unmarshal([]byte(req.YAML), &unstructuredObj); err == nil {
+			apiVersion, _ := unstructuredObj["apiVersion"].(string)
+			kind, _ := unstructuredObj["kind"].(string)
+			metadata, _ := unstructuredObj["metadata"].(map[string]interface{})
+			name, _ := metadata["name"].(string)
+			namespace, _ := metadata["namespace"].(string)
 
-			// Decode YAML to get metadata
-			var meta struct {
-				Kind     string `yaml:"kind"`
-				Metadata struct {
-					Name      string `yaml:"name"`
-					Namespace string `yaml:"namespace"`
-				} `yaml:"metadata"`
-			}
-			err = yaml.Unmarshal([]byte(req.YAML), &meta)
-			
-			if err == nil && meta.Metadata.Name != "" {
-				log.Printf("🔹 Native YAML Apply Triggered: kind=%q, name=%q, ns=%q", meta.Kind, meta.Metadata.Name, meta.Metadata.Namespace)
+			if apiVersion != "" && kind != "" && name != "" {
+				log.Printf("🔹 Native Dynamic Apply Triggered: %s %s/%s", kind, namespace, name)
 				
-				switch strings.ToLower(meta.Kind) {
-				case "pod", "pods":
-					var r corev1.Pod
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						r.ResourceVersion = "" // Clear to avoid conflict if just applying
-						_, applyErr = clientset.CoreV1().Pods(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+				// Use Dynamic Client
+				dClient, err := k8s.GetDynamicClient(server.KubeConfig)
+				if err == nil {
+					// Parse Group/Version
+					parts := strings.Split(apiVersion, "/")
+					var group, version string
+					if len(parts) == 2 {
+						group = parts[0]
+						version = parts[1]
+					} else {
+						version = parts[0]
 					}
-				case "deployment", "deployments":
-					var r appsv1.Deployment
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.AppsV1().Deployments(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+
+					// Map Kind to Resource (pluralize)
+					resource := strings.ToLower(kind) + "s"
+					if strings.HasSuffix(resource, "ys") { resource = resource[:len(resource)-2] + "ies" }
+					if kind == "Ingress" { resource = "ingresses" }
+					if kind == "StorageClass" { resource = "storageclasses" }
+
+					gvr := schema.GroupVersionResource{
+						Group:    group,
+						Version:  version,
+						Resource: resource,
 					}
-				case "service", "services", "svc":
-					var r corev1.Service
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.CoreV1().Services(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+
+					jsonBytes, _ := json.Marshal(unstructuredObj)
+					var applyErr error
+					ctx := context.Background()
+					force := true
+					patchOpts := metav1.PatchOptions{
+						FieldManager: "infraeye-ui",
+						Force:        &force,
 					}
-				case "configmap", "configmaps", "cm":
-					var r corev1.ConfigMap
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.CoreV1().ConfigMaps(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+
+					if namespace != "" {
+						_, applyErr = dClient.Resource(gvr).Namespace(namespace).Patch(ctx, name, types.ApplyPatchType, jsonBytes, patchOpts)
+					} else {
+						_, applyErr = dClient.Resource(gvr).Patch(ctx, name, types.ApplyPatchType, jsonBytes, patchOpts)
 					}
-				case "secret", "secrets":
-					var r corev1.Secret
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.CoreV1().Secrets(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+
+					if applyErr == nil {
+						c.JSON(http.StatusOK, gin.H{"success": true, "output": fmt.Sprintf("✅ %s '%s' applied successfully (Native SSA)", kind, name)})
+						return
 					}
-				case "daemonset", "daemonsets", "ds":
-					var r appsv1.DaemonSet
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.AppsV1().DaemonSets(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "statefulset", "statefulsets", "sts":
-					var r appsv1.StatefulSet
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.AppsV1().StatefulSets(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "ingress", "ingresses", "ing":
-					var r networkingv1.Ingress
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.NetworkingV1().Ingresses(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "pvc", "persistentvolumeclaims":
-					var r corev1.PersistentVolumeClaim
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.CoreV1().PersistentVolumeClaims(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "pv", "persistentvolumes":
-					var r corev1.PersistentVolume
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.CoreV1().PersistentVolumes().Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "serviceaccount", "sa":
-					var r corev1.ServiceAccount
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.CoreV1().ServiceAccounts(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "role", "roles":
-					var r rbacv1.Role
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.RbacV1().Roles(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "clusterrole", "clusterroles":
-					var r rbacv1.ClusterRole
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.RbacV1().ClusterRoles().Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "rolebinding", "rolebindings":
-					var r rbacv1.RoleBinding
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.RbacV1().RoleBindings(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				case "clusterrolebinding", "clusterrolebindings":
-					var r rbacv1.ClusterRoleBinding
-					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
-						_, applyErr = clientset.RbacV1().ClusterRoleBindings().Update(ctx, &r, metav1.UpdateOptions{})
-					}
-				default:
-					log.Printf("⚠️ Native YAML apply not implemented for kind: %q. Falling back to CLI.", meta.Kind)
+					log.Printf("❌ Native SSA failed for %s %s: %v. Falling back to CLI.", kind, name, applyErr)
 					goto CLI_FALLBACK
 				}
-
-				if applyErr != nil {
-					// Check for conflict and try a lighter touch patch if possible, 
-					// but for now just tell user the truth.
-					c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("Native apply error (HTTP/API): %v\nNote: If this is a resource conflict, ensure your YAML includes the current resourceVersion or let the system handle it.", applyErr)})
-					return
-				}
-				c.JSON(http.StatusOK, gin.H{"success": true, "output": fmt.Sprintf("✅ Resource '%s' updated successfully (Native API)", meta.Metadata.Name)})
-				return
+				log.Printf("⚠️ Dynamic Client setup failed. Falling back to CLI.")
+				goto CLI_FALLBACK
 			}
+			log.Printf("⚠️ YAML missing required fields for native apply. Falling back to CLI.")
+			goto CLI_FALLBACK
 		}
 
 	CLI_FALLBACK:
