@@ -290,14 +290,20 @@ export function Servers() {
           )}
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div className="card scrollbar-hidden" style={{ 
+          padding: 0, 
+          overflowY: 'auto', 
+          maxHeight: 'calc(100vh - 210px)',
+          border: '1px solid var(--border)',
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              <tr style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)' }}>
                 {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{
                     padding: '16px 24px', fontSize: 11, fontWeight: 800,
                     color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em',
+                    borderBottom: '1px solid var(--border)',
                   }}>
                     {h}
                   </th>
