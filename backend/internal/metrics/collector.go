@@ -17,6 +17,7 @@ import (
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	"github.com/infra-eye/backend/internal/ws"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -131,6 +132,9 @@ func StartCollector(server models.Server) {
 	collectorsMu.Unlock()
 
 	log.Printf("📊 Metrics collector started for server %d (%s)", server.ID, server.Host)
+	
+	// Start with immediate collection so dashboard updates instantly
+	collect(server)
 
 	interval := time.Duration(config.C.MetricsInterval) * time.Second
 	ticker := time.NewTicker(interval)
