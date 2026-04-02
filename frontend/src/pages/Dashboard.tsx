@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
-  Boxes
+  Boxes, Search, X
 } from 'lucide-react'
 import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import { useUIStore } from '../store/uiStore'
@@ -181,6 +181,7 @@ export function Dashboard() {
   const [servers, setServers] = useState<ServerData[]>([])
   const [metrics, setMetrics] = useState<Record<number, MetricData>>({})
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
 
   async function loadData() {
     setLoading(true)
@@ -244,20 +245,31 @@ export function Dashboard() {
     return () => ws.close();
   }, []);
 
+  const filteredServers = useMemo(() => {
+    if (!searchQuery) return servers;
+    const q = searchQuery.toLowerCase();
+    return servers.filter(s => 
+      s.name.toLowerCase().includes(q) || 
+      s.host.toLowerCase().includes(q) || 
+      (s.tags && s.tags.toLowerCase().includes(q)) ||
+      (s.os && s.os.toLowerCase().includes(q))
+    );
+  }, [servers, searchQuery]);
+
   const { total, k8sServers, online, offline, avgCpu } = useMemo(() => {
-    const tot = servers.length;
-    const k8s = servers.filter(s => s.is_k8s).length;
-    const on = servers.filter(s => s.status === 'online').length;
-    const off = servers.filter(s => s.status === 'offline').length;
-    const vals = Object.values(metrics);
+    const tot = filteredServers.length;
+    const k8s = filteredServers.filter(s => s.is_k8s).length;
+    const on = filteredServers.filter(s => s.status === 'online').length;
+    const off = filteredServers.filter(s => s.status === 'offline').length;
+    const vals = filteredServers.map(s => metrics[s.id]).filter(Boolean);
     const cpu = vals.length > 0
-      ? (vals.reduce((a, m) => a + m.cpu_percent, 0) / vals.length).toFixed(1) + '%'
+      ? (vals.reduce((a, m) => a + m!.cpu_percent, 0) / vals.length).toFixed(1) + '%'
       : '—';
     return { total: tot, k8sServers: k8s, online: on, offline: off, avgCpu: cpu };
-  }, [servers, metrics]);
+  }, [filteredServers, metrics]);
 
   const analyticsChartData = useMemo(() => {
-    return servers.map(s => {
+    return filteredServers.map(s => {
       const m = metrics[s.id]
       return {
         name: s.name,
@@ -266,16 +278,51 @@ export function Dashboard() {
         Disk: m ? parseFloat(m.disk_percent.toFixed(1)) : 0,
       }
     })
-  }, [servers, metrics])
+  }, [filteredServers, metrics])
+
+  const [currentTime, setCurrentTime] = useState(new Date())
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Command Center</h1>
-          <p className="page-subtitle">Infrastructure Overview — {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">
+            Infrastructure Overview — {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} — {currentTime.toLocaleTimeString('en-US')}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ position: 'relative', width: 280 }}>
+            <Search 
+              size={14} 
+              color="var(--text-muted)" 
+              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
+            />
+            <input
+              type="text"
+              placeholder="Search servers..."
+              className="input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: 38, height: 42, background: 'var(--bg-card)' }}
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                style={{ 
+                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center'
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <button className="btn btn-secondary" onClick={loadData} disabled={loading} style={{ height: 42, padding: '0 20px' }}>
             <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
             Refresh
@@ -336,9 +383,32 @@ export function Dashboard() {
         </div>
       ) : (
         <div className="grid-cards">
-          {servers.map((s) => (
-            <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
-          ))}
+          {filteredServers.length > 0 ? (
+            filteredServers.map((s) => (
+              <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
+            ))
+          ) : (
+            <div className="empty-state fade-up" style={{ gridColumn: '1 / -1', padding: '80px 0' }}>
+              <div style={{ 
+                width: 64, height: 64, borderRadius: 20, background: 'rgba(245, 158, 11, 0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+                border: '1px solid rgba(245, 158, 11, 0.2)'
+              }}>
+                <Search size={24} color="var(--warning)" />
+              </div>
+              <h3 style={{ fontWeight: 800, fontSize: 18, color: 'var(--text-primary)' }}>No matching servers</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 8, maxWidth: 300 }}>
+                We couldn't find any servers matching "<strong>{searchQuery}</strong>". Try a different keyword or tag.
+              </p>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setSearchQuery('')}
+                style={{ marginTop: 24 }}
+              >
+                Clear Search
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
