@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/models"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -322,7 +323,7 @@ The user will see an "▶ Execute" button. After they click it, the output will 
 
 		// LIVE KUBERNETES CONTEXT (if cluster)
 		if server.KubeConfig != "" {
-			if clientset, err := GetK8sClient(server.KubeConfig); err == nil {
+			if clientset, err := k8s.GetK8sClient(server.KubeConfig); err == nil {
 				k8sCtx := context.TODO()
 				ctx += "--- LIVE KUBERNETES PULSE ---\n"
 				

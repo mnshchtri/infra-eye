@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	gossh "golang.org/x/crypto/ssh"
@@ -137,34 +138,6 @@ func invalidateKubeConfigCache(serverID uint) {
 	kubeconfigWrittenMu.Unlock()
 }
 
-// GetK8sClient returns a typed Kubernetes Clientset using the raw kubeconfig.
-func GetK8sClient(kubeconfig string) (*kubernetes.Clientset, error) {
-	if kubeconfig == "" {
-		return nil, fmt.Errorf("no kubeconfig provided on server")
-	}
-
-	apiConfig, err := clientcmd.Load([]byte(kubeconfig))
-	if err != nil {
-		return nil, fmt.Errorf("failed to load kubeconfig YAML: %v", err)
-	}
-
-	// Auto-heal missing or invalid current-context by grabbing the first available
-	if _, ok := apiConfig.Contexts[apiConfig.CurrentContext]; !ok && len(apiConfig.Contexts) > 0 {
-		for k := range apiConfig.Contexts {
-			apiConfig.CurrentContext = k
-			break
-		}
-	}
-
-	clientConfig := clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
-	config, err := clientConfig.ClientConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate client config: %v", err)
-	}
-	config.QPS = 50
-	config.Burst = 100
-	return kubernetes.NewForConfig(config)
-}
 
 // sudoPrefix returns the sudo prefix for kubectl commands when the SSH user is not root.
 // If the server has a password, it uses `echo 'pass' | sudo -S` for non-interactive sudo.
@@ -223,7 +196,7 @@ func RunKubectl(c *gin.Context) {
 	if server.Host == "" {
 		// If it's a direct connection cluster, we can still handle some common read-only kubectl commands natively
 		if req.Command == "get namespaces -o json" {
-			clientset, err := GetK8sClient(server.KubeConfig)
+			clientset, err := k8s.GetK8sClient(server.KubeConfig)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("native k8s client error: %v", err)})
 				return
@@ -422,7 +395,7 @@ func RunPodTerminal(c *gin.Context) {
 
 	if mode == "logs" {
 		log.Printf("📝 Starting native logs for %s/%s", ns, pod)
-		clientset, err := GetK8sClient(server.KubeConfig)
+		clientset, err := k8s.GetK8sClient(server.KubeConfig)
 		if err != nil {
 			log.Printf("K8s client err: %v", err)
 			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("K8s client error: %v\r\n", err)))
@@ -557,7 +530,7 @@ func TestK8sConnection(c *gin.Context) {
 	
 	// Case 1: Direct Connection (No SSH Proxy)
 	if req.Host == "" {
-		clientset, err := GetK8sClient(req.KubeConfig)
+		clientset, err := k8s.GetK8sClient(req.KubeConfig)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Invalid KubeConfig: %v", err)})
 			return
@@ -720,7 +693,7 @@ func WatchKubectl(c *gin.Context) {
 	}
 	defer wsConn.Close()
 
-	clientset, err := GetK8sClient(server.KubeConfig)
+	clientset, err := k8s.GetK8sClient(server.KubeConfig)
 	if err != nil {
 		log.Printf("❌ WatchKubectl Auth Error: %v", err)
 		msg := fmt.Sprintf(`{"error":"KubeConfig valid fail", "details":"Parse Error: %s"}`, jsonEscape(err.Error()))

@@ -11,6 +11,7 @@ interface ServerData {
   ssh_user: string; auth_type: string; tags: string;
   description: string; status: string; ssh_key_path: string;
   os: string;
+  kube_config?: string;
 }
 
 const emptyForm = {
@@ -50,9 +51,8 @@ export function Servers() {
     setLoading(true)
     try {
       const res = await api.get('/api/servers')
-      // Only show servers with SSH host proxy configurations,
-      // hide direct-API K8s clusters stringently out of Servers admin UI.
-      setServers(res.data.filter((s: ServerData) => s.host))
+      // Show all servers, including direct-API K8s clusters.
+      setServers(res.data)
     } finally {
       setLoading(false)
     }
@@ -353,7 +353,7 @@ export function Servers() {
                   </td>
                   <td style={{ padding: '18px 24px' }}>
                     <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>
-                      {s.ssh_user}@{s.host}:{s.port}
+                      {s.host ? `${s.ssh_user}@${s.host}:${s.port}` : <span style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>Direct K8s API</span>}
                     </span>
                   </td>
                   <td style={{ padding: '18px 24px' }}>

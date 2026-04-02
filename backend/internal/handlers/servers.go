@@ -123,6 +123,7 @@ func UpdateServer(c *gin.Context) {
 	sshpool.Remove(uint(id))
 
 	db.DB.Save(&server)
+	go metrics.StartCollector(server)
 
 	// Sync MCP if K8s related
 	if server.IsK8s {

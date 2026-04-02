@@ -12,10 +12,12 @@ import (
 
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/logger"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	"github.com/infra-eye/backend/internal/ws"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // per-server goroutine management
@@ -162,6 +164,12 @@ func collect(server models.Server) {
 		return
 	}
 
+	// Handle Direct API Clusters (No SSH Proxy)
+	if server.Host == "" && server.IsK8s {
+		collectK8s(server)
+		return
+	}
+
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		log.Printf("Metrics SSH error server %d: %v", server.ID, err)
@@ -257,6 +265,88 @@ func collect(server models.Server) {
 		NetTxMBps:   netTxMBps,
 		LoadAvg1:    raw.Load,
 		Uptime:      raw.Uptime,
+	}
+
+	db.DB.Create(&m)
+	updateStatus(server.ID, "online")
+
+	// Broadcast via WebSocket
+	room := fmt.Sprintf("server:%d:metrics", server.ID)
+	ws.GlobalHub.Broadcast(room, "metric", m)
+}
+
+func collectK8s(server models.Server) {
+	clientset, err := k8s.GetK8sClient(server.KubeConfig)
+	if err != nil {
+		log.Printf("📊 K8s Metrics Auth Error server %d: %v", server.ID, err)
+		updateStatus(server.ID, "offline")
+		return
+	}
+
+	ctx := context.TODO()
+	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		log.Printf("📊 K8s Metrics Fetch Error server %d: %v", server.ID, err)
+		updateStatus(server.ID, "offline")
+		return
+	}
+
+	var cpuTotal, cpuAllocatable int64 // millicores
+	var memTotal, memAllocatable int64 // bytes
+	var diskTotal, diskAllocatable int64 // bytes (ephemeral storage)
+	var nodeCount, readyNodes int
+
+	for _, n := range nodes.Items {
+		nodeCount++
+		cpuTotal += n.Status.Capacity.Cpu().MilliValue()
+		cpuAllocatable += n.Status.Allocatable.Cpu().MilliValue()
+		memTotal += n.Status.Capacity.Memory().Value()
+		memAllocatable += n.Status.Allocatable.Memory().Value()
+		diskTotal += n.Status.Capacity.StorageEphemeral().Value()
+		diskAllocatable += n.Status.Allocatable.StorageEphemeral().Value()
+
+		for _, c := range n.Status.Conditions {
+			if c.Type == "Ready" && c.Status == "True" {
+				readyNodes++
+				break
+			}
+		}
+	}
+
+	// Detect OS if unknown or "unknown"
+	if (server.OS == "" || server.OS == "unknown") && len(nodes.Items) > 0 {
+		osType := strings.ToLower(nodes.Items[0].Status.NodeInfo.OperatingSystem)
+		if osType != "" {
+			db.DB.Model(&models.Server{}).Where("id = ?", server.ID).Update("os", osType)
+		}
+	}
+
+	// Calculate "Usage" percentages for the dashboard.
+	cpuPct := 0.0
+	if cpuTotal > 0 {
+		cpuPct = 100.0 - (float64(cpuAllocatable) / float64(cpuTotal) * 100.0)
+	}
+	memPct := 0.0
+	if memTotal > 0 {
+		memPct = 100.0 - (float64(memAllocatable) / float64(memTotal) * 100.0)
+	}
+	diskPct := 0.0
+	if diskTotal > 0 {
+		diskPct = 100.0 - (float64(diskAllocatable) / float64(diskTotal) * 100.0)
+	}
+
+	m := models.Metric{
+		ServerID:    server.ID,
+		Timestamp:   time.Now(),
+		CPUPercent:  cpuPct,
+		MemPercent:  memPct,
+		MemUsedMB:   float64(memTotal-memAllocatable) / (1024 * 1024),
+		MemTotalMB:  float64(memTotal) / (1024 * 1024),
+		DiskPercent: diskPct,
+		DiskUsedGB:  float64(diskTotal-diskAllocatable) / (1024 * 1024 * 1024),
+		DiskTotalGB: float64(diskTotal) / (1024 * 1024 * 1024),
+		LoadAvg1:    float64(readyNodes),
+		Uptime:      int64(readyNodes),
 	}
 
 	db.DB.Create(&m)
