@@ -140,6 +140,24 @@ func invalidateKubeConfigCache(serverID uint) {
 	kubeconfigWrittenMu.Unlock()
 }
 
+// getKubectlPath ensures we find the kubectl binary, even if /opt/homebrew/bin is missing from the env.
+func getKubectlPath() string {
+	path, err := exec.LookPath("kubectl")
+	if err == nil {
+		return path
+	}
+	// Fallback for M1/M2 Mac Homebrew locations
+	fallbacks := []string{"/opt/homebrew/bin/kubectl", "/usr/local/bin/kubectl", "/usr/bin/kubectl"}
+	for _, f := range fallbacks {
+		if _, err := os.Stat(f); err == nil {
+			log.Printf("🛠️ Found kubectl at fallback path: %s", f)
+			return f
+		}
+	}
+	log.Printf("❌ kubectl not found anywhere (PATH or fallbacks!)")
+	return "kubectl" // Hope for the best in PATH
+}
+
 // ensureLocalKubeConfig writes the kubeconfig to the local filesystem for direct-API clusters.
 // This allows running kubectl commands locally on the backend server.
 func ensureLocalKubeConfig(server *models.Server) (string, error) {
@@ -236,8 +254,9 @@ func RunKubectl(c *gin.Context) {
 		}
 
 		// Generic kubectl execution
+		bin := getKubectlPath()
 		args := append([]string{"--kubeconfig", path}, strings.Fields(req.Command)...)
-		cmd := exec.Command("kubectl", args...)
+		cmd := exec.Command(bin, args...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -682,7 +701,8 @@ func ApplyKubectl(c *gin.Context) {
 			return
 		}
 
-		cmd := exec.Command("kubectl", "--kubeconfig", path, "apply", "-f", "-")
+		bin := getKubectlPath()
+		cmd := exec.Command(bin, "--kubeconfig", path, "apply", "-f", "-")
 		cmd.Stdin = strings.NewReader(req.YAML)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
