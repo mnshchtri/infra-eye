@@ -5,6 +5,10 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
+	"context"
 )
 
 // GetK8sClient returns a typed Kubernetes Clientset using the raw kubeconfig.
@@ -34,4 +38,29 @@ func GetK8sClient(kubeconfig string) (*kubernetes.Clientset, error) {
 	config.QPS = 50
 	config.Burst = 100
 	return kubernetes.NewForConfig(config)
+}
+
+// GetNodeMetrics returns node metrics if metrics-server is installed
+func GetNodeMetrics(kubeconfig string) (*metricsv1beta1.NodeMetricsList, error) {
+	if kubeconfig == "" {
+		return nil, fmt.Errorf("no kubeconfig provided")
+	}
+	
+	apiConfig, err := clientcmd.Load([]byte(kubeconfig))
+	if err != nil {
+		return nil, err
+	}
+	
+	clientConfig := clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
+	config, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	mClient, err := metrics.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return mClient.MetricsV1beta1().NodeMetrics().List(context.Background(), metav1.ListOptions{})
 }

@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/ws"
 )
 
@@ -23,5 +25,22 @@ func MetricsWSHandler(conn *websocket.Conn, serverID string) {
 	room := fmt.Sprintf("server:%s:metrics", serverID)
 	client := ws.GlobalHub.Register(conn, room)
 	// Read until client disconnects (to detect disconnection)
+	client.ReadPump(ws.GlobalHub, nil)
+}
+
+// AllMetricsWSHandler subscribes a WS connection to all available server metrics rooms
+func AllMetricsWSHandler(conn *websocket.Conn) {
+	var servers []models.Server
+	db.DB.Find(&servers)
+
+	// Register with a dummy room first
+	client := ws.GlobalHub.Register(conn, "all_metrics")
+
+	for _, s := range servers {
+		room := fmt.Sprintf("server:%d:metrics", s.ID)
+		ws.GlobalHub.JoinRoom(client, room)
+	}
+
+	// Read until client disconnects
 	client.ReadPump(ws.GlobalHub, nil)
 }

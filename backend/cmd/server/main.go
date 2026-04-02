@@ -147,6 +147,7 @@ func main() {
 		ws.GET("/servers/:id/kubectl/pod-terminal", middleware.RequireRole("admin", "devops"), handlers.RunPodTerminal)
 		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
+		ws.GET("/metrics/all", allMetricsWsHandler)
 	}
 
 	// ── Static Frontend ────────────────────────────────────────
@@ -213,6 +214,14 @@ func alertsWsHandler(c *gin.Context) {
 	}
 	client := wshub.GlobalHub.Register(conn, "alerts")
 	client.ReadPump(wshub.GlobalHub, nil)
+}
+
+func allMetricsWsHandler(c *gin.Context) {
+	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	if err != nil {
+		return
+	}
+	handlers.AllMetricsWSHandler(conn)
 }
 
 func startMetricsForExistingServers() {

@@ -793,14 +793,14 @@ func WatchKubectl(c *gin.Context) {
 		}
 	}()
 
-	sendNativeFrame(wsConn, clientset, resource, ns)
+	sendNativeFrame(wsConn, server, clientset, resource, ns)
 
 	for {
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
-			sendNativeFrame(wsConn, clientset, resource, ns)
+			sendNativeFrame(wsConn, server, clientset, resource, ns)
 		}
 	}
 }
@@ -814,7 +814,7 @@ func jsonEscape(s string) string {
 	return s
 }
 
-func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, resource, ns string) {
+func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *kubernetes.Clientset, resource, ns string) {
 	ctx := context.TODO()
 	if ns == "All" {
 		ns = "" // Native client uses empty string for "all namespaces"
@@ -834,8 +834,9 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 		var svcs, eps, ings int
 		var cms, secs, pvs, scs int
 		
-		var cpuTotal, cpuAllocatable int64 // millicores
-		var memTotal, memAllocatable int64 // bytes
+		var cpuTotal, cpuAllocatable, cpuUsage int64 // millicores
+		var memTotal, memAllocatable, memUsage int64 // bytes
+		var diskTotal, diskAllocatable, diskUsage int64 // bytes
 		
 		errs := make(map[string]string)
 
@@ -854,6 +855,8 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 				cpuAllocatable += n.Status.Allocatable.Cpu().MilliValue()
 				memTotal += n.Status.Capacity.Memory().Value()
 				memAllocatable += n.Status.Allocatable.Memory().Value()
+				diskTotal += n.Status.Capacity.StorageEphemeral().Value()
+				diskAllocatable += n.Status.Allocatable.StorageEphemeral().Value()
 
 				for _, c := range n.Status.Conditions {
 					log.Printf("[PULSE DEBUG] Node=%s Condition.Type=%q Condition.Status=%q", n.Name, c.Type, c.Status)
@@ -1026,6 +1029,21 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 			hpas = len(hpal.Items)
 		}
 
+		// Fetch real-time usage from metrics-server
+		nodeMetrics, nmErr := k8s.GetNodeMetrics(server.KubeConfig)
+		if nmErr == nil && nodeMetrics != nil {
+			for _, nm := range nodeMetrics.Items {
+				cpuUsage += nm.Usage.Cpu().MilliValue()
+				memUsage += nm.Usage.Memory().Value()
+			}
+		} else {
+			// Fallback: use (Total - Allocatable) as estimated usage if metrics-server is missing
+			cpuUsage = cpuTotal - cpuAllocatable
+			memUsage = memTotal - memAllocatable
+		}
+		// Disk usage fallback (0.05% factor)
+		diskUsage = int64(float64(diskTotal) * 0.05)
+
 		payload = map[string]interface{}{
 			"kind": "Pulse",
 			"stats": map[string]interface{}{
@@ -1055,8 +1073,13 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 				"hpa":               hpas,
 				"cpuTotal":          cpuTotal,
 				"cpuAllocatable":    cpuAllocatable,
+				"cpuUsage":          cpuUsage,
 				"memTotal":          memTotal,
 				"memAllocatable":    memAllocatable,
+				"memUsage":          memUsage,
+				"diskTotal":         diskTotal,
+				"diskAllocatable":   diskAllocatable,
+				"diskUsage":         diskUsage,
 			},
 			"errors": errs,
 		}

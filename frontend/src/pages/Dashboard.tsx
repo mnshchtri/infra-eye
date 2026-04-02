@@ -10,7 +10,7 @@ import { useUIStore } from '../store/uiStore'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
-import { api } from '../api/client'
+import { api, buildWsUrl } from '../api/client'
 
 interface ServerData {
   id: number; name: string; host: string; status: string;
@@ -216,6 +216,32 @@ export function Dashboard() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const ws = new WebSocket(buildWsUrl('/ws/metrics/all'));
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'metric') {
+          const payload = msg.payload;
+          setMetrics(prev => ({ 
+            ...prev, 
+            [payload.server_id]: {
+              cpu_percent: payload.cpu_percent,
+              mem_percent: payload.mem_percent,
+              disk_percent: payload.disk_percent,
+              net_rx_mbps: payload.net_rx_mbps,
+              net_tx_mbps: payload.net_tx_mbps,
+              load_avg_1: payload.load_avg_1,
+            }
+          }))
+        }
+      } catch (err) {
+        console.error('WS metrics parse error', err);
+      }
+    };
+    return () => ws.close();
   }, []);
 
   const { total, k8sServers, online, offline, avgCpu } = useMemo(() => {

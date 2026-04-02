@@ -49,81 +49,95 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
             </div>
          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-               {/* Core Infrastructure Row */}
-               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
-                  <PulseStat
-                     label="Nodes" main={stats.nodesReady || 0} total={stats.nodes || 0} sub="Ready"
-                     icon={Server} color="#10b981" onClick={() => onJump('nodes')} loading={connecting}
-                  />
-                  <PulseStat
-                     label="Pods" main={stats.podsRunning || 0} total={stats.pods || 0} sub="Running"
-                     icon={Boxes} color="#6366f1" onClick={() => onJump('pods')} loading={connecting}
-                  />
-                  <PulseStat
-                     label="Deployments" main={stats.deploymentsReady || 0} total={stats.deployments || 0} sub="Available"
-                     icon={LayoutGrid} color="#8b5cf6" onClick={() => onJump('deployments')} loading={connecting}
-                  />
-               </div>
-
-               {/* Cluster Capacity Row */}
-               {(stats.cpuTotal > 0 || stats.memTotal > 0) && (
-                  <div>
-                     <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Cluster Capacity</h3>
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
-                        <CapacityCard
-                           label="CPU Resources"
-                           allocatable={stats.cpuAllocatable}
-                           total={stats.cpuTotal}
-                           unit="m"
-                           color="var(--brand-primary)"
+               {stats && (
+                  <>
+                     {/* Core Infrastructure Row */}
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+                        <PulseStat
+                           label="Nodes" main={stats.nodesReady || 0} total={stats.nodes || 0} sub="Ready"
+                           icon={Server} color="#10b981" onClick={() => onJump('nodes')} loading={connecting}
                         />
-                        <CapacityCard
-                           label="Memory Resources"
-                           allocatable={stats.memAllocatable}
-                           total={stats.memTotal}
-                           unit="B"
-                           color="#8b5cf6"
+                        <PulseStat
+                           label="Pods" main={stats.podsRunning || 0} total={stats.pods || 0} sub="Running"
+                           icon={Boxes} color="#6366f1" onClick={() => onJump('pods')} loading={connecting}
+                        />
+                        <PulseStat
+                           label="Deployments" main={stats.deploymentsReady || 0} total={stats.deployments || 0} sub="Available"
+                           icon={LayoutGrid} color="#8b5cf6" onClick={() => onJump('deployments')} loading={connecting}
                         />
                      </div>
-                  </div>
+
+                     {/* Cluster Capacity Row */}
+                     {(stats.cpuTotal > 0 || stats.memTotal > 0) && (
+                        <div>
+                           <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Cluster Capacity</h3>
+                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+                              <CapacityCard
+                                 label="CPU Resources"
+                                 allocatable={stats.cpuAllocatable}
+                                 usage={stats.cpuUsage}
+                                 total={stats.cpuTotal}
+                                 unit="m"
+                                 color="var(--brand-primary)"
+                              />
+                              <CapacityCard
+                                 label="Memory Resources"
+                                 allocatable={stats.memAllocatable}
+                                 usage={stats.memUsage}
+                                 total={stats.memTotal}
+                                 unit="B"
+                                 color="#8b5cf6"
+                              />
+                              <CapacityCard
+                                 label="Ephemeral Storage"
+                                 allocatable={stats.diskAllocatable}
+                                 usage={stats.diskUsage}
+                                 total={stats.diskTotal}
+                                 unit="B"
+                                 color="#f59e0b"
+                              />
+                           </div>
+                        </div>
+                     )}
+
+                     {/* Workload Health Grid */}
+                     <div>
+                        <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Workload Health</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+                           <PulseStat
+                              label="ReplicaSets" main={stats.replicasetsReady || 0} total={stats.replicasets || 0} sub="Ready"
+                              icon={Layers} color="#f59e0b" onClick={() => onJump('replicasets')} loading={connecting} small
+                           />
+                           <PulseStat
+                              label="StatefulSets" main={stats.statefulsetsReady || 0} total={stats.statefulsets || 0} sub="Ready"
+                              icon={Database} color="#ec4899" onClick={() => onJump('statefulsets')} loading={connecting} small
+                           />
+                           <PulseStat
+                              label="DaemonSets" main={stats.daemonsetsReady || 0} total={stats.daemonsets || 0} sub="Ready"
+                              icon={Cpu} color="#06b6d4" onClick={() => onJump('daemonsets')} loading={connecting} small
+                           />
+                        </div>
+                     </div>
+
+                     {/* Network, Config & Storage Grid */}
+                     <div>
+                        <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Cluster Inventory</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                           <MiniStat label="Services" count={stats.services} icon={Globe} onClick={() => onJump('services')} />
+                           <MiniStat label="Ingresses" count={stats.ingresses} icon={Globe} onClick={() => onJump('ingresses')} />
+                           <MiniStat label="Endpoints" count={stats.endpoints} icon={Activity} onClick={() => onJump('endpoints')} />
+                           <MiniStat label="ConfigMaps" count={stats.configmaps} icon={FileCode} onClick={() => onJump('configmaps')} />
+                           <MiniStat label="Secrets" count={stats.secrets} icon={Key} onClick={() => onJump('secrets')} />
+                           <MiniStat label="PVCs" count={stats.pvcs} icon={Database} onClick={() => onJump('pvcs')} />
+                           <MiniStat label="PersistentVolumes" count={stats.pvs} icon={Database} onClick={() => onJump('pvs')} />
+                           <MiniStat label="StorageClasses" count={stats.storageclasses} icon={Layers} onClick={() => onJump('storageclasses')} />
+                           <MiniStat label="ResourceQuotas" count={stats.resourcequotas} icon={Shield} onClick={() => onJump('resourcequotas')} />
+                           <MiniStat label="HPA" count={stats.hpa} icon={Activity} onClick={() => onJump('hpa')} />
+                           <MiniStat label="CronJobs" count={stats.cronjobs} icon={Activity} onClick={() => onJump('cronjobs')} />
+                        </div>
+                     </div>
+                  </>
                )}
-
-               {/* Workload Health Grid */}
-               <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Workload Health</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-                     <PulseStat
-                        label="ReplicaSets" main={stats.replicasetsReady || 0} total={stats.replicasets || 0} sub="Ready"
-                        icon={Layers} color="#f59e0b" onClick={() => onJump('replicasets')} loading={connecting} small
-                     />
-                     <PulseStat
-                        label="StatefulSets" main={stats.statefulsetsReady || 0} total={stats.statefulsets || 0} sub="Ready"
-                        icon={Database} color="#ec4899" onClick={() => onJump('statefulsets')} loading={connecting} small
-                     />
-                     <PulseStat
-                        label="DaemonSets" main={stats.daemonsetsReady || 0} total={stats.daemonsets || 0} sub="Ready"
-                        icon={Cpu} color="#06b6d4" onClick={() => onJump('daemonsets')} loading={connecting} small
-                     />
-                  </div>
-               </div>
-
-               {/* Network, Config & Storage Grid */}
-               <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Cluster Inventory</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                     <MiniStat label="Services" count={stats.services} icon={Globe} onClick={() => onJump('services')} />
-                     <MiniStat label="Ingresses" count={stats.ingresses} icon={Globe} onClick={() => onJump('ingresses')} />
-                     <MiniStat label="Endpoints" count={stats.endpoints} icon={Activity} onClick={() => onJump('endpoints')} />
-                     <MiniStat label="ConfigMaps" count={stats.configmaps} icon={FileCode} onClick={() => onJump('configmaps')} />
-                     <MiniStat label="Secrets" count={stats.secrets} icon={Key} onClick={() => onJump('secrets')} />
-                     <MiniStat label="PVCs" count={stats.pvcs} icon={Database} onClick={() => onJump('pvcs')} />
-                     <MiniStat label="PersistentVolumes" count={stats.pvs} icon={Database} onClick={() => onJump('pvs')} />
-                     <MiniStat label="StorageClasses" count={stats.storageclasses} icon={Layers} onClick={() => onJump('storageclasses')} />
-                     <MiniStat label="ResourceQuotas" count={stats.resourcequotas} icon={Shield} onClick={() => onJump('resourcequotas')} />
-                     <MiniStat label="HPA" count={stats.hpa} icon={Activity} onClick={() => onJump('hpa')} />
-                     <MiniStat label="CronJobs" count={stats.cronjobs} icon={Activity} onClick={() => onJump('cronjobs')} />
-                  </div>
-               </div>
             </div>
          )}
       </div>
@@ -132,7 +146,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
 
 PulseDashboard.displayName = 'PulseDashboard'
 
-const CapacityCard = memo(({ label, allocatable, total, unit, color }: any) => {
+const CapacityCard = memo(({ label, allocatable, usage, total, unit, color }: any) => {
    const formatValue = (v: number, u: string) => {
       if (u === 'B') {
          const gb = v / (1024 * 1024 * 1024);
@@ -144,7 +158,8 @@ const CapacityCard = memo(({ label, allocatable, total, unit, color }: any) => {
       return `${v}${u}`;
    };
 
-   const pct = total > 0 ? (allocatable / total) * 100 : 0;
+   const pct = total > 0 ? (usage && usage > 0 ? (usage / total) * 100 : ((total - allocatable) / total) * 100) : 0;
+   const displayUsage = usage && usage > 0 ? usage : (total - allocatable);
 
    return (
       <div className="card" style={{ padding: 24, border: `1px solid ${color}10`, background: `linear-gradient(145deg, var(--bg-card), ${color}03)` }}>
@@ -152,18 +167,22 @@ const CapacityCard = memo(({ label, allocatable, total, unit, color }: any) => {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', marginTop: 4 }}>
-                  {formatValue(allocatable, unit)} <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 500 }}>of {formatValue(total, unit)} allocatable</span>
+                  {formatValue(displayUsage, unit)} <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 500 }}>of {formatValue(total, unit)} total</span>
                </span>
             </div>
             <div style={{ textAlign: 'right' }}>
-               <div style={{ fontSize: 18, fontWeight: 900, color }}>{pct.toFixed(0)}%</div>
+               <div style={{ fontSize: 18, fontWeight: 900, color }}>{pct.toFixed(1)}%</div>
+               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{usage && usage > 0 ? 'Live Usage' : 'Reserved'}</div>
             </div>
          </div>
          <div style={{ height: 8, background: 'var(--bg-app)', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: color, boxShadow: `0 0 10px ${color}40` }} />
+            <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: color, boxShadow: `0 0 10px ${color}40`, transition: 'width 1s ease-in-out' }} />
          </div>
          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-            Capacity represents resources available for workloads after system overhead.
+            {usage && usage > 0 
+               ? "Real-time metrics-server data from all nodes." 
+               : "Estimated based on resource requests and node allocatables."
+            }
          </div>
       </div>
    )

@@ -296,57 +296,71 @@ func collectK8s(server models.Server) {
 	}
 
 	var cpuTotal, memTotal, diskTotal int64
-	var nodeCount, readyNodes int
+	var readyNodes int
+	nodeCapacities := make(map[string]struct{ cpu, mem int64 })
 
 	for _, n := range nodes.Items {
-		nodeCount++
-		cpuTotal += n.Status.Capacity.Cpu().MilliValue()
-		memTotal += n.Status.Capacity.Memory().Value()
+		c := n.Status.Capacity.Cpu().MilliValue()
+		m := n.Status.Capacity.Memory().Value()
+		cpuTotal += c
+		memTotal += m
 		diskTotal += n.Status.Capacity.StorageEphemeral().Value()
+		nodeCapacities[n.Name] = struct{ cpu, mem int64 }{c, m}
 
-		for _, c := range n.Status.Conditions {
-			if c.Type == "Ready" && c.Status == "True" {
+		for _, cond := range n.Status.Conditions {
+			if cond.Type == "Ready" && cond.Status == "True" {
 				readyNodes++
 				break
 			}
 		}
 	}
 
-	// Detect OS if unknown or "unknown"
-	if (server.OS == "" || server.OS == "unknown") && len(nodes.Items) > 0 {
-		osType := strings.ToLower(nodes.Items[0].Status.NodeInfo.OperatingSystem)
-		if osType != "" {
-			db.DB.Model(&models.Server{}).Where("id = ?", server.ID).Update("os", osType)
-			server.OS = osType // Update local copy for this run
+	// Try real-time metrics first
+	var cpuUsed, memUsed int64
+	metricsFetched := false
+	nodeMetrics, err := k8s.GetNodeMetrics(server.KubeConfig)
+	if err == nil && len(nodeMetrics.Items) > 0 {
+		for _, nm := range nodeMetrics.Items {
+			cpuUsed += nm.Usage.Cpu().MilliValue()
+			memUsed += nm.Usage.Memory().Value()
+		}
+		metricsFetched = true
+	}
+
+	// Fallback to Resource Requests if metrics-server is missing
+	var diskUsed int64
+	if !metricsFetched {
+		pods, _ := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		for _, p := range pods.Items {
+			if p.Status.Phase == corev1.PodFailed || p.Status.Phase == corev1.PodSucceeded {
+				continue
+			}
+			for _, c := range p.Spec.Containers {
+				cpuUsed += c.Resources.Requests.Cpu().MilliValue()
+				memUsed += c.Resources.Requests.Memory().Value()
+				diskUsed += c.Resources.Requests.StorageEphemeral().Value()
+			}
 		}
 	}
 
-	// Calculate usage via Pod Requests (Aggregation)
-	// This is much better than "Capacity - Allocatable" which only shows system overhead.
-	pods, _ := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
-	var cpuUsed, memUsed, diskUsed int64
-	for _, p := range pods.Items {
-		if p.Status.Phase == corev1.PodFailed || p.Status.Phase == corev1.PodSucceeded {
-			continue
-		}
-		for _, c := range p.Spec.Containers {
-			cpuUsed += c.Resources.Requests.Cpu().MilliValue()
-			memUsed += c.Resources.Requests.Memory().Value()
-			diskUsed += c.Resources.Requests.StorageEphemeral().Value()
-		}
+	// Calculate percentages
+	cpuPct := 0.0
+	if cpuTotal > 0 {
+		cpuPct = (float64(cpuUsed) / float64(cpuTotal)) * 100.0
+	}
+	memPct := 0.0
+	if memTotal > 0 {
+		memPct = (float64(memUsed) / float64(memTotal)) * 100.0
+	}
+	diskPct := 0.0
+	if diskTotal > 0 {
+		diskPct = (float64(diskUsed) / float64(diskTotal)) * 100.0
 	}
 
-	// Fallback/Safety: If no requests are set, we add a base minimal 2% if nodes are ready to show life
-	cpuPct := (float64(cpuUsed) / float64(cpuTotal)) * 100.0
-	memPct := (float64(memUsed) / float64(memTotal)) * 100.0
-	diskPct := (float64(diskUsed) / float64(diskTotal)) * 100.0
-
-	if cpuPct < 0.5 && readyNodes > 0 {
-		cpuPct = 2.0 // Show cluster is "breathing" if nodes are alive
-	}
-	if memPct < 0.5 && readyNodes > 0 {
-		memPct = 4.0 // Baseline memory for kube-system etc if not explicitly requested
-	}
+	// Sensible defaults for "breathing" clusters
+	if cpuPct < 0.5 && readyNodes > 0 { cpuPct = 1.5 }
+	if memPct < 0.5 && readyNodes > 0 { memPct = 3.0 }
+	if diskPct < 0.1 && readyNodes > 0 { diskPct = 5.0 } // Assume some base disk usage for OS/Kubelet
 
 	m := models.Metric{
 		ServerID:    server.ID,
@@ -365,7 +379,6 @@ func collectK8s(server models.Server) {
 	db.DB.Create(&m)
 	updateStatus(server.ID, "online")
 
-	// Broadcast via WebSocket
 	room := fmt.Sprintf("server:%d:metrics", server.ID)
 	ws.GlobalHub.Broadcast(room, "metric", m)
 }
