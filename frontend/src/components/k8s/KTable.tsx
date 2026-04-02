@@ -6,6 +6,7 @@ interface KTableProps {
   actions?: (item: any) => React.ReactNode;
   selectedIndex: number;
   loading: boolean;
+  onNameClick?: (item: any) => void;
 }
 
 const getVal = (item: any, col: string) => {
@@ -59,11 +60,15 @@ const getVal = (item: any, col: string) => {
   }
 }
 
-const KTableRow = memo(({ item, columns, isSelected, actions }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode }) => {
+const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode; onNameClick?: (item: any) => void }) => {
   return (
     <tr className={isSelected ? 'k-row-selected' : ''}>
       {columns.map((c: string) => (
-        <td key={c} style={c === 'Name' ? { fontWeight: 700, color: 'var(--brand-primary)' } : {}}>
+        <td 
+          key={c} 
+          style={c === 'Name' ? { fontWeight: 700, color: 'var(--brand-primary)', cursor: onNameClick ? 'pointer' : 'default' } : {}}
+          onClick={() => { if (c === 'Name' && onNameClick) onNameClick(item) }}
+        >
           {getVal(item, c)}
         </td>
       ))}
@@ -80,7 +85,7 @@ const KTableRow = memo(({ item, columns, isSelected, actions }: { item: any; col
 
 KTableRow.displayName = 'KTableRow';
 
-export const KTable = memo(({ columns, data, actions, selectedIndex, loading }: KTableProps) => {
+export const KTable = memo(({ columns, data, actions, selectedIndex, loading, onNameClick }: KTableProps) => {
   const colCount = columns.length + (actions ? 1 : 0)
 
   // Dynamic width helper
@@ -145,6 +150,7 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading }: 
                   columns={columns} 
                   isSelected={selectedIndex === i} 
                   actions={actions} 
+                  onNameClick={onNameClick}
                 />
              ))}
           </tbody>

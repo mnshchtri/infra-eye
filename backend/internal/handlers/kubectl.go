@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -138,6 +140,25 @@ func invalidateKubeConfigCache(serverID uint) {
 	kubeconfigWrittenMu.Unlock()
 }
 
+// ensureLocalKubeConfig writes the kubeconfig to the local filesystem for direct-API clusters.
+// This allows running kubectl commands locally on the backend server.
+func ensureLocalKubeConfig(server *models.Server) (string, error) {
+	if server.KubeConfig == "" {
+		return "", fmt.Errorf("kubeconfig is empty")
+	}
+
+	dir := "/tmp/infraeye"
+	os.MkdirAll(dir, 0700)
+	path := fmt.Sprintf("%s/local_config_%d", dir, server.ID)
+
+	err := os.WriteFile(path, []byte(server.KubeConfig), 0600)
+	if err != nil {
+		return "", fmt.Errorf("write local kubeconfig: %v", err)
+	}
+
+	return path, nil
+}
+
 
 // sudoPrefix returns the sudo prefix for kubectl commands when the SSH user is not root.
 // If the server has a password, it uses `echo 'pass' | sudo -S` for non-interactive sudo.
@@ -194,24 +215,41 @@ func RunKubectl(c *gin.Context) {
 	}
 
 	if server.Host == "" {
-		// If it's a direct connection cluster, we can still handle some common read-only kubectl commands natively
-		if req.Command == "get namespaces -o json" {
-			clientset, err := k8s.GetK8sClient(server.KubeConfig)
-			if err != nil {
-				c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("native k8s client error: %v", err)})
-				return
-			}
-			nsList, err := clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
-			if err != nil {
-				c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("native namespaces fetch failed: %v", err)})
-				return
-			}
-			data, _ := json.Marshal(nsList)
-			c.JSON(http.StatusOK, gin.H{"success": true, "output": string(data)})
+		// Use local kubectl for direct API clusters
+		path, err := ensureLocalKubeConfig(&server)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("local kubeconfig setup failed: %v", err)})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"success": false, "error": "This cluster is connected via direct API (No SSH Proxy). Shell-based kubectl commands are disabled. Please use the native Pulse Dashboard or AI Assistant for cluster operations."})
+		// Optimization: handle get namespaces natively if requested often
+		if req.Command == "get namespaces -o json" {
+			clientset, err := k8s.GetK8sClient(server.KubeConfig)
+			if err == nil {
+				nsList, err := clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
+				if err == nil {
+					data, _ := json.Marshal(nsList)
+					c.JSON(http.StatusOK, gin.H{"success": true, "output": string(data)})
+					return
+				}
+			}
+		}
+
+		// Generic kubectl execution
+		args := append([]string{"--kubeconfig", path}, strings.Fields(req.Command)...)
+		cmd := exec.Command("kubectl", args...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"output":  string(out),
+				"error":   err.Error(),
+				"command": "kubectl " + strings.Join(args, " "),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"success": true, "output": string(out)})
 		return
 	}
 
@@ -637,7 +675,26 @@ func ApplyKubectl(c *gin.Context) {
 	}
 
 	if server.Host == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "error": "This cluster is connected via direct API (No SSH Proxy). YAML application via shell is disabled. Please use the native Pulse Dashboard features or AI Assistant."})
+		// Use local kubectl apply for direct API clusters
+		path, err := ensureLocalKubeConfig(&server)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("local kubeconfig setup failed: %v", err)})
+			return
+		}
+
+		cmd := exec.Command("kubectl", "--kubeconfig", path, "apply", "-f", "-")
+		cmd.Stdin = strings.NewReader(req.YAML)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"output":  string(out),
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"success": true, "output": string(out)})
 		return
 	}
 
