@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
-  ChevronLeft, Menu, Code2, Sun, Moon
+  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -56,6 +56,7 @@ export function Sidebar() {
   const navigate = useNavigate()
 
   const [servers, setServers] = useState<any[]>([])
+  const [serversExpanded, setServersExpanded] = useState(true)
   useEffect(() => {
     api.get('/api/servers').then(res => setServers(res.data)).catch(() => {})
   }, [])
@@ -128,13 +129,25 @@ export function Sidebar() {
                     <Icon size={20} strokeWidth={sidebarCollapsed ? 2 : 1.75} />
                   </div>
                   {!sidebarCollapsed && <span style={{ flex: 1 }}>{label}</span>}
-                  {!sidebarCollapsed && <ChevronRight size={13} className="sidebar-link-arrow" />}
+                 {label === 'Servers' && !sidebarCollapsed && (
+                  <div 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setServersExpanded(!serversExpanded); }} 
+                    style={{ padding: '4px', cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
+                  >
+                    {serversExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </div>
+                 )}
+                 {label !== 'Servers' && !sidebarCollapsed && <ChevronRight size={13} className="sidebar-link-arrow" />}
                 </NavLink>
                 
-                {/* Nested list for Servers */}
-                {label === 'Servers' && !sidebarCollapsed && servers.length > 0 && (
-                  <div style={{ paddingLeft: 44, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2, borderLeft: '1px solid var(--border)', margin: '4px 0 8px 18px' }}>
-                    {servers.slice(0, 8).map(s => (
+                {/* Nested list for Servers (Scrollable) */}
+                {label === 'Servers' && !sidebarCollapsed && serversExpanded && servers.length > 0 && (
+                  <div style={{ 
+                    paddingLeft: 44, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2, 
+                    borderLeft: '1px solid var(--border)', margin: '4px 0 8px 18px',
+                    maxHeight: '280px', overflowY: 'auto'
+                  }}>
+                    {servers.map(s => (
                       <NavLink 
                         key={s.id} 
                         to={`/servers/${s.id}`} 
@@ -145,7 +158,8 @@ export function Sidebar() {
                           textDecoration: 'none', 
                           padding: '6px 0',
                           fontWeight: isActive ? 700 : 500,
-                          transition: 'all 0.2s'
+                          transition: 'all 0.2s',
+                          flexShrink: 0 // Do not shrink in flex list
                         })}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -154,11 +168,6 @@ export function Sidebar() {
                         </div>
                       </NavLink>
                     ))}
-                    {servers.length > 8 && (
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 4px 4px 12px', opacity: 0.7, fontWeight: 700 }}>
-                        + {servers.length - 8} more
-                      </div>
-                    )}
                   </div>
                 )}
               </Fragment>
