@@ -237,7 +237,29 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.02em; }
 }
 .sidebar-toggle-btn:hover { background: #f1f5f9; color: var(--text-primary); }
 
-.sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.sidebar-nav { 
+  display: flex; flex-direction: column; gap: 4px; flex: 1; 
+  overflow-y: auto; 
+  margin: 0 -8px; /* Offset for better scrollbar placement */
+  padding: 0 8px;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
 .sidebar-link {
   display: flex; align-items: center; gap: 12px; padding: 12px 16px;
   border-radius: var(--radius-md); color: var(--text-secondary);
