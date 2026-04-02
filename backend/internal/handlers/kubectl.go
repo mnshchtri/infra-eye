@@ -23,11 +23,15 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	corev1 "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+	"sigs.k8s.io/yaml"
 )
 
 var (
@@ -140,22 +144,27 @@ func invalidateKubeConfigCache(serverID uint) {
 	kubeconfigWrittenMu.Unlock()
 }
 
-// getKubectlPath ensures we find the kubectl binary, even if /opt/homebrew/bin is missing from the env.
-func getKubectlPath() string {
+// getKubectlPath ensures we find the kubectl binary. Returns error if not found.
+func getKubectlPath() (string, error) {
 	path, err := exec.LookPath("kubectl")
 	if err == nil {
-		return path
+		return path, nil
 	}
-	// Fallback for M1/M2 Mac Homebrew locations
-	fallbacks := []string{"/opt/homebrew/bin/kubectl", "/usr/local/bin/kubectl", "/usr/bin/kubectl"}
+	// Fallback for M1/M2 Mac Homebrew locations and Linux snap paths
+	fallbacks := []string{
+		"/opt/homebrew/bin/kubectl",
+		"/usr/local/bin/kubectl", 
+		"/usr/bin/kubectl", 
+		"/snap/bin/kubectl",
+		"/var/lib/snapd/snap/bin/kubectl",
+	}
 	for _, f := range fallbacks {
 		if _, err := os.Stat(f); err == nil {
 			log.Printf("🛠️ Found kubectl at fallback path: %s", f)
-			return f
+			return f, nil
 		}
 	}
-	log.Printf("❌ kubectl not found anywhere (PATH or fallbacks!)")
-	return "kubectl" // Hope for the best in PATH
+	return "", fmt.Errorf("kubectl not found in PATH or standard backup locations. Please install kubectl on the backend host to manage clusters without SSH.")
 }
 
 // ensureLocalKubeConfig writes the kubeconfig to the local filesystem for direct-API clusters.
@@ -232,6 +241,9 @@ func RunKubectl(c *gin.Context) {
 		return
 	}
 
+	req.Command = strings.TrimSpace(req.Command)
+	log.Printf("🛠️ RunKubectl: serverID=%v, command=%q", id, req.Command)
+
 	if server.Host == "" {
 		// Use local kubectl for direct API clusters
 		path, err := ensureLocalKubeConfig(&server)
@@ -253,8 +265,101 @@ func RunKubectl(c *gin.Context) {
 			}
 		}
 
+		// Native YAML optimized reads for clusters without SSH
+		cmdLower := strings.ToLower(req.Command)
+		if strings.HasPrefix(cmdLower, "get ") && strings.HasSuffix(cmdLower, " -o yaml") {
+			clientset, err := k8s.GetK8sClient(server.KubeConfig)
+			if err == nil {
+				fields := strings.Fields(req.Command)
+				var kind, name, ns string
+				for i := 1; i < len(fields)-1; i++ {
+					f := strings.ToLower(fields[i])
+					if f == "-n" || f == "--namespace" {
+						if i+1 < len(fields)-1 {
+							ns = fields[i+1]
+							i++
+						}
+					} else if kind == "" {
+						kind = f
+					} else if name == "" && !strings.HasPrefix(f, "-") {
+						name = fields[i]
+					}
+				}
+
+				if kind != "" && name != "" {
+					log.Printf("🔹 Native YAML Fetch Triggered: kind=%q, name=%q, ns=%q", kind, name, ns)
+					var obj interface{}
+					var fErr error
+					ctx := context.Background()
+
+					switch kind {
+					case "pod", "pods", "po":
+						obj, fErr = clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+					case "node", "nodes", "no":
+						obj, fErr = clientset.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
+					case "deployment", "deployments", "deploy":
+						obj, fErr = clientset.AppsV1().Deployments(ns).Get(ctx, name, metav1.GetOptions{})
+					case "service", "services", "svc":
+						obj, fErr = clientset.CoreV1().Services(ns).Get(ctx, name, metav1.GetOptions{})
+					case "configmap", "configmaps", "cm":
+						obj, fErr = clientset.CoreV1().ConfigMaps(ns).Get(ctx, name, metav1.GetOptions{})
+					case "secret", "secrets":
+						obj, fErr = clientset.CoreV1().Secrets(ns).Get(ctx, name, metav1.GetOptions{})
+					case "ingress", "ingresses", "ing":
+						obj, fErr = clientset.NetworkingV1().Ingresses(ns).Get(ctx, name, metav1.GetOptions{})
+					case "pvc", "persistentvolumeclaims":
+						obj, fErr = clientset.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
+					case "pv", "persistentvolumes":
+						obj, fErr = clientset.CoreV1().PersistentVolumes().Get(ctx, name, metav1.GetOptions{})
+					case "daemonset", "daemonsets", "ds":
+						obj, fErr = clientset.AppsV1().DaemonSets(ns).Get(ctx, name, metav1.GetOptions{})
+					case "statefulset", "statefulsets", "sts":
+						obj, fErr = clientset.AppsV1().StatefulSets(ns).Get(ctx, name, metav1.GetOptions{})
+					case "replicaset", "replicasets", "rs":
+						obj, fErr = clientset.AppsV1().ReplicaSets(ns).Get(ctx, name, metav1.GetOptions{})
+					case "job", "jobs":
+						obj, fErr = clientset.BatchV1().Jobs(ns).Get(ctx, name, metav1.GetOptions{})
+					case "cronjob", "cronjobs", "cj":
+						obj, fErr = clientset.BatchV1().CronJobs(ns).Get(ctx, name, metav1.GetOptions{})
+					case "sa", "serviceaccount", "serviceaccounts":
+						obj, fErr = clientset.CoreV1().ServiceAccounts(ns).Get(ctx, name, metav1.GetOptions{})
+					case "role", "roles":
+						obj, fErr = clientset.RbacV1().Roles(ns).Get(ctx, name, metav1.GetOptions{})
+					case "clusterrole", "clusterroles":
+						obj, fErr = clientset.RbacV1().ClusterRoles().Get(ctx, name, metav1.GetOptions{})
+					case "rolebinding", "rolebindings":
+						obj, fErr = clientset.RbacV1().RoleBindings(ns).Get(ctx, name, metav1.GetOptions{})
+					case "clusterrolebinding", "clusterrolebindings":
+						obj, fErr = clientset.RbacV1().ClusterRoleBindings().Get(ctx, name, metav1.GetOptions{})
+					default:
+						log.Printf("⚠️ Native YAML fetch not implemented for kind: %q. Falling back to CLI.", kind)
+					}
+
+					if fErr != nil {
+						log.Printf("❌ Native YAML fetch failed for %s/%s: %v", kind, name, fErr)
+					}
+
+					if fErr == nil && obj != nil {
+						yamlData, err := yaml.Marshal(obj)
+						if err == nil {
+							c.JSON(http.StatusOK, gin.H{"success": true, "output": string(yamlData)})
+							return
+						}
+					}
+				} else {
+					log.Printf("⚠️ Native YAML fetch failed to parse fields: %v", fields)
+				}
+			} else {
+				log.Printf("❌ k8s.GetK8sClient failed: %v", err)
+			}
+		}
+
 		// Generic kubectl execution
-		bin := getKubectlPath()
+		bin, err := getKubectlPath()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error()})
+			return
+		}
 		args := append([]string{"--kubeconfig", path}, strings.Fields(req.Command)...)
 		cmd := exec.Command(bin, args...)
 		out, err := cmd.CombinedOutput()
@@ -694,6 +799,119 @@ func ApplyKubectl(c *gin.Context) {
 	}
 
 	if server.Host == "" {
+		// Native YAML Apply for common types in direct API clusters
+		clientset, err := k8s.GetK8sClient(server.KubeConfig)
+		if err == nil {
+			var applyErr error
+			ctx := context.Background()
+
+			// Decode YAML to get metadata
+			var meta struct {
+				Kind     string `yaml:"kind"`
+				Metadata struct {
+					Name      string `yaml:"name"`
+					Namespace string `yaml:"namespace"`
+				} `yaml:"metadata"`
+			}
+			err = yaml.Unmarshal([]byte(req.YAML), &meta)
+			
+			if err == nil && meta.Metadata.Name != "" {
+				log.Printf("🔹 Native YAML Apply Triggered: kind=%q, name=%q, ns=%q", meta.Kind, meta.Metadata.Name, meta.Metadata.Namespace)
+				
+				switch strings.ToLower(meta.Kind) {
+				case "pod", "pods":
+					var r corev1.Pod
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						r.ResourceVersion = "" // Clear to avoid conflict if just applying
+						_, applyErr = clientset.CoreV1().Pods(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "deployment", "deployments":
+					var r appsv1.Deployment
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.AppsV1().Deployments(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "service", "services", "svc":
+					var r corev1.Service
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.CoreV1().Services(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "configmap", "configmaps", "cm":
+					var r corev1.ConfigMap
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.CoreV1().ConfigMaps(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "secret", "secrets":
+					var r corev1.Secret
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.CoreV1().Secrets(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "daemonset", "daemonsets", "ds":
+					var r appsv1.DaemonSet
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.AppsV1().DaemonSets(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "statefulset", "statefulsets", "sts":
+					var r appsv1.StatefulSet
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.AppsV1().StatefulSets(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "ingress", "ingresses", "ing":
+					var r networkingv1.Ingress
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.NetworkingV1().Ingresses(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "pvc", "persistentvolumeclaims":
+					var r corev1.PersistentVolumeClaim
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.CoreV1().PersistentVolumeClaims(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "pv", "persistentvolumes":
+					var r corev1.PersistentVolume
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.CoreV1().PersistentVolumes().Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "serviceaccount", "sa":
+					var r corev1.ServiceAccount
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.CoreV1().ServiceAccounts(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "role", "roles":
+					var r rbacv1.Role
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.RbacV1().Roles(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "clusterrole", "clusterroles":
+					var r rbacv1.ClusterRole
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.RbacV1().ClusterRoles().Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "rolebinding", "rolebindings":
+					var r rbacv1.RoleBinding
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.RbacV1().RoleBindings(meta.Metadata.Namespace).Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				case "clusterrolebinding", "clusterrolebindings":
+					var r rbacv1.ClusterRoleBinding
+					if yaml.Unmarshal([]byte(req.YAML), &r) == nil {
+						_, applyErr = clientset.RbacV1().ClusterRoleBindings().Update(ctx, &r, metav1.UpdateOptions{})
+					}
+				default:
+					log.Printf("⚠️ Native YAML apply not implemented for kind: %q. Falling back to CLI.", meta.Kind)
+					goto CLI_FALLBACK
+				}
+
+				if applyErr != nil {
+					// Check for conflict and try a lighter touch patch if possible, 
+					// but for now just tell user the truth.
+					c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("Native apply error (HTTP/API): %v\nNote: If this is a resource conflict, ensure your YAML includes the current resourceVersion or let the system handle it.", applyErr)})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"success": true, "output": fmt.Sprintf("✅ Resource '%s' updated successfully (Native API)", meta.Metadata.Name)})
+				return
+			}
+		}
+
+	CLI_FALLBACK:
 		// Use local kubectl apply for direct API clusters
 		path, err := ensureLocalKubeConfig(&server)
 		if err != nil {
@@ -701,7 +919,11 @@ func ApplyKubectl(c *gin.Context) {
 			return
 		}
 
-		bin := getKubectlPath()
+		bin, err := getKubectlPath()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error()})
+			return
+		}
 		cmd := exec.Command(bin, "--kubeconfig", path, "apply", "-f", "-")
 		cmd.Stdin = strings.NewReader(req.YAML)
 		out, err := cmd.CombinedOutput()

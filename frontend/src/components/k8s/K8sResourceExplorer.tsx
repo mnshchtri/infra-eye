@@ -300,6 +300,29 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     setShowCommandBar(false); setCommandInput('');
   }
 
+  const [rawConfig, setRawConfig] = useState(cluster.kube_config || '')
+  const [savingRaw, setSavingRaw] = useState(false)
+
+  const saveClusterConfig = async () => {
+    if (!rawConfig) return
+    setSavingRaw(true)
+    try {
+      const res = await api.put(`/api/servers/${cluster.id}`, { 
+        ...cluster,
+        kube_config: rawConfig 
+      })
+      if (res.status === 200) {
+        toast.success('Configuration saved', 'Cluster KubeConfig updated successfully.')
+      } else {
+        toast.error('Save failed', 'Status: ' + res.status)
+      }
+    } catch (e: any) {
+      toast.error('Save failed', e.response?.data?.error || e.message)
+    } finally {
+      setSavingRaw(false)
+    }
+  }
+
   return (
     <div className="page" style={{ padding: 0, flexDirection: 'row', overflow: 'hidden', maxWidth: 'none', margin: 0 }}>
       {/* Sidebar */}
@@ -372,25 +395,38 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 24px' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className="badge badge-online">REAL-TIME</div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'capitalize' }}>{activeRes} Explorer</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'capitalize' }}>{activeRes === 'yaml' ? 'KubeConfig' : activeRes} Explorer</h2>
               {loading && <RefreshCw size={14} className="spin" color="var(--brand-primary)" />}
            </div>
            
            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 12px', borderRadius: 8, border: '1px solid var(--brand-primary)20' }}>
-                 <Globe size={14} color="var(--brand-primary)" />
-                 <select 
-                   style={{ background: 'transparent', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--brand-primary)', cursor: 'pointer', outline: 'none' }}
-                   value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
-                 >
-                    <option value="All">All Namespaces</option>
-                    {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
-                 </select>
-              </div>
-              <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} 
-                      disabled={activeRes === 'yaml'} onClick={() => watchK8sData(cluster.id, activeRes, selectedNS)}>
-                <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Resync
-              </button>
+              {activeRes === 'yaml' ? (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ padding: '6px 16px', fontSize: 12 }} 
+                  onClick={saveClusterConfig}
+                  disabled={savingRaw}
+                >
+                  {savingRaw ? 'Saving...' : 'Save Configuration'}
+                </button>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 12px', borderRadius: 8, border: '1px solid var(--brand-primary)20' }}>
+                    <Globe size={14} color="var(--brand-primary)" />
+                    <select 
+                      style={{ background: 'transparent', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--brand-primary)', cursor: 'pointer', outline: 'none' }}
+                      value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
+                    >
+                        <option value="All">All Namespaces</option>
+                        {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
+                    </select>
+                  </div>
+                  <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} 
+                          disabled={activeRes === 'yaml'} onClick={() => watchK8sData(cluster.id, activeRes, selectedNS)}>
+                    <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Resync
+                  </button>
+                </>
+              )}
               <button
                 className="btn btn-secondary"
                 onClick={() => setShowMCPTerminal(t => !t)}
@@ -496,14 +532,15 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           {activeRes === 'yaml' && (
             <div style={{ height: 'calc(100vh - 160px)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
               <ConfigViewer 
-                content={cluster.kube_config || ''} 
-                onChange={() => {}} 
+                content={rawConfig} 
+                onChange={(val) => setRawConfig(val)} 
                 fullPage
               />
             </div>
           )}
         </main>
       </div>
+
 
       {showPortForward && canUseKubectl && <PortForwardModal serverID={cluster.id} sessions={portForwards} onClose={() => setShowPortForward(false)} onRefresh={fetchPortForwards} />}
       {drawer?.open && canUseKubectl && <TerminalPortal serverID={cluster.id} pod={drawer.pod!} namespace={drawer.ns!} container={drawer.container} mode={drawer.mode} onClose={() => setDrawer(null)} />}

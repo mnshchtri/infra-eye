@@ -8,11 +8,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	"context"
 )
 
-// GetK8sClient returns a typed Kubernetes Clientset using the raw kubeconfig.
-func GetK8sClient(kubeconfig string) (*kubernetes.Clientset, error) {
+// GetRestConfig parses and returns a rest.Config from kubeconfig string.
+func GetRestConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig == "" {
 		return nil, fmt.Errorf("no kubeconfig provided on server")
 	}
@@ -37,7 +39,25 @@ func GetK8sClient(kubeconfig string) (*kubernetes.Clientset, error) {
 	}
 	config.QPS = 50
 	config.Burst = 100
+	return config, nil
+}
+
+// GetK8sClient returns a typed Kubernetes Clientset using the raw kubeconfig.
+func GetK8sClient(kubeconfig string) (*kubernetes.Clientset, error) {
+	config, err := GetRestConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
 	return kubernetes.NewForConfig(config)
+}
+
+// GetDynamicClient returns a dynamic client for generic resource operations.
+func GetDynamicClient(kubeconfig string) (dynamic.Interface, error) {
+	config, err := GetRestConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	return dynamic.NewForConfig(config)
 }
 
 // GetNodeMetrics returns node metrics if metrics-server is installed
@@ -62,5 +82,5 @@ func GetNodeMetrics(kubeconfig string) (*metricsv1beta1.NodeMetricsList, error) 
 		return nil, err
 	}
 
-	return mClient.MetricsV1beta1().NodeMetrics().List(context.Background(), metav1.ListOptions{})
+	return mClient.MetricsV1beta1().NodeMetricses().List(context.Background(), metav1.ListOptions{})
 }
