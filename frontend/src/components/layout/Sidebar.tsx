@@ -9,6 +9,8 @@ import { useUIStore } from '../../store/uiStore'
 import { usePermission, type PermissionAction } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
 import { KubernetesIcon } from '../OSIcons'
+import { api } from '../../api/client'
+import { useState, useEffect, Fragment } from 'react'
 
 type NavItem = {
   to: string
@@ -52,6 +54,11 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode } = useUIStore()
   const { can } = usePermission()
   const navigate = useNavigate()
+
+  const [servers, setServers] = useState<any[]>([])
+  useEffect(() => {
+    api.get('/api/servers').then(res => setServers(res.data)).catch(() => {})
+  }, [])
 
   function handleLogout() {
     logout()
@@ -110,19 +117,51 @@ export function Sidebar() {
               </div>
             )}
             {group.items.filter(item => !item.action || can(item.action)).map(({ to, icon: Icon, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
-                className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                title={sidebarCollapsed ? label : undefined}
-              >
-                <div className="sidebar-link-icon">
-                  <Icon size={20} strokeWidth={sidebarCollapsed ? 2 : 1.75} />
-                </div>
-                {!sidebarCollapsed && <span style={{ flex: 1 }}>{label}</span>}
-                {!sidebarCollapsed && <ChevronRight size={13} className="sidebar-link-arrow" />}
-              </NavLink>
+              <Fragment key={to}>
+                <NavLink
+                  to={to}
+                  end={to === '/'}
+                  className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                  title={sidebarCollapsed ? label : undefined}
+                >
+                  <div className="sidebar-link-icon">
+                    <Icon size={20} strokeWidth={sidebarCollapsed ? 2 : 1.75} />
+                  </div>
+                  {!sidebarCollapsed && <span style={{ flex: 1 }}>{label}</span>}
+                  {!sidebarCollapsed && <ChevronRight size={13} className="sidebar-link-arrow" />}
+                </NavLink>
+                
+                {/* Nested list for Servers */}
+                {label === 'Servers' && !sidebarCollapsed && servers.length > 0 && (
+                  <div style={{ paddingLeft: 44, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2, borderLeft: '1px solid var(--border)', margin: '4px 0 8px 18px' }}>
+                    {servers.slice(0, 8).map(s => (
+                      <NavLink 
+                        key={s.id} 
+                        to={`/servers/${s.id}`} 
+                        className="nav-sublink" 
+                        style={({ isActive }) => ({
+                          fontSize: 12, 
+                          color: isActive ? 'var(--brand-primary)' : 'var(--text-muted)', 
+                          textDecoration: 'none', 
+                          padding: '6px 0',
+                          fontWeight: isActive ? 700 : 500,
+                          transition: 'all 0.2s'
+                        })}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 4, height: 4, borderRadius: '50%', background: s.status === 'online' ? 'var(--success)' : 'var(--text-muted)' }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                        </div>
+                      </NavLink>
+                    ))}
+                    {servers.length > 8 && (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 4px 4px 12px', opacity: 0.7, fontWeight: 700 }}>
+                        + {servers.length - 8} more
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Fragment>
             ))}
           </div>
         )

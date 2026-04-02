@@ -20,6 +20,7 @@ import { useToastStore } from '../store/toastStore'
 interface Server {
   id: number; name: string; host: string; port: number; ssh_user: string;
   status: string; tags: string; description: string; auth_type: string; os: string;
+  is_k8s?: boolean;
 }
 interface Metric {
   id: number; timestamp: string; cpu_percent: number; mem_percent: number;
@@ -394,19 +395,26 @@ export function ServerDetail() {
                 {server.status.toUpperCase()}
               </span>
               <span style={{ color: 'var(--text-muted)', fontSize: 14, fontFamily: '"JetBrains Mono", monospace' }}>
-                {server.ssh_user}@{server.host}:{server.port}
+                {server.host ? `${server.ssh_user}@${server.host}:${server.port}` : "Direct Cluster API"}
               </span>
             </div>
           </div>
         </div>
         
         <div style={{ display: 'flex', gap: 12 }}>
+          {server.is_k8s && (
+            <button className="btn btn-secondary" style={{ gap: 8, borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }} onClick={() => navigate('/kubernetes')}>
+              <Layers size={14} /> Open K8s Explorer
+            </button>
+          )}
           <button className="btn btn-secondary" style={{ gap: 8 }} onClick={handleReboot} disabled={rebooting || server.status !== 'online'}>
             {rebooting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }}/> : <Power size={14} color="var(--danger)" />} Restart
           </button>
-          <button className="btn btn-primary" onClick={() => setActiveTab('Terminal')} style={{ gap: 8 }}>
-            <TerminalIcon size={14} /> Connect SSH
-          </button>
+          {server.host && (
+             <button className="btn btn-primary" onClick={() => setActiveTab('Terminal')} style={{ gap: 8 }}>
+                <TerminalIcon size={14} /> Connect SSH
+             </button>
+          )}
         </div>
       </div>
 
