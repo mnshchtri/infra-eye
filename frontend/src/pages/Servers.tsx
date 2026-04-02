@@ -50,7 +50,9 @@ export function Servers() {
     setLoading(true)
     try {
       const res = await api.get('/api/servers')
-      setServers(res.data)
+      // Only show servers with SSH host proxy configurations,
+      // hide direct-API K8s clusters stringently out of Servers admin UI.
+      setServers(res.data.filter((s: ServerData) => s.host))
     } finally {
       setLoading(false)
     }
