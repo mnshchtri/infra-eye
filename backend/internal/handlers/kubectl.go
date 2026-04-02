@@ -690,7 +690,8 @@ func WatchKubectl(c *gin.Context) {
 
 	clientset, err := GetK8sClient(server.KubeConfig)
 	if err != nil {
-		msg := fmt.Sprintf(`{"error":"KubeConfig valid fail: %s","details":"Invalid KubeConfig YAML on server."}`, jsonEscape(err.Error()))
+		log.Printf("❌ WatchKubectl Auth Error: %v", err)
+		msg := fmt.Sprintf(`{"error":"KubeConfig valid fail", "details":"Parse Error: %s"}`, jsonEscape(err.Error()))
 		wsConn.WriteMessage(websocket.TextMessage, []byte(msg))
 		return
 	}
