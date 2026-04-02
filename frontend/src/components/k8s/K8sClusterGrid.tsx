@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Plus, Zap, ChevronRight, Unlink, Globe, Trash2 } from 'lucide-react'
+import { Plus, Zap, ChevronRight, Unlink, Globe, Trash2, Cpu } from 'lucide-react'
 import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
 
 interface Cluster {
@@ -8,6 +8,7 @@ interface Cluster {
   host: string;
   k8s_connected?: boolean;
   os?: string;
+  kube_config?: string;
 }
 
 interface K8sClusterGridProps {
@@ -63,7 +64,11 @@ export const K8sClusterGrid = memo(({
                     {cluster.os || 'K8s'}
                   </span>
                 </div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cluster.host}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                  {cluster.host
+                    ? <><Globe size={10} style={{ marginRight: 4, display: 'inline' }} />{cluster.host}</>
+                    : <><Cpu size={10} style={{ marginRight: 4, display: 'inline', color: 'var(--success)' }} /><span style={{ color: 'var(--success)' }}>Direct API</span></>}
+                </p>
               </div>
             </div>
             <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

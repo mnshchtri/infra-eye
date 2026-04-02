@@ -421,3 +421,99 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 
 	return mcpResp.Result, nil
 }
+
+// ── RunKubectlViaMCP ─────────────────────────────────────────────────────────
+// POST /api/mcp/kubectl — Executes a kubectl command via the MCP kubernetes server.
+// Supports server context injection so the command targets the correct cluster.
+func RunKubectlViaMCP(c *gin.Context) {
+	var req struct {
+		ServerID uint   `json:"server_id"`
+		Command  string `json:"command" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Build arguments for the MCP kubectl tool
+	args := map[string]interface{}{
+		"command": req.Command,
+	}
+
+	// If a server_id is given, resolve the correct context name
+	if req.ServerID > 0 {
+		var server models.Server
+		if err := db.DB.First(&server, req.ServerID).Error; err == nil && server.KubeConfig != "" {
+			prefix := fmt.Sprintf("server-%d", server.ID)
+			cfg, parseErr := clientcmd.Load([]byte(server.KubeConfig))
+			if parseErr == nil {
+				// Find the prefixed context we wrote during SyncMasterKubeconfig
+				selectedCtx := ""
+				for name := range cfg.Contexts {
+					fullName := fmt.Sprintf("%s-%s", prefix, name)
+					selectedCtx = fullName
+					break
+				}
+				if selectedCtx == "" {
+					selectedCtx = prefix + "-default"
+				}
+				args["context"] = selectedCtx
+			} else {
+				args["context"] = prefix + "-default"
+			}
+		}
+	}
+
+	// Sync kubeconfig first to ensure the MCP server sees latest clusters
+	if err := mcp.SyncMasterKubeconfig(); err != nil {
+		log.Printf("⚠️ MCP kubectl: kubeconfig sync warning: %v", err)
+	}
+
+	params := mcpToolCallParams{
+		Name:      "kubectl_generic",
+		Arguments: args,
+	}
+
+	result, err := callMCPMethod("tools/call", params, 2)
+	if err != nil {
+		// The MCP tool name may differ; try alternate tool names
+		params.Name = "kubectl"
+		result, err = callMCPMethod("tools/call", params, 3)
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":    "MCP kubectl execution failed",
+				"details":  err.Error(),
+				"is_error": true,
+				"success":  false,
+			})
+			return
+		}
+	}
+
+	// Parse the tool result
+	var parsed struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		IsError bool `json:"isError"`
+	}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		c.Data(http.StatusOK, "application/json", result)
+		return
+	}
+
+	output := strings.Builder{}
+	for _, content := range parsed.Content {
+		if content.Type == "text" {
+			output.WriteString(content.Text)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"command":  req.Command,
+		"output":   output.String(),
+		"is_error": parsed.IsError,
+		"success":  !parsed.IsError,
+	})
+}

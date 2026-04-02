@@ -205,6 +205,11 @@ func RunKubectl(c *gin.Context) {
 		return
 	}
 
+	if server.Host == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "error": "This cluster is connected via direct API (No SSH Proxy). Shell-based kubectl commands are disabled. Please use the native Pulse Dashboard or AI Assistant for cluster operations."})
+		return
+	}
+
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": fmt.Sprintf("SSH connect: %v", err)})
@@ -270,6 +275,11 @@ func SSHTerminal(c *gin.Context) {
 		return
 	}
 	defer wsConn.Close()
+
+	if server.Host == "" {
+		wsConn.WriteMessage(websocket.TextMessage, []byte("SSH Terminal is disabled for clusters without an SSH Proxy host.\r\n"))
+		return
+	}
 
 	// Try to get a session, with one retry if it fails
 	var session *gossh.Session
@@ -512,19 +522,40 @@ func TestK8sConnection(c *gin.Context) {
 	}
 
 	log.Printf("🧪 Testing K8s Connection: Host=%s, User=%s", req.Host, req.SSHUser)
+	
+	// Case 1: Direct Connection (No SSH Proxy)
+	if req.Host == "" {
+		clientset, err := GetK8sClient(req.KubeConfig)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Invalid KubeConfig: %v", err)})
+			return
+		}
+		// Verification call: Fetch server version
+		ver, err := clientset.Discovery().ServerVersion()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Cluster API unreachable: %v\nNote: If this cluster is local, ensure your KubeConfig uses an IP reachable from this backend.", err)})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true, 
+			"output": fmt.Sprintf("✅ Connected directly to Cluster API.\nKubernetes Version: %s\nPlatform: %s", ver.GitVersion, ver.Platform),
+		})
+		return
+	}
 
+	// Case 2: SSH Proxy Connection
 	// Use a temp server ID (0) for test connections, but remove any existing stale one first
 	sshclient.Remove(0)
 	client, err := sshclient.GetOrCreate(0, req.Host, 22, req.SSHUser, "", req.SSHPassword, "password")
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("SSH connect failed: %v", err)})
+		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("SSH proxy connect failed: %v", err)})
 		return
 	}
 
 	// Safely write the test kubeconfig
 	testPath := "/tmp/infraeye/config_test"
 	if err := writeKubeConfig(client, req.KubeConfig, testPath); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Failed to write kubeconfig: %v", err)})
+		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Failed to write kubeconfig to proxy: %v", err)})
 		return
 	}
 
@@ -597,6 +628,11 @@ func ApplyKubectl(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if server.Host == "" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "error": "This cluster is connected via direct API (No SSH Proxy). YAML application via shell is disabled. Please use the native Pulse Dashboard features or AI Assistant."})
 		return
 	}
 

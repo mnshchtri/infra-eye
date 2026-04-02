@@ -17,6 +17,7 @@ import { PulseDashboard } from './PulseDashboard'
 import { ConfigViewer } from './ConfigViewer'
 import { PortForwardModal } from './PortForwardModal'
 import { TerminalPortal } from './TerminalPortal'
+import { MCPTerminal } from './MCPTerminal'
 
 interface Cluster {
   id: number;
@@ -60,6 +61,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [showPortForward, setShowPortForward] = useState(false)
   const [portForwards, setPortForwards] = useState<any[]>([])
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)
+  const [showMCPTerminal, setShowMCPTerminal] = useState(false)
   
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
     cluster: true,
@@ -355,14 +357,14 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-app)' }}>
-        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 24px' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className="badge badge-online">REAL-TIME</div>
               <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'capitalize' }}>{activeRes} Explorer</h2>
               {loading && <RefreshCw size={14} className="spin" color="var(--brand-primary)" />}
            </div>
            
-           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 12px', borderRadius: 8, border: '1px solid var(--brand-primary)20' }}>
                  <Globe size={14} color="var(--brand-primary)" />
                  <select 
@@ -376,6 +378,21 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
               <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} 
                       disabled={activeRes === 'yaml'} onClick={() => watchK8sData(cluster.id, activeRes, selectedNS)}>
                 <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Resync
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowMCPTerminal(t => !t)}
+                title="Open kubectl terminal (MCP)"
+                style={{
+                  padding: '6px 14px', fontSize: 12, gap: 6,
+                  display: 'flex', alignItems: 'center',
+                  background: showMCPTerminal ? 'var(--brand-gradient)' : undefined,
+                  color: showMCPTerminal ? '#fff' : undefined,
+                  border: showMCPTerminal ? 'none' : undefined,
+                }}
+              >
+                <Terminal size={13} />
+                kubectl
               </button>
            </div>
         </header>
@@ -478,6 +495,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
       {showPortForward && canUseKubectl && <PortForwardModal serverID={cluster.id} sessions={portForwards} onClose={() => setShowPortForward(false)} onRefresh={fetchPortForwards} />}
       {drawer?.open && canUseKubectl && <TerminalPortal serverID={cluster.id} pod={drawer.pod!} namespace={drawer.ns!} container={drawer.container} mode={drawer.mode} onClose={() => setDrawer(null)} />}
+      {showMCPTerminal && <MCPTerminal clusterId={cluster.id} clusterName={cluster.name} onClose={() => setShowMCPTerminal(false)} />}
       
       {editingYaml.open && (
         <div className="fade-in" style={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', background: 'var(--bg-app)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>

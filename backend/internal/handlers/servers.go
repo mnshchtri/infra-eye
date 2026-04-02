@@ -34,9 +34,9 @@ func GetServer(c *gin.Context) {
 
 type serverRequest struct {
 	Name        string `json:"name" binding:"required"`
-	Host        string `json:"host" binding:"required"`
+	Host        string `json:"host"`
 	Port        int    `json:"port"`
-	SSHUser     string `json:"ssh_user" binding:"required"`
+	SSHUser     string `json:"ssh_user"`
 	SSHKeyPath  string `json:"ssh_key_path"`
 	SSHPassword string `json:"ssh_password"`
 	AuthType    string `json:"auth_type"`

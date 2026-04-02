@@ -26,9 +26,9 @@ type Server struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 	Name        string         `gorm:"not null" json:"name"`
-	Host        string         `gorm:"not null" json:"host"`
+	Host        string         `json:"host"`
 	Port        int            `gorm:"default:22" json:"port"`
-	SSHUser     string         `gorm:"not null" json:"ssh_user"`
+	SSHUser     string         `json:"ssh_user"`
 	SSHKeyPath  string         `json:"ssh_key_path"`
 	SSHPassword string         `json:"-"` // encrypted
 	AuthType    string         `gorm:"default:'key'" json:"auth_type"` // key or password

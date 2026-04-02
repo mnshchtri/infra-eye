@@ -118,6 +118,7 @@ func main() {
 		api.GET("/mcp/status", middleware.RequireRole("admin", "devops"), handlers.MCPServerStatus)
 		api.GET("/mcp/tools", middleware.RequireRole("admin", "devops"), handlers.ListMCPTools)
 		api.POST("/mcp/tool", middleware.RequireRole("admin", "devops"), handlers.ExecuteMCPTool)
+		api.POST("/mcp/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectlViaMCP)
 
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
