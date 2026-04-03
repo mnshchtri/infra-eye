@@ -114,18 +114,8 @@ export function ServerDetail() {
   const xtermRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
 
-  const [searchParams] = useSearchParams()
-
   // Always show all tabs — permissions enforced at the server/API level
   const tabs = ['Overview', 'Logs', 'Terminal', 'Settings']
-
-  useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    const allTabs = ['Overview', 'Logs', 'Terminal', 'Settings']
-    if (tabParam && allTabs.includes(tabParam)) {
-      setActiveTab(tabParam)
-    }
-  }, [searchParams])
 
   useEffect(() => {
     loadServer()
