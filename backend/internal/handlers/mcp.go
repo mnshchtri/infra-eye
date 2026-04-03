@@ -188,6 +188,10 @@ var (
 	mcpSessionURL    string
 	mcpSSEConnection io.ReadCloser
 	mcpInitMutex     sync.Mutex
+
+	// pendingRequests keeps track of ongoing JSON-RPC calls over SSE
+	pendingRequests = make(map[int]chan json.RawMessage)
+	pendingMutex    sync.Mutex
 )
 
 // ── callMCPMethod ────────────────────────────────────────────────────────────
@@ -289,11 +293,11 @@ func ensureMCPInitialized() error {
 	}
 	log.Printf("📡 MCP: Session endpoint received: %s", endpoint)
 
-	// Step 1: Start Background Body Drainer to keep SSE session alive
+	// Step 1: Start Background SSE Message Handler
 	go func(body io.ReadCloser) {
-		buf := make([]byte, 2048)
+		reader := bufio.NewReader(body)
 		for {
-			_, err := body.Read(buf)
+			line, err := reader.ReadString('\n')
 			if err != nil {
 				log.Printf("📡 MCP: SSE Connection closed: %v. Resetting session.", err)
 				mcpInitMutex.Lock()
@@ -302,6 +306,27 @@ func ensureMCPInitialized() error {
 				mcpSSEConnection = nil
 				mcpInitMutex.Unlock()
 				return
+			}
+
+			// Handle lines like "data: { ...JSON-RPC... }"
+			if strings.HasPrefix(line, "data: ") {
+				data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+				if data == "" || data == "undefined" {
+					continue
+				}
+
+				// Try to parse the response
+				var mcpResp mcpResponse
+				if err := json.Unmarshal([]byte(data), &mcpResp); err == nil {
+					// Route the result to the waiting caller
+					pendingMutex.Lock()
+					ch, ok := pendingRequests[mcpResp.ID]
+					if ok {
+						ch <- json.RawMessage(data) // Convert string data to RawMessage
+						delete(pendingRequests, mcpResp.ID)
+					}
+					pendingMutex.Unlock()
+				}
 			}
 		}
 	}(mcpSSEConnection)
@@ -352,6 +377,13 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		return nil, fmt.Errorf("marshal error: %v", err)
 	}
 
+	// 0. Register the request ID before sending to avoid race conditions with fast SSE responses
+	if id != nil {
+		pendingMutex.Lock()
+		pendingRequests[*id] = make(chan json.RawMessage, 1)
+		pendingMutex.Unlock()
+	}
+
 	// Use the established session URL, or fallback to default if not yet established
 	targetURL := mcpSessionURL
 	if targetURL == "" {
@@ -379,35 +411,43 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		return nil, fmt.Errorf("MCP server unreachable at %s: %v", targetURL, err)
 	}
 	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response (status %d): %v", resp.StatusCode, err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("MCP server error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	// Handle SSE format: strip "event: message\ndata: "
+	body, _ := io.ReadAll(resp.Body)
 	rawStr := string(body)
-	if bytes.Contains(body, []byte("data: ")) {
-		// Quick extraction of the data part
-		parts := bytes.Split(body, []byte("data: "))
-		if len(parts) > 1 {
-			rawStr = string(bytes.TrimSpace(parts[1]))
-		}
-	}
 
-	// ── Notification Handling ──
-	// JSON-RPC 2.0: Notifications (no ID) do not expect a response body.
-	if id == nil {
-		return nil, nil
+	// --- Handle Asynchronous Responses (Status 202) ---
+	// Official Model Context Protocol behavior for SSE transport:
+	// If the server returns 202, the result will be sent later on the SSE stream.
+	if resp.StatusCode == 202 || (resp.StatusCode == 200 && strings.TrimSpace(rawStr) == "") {
+		if id == nil {
+			return nil, nil // Notification
+		}
+
+		// Use the already registered channel (registered in callMCPMethodRaw above)
+		pendingMutex.Lock()
+		ch, ok := pendingRequests[*id]
+		pendingMutex.Unlock()
+
+		if !ok {
+			return nil, fmt.Errorf("id %d was not registered for SSE response tracking", *id)
+		}
+
+		// Wait for response from the background handler or timeout
+		select {
+		case asyncData := <-ch:
+			rawStr = string(asyncData)
+		case <-time.After(10 * time.Second):
+			pendingMutex.Lock()
+			delete(pendingRequests, *id)
+			pendingMutex.Unlock()
+			return nil, fmt.Errorf("timeout waiting for SSE response for id %d", *id)
+		}
+	} else if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("MCP server error (status %d): %s", resp.StatusCode, rawStr)
 	}
 
 	// For standard requests, if the body is empty, it's an error
 	if strings.TrimSpace(rawStr) == "" {
-		return nil, fmt.Errorf("empty response (status %d) for method %s. Check sidecar health.", resp.StatusCode, method)
+		return nil, fmt.Errorf("empty response (status %d) for method %s", resp.StatusCode, method)
 	}
 
 	var mcpResp mcpResponse

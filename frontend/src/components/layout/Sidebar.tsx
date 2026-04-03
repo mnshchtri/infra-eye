@@ -51,14 +51,19 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 
 export function Sidebar() {
   const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode } = useUIStore()
+  const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode, mobileNavOpen } = useUIStore()
   const { can } = usePermission()
   const navigate = useNavigate()
 
   const [servers, setServers] = useState<any[]>([])
   const [serversExpanded, setServersExpanded] = useState(true)
   useEffect(() => {
-    api.get('/api/servers').then(res => setServers(res.data)).catch(() => {})
+    api.get('/api/servers')
+      .then(res => {
+        const list = Array.isArray(res.data) ? res.data : (res.data?.data && Array.isArray(res.data.data) ? res.data.data : []);
+        setServers(list);
+      })
+      .catch(() => setServers([]))
   }, [])
 
   function handleLogout() {
@@ -67,7 +72,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileNavOpen ? 'mobile-open' : ''}`}>
       {/* Header / Logo */}
       <div className="sidebar-header" style={{ justifyContent: sidebarCollapsed ? 'center' : 'space-between' }}>
         <div className="sidebar-logo">

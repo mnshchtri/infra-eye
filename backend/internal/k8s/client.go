@@ -2,10 +2,12 @@ package k8s
 
 import (
 	"fmt"
+	"strings"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	"k8s.io/client-go/dynamic"
@@ -88,7 +90,7 @@ func GetNodeMetrics(kubeconfig string) (*metricsv1beta1.NodeMetricsList, error) 
 }
 
 // GetNativeYaml fetches a resource using the dynamic client and returns its YAML representation.
-// It handles metadata preservation (apiVersion, kind) better than typed clientset.
+// It explicitly restores apiVersion and kind since the K8s API server strips them from GET responses.
 func GetNativeYaml(kubeconfig, group, version, resource, namespace, name string) (string, error) {
 	config, err := GetRestConfig(kubeconfig)
 	if err != nil {
@@ -106,19 +108,52 @@ func GetNativeYaml(kubeconfig, group, version, resource, namespace, name string)
 	}
 
 	ctx := context.Background()
-	var obj interface{}
+	var unstrObj *unstructured.Unstructured
 	if namespace != "" {
-		obj, err = dClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+		unstrObj, err = dClient.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	} else {
-		obj, err = dClient.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+		unstrObj, err = dClient.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
 	}
 
 	if err != nil {
 		return "", err
 	}
 
-	// Marshaling unstructured object from dynamic client always preserves TypeMeta
-	data, err := yaml.Marshal(obj)
+	// The K8s API server strips apiVersion and kind from GET responses.
+	// We must reconstruct them from the GVR — this is what `kubectl get -o yaml` does too.
+	apiVersion := version
+	if group != "" {
+		apiVersion = group + "/" + version
+	}
+	// Derive Kind from resource name (singular, Title-case)
+	// e.g. "pods" -> "Pod", "deployments" -> "Deployment", "daemonsets" -> "DaemonSet"
+	kindMap := map[string]string{
+		"pods": "Pod", "nodes": "Node", "namespaces": "Namespace",
+		"services": "Service", "endpoints": "Endpoints", "ingresses": "Ingress",
+		"configmaps": "ConfigMap", "secrets": "Secret", "serviceaccounts": "ServiceAccount",
+		"persistentvolumes": "PersistentVolume", "persistentvolumeclaims": "PersistentVolumeClaim",
+		"storageclasses": "StorageClass", "resourcequotas": "ResourceQuota",
+		"deployments": "Deployment", "replicasets": "ReplicaSet", "statefulsets": "StatefulSet",
+		"daemonsets": "DaemonSet", "jobs": "Job", "cronjobs": "CronJob",
+		"roles": "Role", "clusterroles": "ClusterRole",
+		"rolebindings": "RoleBinding", "clusterrolebindings": "ClusterRoleBinding",
+		"networkpolicies": "NetworkPolicy",
+		"horizontalpodautoscalers": "HorizontalPodAutoscaler",
+		"events": "Event",
+	}
+	kind := kindMap[resource]
+	if kind == "" {
+		// Generic fallback: strip trailing 's' and title-case
+		kind = strings.TrimSuffix(resource, "s")
+		if len(kind) > 0 {
+			kind = strings.ToUpper(kind[:1]) + kind[1:]
+		}
+	}
+
+	unstrObj.SetAPIVersion(apiVersion)
+	unstrObj.SetKind(kind)
+
+	data, err := yaml.Marshal(unstrObj.Object)
 	if err != nil {
 		return "", err
 	}

@@ -13,12 +13,35 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-const (
-	// Shared volume path inside the 'app' container
+var (
+	// Shared volume path — defaults to Docker path but can be overridden for local dev
 	MasterConfigPath = "/shared_mcp/kubeconfig"
-	// Host config path if mounted
+	// Host config path if mounted (inside Docker)
 	HostConfigPath = "/kubeconfig_host"
 )
+
+func init() {
+	if path := os.Getenv("MCP_SHARED_PATH"); path != "" {
+		MasterConfigPath = filepath.Join(path, "kubeconfig")
+	} else if _, err := os.Stat("/.dockerenv"); err != nil {
+		// Not in Docker: use project-relative path
+		cwd, _ := os.Getwd()
+		// Go up until we find the root where 'shared_mcp' should live
+		for cwd != "/" {
+			// In our repo structure, 'shared_mcp' lives next to 'backend/', 'frontend/', etc.
+			if _, err := os.Stat(filepath.Join(cwd, "backend", "go.mod")); err == nil {
+				MasterConfigPath = filepath.Join(cwd, "shared_mcp", "kubeconfig")
+				break
+			}
+			// Fallback if we are already inside the 'backend' folder
+			if _, err := os.Stat(filepath.Join(cwd, "go.mod")); err == nil {
+				MasterConfigPath = filepath.Join(cwd, "..", "shared_mcp", "kubeconfig")
+				break
+			}
+			cwd = filepath.Dir(cwd)
+		}
+	}
+}
 
 // SyncMasterKubeconfig merges all Kubernetes server configs from the database
 // into a single master kubeconfig file for the MCP server.
@@ -34,7 +57,7 @@ func SyncMasterKubeconfig() error {
 	if _, err := os.Stat(HostConfigPath); err == nil {
 		hostCfg, err := clientcmd.LoadFromFile(HostConfigPath)
 		if err == nil {
-			mergeConfigs(masterConfig, hostCfg, "default")
+			mergeConfigs(masterConfig, hostCfg, "default", nil)
 		}
 	}
 
@@ -47,7 +70,7 @@ func SyncMasterKubeconfig() error {
 		}
 		// Context name will be server-<id>
 		prefix := fmt.Sprintf("server-%d", srv.ID)
-		mergeConfigs(masterConfig, cfg, prefix)
+		mergeConfigs(masterConfig, cfg, prefix, &srv)
 	}
 
 	// 3. Write to shared volume using a temporary file for atomicity
@@ -70,12 +93,21 @@ func SyncMasterKubeconfig() error {
 		return fmt.Errorf("master config write produced empty file")
 	}
 
-	log.Printf("🔄 MCP: Merged %d clusters into master kubeconfig at %s", len(masterConfig.Clusters), MasterConfigPath)
+	absPath, _ := filepath.Abs(MasterConfigPath)
+	log.Printf("🔄 MCP: Merged %d clusters into master kubeconfig at %s (abs: %s)", len(masterConfig.Clusters), MasterConfigPath, absPath)
 	return nil
 }
 
 // mergeConfigs adds clusters, users, and contexts from src to dest with a prefix
-func mergeConfigs(dest, src *api.Config, prefix string) {
+func mergeConfigs(dest, src *api.Config, prefix string, srv *models.Server) {
+	// Determine the target host to replace 'localhost/127.0.0.1' with.
+	// Defaults to host.docker.internal for local clusters, 
+	// or the server's Host property for remote clusters.
+	targetHost := "host.docker.internal"
+	if srv != nil && srv.Host != "" && srv.Host != "localhost" && srv.Host != "127.0.0.1" {
+		targetHost = srv.Host
+	}
+
 	for name, cluster := range src.Clusters {
 		uniqueName := fmt.Sprintf("%s-%s", prefix, name)
 		// Patch for Docker-to-Host connectivity
@@ -83,11 +115,11 @@ func mergeConfigs(dest, src *api.Config, prefix string) {
 		originalServer := patchedCluster.Server
 		
 		// 1. Handle localhost/127.0.0.1
-		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "localhost", "host.docker.internal")
-		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "127.0.0.1", "host.docker.internal")
+		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "localhost", targetHost)
+		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "127.0.0.1", targetHost)
 		
-		// 2. Handle common LAN/Private IPs (likely the host machine)
-		// We use a broader match to ensure any host-facing IP is redirected to the gateway
+		// 2. Handle common LAN/Private IPs (likely the host machine or a remote machine we can reach by host)
+		// We use a broader match to ensure any internal-facing IP is redirected to the gateway/target
 		if strings.Contains(patchedCluster.Server, "192.168.") || 
 		   strings.Contains(patchedCluster.Server, "10.") || 
 		   strings.Contains(patchedCluster.Server, "172.16.") || 
@@ -101,8 +133,8 @@ func mergeConfigs(dest, src *api.Config, prefix string) {
 			hostWithPort := strings.TrimPrefix(strings.TrimPrefix(patchedCluster.Server, "https://"), "http://")
 			hostOnly := strings.Split(hostWithPort, ":")[0]
 			
-			// Replace the specific IP with host.docker.internal
-			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, hostOnly, "host.docker.internal")
+			// Replace the specific IP with our target host
+			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, hostOnly, targetHost)
 		}
 		
 		if originalServer != patchedCluster.Server {

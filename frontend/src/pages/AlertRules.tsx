@@ -150,50 +150,59 @@ export function AlertRules() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Self-Healing Rules</h1>
-          <p className="page-subtitle">Automated remediation — define conditions that trigger SSH commands</p>
+          <p className="page-subtitle hidden-mobile">Automated remediation — define conditions that trigger SSH commands</p>
         </div>
         {can('manage-alerts') && (
           <button className="btn btn-primary" onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}>
-            <Plus size={14} /> Create Rule
+            <Plus size={16} /> <span className="hidden-mobile">Create Rule</span>
           </button>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 32, background: 'var(--bg-elevated)', borderRadius: 14, padding: 4, width: 'fit-content', border: '1px solid var(--border)' }}>
+      <div className="tabs-container" style={{ display: 'flex', gap: 4, marginBottom: 32, background: 'var(--bg-elevated)', borderRadius: 14, padding: 4, width: 'fit-content', border: '1px solid var(--border)', overflowX: 'auto', maxWidth: '100%' }}>
         {(['rules', 'history', 'xml'] as const).map(t => (
           <button
             key={t}
             onClick={() => { if (t === 'xml') generateXml(); setTab(t); }}
             style={{
-              padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
               transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-              display: 'flex', alignItems: 'center', gap: 7,
+              display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
               ...(tab === t
                 ? { background: 'var(--brand-primary)', color: 'var(--text-inverse)', boxShadow: '0 4px 12px var(--brand-glow)' }
                 : { background: 'transparent', color: 'var(--text-muted)' }
               ),
             }}
           >
-            {t === 'rules' && <><Bell size={13} /> Active Rules</>}
-            {t === 'history' && <><History size={13} /> Action History</>}
-            {t === 'xml' && <><FileCode size={13} /> Source (XML)</>}
+            {t === 'rules' && <><Bell size={13} /> <span className="hidden-mobile">Active Rules</span><span className="show-mobile-only">Rules</span></>}
+            {t === 'history' && <><History size={13} /> <span className="hidden-mobile">Action History</span><span className="show-mobile-only">History</span></>}
+            {t === 'xml' && <><FileCode size={13} /> <span className="hidden-mobile">Source (XML)</span><span className="show-mobile-only">XML</span></>}
           </button>
         ))}
       </div>
 
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'var(--glass-bg)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setShowForm(false)}>
-          <div className="fade-up" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: 24, padding: 36, width: '100%', maxWidth: 560, boxShadow: 'var(--shadow-lg)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'var(--glass-bg)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setShowForm(false)}>
+          <div className="fade-up" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: 24, padding: '24px 20px', width: '100%', maxWidth: 560, boxShadow: 'var(--shadow-lg)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{editId ? 'Edit Rule' : 'New Alert Rule'}</h2>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Define a condition and remediation action</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{editId ? 'Edit Rule' : 'New Alert Rule'}</h2>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Define a condition and remediation action</p>
               </div>
-              <button onClick={() => setShowForm(false)} style={{ width: 32, height: 32, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={15} /></button>
+              <button onClick={() => setShowForm(false)} className="btn-icon" style={{ width: 32, height: 32 }}><X size={15} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Rule Name</label><input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="High CPU Alert" /></div>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Target Server</label><select className="input" value={form.server_id} onChange={e => setForm({ ...form, server_id: Number(e.target.value) })}><option value={0}>All Servers</option>{servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+            <div className="grid-2-col" style={{ gap: 16, marginBottom: 24 }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="input-label">Rule Name</label>
+                <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="High CPU Alert" />
+              </div>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="input-label">Target Server</label>
+                <select className="input" value={form.server_id} onChange={e => setForm({ ...form, server_id: Number(e.target.value) })}>
+                   <option value={0}>All Servers</option>
+                   {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
               <div className="input-group">
                 <label className="input-label">Metric Type</label>
                 <select className="input" value={form.condition_type} onChange={e => setForm({ ...form, condition_type: e.target.value })}>
@@ -201,12 +210,36 @@ export function AlertRules() {
                   <option value="load">Load Average</option><option value="log_keyword">Log Keyword</option><option value="pod_status">Pods Not Running (K8s)</option>
                 </select>
               </div>
-              <div className="input-group" style={{ display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}><label className="input-label">Operator</label><select className="input" value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}><option value="gt">Greater than (&gt;)</option><option value="lt">Less than (&lt;)</option><option value="gte">Greater or equal (&gt;=)</option></select></div>
-              <div className="input-group" style={{ gridColumn: '1 / -1', display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}><label className="input-label">Threshold Value</label><input className="input" value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} placeholder="80" /></div>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Action</label><select className="input" value={form.action_type} onChange={e => setForm({ ...form, action_type: e.target.value })}><option value="ssh_command">Execute SSH Command</option><option value="notify">Notify Only</option></select></div>
-              {form.action_type === 'ssh_command' && (<div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Remediation Command</label><textarea className="input" rows={3} style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, resize: 'vertical' }} value={form.action_command} onChange={e => setForm({ ...form, action_command: e.target.value })} placeholder="systemctl restart nginx && echo 'Restarted'" /></div>)}
+              <div className="input-group" style={{ display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}>
+                <label className="input-label">Operator</label>
+                <select className="input" value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}>
+                  <option value="gt">Greater than (&gt;)</option>
+                  <option value="lt">Less than (&lt;)</option>
+                  <option value="gte">Greater or equal (&gt;=)</option>
+                </select>
+              </div>
+              <div className="input-group" style={{ gridColumn: '1 / -1', display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}>
+                <label className="input-label">Threshold Value</label>
+                <input className="input" value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} placeholder="80" />
+              </div>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="input-label">Action</label>
+                <select className="input" value={form.action_type} onChange={e => setForm({ ...form, action_type: e.target.value })}>
+                  <option value="ssh_command">Execute SSH Command</option>
+                  <option value="notify">Notify Only</option>
+                </select>
+              </div>
+              {form.action_type === 'ssh_command' && (
+                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="input-label">Remediation Command</label>
+                  <textarea className="input" rows={3} style={{ fontFamily: 'var(--font-mono)', fontSize: 13, resize: 'vertical' }} value={form.action_command} onChange={e => setForm({ ...form, action_command: e.target.value })} placeholder="systemctl restart nginx" />
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}><button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button><button className="btn btn-primary" style={{ flex: 2 }} onClick={saveRule}>Save Rule</button></div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveRule}>Save Rule</button>
+            </div>
           </div>
         </div>
       )}
@@ -251,10 +284,12 @@ export function AlertRules() {
           {history.length === 0 ? (
             <div className="empty-state" style={{ padding: '80px 0' }}><History size={40} color="var(--text-muted)" /><p>Remediation log is clear</p></div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead><tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>{['Time', 'Server', 'Trigger Event', 'Remediation Output'].map(h => (<th key={h} style={{ padding: '16px 24px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>))}</tr></thead>
-              <tbody>{history.map((h, i) => (<HistoryRow key={h.id} history={h} serverName={getServerName(h.server_id)} isLast={i === history.length - 1} />))}</tbody>
-            </table>
+            <div className="table-container">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 800 }}>
+                <thead><tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>{['Time', 'Server', 'Trigger Event', 'Remediation Output'].map(h => (<th key={h} style={{ padding: '16px 24px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>))}</tr></thead>
+                <tbody>{history.map((h, i) => (<HistoryRow key={h.id} history={h} serverName={getServerName(h.server_id)} isLast={i === history.length - 1} />))}</tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

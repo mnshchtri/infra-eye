@@ -14,24 +14,24 @@ interface PulseDashboardProps {
 export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecting, onJump, onResync }: PulseDashboardProps) => {
    return (
       <div className="fade-in">
-         <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+         <div className="page-header pulse-header" style={{ marginBottom: 32, flexWrap: 'wrap', gap: 20 }}>
             <div>
                <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{cluster.name}</h2>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div className="badge badge-online" style={{ padding: '4px 8px', fontSize: 10 }}>Connected</div>
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{cluster.host} • K8s Native Engine</span>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div className="badge badge-online">Connected</div>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500, wordBreak: 'break-all' }}>{cluster.host} • K8s Native Engine</span>
                </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '6px 16px', borderRadius: 10, border: '1px solid var(--brand-primary)20' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexGrow: 1 }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '6px 16px', borderRadius: 10, border: '1px solid var(--brand-primary)20', maxWidth: '100%' }}>
                   <Globe size={14} color="var(--brand-primary)" />
-                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                      {namespace === 'All' ? 'All Namespaces' : `Namespace: ${namespace}`}
                   </span>
                </div>
-               <button className="btn btn-secondary" onClick={onResync} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36, width: '100%', justifyContent: 'center' }}>
-                  <RefreshCw size={14} className={connecting ? 'spin' : ''} />
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{connecting ? 'Syncing...' : 'Refresh'}</span>
+               <button className="btn btn-secondary btn-sm" onClick={onResync} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 32, width: '100%', justifyContent: 'center' }}>
+                  <RefreshCw size={13} className={connecting ? 'spin' : ''} />
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>{connecting ? 'Syncing...' : 'Refresh'}</span>
                </button>
             </div>
          </div>
@@ -52,7 +52,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                {stats && (
                   <>
                      {/* Core Infrastructure Row */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
                         <PulseStat
                            label="Nodes" main={stats.nodesReady || 0} total={stats.nodes || 0} sub="Ready"
                            icon={Server} color="#10b981" onClick={() => onJump('nodes')} loading={connecting}
@@ -71,7 +71,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                      {(stats.cpuTotal > 0 || stats.memTotal > 0) && (
                         <div>
                            <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Cluster Capacity</h3>
-                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
                               <CapacityCard
                                  label="CPU Resources"
                                  allocatable={stats.cpuAllocatable}
@@ -122,7 +122,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                      {/* Network, Config & Storage Grid */}
                      <div>
                         <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>Cluster Inventory</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
                            <MiniStat label="Services" count={stats.services} icon={Globe} onClick={() => onJump('services')} />
                            <MiniStat label="Ingresses" count={stats.ingresses} icon={Globe} onClick={() => onJump('ingresses')} />
                            <MiniStat label="Endpoints" count={stats.endpoints} icon={Activity} onClick={() => onJump('endpoints')} />

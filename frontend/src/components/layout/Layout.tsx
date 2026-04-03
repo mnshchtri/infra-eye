@@ -1,6 +1,7 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { Sidebar } from './Sidebar'
+import { MobileNav } from './MobileNav'
 import { useUIStore } from '../../store/uiStore'
 import { ToastContainer } from '../Toast'
 import { useToastStore } from '../../store/toastStore'
@@ -51,7 +52,8 @@ function useAlertNotifications() {
 }
 
 export function Layout() {
-  const { sidebarCollapsed, darkMode } = useUIStore()
+  const { sidebarCollapsed, darkMode, mobileNavOpen, setMobileNavOpen } = useUIStore()
+  const location = useLocation()
   useAlertNotifications()
   
   useEffect(() => {
@@ -62,10 +64,21 @@ export function Layout() {
     }
   }, [darkMode])
 
+  // Close mobile nav when location changes
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location, setMobileNavOpen])
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <div 
+        className={`sidebar-overlay ${mobileNavOpen ? 'mobile-open' : ''}`} 
+        onClick={() => setMobileNavOpen(false)}
+      />
+      
       <Sidebar />
       <main className="app-main">
+        <MobileNav />
         <Outlet />
       </main>
       <ToastContainer />

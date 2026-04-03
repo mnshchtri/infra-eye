@@ -62,6 +62,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [portForwards, setPortForwards] = useState<any[]>([])
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)
   const [showMCPTerminal, setShowMCPTerminal] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768)
   
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
     cluster: true,
@@ -324,115 +325,244 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   }
 
   return (
-    <div className="page" style={{ padding: 0, flexDirection: 'row', overflow: 'hidden', maxWidth: 'none', margin: 0 }}>
+    <div className={`k8s-explorer-container ${!isSidebarOpen ? 'sidebar-hidden' : ''}`} style={{ display: 'flex', height: '100%', background: 'var(--bg-app)', position: 'relative', flex: 1, minWidth: 0 }}>
+      
+      {/* Sidebar Overlay for Mobile */}
+      <div 
+        className={`k8s-sidebar-overlay ${isSidebarOpen ? 'mobile-open' : ''}`} 
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       {/* Sidebar */}
-      <div style={{ width: 240, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden' }}>
-        <div style={{ height: 60, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', boxSizing: 'border-box' }}>
+      <div className={`k8s-resource-sidebar ${!isSidebarOpen ? 'collapsed' : ''}`} style={{ 
+        width: 240, 
+        background: 'var(--bg-sidebar)', 
+        borderRight: '1px solid var(--border)', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100%', 
+        overflowX: 'hidden',
+        transition: 'all 0.3s ease',
+        zIndex: 500
+      }}>
+        <div style={{ height: 60, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', boxSizing: 'border-box', flexShrink: 0 }}>
            <button className="btn-icon" onClick={onBack} style={{ padding: 4 }}>
              <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
            </button>
-           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10 }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
                 {cluster.os === 'darwin' ? <AppleIcon size={18} color="var(--text-inverse)" /> :
                  cluster.os === 'windows'? <WindowsIcon size={16} color="var(--text-inverse)" /> :
                  cluster.os === 'linux'  ? <LinuxIcon size={16} color="var(--text-inverse)" /> :
                  <KubernetesIcon size={20} />}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{cluster.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>Cluster Explorer</span>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cluster.name}</span>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>Cluster Explorer</span>
               </div>
            </div>
+           {/* Mobile Sidebar Close */}
+           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)}>
+              <X size={16} />
+           </button>
         </div>
 
         <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }} className="k8s-sidebar-nav">
-          <ResNavLink active={activeRes === 'pulse'} onClick={() => setActiveRes('pulse')} icon={Activity} label="Pulse Dashboard" />
+          <ResNavLink 
+            active={activeRes === 'pulse'} 
+            onClick={() => { setActiveRes('pulse'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+            icon={Activity} label="Pulse Dashboard" 
+          />
           <NavCategory label="Cluster" icon={Gauge} isOpen={expandedCats.cluster} onToggle={() => toggleCategory('cluster')}>
-            <ResNavLink active={activeRes === 'nodes'} onClick={() => setActiveRes('nodes')} icon={Server} label="Nodes" isSub />
-            <ResNavLink active={activeRes === 'events'} onClick={() => setActiveRes('events')} icon={List} label="Events" isSub />
+            <ResNavLink 
+              active={activeRes === 'nodes'} 
+              onClick={() => { setActiveRes('nodes'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Server} label="Nodes" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'events'} 
+              onClick={() => { setActiveRes('events'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={List} label="Events" isSub 
+            />
           </NavCategory>
           <NavCategory label="Workloads" icon={Layers} isOpen={expandedCats.workloads} onToggle={() => toggleCategory('workloads')}>
-            <ResNavLink active={activeRes === 'pods'} onClick={() => setActiveRes('pods')} icon={Boxes} label="Pods" isSub />
-            <ResNavLink active={activeRes === 'deployments'} onClick={() => setActiveRes('deployments')} icon={LayoutGrid} label="Deployments" isSub />
-            <ResNavLink active={activeRes === 'daemonsets'} onClick={() => setActiveRes('daemonsets')} icon={Cpu} label="DaemonSets" isSub />
-            <ResNavLink active={activeRes === 'statefulsets'} onClick={() => setActiveRes('statefulsets')} icon={Database} label="StatefulSets" isSub />
-            <ResNavLink active={activeRes === 'replicasets'} onClick={() => setActiveRes('replicasets')} icon={Layers} label="ReplicaSets" isSub />
-            <ResNavLink active={activeRes === 'jobs'} onClick={() => setActiveRes('jobs')} icon={Activity} label="Jobs" isSub />
-            <ResNavLink active={activeRes === 'cronjobs'} onClick={() => setActiveRes('cronjobs')} icon={Activity} label="CronJobs" isSub />
+            <ResNavLink 
+              active={activeRes === 'pods'} 
+              onClick={() => { setActiveRes('pods'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Boxes} label="Pods" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'deployments'} 
+              onClick={() => { setActiveRes('deployments'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={LayoutGrid} label="Deployments" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'daemonsets'} 
+              onClick={() => { setActiveRes('daemonsets'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Cpu} label="DaemonSets" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'statefulsets'} 
+              onClick={() => { setActiveRes('statefulsets'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Database} label="StatefulSets" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'replicasets'} 
+              onClick={() => { setActiveRes('replicasets'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Layers} label="ReplicaSets" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'jobs'} 
+              onClick={() => { setActiveRes('jobs'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Activity} label="Jobs" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'cronjobs'} 
+              onClick={() => { setActiveRes('cronjobs'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Activity} label="CronJobs" isSub 
+            />
           </NavCategory>
           <NavCategory label="Config" icon={Lock} isOpen={expandedCats.config} onToggle={() => toggleCategory('config')}>
-            <ResNavLink active={activeRes === 'configmaps'} onClick={() => setActiveRes('configmaps')} icon={FileCode} label="ConfigMaps" isSub />
-            <ResNavLink active={activeRes === 'secrets'} onClick={() => setActiveRes('secrets')} icon={Key} label="Secrets" isSub />
-            <ResNavLink active={activeRes === 'resourcequotas'} onClick={() => setActiveRes('resourcequotas')} icon={Shield} label="ResourceQuotas" isSub />
-            <ResNavLink active={activeRes === 'hpa'} onClick={() => setActiveRes('hpa')} icon={Activity} label="HPA" isSub />
+            <ResNavLink 
+              active={activeRes === 'configmaps'} 
+              onClick={() => { setActiveRes('configmaps'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={FileCode} label="ConfigMaps" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'secrets'} 
+              onClick={() => { setActiveRes('secrets'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Key} label="Secrets" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'resourcequotas'} 
+              onClick={() => { setActiveRes('resourcequotas'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Shield} label="ResourceQuotas" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'hpa'} 
+              onClick={() => { setActiveRes('hpa'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Activity} label="HPA" isSub 
+            />
           </NavCategory>
           <NavCategory label="Network" icon={Globe} isOpen={expandedCats.network} onToggle={() => toggleCategory('network')}>
-            <ResNavLink active={activeRes === 'services'} onClick={() => setActiveRes('services')} icon={Layers} label="Services" isSub />
-            <ResNavLink active={activeRes === 'endpoints'} onClick={() => setActiveRes('endpoints')} icon={Activity} label="Endpoints" isSub />
-            <ResNavLink active={activeRes === 'ingresses'} onClick={() => setActiveRes('ingresses')} icon={Globe} label="Ingresses" isSub />
-            <ResNavLink active={activeRes === 'networkpolicies'} onClick={() => setActiveRes('networkpolicies')} icon={Shield} label="NetworkPolicies" isSub />
+            <ResNavLink 
+              active={activeRes === 'services'} 
+              onClick={() => { setActiveRes('services'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Layers} label="Services" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'endpoints'} 
+              onClick={() => { setActiveRes('endpoints'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Activity} label="Endpoints" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'ingresses'} 
+              onClick={() => { setActiveRes('ingresses'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Globe} label="Ingresses" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'networkpolicies'} 
+              onClick={() => { setActiveRes('networkpolicies'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Shield} label="NetworkPolicies" isSub 
+            />
           </NavCategory>
           <NavCategory label="Storage" icon={Database} isOpen={expandedCats.storage} onToggle={() => toggleCategory('storage')}>
-            <ResNavLink active={activeRes === 'pvcs'} onClick={() => setActiveRes('pvcs')} icon={Database} label="PersistentVolumeClaims" isSub />
-            <ResNavLink active={activeRes === 'pvs'} onClick={() => setActiveRes('pvs')} icon={Layers} label="PersistentVolumes" isSub />
-            <ResNavLink active={activeRes === 'storageclasses'} onClick={() => setActiveRes('storageclasses')} icon={Cpu} label="StorageClasses" isSub />
+            <ResNavLink 
+              active={activeRes === 'pvcs'} 
+              onClick={() => { setActiveRes('pvcs'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Database} label="PersistentVolumeClaims" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'pvs'} 
+              onClick={() => { setActiveRes('pvs'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Layers} label="PersistentVolumes" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'storageclasses'} 
+              onClick={() => { setActiveRes('storageclasses'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Cpu} label="StorageClasses" isSub 
+            />
           </NavCategory>
           <NavCategory label="Access Control" icon={Shield} isOpen={expandedCats.rbac} onToggle={() => toggleCategory('rbac')}>
-            <ResNavLink active={activeRes === 'serviceaccounts'} onClick={() => setActiveRes('serviceaccounts')} icon={Lock} label="ServiceAccounts" isSub />
-            <ResNavLink active={activeRes === 'roles'} onClick={() => setActiveRes('roles')} icon={Shield} label="Roles" isSub />
-            <ResNavLink active={activeRes === 'clusterroles'} onClick={() => setActiveRes('clusterroles')} icon={Shield} label="ClusterRoles" isSub />
-            <ResNavLink active={activeRes === 'rolebindings'} onClick={() => setActiveRes('rolebindings')} icon={Key} label="RoleBindings" isSub />
-            <ResNavLink active={activeRes === 'clusterrolebindings'} onClick={() => setActiveRes('clusterrolebindings')} icon={Key} label="ClusterRoleBindings" isSub />
+            <ResNavLink 
+              active={activeRes === 'serviceaccounts'} 
+              onClick={() => { setActiveRes('serviceaccounts'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Lock} label="ServiceAccounts" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'roles'} 
+              onClick={() => { setActiveRes('roles'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Shield} label="Roles" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'clusterroles'} 
+              onClick={() => { setActiveRes('clusterroles'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Shield} label="ClusterRoles" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'rolebindings'} 
+              onClick={() => { setActiveRes('rolebindings'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Key} label="RoleBindings" isSub 
+            />
+            <ResNavLink 
+              active={activeRes === 'clusterrolebindings'} 
+              onClick={() => { setActiveRes('clusterrolebindings'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Key} label="ClusterRoleBindings" isSub 
+            />
           </NavCategory>
-          {/* Add more categories as needed or truncated for brevity */}
           <div style={{ marginTop: 12 }}>
-            <ResNavLink active={activeRes === 'yaml'} onClick={() => setActiveRes('yaml')} icon={FileCode} label="Raw Configuration" />
+            <ResNavLink 
+              active={activeRes === 'yaml'} 
+              onClick={() => { setActiveRes('yaml'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={FileCode} label="Raw Configuration" 
+            />
           </div>
         </nav>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-app)' }}>
-        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 24px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-app)', minWidth: 0 }}>
+        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0 }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div className="badge badge-online">REAL-TIME</div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'capitalize' }}>{activeRes === 'yaml' ? 'KubeConfig' : activeRes} Explorer</h2>
+              <button 
+                className="show-mobile-only btn-icon" 
+                onClick={() => setIsSidebarOpen(true)}
+                style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}
+              >
+                <LayoutGrid size={16} color="var(--brand-primary)" />
+              </button>
+              <div className="badge badge-online hidden-mobile">REAL-TIME</div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeRes === 'yaml' ? 'KubeConfig' : activeRes} Explorer</h2>
               {loading && <RefreshCw size={14} className="spin" color="var(--brand-primary)" />}
            </div>
            
            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {activeRes === 'yaml' ? (
+              {activeRes !== 'yaml' && (
+                <div className="namespace-selector hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--brand-primary)20' }}>
+                  <Globe size={14} color="var(--brand-primary)" />
+                  <select 
+                    style={{ background: 'transparent', border: 'none', fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)', cursor: 'pointer', outline: 'none' }}
+                    value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
+                  >
+                      <option value="All">All</option>
+                      {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
+                  </select>
+                </div>
+              )}
+              {activeRes === 'yaml' && (
                 <button 
-                  className="btn btn-primary" 
-                  style={{ padding: '6px 16px', fontSize: 12 }} 
+                  className="btn btn-primary btn-sm" 
                   onClick={saveClusterConfig}
                   disabled={savingRaw}
                 >
-                  {savingRaw ? 'Saving...' : 'Save Configuration'}
+                  <span className="hidden-mobile">{savingRaw ? 'Saving...' : 'Save Configuration'}</span>
+                  <span className="show-mobile-only">Save</span>
                 </button>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 12px', borderRadius: 8, border: '1px solid var(--brand-primary)20' }}>
-                    <Globe size={14} color="var(--brand-primary)" />
-                    <select 
-                      style={{ background: 'transparent', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--brand-primary)', cursor: 'pointer', outline: 'none' }}
-                      value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
-                    >
-                        <option value="All">All Namespaces</option>
-                        {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
-                    </select>
-                  </div>
-                  <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} 
-                           onClick={() => watchK8sData(cluster.id, activeRes as any, selectedNS)}>
-                    <RefreshCw size={12} style={{ marginRight: 6 }} className={loading ? 'spin' : ''} /> Resync
-                  </button>
-                </>
               )}
               <button
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-sm"
                 onClick={() => setShowMCPTerminal(t => !t)}
-                title="Open kubectl terminal (MCP)"
                 style={{
-                  padding: '6px 14px', fontSize: 12, gap: 6,
+                  gap: 6,
                   display: 'flex', alignItems: 'center',
                   background: showMCPTerminal ? 'var(--brand-gradient)' : undefined,
                   color: showMCPTerminal ? '#fff' : undefined,
@@ -440,21 +570,22 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                 }}
               >
                 <Terminal size={13} />
-                kubectl
+                <span className="hidden-mobile">kubectl</span>
               </button>
            </div>
         </header>
 
-         <main style={{ flex: 1, overflowY: 'auto', padding: 24, position: 'relative' }}>
+         <main style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', position: 'relative' }}>
           {(showSearch || showCommandBar) && (
-            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--error)' : '1px solid var(--border-bright)', borderRadius: 12, marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--danger)' : '1px solid var(--border-bright)', borderRadius: 12, marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)' }}>
               <span style={{ color: 'var(--brand-primary)', fontWeight: 800, marginRight: 12 }}>{showSearch ? '/' : ':'}</span>
               <form onSubmit={handleCommandSubmit} style={{ flex: 1, margin: 0 }}>
                 <input ref={showSearch ? searchInputRef : cmdInputRef}
                        value={showSearch ? filterQuery : commandInput}
                        onChange={e => showSearch ? setFilterQuery(e.target.value) : setCommandInput(e.target.value)}
                        style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, outline: 'none', width: '100%' }}
-                       placeholder={showSearch ? "Fuzzy search resources..." : "resource type or ns command..."} />
+                       autoFocus
+                       placeholder={showSearch ? "Fuzzy search..." : "resource type..."} />
               </form>
               <button className="btn-icon" onClick={() => { setShowSearch(false); setShowCommandBar(false); }}><X size={14}/></button>
             </div>

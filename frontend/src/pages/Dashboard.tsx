@@ -3,20 +3,22 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
-  Boxes, Search, X
+  Boxes, Search, X, Terminal, Settings
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import { useUIStore } from '../store/uiStore'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { api, buildWsUrl } from '../api/client'
 
+import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
+
 interface ServerData {
   id: number; name: string; host: string; status: string;
   tags: string; description: string; port: number; ssh_user: string;
   os: string;
   is_k8s: boolean;
+  kube_config?: string;
 }
 interface MetricData {
   cpu_percent: number; mem_percent: number; disk_percent: number;
@@ -46,16 +48,16 @@ const StatCard = memo(({
   color: string; delta?: string
 }) => {
   return (
-    <div className="card stat-card fade-up">
+    <div className="card stat-card fade-up" style={{ padding: '16px 20px' }}>
       <div
         className="stat-icon-wrapper"
-        style={{ background: `${color}10`, border: `1px solid ${color}25` }}
+        style={{ background: `${color}10`, border: `1px solid ${color}25`, width: 36, height: 36, borderRadius: 10 }}
       >
-        <Icon size={20} color={color} />
+        <Icon size={18} color={color} />
       </div>
       <div className="stat-val-group">
-        <div className="stat-value">{value}</div>
-        <div className="stat-label">{label}</div>
+        <div className="stat-value" style={{ fontSize: 20 }}>{value}</div>
+        <div className="stat-label" style={{ fontSize: 11 }}>{label}</div>
         {delta && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
             <TrendingUp size={10} color={color} />
@@ -81,46 +83,64 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
     <div
       className="card server-card fade-up"
       onClick={() => navigate(`/servers/${server.id}`)}
-      style={{ cursor: 'pointer', padding: 24 }}
+      style={{ cursor: 'pointer', padding: 24, overflow: 'hidden' }}
     >
+      {/* Header row: icon + info + status badge */}
       <div className="server-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1, minWidth: 0 }}>
           <div style={{
             width: 40, height: 40, borderRadius: 12,
             background: `${statusColor}10`, border: `1px solid ${statusColor}25`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
           }}>
-            {server.os === 'darwin' ? <AppleIcon size={18} color={statusColor} /> :
+            {server.is_k8s ? <KubernetesIcon size={22} /> :
+             server.os === 'darwin' ? <AppleIcon size={18} color={statusColor} /> :
              server.os === 'windows'? <WindowsIcon size={16} color={statusColor} /> :
              server.os === 'linux'  ? <LinuxIcon size={16} color={statusColor} /> :
              <HelpCircle size={18} color={statusColor} />}
           </div>
-          <div className="server-info-top">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div className="server-name">{server.name}</div>
+          <div className="server-info-top" style={{ flex: 1, minWidth: 0 }}>
+            {/* Name + OS pill on one line, truncated */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <div className="server-name" style={{ 
+                fontSize: 15, fontWeight: 700, 
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                maxWidth: '100%'
+              }}>
+                {server.name}
+              </div>
               <span style={{
                 fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 4,
                 background: server.os === 'darwin' ? 'rgba(255,255,255,0.1)' : 'rgba(129,140,248,0.15)',
                 color: server.os === 'darwin' ? '#fff' : 'var(--brand-primary)',
-                textTransform: 'uppercase', letterSpacing: '0.04em', border: '1px solid rgba(255,255,255,0.05)'
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+                border: '1px solid rgba(255,255,255,0.05)',
+                flexShrink: 0,
               }}>
                 {server.os?.toUpperCase() || 'HOST'}
               </span>
             </div>
-            <div className="server-host">{server.ssh_user}@{server.host}</div>
+            {/* Status badge + host on second line */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+              <span className={`badge badge-${server.status}`} style={{ fontSize: 10, padding: '2px 8px' }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: '50%', background: statusColor,
+                  display: 'inline-block', marginRight: 4,
+                  boxShadow: server.status === 'online' ? `0 0 6px ${statusColor}` : undefined,
+                }} />
+                {server.status.toUpperCase()}
+              </span>
+              <div className="server-host" style={{ fontSize: 11 }}>
+                {server.host ? `${server.ssh_user}@${server.host}` : 'Direct API Only'}
+              </div>
+            </div>
           </div>
         </div>
-        <span className={`badge badge-${server.status}`}>
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%', background: statusColor,
-            boxShadow: server.status === 'online' ? `0 0 8px ${statusColor}` : undefined,
-          }} />
-          {server.status}
-        </span>
       </div>
 
       {metric ? (
-        <div className="server-metric-stack" style={{ margin: '24px 0' }}>
+        <div className="server-metric-stack" style={{ margin: '20px 0' }}>
           {[
             { label: 'CPU', value: metric.cpu_percent, icon: <Cpu size={12} /> },
             { label: 'MEM', value: metric.mem_percent, icon: <MemoryStick size={12} /> },
@@ -158,22 +178,30 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
         </div>
       )}
 
-      <div className="server-card-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-        <div className="server-tag-group">
-          {server.tags
-            ? server.tags.split(',').map(t => (
-                <span key={t} className="server-tag">{t.trim()}</span>
+      <div className="server-card-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
+        <div className="server-tag-group" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+          {server.tags && typeof server.tags === 'string'
+            ? server.tags.split(',').slice(0, 2).map(t => (
+                <span key={t} className="server-tag" style={{ fontSize: 10, padding: '2px 6px' }}>{t.trim()}</span>
               ))
-            : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tags</span>
+            : <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>No tags</span>
           }
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--brand-primary)', fontWeight: 700 }}>
-          Manage <ArrowRight size={13} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+           {server.status === 'online' && (
+             <>
+               <button onClick={(e) => { e.stopPropagation(); navigate(`/servers/${server.id}?tab=Terminal`); }} className="btn-icon-sm" title="Terminal"><Terminal size={14} /></button>
+               <button onClick={(e) => { e.stopPropagation(); navigate(`/servers/${server.id}?tab=Logs`); }} className="btn-icon-sm" title="Logs"><Activity size={14} /></button>
+             </>
+           )}
+           <button onClick={(e) => { e.stopPropagation(); navigate(`/servers/${server.id}?tab=Settings`); }} className="btn-icon-sm" title="Settings"><Settings size={14} /></button>
+           <button className="btn-icon-sm primary" title="View Detail"><ArrowRight size={14} /></button>
         </div>
       </div>
     </div>
   )
 })
+
 
 export function Dashboard() {
   const navigate = useNavigate()
@@ -264,7 +292,7 @@ export function Dashboard() {
     const vals = filteredServers.map(s => metrics[s.id]).filter(Boolean);
     const cpu = vals.length > 0
       ? (vals.reduce((a, m) => a + m!.cpu_percent, 0) / vals.length).toFixed(1) + '%'
-      : '—';
+      : 'N/A';
     return { total: tot, k8sServers: k8s, online: on, offline: off, avgCpu: cpu };
   }, [filteredServers, metrics]);
 
@@ -288,15 +316,15 @@ export function Dashboard() {
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header" style={{ flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">
-            Infrastructure Overview — {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} — {currentTime.toLocaleTimeString('en-US')}
+          <p className="page-subtitle hidden-mobile">
+            Infrastructure Overview — {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: 280 }}>
+        <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
+          <div className="search-container">
             <Search 
               size={14} 
               color="var(--text-muted)" 
@@ -304,11 +332,11 @@ export function Dashboard() {
             />
             <input
               type="text"
-              placeholder="Search servers..."
+              placeholder="Search..."
               className="input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 38, height: 42, background: 'var(--bg-card)' }}
+              style={{ paddingLeft: 38, height: 40 }}
             />
             {searchQuery && (
               <button 
@@ -323,22 +351,23 @@ export function Dashboard() {
               </button>
             )}
           </div>
-          <button className="btn btn-secondary" onClick={loadData} disabled={loading} style={{ height: 42, padding: '0 20px' }}>
+          <button className="btn btn-secondary" onClick={loadData} disabled={loading} style={{ height: 40 }}>
             <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
-            Refresh
+            <span className="hidden-mobile">Refresh</span>
           </button>
-          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')} style={{ height: 42, padding: '0 20px' }}>
-            <Plus size={16} /> Add Server
+          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')} style={{ height: 40 }}>
+            <Plus size={16} />
+            <span className="hidden-mobile">Add Server</span><span className="show-mobile-only">Add</span>
           </button>
         </div>
       </div>
 
       <div className="grid-stats" style={{ marginBottom: 48 }}>
-        <StatCard label="Total Servers" value={loading ? '—' : (total - k8sServers)} icon={Server} color="var(--brand-primary)" />
-        <StatCard label="K8s Clusters" value={loading ? '—' : k8sServers} icon={Boxes} color="var(--info)" />
-        <StatCard label="Status Online" value={loading ? '—' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
-        <StatCard label="Status Offline" value={loading ? '—' : offline} icon={AlertTriangle} color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'} />
-        <StatCard label="Global Avg CPU" value={loading ? '—' : avgCpu} icon={TrendingUp} color="var(--warning)" />
+        <StatCard label="Total Servers" value={loading ? 'N/A' : (total - k8sServers)} icon={Server} color="var(--brand-primary)" />
+        <StatCard label="K8s Clusters" value={loading ? 'N/A' : k8sServers} icon={Boxes} color="var(--info)" />
+        <StatCard label="Status Online" value={loading ? 'N/A' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
+        <StatCard label="Status Offline" value={loading ? 'N/A' : offline} icon={AlertTriangle} color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'} />
+        <StatCard label="Global Avg CPU" value={loading ? 'N/A' : avgCpu} icon={TrendingUp} color="var(--warning)" />
       </div>
 
       {!loading && servers.length > 0 && (
@@ -372,42 +401,71 @@ export function Dashboard() {
       )}
 
       {loading ? (
-        <div className="empty-state">
-           <div className="spin" style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+           <div className="card-skeleton" style={{ height: 160 }} />
+           <div className="card-skeleton" style={{ height: 400 }} />
         </div>
       ) : servers.length === 0 ? (
         <div className="empty-state fade-up">
-          <Server size={56} color="var(--brand-primary)" style={{ marginBottom: 24 }} />
-          <p>No servers connected</p>
-          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')}>Add Your First Server</button>
+          <div style={{ width: 80, height: 80, borderRadius: 24, background: 'var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Server size={40} color="var(--brand-primary)" />
+          </div>
+          <h2>No infrastructure connected</h2>
+          <p>Begin by adding a standalone server or a Kubernetes cluster to monitor your fleet.</p>
+          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+            <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')}>Add Standard Server</button>
+            <button className="btn btn-secondary" onClick={() => navigate('/kubernetes')}>Add K8s Cluster</button>
+          </div>
         </div>
       ) : (
-        <div className="grid-cards">
-          {filteredServers.length > 0 ? (
-            filteredServers.map((s) => (
-              <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
-            ))
-          ) : (
-            <div className="empty-state fade-up" style={{ gridColumn: '1 / -1', padding: '80px 0' }}>
-              <div style={{ 
-                width: 64, height: 64, borderRadius: 20, background: 'rgba(245, 158, 11, 0.08)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-                border: '1px solid rgba(245, 158, 11, 0.2)'
-              }}>
-                <Search size={24} color="var(--warning)" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
+          
+          {/* Managed Clusters Section */}
+          {filteredServers.filter(s => s.is_k8s).length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(79, 70, 229, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' }}>
+                  <KubernetesIcon size={18} />
+                </div>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Managed Clusters</h2>
+                <div className="badge hidden-mobile" style={{ marginLeft: 'auto', background: 'var(--brand-glow)', color: 'var(--brand-primary)', border: '1px solid var(--brand-primary)20' }}>
+                  {filteredServers.filter(s => s.is_k8s).length} ACTIVE
+                </div>
               </div>
-              <h3 style={{ fontWeight: 800, fontSize: 18, color: 'var(--text-primary)' }}>No matching servers</h3>
-              <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 8, maxWidth: 300 }}>
-                We couldn't find any servers matching "<strong>{searchQuery}</strong>". Try a different keyword or tag.
-              </p>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setSearchQuery('')}
-                style={{ marginTop: 24 }}
-              >
-                Clear Search
-              </button>
+              <div className="grid-cards">
+                {filteredServers.filter(s => s.is_k8s).map((s) => (
+                  <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Infrastructure Fleet Section */}
+          {filteredServers.filter(s => !s.is_k8s).length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(79, 70, 229, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' }}>
+                  <Server size={18} color="var(--brand-primary)" />
+                </div>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Resource Fleet</h2>
+                <div className="badge hidden-mobile" style={{ marginLeft: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                  {filteredServers.filter(s => !s.is_k8s).length} NODES
+                </div>
+              </div>
+              <div className="grid-cards">
+                {filteredServers.filter(s => !s.is_k8s).map((s) => (
+                  <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {filteredServers.length === 0 && searchQuery && (
+             <div className="empty-state" style={{ padding: '60px 0' }}>
+                <Search size={32} color="var(--text-muted)" style={{ marginBottom: 16 }} />
+                <p>No results for "{searchQuery}"</p>
+                <button className="btn btn-secondary btn-sm" onClick={() => setSearchQuery('')}>Clear Filter</button>
+             </div>
           )}
         </div>
       )}

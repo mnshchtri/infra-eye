@@ -7,7 +7,7 @@ echo "🚀 Starting InfraEye Full Stack (Development)..."
 
 # Ensure core infra is running (DB, Redis)
 echo "🐘 Verifying infrastructure (DB/Redis)..."
-docker-compose up -d postgres redis
+docker-compose up -d postgres redis mcp-init mcp-server
 
 # 1. Start Backend in background
 echo "📦 Starting Go Backend..."

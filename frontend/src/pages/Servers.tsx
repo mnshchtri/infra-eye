@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X, WifiOff, HelpCircle, Search } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
+import { 
+  Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, 
+  Loader2, X, WifiOff, HelpCircle, Search, Terminal, Settings, Activity 
+} from 'lucide-react'
+import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
@@ -134,13 +137,13 @@ export function Servers() {
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header" style={{ flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 className="page-title">Servers</h1>
-          <p className="page-subtitle">Manage and monitor your connected infrastructure</p>
+          <p className="page-subtitle hidden-mobile">Manage and monitor connected infrastructure</p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: 280 }}>
+        <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
+          <div className="search-container">
             <Search 
               size={14} 
               color="var(--text-muted)" 
@@ -148,11 +151,11 @@ export function Servers() {
             />
             <input
               type="text"
-              placeholder="Search servers..."
+              placeholder="Search..."
               className="input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 38, height: 42, background: 'var(--bg-card)' }}
+              style={{ paddingLeft: 38, height: 40 }}
             />
             {searchQuery && (
               <button 
@@ -171,9 +174,10 @@ export function Servers() {
             <button
               className="btn btn-primary"
               onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}
-              style={{ height: 42, padding: '0 20px' }}
+              style={{ height: 40 }}
             >
-              <Plus size={14} /> Add Server
+              <Plus size={14} /> 
+              <span className="hidden-mobile">Add Server</span><span className="show-mobile-only">Add</span>
             </button>
           )}
         </div>
@@ -191,11 +195,9 @@ export function Servers() {
           onClick={() => setShowForm(false)}
         >
           <div
-            className="fade-up"
+            className="card fade-up modal-content"
             style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
-              borderRadius: 24, padding: 36, width: '100%', maxWidth: 600,
-              boxShadow: 'var(--shadow-lg)',
+              padding: 'clamp(20px, 5vw, 32px)', width: '100%', maxWidth: 640,
               maxHeight: '90vh', overflowY: 'auto',
             }}
             onClick={e => e.stopPropagation()}
@@ -223,14 +225,14 @@ export function Servers() {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
               {[
-                { label: 'Server Name', key: 'name', placeholder: 'prod-web-01' },
-                { label: 'Host / IP Address', key: 'host', placeholder: '192.168.1.100' },
-                { label: 'SSH Port', key: 'port', placeholder: '22', type: 'number' },
-                { label: 'SSH User', key: 'ssh_user', placeholder: 'root' },
+                { label: 'Name', key: 'name', placeholder: 'prod-web-01' },
+                { label: 'Host', key: 'host', placeholder: '192.168.1.100' },
+                { label: 'Port', key: 'port', placeholder: '22', type: 'number' },
+                { label: 'User', key: 'ssh_user', placeholder: 'root' },
               ].map(({ label, key, placeholder, type }) => (
-                <div key={key} className="input-group">
+                <div key={key} className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">{label}</label>
                   <input
                     className="input"
@@ -279,12 +281,12 @@ export function Servers() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="input-group">
-                <label className="input-label">Tags (comma-separated)</label>
-                <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, k8s, web" />
+            <div className="grid-2-col" style={{ gap: 16, marginBottom: 24 }}>
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label className="input-label">Tags</label>
+                <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, mail" />
               </div>
-              <div className="input-group">
+              <div className="input-group" style={{ marginBottom: 0 }}>
                 <label className="input-label">Description</label>
                 <input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional note" />
               </div>
@@ -321,23 +323,12 @@ export function Servers() {
           )}
         </div>
       ) : (
-        <div className="card scrollbar-hidden" style={{ 
-          padding: 0, 
-          overflowY: 'auto', 
-          maxHeight: 'calc(100vh - 210px)',
-          border: '1px solid var(--border)',
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: 'left' }}>
+        <div className="table-container fade-up">
+          <table className="k-table">
             <thead>
-              <tr style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)' }}>
+              <tr>
                 {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
-                  <th key={h} style={{
-                    padding: '16px 24px', fontSize: 11, fontWeight: 800,
-                    color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em',
-                    borderBottom: '1px solid var(--border)',
-                  }}>
-                    {h}
-                  </th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -389,13 +380,18 @@ export function Servers() {
                           width: 36, height: 36, borderRadius: 10,
                           background: `${statusColors[s.status] || 'var(--text-muted)'}15`,
                           border: `1px solid ${statusColors[s.status] || 'var(--text-muted)'}30`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         }}>
-                          <Server size={14} color={statusColors[s.status] || 'var(--text-muted)'} />
+                          {s.kube_config
+                            ? <KubernetesIcon size={18} />
+                            : s.os === 'darwin' ? <AppleIcon size={16} color={statusColors[s.status] || 'var(--text-muted)'} />
+                            : s.os === 'windows' ? <WindowsIcon size={14} color={statusColors[s.status] || 'var(--text-muted)'} />
+                            : s.os === 'linux' ? <LinuxIcon size={16} color={statusColors[s.status] || 'var(--text-muted)'} />
+                            : <Server size={14} color={statusColors[s.status] || 'var(--text-muted)'} />}
                         </div>
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <div
-                            style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14 }}
+                            style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                             onClick={() => navigate(`/servers/${s.id}`)}
                             onMouseEnter={e => e.currentTarget.style.color = 'var(--brand-primary)'}
                             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
@@ -418,9 +414,17 @@ export function Servers() {
                       </div>
                     </td>
                     <td style={{ padding: '18px 24px' }}>
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>
-                        {s.host ? `${s.ssh_user}@${s.host}:${s.port}` : <span style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>Direct K8s API</span>}
-                      </span>
+                      {s.host
+                        ? <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}:{s.port}</span>
+                        : <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                            background: 'rgba(129,140,248,0.12)', color: 'var(--brand-primary)',
+                            border: '1px solid rgba(129,140,248,0.25)',
+                          }}>
+                            <KubernetesIcon size={12} /> Direct K8s API
+                          </span>
+                      }
                     </td>
                     <td style={{ padding: '18px 24px' }}>
                       <span style={{

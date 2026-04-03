@@ -116,8 +116,8 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
   }
 
   return (
-    <div style={{ overflow: 'hidden', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-       <table className="k-table">
+    <div className="table-container fade-up" style={{ borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-card)', marginBottom: 20 }}>
+       <table className="k-table" style={{ width: '100%', minWidth: 800 }}>
           <colgroup>
             {columns.map(c => <col key={c} style={{ width: getColWidth(c) }} />)}
             {actions && <col style={{ width: '140px' }} />}

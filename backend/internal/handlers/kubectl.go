@@ -1336,6 +1336,66 @@ func DeleteKubectl(c *gin.Context) {
 		return
 	}
 
+	// --- Native delete for direct-API clusters ---
+	if server.Host == "" {
+		dClient, err := k8s.GetDynamicClient(server.KubeConfig)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "dynamic client: " + err.Error()})
+			return
+		}
+
+		// Map Kind → GVR
+		type gvrEntry struct{ group, version, resource string }
+		kindToGVR := map[string]gvrEntry{
+			"Pod": {"", "v1", "pods"}, "Node": {"", "v1", "nodes"},
+			"Namespace": {"", "v1", "namespaces"}, "Service": {"", "v1", "services"},
+			"Endpoints": {"", "v1", "endpoints"}, "ConfigMap": {"", "v1", "configmaps"},
+			"Secret": {"", "v1", "secrets"}, "ServiceAccount": {"", "v1", "serviceaccounts"},
+			"PersistentVolume": {"", "v1", "persistentvolumes"},
+			"PersistentVolumeClaim": {"", "v1", "persistentvolumeclaims"},
+			"ResourceQuota": {"", "v1", "resourcequotas"},
+			"Deployment":  {"apps", "v1", "deployments"}, "ReplicaSet": {"apps", "v1", "replicasets"},
+			"StatefulSet": {"apps", "v1", "statefulsets"}, "DaemonSet": {"apps", "v1", "daemonsets"},
+			"Job": {"batch", "v1", "jobs"}, "CronJob": {"batch", "v1", "cronjobs"},
+			"Ingress": {"networking.k8s.io", "v1", "ingresses"},
+			"NetworkPolicy": {"networking.k8s.io", "v1", "networkpolicies"},
+			"StorageClass": {"storage.k8s.io", "v1", "storageclasses"},
+			"Role": {"rbac.authorization.k8s.io", "v1", "roles"},
+			"ClusterRole": {"rbac.authorization.k8s.io", "v1", "clusterroles"},
+			"RoleBinding": {"rbac.authorization.k8s.io", "v1", "rolebindings"},
+			"ClusterRoleBinding": {"rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
+			"HorizontalPodAutoscaler": {"autoscaling", "v1", "horizontalpodautoscalers"},
+			"Event": {"", "v1", "events"},
+		}
+
+		// Normalize kind (Title-case)
+		kind := req.Kind
+		if len(kind) > 0 {
+			kind = strings.ToUpper(kind[:1]) + strings.ToLower(kind[1:])
+		}
+		entry, ok := kindToGVR[kind]
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported resource kind for native delete: " + kind})
+			return
+		}
+
+		gvr := schema.GroupVersionResource{Group: entry.group, Version: entry.version, Resource: entry.resource}
+		ctx := context.Background()
+		var delErr error
+		if req.Namespace != "" {
+			delErr = dClient.Resource(gvr).Namespace(req.Namespace).Delete(ctx, req.Name, metav1.DeleteOptions{})
+		} else {
+			delErr = dClient.Resource(gvr).Delete(ctx, req.Name, metav1.DeleteOptions{})
+		}
+		if delErr != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": delErr.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "output": fmt.Sprintf("%s '%s' deleted", kind, req.Name)})
+		return
+	}
+
+	// --- SSH-backed clusters ---
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ssh connect: " + err.Error()})
@@ -1361,6 +1421,7 @@ func DeleteKubectl(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "output": stdout})
 }
+
 
 // StartPortForward starts a background kubectl port-forward process on the remote node.
 func StartPortForward(c *gin.Context) {

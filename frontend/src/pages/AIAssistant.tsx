@@ -273,85 +273,95 @@ export function AIAssistant() {
   }, [selectedServer, showWelcome])
 
   return (
-    <div style={{ display: 'flex', height: '100%', background: 'var(--bg-app)' }}>
+    <div className={`ai-assistant-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ display: 'flex', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
       
+      <div 
+        className={`ai-sidebar-overlay ${!isSidebarCollapsed ? 'mobile-open' : ''}`} 
+        onClick={() => setIsSidebarCollapsed(true)}
+      />
+
       <ThreadSidebar 
         threads={threads} 
         activeThreadId={activeThreadId}
-        onSelect={setActiveThreadId}
-        onNew={startNewChat}
+        onSelect={id => { setActiveThreadId(id); if (window.innerWidth <= 768) setIsSidebarCollapsed(true); }}
+        onNew={() => { startNewChat(); if (window.innerWidth <= 768) setIsSidebarCollapsed(true); }}
         onDelete={deleteThread}
         isCollapsed={isSidebarCollapsed}
         onToggle={setIsSidebarCollapsed}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
-        <header style={{
-          width: '100%', padding: '14px 30px', 
+        <header className="ai-chat-header" style={{
+          width: '100%', padding: '14px 24px', 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0, borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-card)'
+          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 16
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button 
+              className="show-mobile-only btn-icon" 
+              onClick={() => setIsSidebarCollapsed(false)}
+              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}
+            >
+              <Zap size={16} color="var(--brand-primary)" />
+            </button>
             <div style={{
-              width: 44, height: 44, borderRadius: 12,
+              width: 36, height: 36, borderRadius: 10,
               background: 'var(--bg-card)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 4px 12px var(--brand-glow)',
-              overflow: 'hidden', padding: 5, border: '1px solid var(--border-bright)'
+              overflow: 'hidden', padding: 4, border: '1px solid var(--border-bright)'
             }}>
               <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 2 }}>नेत्र</h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>Strategic Infrastructure Intelligence</span>
-                <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 700 }}>Active Mode</span>
+              <h1 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>नेत्र</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="hidden-mobile" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 500 }}>Intelligence</span>
+                <span className="hidden-mobile" style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
+                <span style={{ fontSize: 9, color: 'var(--brand-primary)', fontWeight: 700 }}>Active Mode</span>
               </div>
             </div>
           </div>
 
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 24 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>AI Protocol</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Protocol</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <select value={provider} onChange={e => setProvider(e.target.value as any)}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
-                   <option value="openrouter">OpenRouter (Auto)</option>
-                   <option value="deepseek">DeepSeek (Native)</option>
-                   <option value="google">Google Gemini</option>
-                   <option value="mistral">Mistral (Large)</option>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
+                   <option value="openrouter">OpenRouter</option>
+                   <option value="deepseek">DeepSeek</option>
+                   <option value="google">Google</option>
+                   <option value="mistral">Mistral</option>
                  </select>
-                 <ChevronDown size={14} color="var(--text-muted)" />
+                 <ChevronDown size={12} color="var(--text-muted)" />
               </div>
             </div>
 
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Context</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                 <Server size={14} color="var(--brand-primary)" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Context</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
-                   <option value="">Infrastructure Wide</option>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', outline: 'none', maxWidth: 100 }}>
+                   <option value="">Global</option>
                    {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                  </select>
-                 <ChevronDown size={14} color="var(--text-muted)" />
+                 <ChevronDown size={12} color="var(--text-muted)" />
               </div>
             </div>
+            
+            {mcpAvailable && (
+              <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <Zap size={10} color="var(--success)" />
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase' }}>MCP</span>
+              </div>
+            )}
           </div>
-
-          {/* MCP Status Pill */}
-          {mcpAvailable && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-              <Zap size={12} color="var(--success)" />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>K8s MCP</span>
-            </div>
-          )}
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 30px 160px' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 48 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 160px' }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32 }}>
             {messages.length <= 1 && (
               <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -384,25 +394,25 @@ export function AIAssistant() {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '24px 30px 48px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
+        <div className="ai-input-wrapper" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', pointerEvents: 'auto' }}>
             {selectedImage && (
-              <div className="fade-in" style={{ padding: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '20px 20px 0 0', display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 24, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
-                <img src={selectedImage} alt="Preview" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Image Ready</div>
-                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
+              <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '16px 16px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
+                <img src={selectedImage} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Ready</div>
+                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={12} /></button>
               </div>
             )}
 
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: selectedImage ? '0 24px 24px 24px' : 24, padding: '10px 10px 10px 24px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="chat-input-container" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: selectedImage ? '0 24px 24px 24px' : 24, padding: '8px 8px 8px 16px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
-              <button onClick={() => fileInputRef.current?.click()} style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={20} /></button>
+              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={18} /></button>
               <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Initialize protocol analysis..." disabled={loading} rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 16, padding: '12px 0', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 180 }}
-                onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 180) + 'px' }}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 15, padding: '8px 0', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 150 }}
+                onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px' }}
               />
-              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 48, height: 48, borderRadius: 16, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none' }}>
-                <Send size={20} color={question.trim() || selectedImage ? '#fff' : 'var(--text-muted)'} />
+              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
+                <Send size={18} color={question.trim() || selectedImage ? '#fff' : 'var(--text-muted)'} />
               </button>
             </div>
           </div>

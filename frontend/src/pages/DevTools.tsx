@@ -8,32 +8,80 @@ export function DevTools() {
   const [activeTab, setActiveTab] = useState<'json' | 'base64' | 'epoch' | 'jwt'>('json')
 
   return (
-    <div className="page" style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+    <div className="page" style={{ minHeight: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
       <div className="page-header" style={{ marginBottom: 24, flexShrink: 0 }}>
         <div>
           <h1 className="page-title">Developer Tools</h1>
-          <p className="page-subtitle">Client-side utilities for DevOps, systems configuration, and debugging.</p>
+          <p className="page-subtitle hidden-mobile">Client-side utilities for DevOps, systems configuration, and debugging.</p>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, flex: 1, minHeight: 0 }}>
-        {/* Sidebar Navigation */}
-        <div className="card" style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', padding: '0 12px 12px', letterSpacing: '0.05em' }}>UTILITIES</div>
-          <TabButton active={activeTab === 'json'} icon={FileJson} label="JSON Formatter" onClick={() => setActiveTab('json')} />
-          <TabButton active={activeTab === 'base64'} icon={ArrowRightLeft} label="Base64 Encoder" onClick={() => setActiveTab('base64')} />
-          <TabButton active={activeTab === 'epoch'} icon={Clock} label="Epoch Converter" onClick={() => setActiveTab('epoch')} />
-          <TabButton active={activeTab === 'jwt'} icon={KeySquare} label="JWT Token Decoder" onClick={() => setActiveTab('jwt')} />
+      <div className="dev-tools-layout" style={{ flex: 1, minHeight: 0 }}>
+        {/* Navigation - Sidebar on Desktop, Tabs on Mobile */}
+        <div className="dev-tools-nav card" style={{ 
+          padding: '8px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 4, 
+          height: '100%',
+          overflowX: 'auto',
+          maxWidth: '100%'
+        }}>
+          <div className="hidden-mobile" style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', padding: '8px 12px 12px', letterSpacing: '0.05em' }}>UTILITIES</div>
+          <div className="dev-tools-nav-inner" style={{ display: 'flex', flexDirection: 'inherit', gap: 4 }}>
+            <TabButton active={activeTab === 'json'} icon={FileJson} label="JSON Formatter" onClick={() => setActiveTab('json')} />
+            <TabButton active={activeTab === 'base64'} icon={ArrowRightLeft} label="Base64 Encoder" onClick={() => setActiveTab('base64')} />
+            <TabButton active={activeTab === 'epoch'} icon={Clock} label="Epoch Converter" onClick={() => setActiveTab('epoch')} />
+            <TabButton active={activeTab === 'jwt'} icon={KeySquare} label="JWT Decoder" onClick={() => setActiveTab('jwt')} />
+          </div>
         </div>
 
         {/* Main Content Area */}
-        <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className="card dev-tools-content" style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: 400, overflow: 'hidden' }}>
           {activeTab === 'json' && <JsonFormatterTool />}
           {activeTab === 'base64' && <Base64Tool />}
           {activeTab === 'epoch' && <EpochConverterTool />}
           {activeTab === 'jwt' && <JwtDecoderTool />}
         </div>
       </div>
+
+      <style>{`
+        .dev-tools-layout {
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 24px;
+        }
+        .dev-tools-nav-inner {
+          flex: 1;
+        }
+        @media (max-width: 768px) {
+          .dev-tools-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .dev-tools-nav {
+            flex-direction: row !important;
+            height: auto !important;
+            padding: 6px !important;
+            background: var(--bg-elevated) !important;
+            border-radius: 12px !important;
+          }
+          .dev-tools-nav-inner {
+            flex-direction: row !important;
+            width: 100%;
+          }
+          .dev-tools-nav-inner button {
+            flex: 1;
+            justify-content: center;
+            padding: 10px 12px !important;
+            white-space: nowrap;
+          }
+          .dev-tools-nav-inner button span {
+            display: none;
+          }
+        }
+      `}</style>
     </div>
   )
 }
@@ -95,14 +143,15 @@ function JsonFormatterTool() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-app)' }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700 }}>JSON Formatter & Validator</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => setInput('')}><Trash2 size={14} /> Clear</button>
-          <button className="btn btn-secondary" onClick={minify}><Code2 size={14} /> Minify</button>
-          <button className="btn btn-primary" onClick={format}><FileJson size={14} /> Format</button>
-          <button className="btn btn-secondary" onClick={copy}>
-            {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />} Copy
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-app)', flexWrap: 'wrap', gap: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700 }}>JSON Formatter</h3>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => setInput('')} title="Clear"><Trash2 size={14} /></button>
+          <button className="btn btn-secondary btn-sm" onClick={minify}>Minify</button>
+          <button className="btn btn-primary btn-sm" onClick={format}>Format</button>
+          <button className="btn btn-secondary btn-sm" onClick={copy}>
+            {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />} 
+            <span className="hidden-mobile" style={{ marginLeft: 6 }}>Copy</span>
           </button>
         </div>
       </div>
@@ -169,9 +218,9 @@ function Base64Tool() {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 12 }}>
-        <button className="btn btn-primary" onClick={encode} style={{ flex: 1 }}>Encode to Base64</button>
-        <button className="btn btn-secondary" onClick={decode} style={{ flex: 1 }}>Decode from Base64</button>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn btn-primary" onClick={encode} style={{ flex: 1, height: 42, fontSize: 13 }}>Encode</button>
+        <button className="btn btn-secondary" onClick={decode} style={{ flex: 1, height: 42, fontSize: 13 }}>Decode</button>
       </div>
 
       {error && <div style={{ color: 'var(--danger)', fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><AlertCircle size={14}/> {error}</div>}
@@ -238,7 +287,7 @@ function EpochConverterTool() {
       </div>
 
       {isValid ? (
-         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+         <div className="grid-2-col" style={{ gap: 16 }}>
            <ResultBox label="Local Time" value={dateObj.toLocaleString()} />
            <ResultBox label="UTC Time" value={dateObj.toUTCString()} />
            <ResultBox label="ISO 8601" value={dateObj.toISOString()} />
@@ -317,15 +366,15 @@ function JwtDecoderTool() {
           <div>{error}</div>
         </div>
       ) : (jwt && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 2fr', gap: 24 }}>
+        <div className="grid-2-col" style={{ gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#ec4899' }}>HEADER (Algorithm / Type)</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#ec4899' }}>HEADER</label>
             <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12, color: '#ec4899', whiteSpace: 'pre-wrap' }}>
               {header}
             </pre>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-             <label style={{ fontSize: 12, fontWeight: 700, color: '#a855f7' }}>PAYLOAD (Data)</label>
+             <label style={{ fontSize: 11, fontWeight: 700, color: '#a855f7' }}>PAYLOAD</label>
             <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12, color: '#a855f7', overflowX: 'auto' }}>
               {payload}
             </pre>

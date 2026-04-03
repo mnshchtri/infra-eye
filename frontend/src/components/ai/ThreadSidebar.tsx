@@ -54,14 +54,28 @@ export const ThreadSidebar = memo(({
   const sidebarWidth = isCollapsed ? 64 : width
 
   return (
-    <div style={{
-      width: sidebarWidth, 
-      borderRight: '1px solid var(--border-subtle)',
-      background: 'var(--bg-app)', display: 'flex', flexDirection: 'column',
-      flexShrink: 0, transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+    <div 
+      className={`ai-sidebar ${isCollapsed ? 'collapsed' : ''}`}
+      style={{
+        width: sidebarWidth, 
+        borderRight: '1px solid var(--border-subtle)',
+        background: 'var(--bg-app)', display: 'flex', flexDirection: 'column',
+        flexShrink: 0, transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        overflow: 'hidden',
+        position: 'relative',
+        zIndex: 100
+      }}
+    >
+      {/* Mobile Close Button */}
+      {!isCollapsed && (
+        <button 
+          className="show-mobile-only btn-icon" 
+          onClick={() => onToggle(true)}
+          style={{ position: 'absolute', right: 12, top: 28, zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        >
+          <X size={16} />
+        </button>
+      )}
       {/* Resizer Handle */}
       {!isCollapsed && (
         <div 
