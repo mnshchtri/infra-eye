@@ -37,9 +37,9 @@ const SuggestionButton = memo(({ text, onClick }: { text: string; onClick: (s: s
   <button
     onClick={() => onClick(text)}
     style={{
-      padding: '12px 20px', borderRadius: 12,
+      padding: '8px 12px', borderRadius: 8,
       background: 'var(--bg-card)', border: '1px solid var(--border)',
-      color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer',
+      color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer',
       transition: 'all 0.2s', fontWeight: 600
     }}
     onMouseEnter={e => {
@@ -292,10 +292,10 @@ export function AIAssistant() {
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
         <header className="ai-chat-header" style={{
-          width: '100%', padding: '14px 24px', 
+          width: '100%', padding: '10px 20px', 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0, borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 16
+          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 12
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button 
@@ -306,7 +306,7 @@ export function AIAssistant() {
               <Zap size={16} color="var(--brand-primary)" />
             </button>
             <div style={{
-              width: 36, height: 36, borderRadius: 10,
+              width: 32, height: 32, borderRadius: 8,
               background: 'var(--bg-card)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 4px 12px var(--brand-glow)',
@@ -360,17 +360,17 @@ export function AIAssistant() {
           </div>
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 160px' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 32 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 140px' }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
             {messages.length <= 1 && (
               <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                  <h2 style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tactical Protocols</h2>
-                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
+                  <h2 style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tactical Protocols</h2>
+                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', fontWeight: 700 }}>
                     <Trash2 size={14} /> Purge History
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {SUGGESTIONS.map(s => <SuggestionButton key={s} text={s} onClick={askQuestion} />)}
                 </div>
               </div>
@@ -379,8 +379,8 @@ export function AIAssistant() {
             {messages.map((msg) => <MessageItem key={msg.id} msg={msg} onExecuteMcpTool={executeMcpTool} />)}
 
             {loading && (
-              <div style={{ display: 'flex', gap: 24, alignSelf: 'flex-start' }} className="fade-up">
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--bg-card)', border: '1px solid var(--border-bright)', padding: 6, boxShadow: '0 4px 12px var(--brand-glow)' }}>
+              <div style={{ display: 'flex', gap: 16, alignSelf: 'flex-start' }} className="fade-up">
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-bright)', padding: 4, boxShadow: '0 4px 12px var(--brand-glow)' }}>
                   <img src={chatbotLogo} alt="L" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
                 </div>
                 <div style={{ padding: '8px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -404,15 +404,15 @@ export function AIAssistant() {
               </div>
             )}
 
-            <div className="chat-input-container" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: selectedImage ? '0 24px 24px 24px' : 24, padding: '8px 8px 8px 16px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div className="chat-input-container" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: selectedImage ? '0 16px 16px 16px' : 16, padding: '6px 6px 6px 12px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
-              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={18} /></button>
+              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={16} /></button>
               <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Initialize protocol analysis..." disabled={loading} rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 15, padding: '8px 0', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 150 }}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 'var(--text-sm)', padding: '6px 0', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 150 }}
                 onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px' }}
               />
-              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
-                <Send size={18} color={question.trim() || selectedImage ? '#fff' : 'var(--text-muted)'} />
+              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
+                <Send size={16} color={question.trim() || selectedImage ? '#fff' : 'var(--text-muted)'} />
               </button>
             </div>
           </div>

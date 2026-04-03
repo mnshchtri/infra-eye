@@ -133,23 +133,23 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
     <div
       className="fade-up"
       style={{
-        display: 'flex', gap: 24, width: '100%',
+        display: 'flex', gap: 16, width: '100%',
         flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
         alignItems: 'flex-start'
       }}
     >
       <div style={{
-        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+        width: 32, height: 32, borderRadius: 10, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: msg.role === 'assistant' ? 'var(--bg-card)' : 'var(--bg-elevated)',
         border: '1px solid var(--border-bright)',
-        overflow: 'hidden', padding: msg.role === 'assistant' ? 6 : 0,
+        overflow: 'hidden', padding: msg.role === 'assistant' ? 4 : 0,
         boxShadow: msg.role === 'assistant' ? '0 4px 12px var(--brand-glow)' : 'none'
       }}>
         {msg.role === 'assistant' ? (
           <img src={chatbotLogo} alt="AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         ) : (
-          <User size={18} color="var(--text-muted)" />
+          <User size={14} color="var(--text-muted)" />
         )}
       </div>
 
@@ -166,8 +166,8 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
         </div>
 
         <div style={{
-          padding: msg.role === 'assistant' ? '0' : '16px 22px',
-          borderRadius: 18, fontSize: 15, lineHeight: 1.7,
+          padding: msg.role === 'assistant' ? '0' : '10px 14px',
+          borderRadius: 12, fontSize: 'var(--text-sm)', lineHeight: 1.6,
           color: 'var(--text-primary)',
           ...(msg.role === 'user' && {
             background: 'var(--bg-card)',
@@ -183,23 +183,23 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
             <Markdown
               remarkPlugins={[remarkGfm]}
               components={{
-                p: ({ children }) => <p style={{ marginBottom: 16 }}>{children}</p>,
-                ul: ({ children }) => <ul style={{ marginBottom: 16, paddingLeft: 24, listStyleType: 'disc', color: 'var(--text-secondary)' }}>{children}</ul>,
-                ol: ({ children }) => <ol style={{ marginBottom: 16, paddingLeft: 24, listStyleType: 'decimal', color: 'var(--text-secondary)' }}>{children}</ol>,
-                li: ({ children }) => <li style={{ marginBottom: 6, lineHeight: 1.6, paddingLeft: 4 }}>{children}</li>,
-                h1: ({ children }) => <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, marginTop: 24, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{children}</h1>,
-                h2: ({ children }) => <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 14, marginTop: 24, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{children}</h2>,
-                h3: ({ children }) => <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, marginTop: 20, color: 'var(--text-primary)' }}>{children}</h3>,
-                h4: ({ children }) => <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, marginTop: 16, color: 'var(--text-primary)' }}>{children}</h4>,
+                p: ({ children }) => <p style={{ marginBottom: 12 }}>{children}</p>,
+                ul: ({ children }) => <ul style={{ marginBottom: 12, paddingLeft: 20, listStyleType: 'disc', color: 'var(--text-secondary)' }}>{children}</ul>,
+                ol: ({ children }) => <ol style={{ marginBottom: 12, paddingLeft: 20, listStyleType: 'decimal', color: 'var(--text-secondary)' }}>{children}</ol>,
+                li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.6, paddingLeft: 4 }}>{children}</li>,
+                h1: ({ children }) => <h1 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 12, marginTop: 16, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{children}</h1>,
+                h2: ({ children }) => <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 600, marginBottom: 10, marginTop: 16, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{children}</h2>,
+                h3: ({ children }) => <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8, marginTop: 12, color: 'var(--text-primary)' }}>{children}</h3>,
+                h4: ({ children }) => <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8, marginTop: 12, color: 'var(--text-primary)' }}>{children}</h4>,
                 a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', textDecoration: 'none', fontWeight: 500 }}>{children}</a>,
-                blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--brand-primary)', margin: '16px 0', color: 'var(--text-secondary)', fontStyle: 'italic', background: 'var(--bg-app)', padding: '12px 16px', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }}>{children}</blockquote>,
+                blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--brand-primary)', margin: '12px 0', color: 'var(--text-secondary)', fontStyle: 'italic', background: 'var(--bg-app)', padding: '8px 12px', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }}>{children}</blockquote>,
                 strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
                 code: ({ children, className }) => {
                   const isInline = !className
                   return isInline ? (
                     <code style={{
-                      background: 'rgba(129, 140, 248, 0.1)', padding: '2px 6px', borderRadius: 4,
-                      fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--brand-primary)',
+                      background: 'rgba(129, 140, 248, 0.1)', padding: '2px 4px', borderRadius: 4,
+                      fontFamily: '"JetBrains Mono", monospace', fontSize: 'var(--text-xs)', color: 'var(--brand-primary)',
                       fontWeight: 600, border: '1px solid rgba(129, 140, 248, 0.2)'
                     }}>{children}</code>
                   ) : (
@@ -219,10 +219,10 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   }
                   return (
                     <pre style={{
-                      background: 'var(--bg-app)', padding: '16px', borderRadius: 'var(--radius-lg)',
-                      fontSize: 13, overflowX: 'auto', margin: '16px 0', border: '1px solid var(--border)',
+                      background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)', overflowX: 'auto', margin: '12px 0', border: '1px solid var(--border)',
                       fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
+                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
                     }}>{children}</pre>
                   )
                 },
@@ -239,7 +239,7 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   </th>
                 ),
                 td: ({ children }) => (
-                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, whiteSpace: 'normal', wordBreak: 'break-word', color: 'var(--text-secondary)', verticalAlign: 'top' }}>
+                  <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 'var(--text-xs)', whiteSpace: 'normal', wordBreak: 'break-word', color: 'var(--text-secondary)', verticalAlign: 'top' }}>
                     {children}
                   </td>
                 ),
