@@ -20,7 +20,6 @@ import { ConfigViewer } from './ConfigViewer'
 import { PortForwardModal } from './PortForwardModal'
 import { TerminalPortal } from './TerminalPortal'
 import { MCPTerminal } from './MCPTerminal'
-import logo from '../../assets/logo.png'
 
 interface Cluster {
   id: number;

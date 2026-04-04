@@ -100,40 +100,30 @@ func SyncMasterKubeconfig() error {
 
 // mergeConfigs adds clusters, users, and contexts from src to dest with a prefix
 func mergeConfigs(dest, src *api.Config, prefix string, srv *models.Server) {
-	// Determine the target host to replace 'localhost/127.0.0.1' with.
-	// Defaults to host.docker.internal for local clusters, 
-	// or the server's Host property for remote clusters.
-	targetHost := "host.docker.internal"
-	if srv != nil && srv.Host != "" && srv.Host != "localhost" && srv.Host != "127.0.0.1" {
-		targetHost = srv.Host
-	}
-
 	for name, cluster := range src.Clusters {
 		uniqueName := fmt.Sprintf("%s-%s", prefix, name)
-		// Patch for Docker-to-Host connectivity
 		patchedCluster := cluster.DeepCopy()
 		originalServer := patchedCluster.Server
-		
-		// 1. Handle localhost/127.0.0.1
-		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "localhost", targetHost)
-		patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, "127.0.0.1", targetHost)
-		
-		// 2. Handle common LAN/Private IPs (likely the host machine or a remote machine we can reach by host)
-		// We use a broader match to ensure any internal-facing IP is redirected to the gateway/target
-		if strings.Contains(patchedCluster.Server, "192.168.") || 
-		   strings.Contains(patchedCluster.Server, "10.") || 
-		   strings.Contains(patchedCluster.Server, "172.16.") || 
-		   strings.Contains(patchedCluster.Server, "172.17.") || 
-		   strings.Contains(patchedCluster.Server, "172.18.") || 
-		   strings.Contains(patchedCluster.Server, "172.19.") || 
-		   strings.Contains(patchedCluster.Server, "172.2") || 
-		   strings.Contains(patchedCluster.Server, "172.3") {
-			
-			// Remove protocol and split by port to isolate the host/IP
-			hostWithPort := strings.TrimPrefix(strings.TrimPrefix(patchedCluster.Server, "https://"), "http://")
-			hostOnly := strings.Split(hostWithPort, ":")[0]
-			
-			// Replace the specific IP with our target host
+
+		// Extract the host part of the server URL
+		serverURL := patchedCluster.Server
+		hostWithPort := strings.TrimPrefix(strings.TrimPrefix(serverURL, "https://"), "http://")
+		hostOnly := strings.Split(hostWithPort, ":")[0]
+
+		// ONLY patch true loopback addresses (localhost / 127.0.0.1).
+		// These are unreachable from inside a Docker container — replace with the
+		// Docker host gateway so the MCP sidecar can reach the K8s API on the host.
+		//
+		// Do NOT patch real private/public IPs (10.x, 192.168.x, etc.) because
+		// the containers on the same host can already reach those addresses directly.
+		// Over-patching was causing "dial 0.250.250.254" errors on Linux/Ubuntu.
+		isLoopback := hostOnly == "localhost" || hostOnly == "127.0.0.1"
+		if isLoopback {
+			targetHost := "host.docker.internal"
+			// If the server record has a real routable host, prefer that
+			if srv != nil && srv.Host != "" && srv.Host != "localhost" && srv.Host != "127.0.0.1" {
+				targetHost = srv.Host
+			}
 			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, hostOnly, targetHost)
 		}
 		
