@@ -203,25 +203,25 @@ export function Servers() {
             onClick={e => e.stopPropagation()}
           >
             {/* Modal header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-              <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {editId ? 'Edit Server' : 'Connect Server'}
-                </h2>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                  {editId ? 'Update server credentials' : 'Add a new server to monitoring'}
-                </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 44, height: 44, background: 'var(--brand-primary)', borderTop: '4px solid var(--brand-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Plus size={24} color="var(--text-inverse)" />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                    {editId ? 'UPDATE_SERVER_CREDENTIALS' : 'PROVISION_CONTROL_NODE'}
+                  </h2>
+                  <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {editId ? 'Modify infrastructure access parameters' : 'Establish secure handshake with new infrastructure'}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowForm(false)}
-                style={{
-                  width: 32, height: 32, borderRadius: 10, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  color: 'var(--text-muted)', cursor: 'pointer',
-                }}
+                className="btn-icon-sm"
               >
-                <X size={15} />
+                <X size={14} />
               </button>
             </div>
 
@@ -248,22 +248,23 @@ export function Servers() {
             {/* Auth type */}
             <div className="input-group">
               <label className="input-label">Authentication Method</label>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 0 }}>
                 {['key', 'password'].map(t => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setForm({ ...form, auth_type: t })}
                     style={{
-                      padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                      border: '1px solid', transition: 'all 0.2s', cursor: 'pointer',
+                      flex: 1, padding: '12px', fontSize: 10, fontWeight: 900,
+                      border: '1px solid var(--border)', transition: 'all 0.2s', cursor: 'pointer',
+                      fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
                       ...(form.auth_type === t
-                        ? { background: 'rgba(129,140,248,0.15)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }
-                        : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--text-muted)' }
+                        ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--text-inverse)' }
+                        : { background: 'var(--bg-elevated)', color: 'var(--text-muted)' }
                       ),
                     }}
                   >
-                    {t === 'key' ? '🔑 SSH Key' : '🔒 Password'}
+                    {t === 'key' ? 'SSH Key File' : 'Interactive Password'}
                   </button>
                 ))}
               </div>
@@ -374,88 +375,66 @@ export function Servers() {
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <td style={{ padding: '18px 24px' }}>
+                    <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{
-                          width: 36, height: 36, borderRadius: 10,
-                          background: `${statusColors[s.status] || 'var(--text-muted)'}15`,
-                          border: `1px solid ${statusColors[s.status] || 'var(--text-muted)'}30`,
+                          width: 32, height: 32, borderRadius: 0,
+                          background: 'var(--bg-elevated)',
+                          border: `1px solid var(--border)`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         }}>
                           {s.kube_config
                             ? <KubernetesIcon size={18} />
-                            : s.os === 'darwin' ? <AppleIcon size={16} color={statusColors[s.status] || 'var(--text-muted)'} />
-                            : s.os === 'windows' ? <WindowsIcon size={14} color={statusColors[s.status] || 'var(--text-muted)'} />
-                            : s.os === 'linux' ? <LinuxIcon size={16} color={statusColors[s.status] || 'var(--text-muted)'} />
-                            : <Server size={14} color={statusColors[s.status] || 'var(--text-muted)'} />}
+                            : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
+                            : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />
+                            : s.os === 'linux' ? <LinuxIcon size={14} color="var(--brand-primary)" />
+                            : <Server size={14} color="var(--brand-primary)" />}
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div
-                            style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            style={{ fontWeight: 900, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
                             onClick={() => navigate(`/servers/${s.id}`)}
-                            onMouseEnter={e => e.currentTarget.style.color = 'var(--brand-primary)'}
-                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
                           >
                             {s.name}
                           </div>
-                          {s.description && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.description}</div>}
+                          {s.description && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800 }}>{s.description.toUpperCase()}</div>}
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '18px 24px' }}>
+                    <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {s.os === 'darwin' ? <AppleIcon size={16} color="var(--text-primary)" /> : 
-                         s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" /> :
-                         s.os === 'linux' ? <LinuxIcon size={15} color="var(--brand-primary)" /> : 
-                         <HelpCircle size={16} color="var(--text-muted)" />}
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                          {s.os === 'darwin' ? 'macOS' : s.os === 'windows' ? 'Windows' : s.os === 'linux' ? 'Linux' : 'Unknown'}
-                        </span>
+                         <span style={{ fontSize: 11, fontWeight: 800 }}>{s.os?.toUpperCase() || 'HOST'}</span>
                       </div>
                     </td>
-                    <td style={{ padding: '18px 24px' }}>
+                    <td style={{ padding: '12px 16px' }}>
                       {s.host
-                        ? <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}:{s.port}</span>
-                        : <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                            fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                            background: 'rgba(129,140,248,0.12)', color: 'var(--brand-primary)',
-                            border: '1px solid rgba(129,140,248,0.25)',
-                          }}>
-                            <KubernetesIcon size={12} /> Direct K8s API
-                          </span>
+                        ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}</span>
+                        : <span className="badge badge-online" style={{ fontSize: 9 }}>DIRECT API</span>
                       }
                     </td>
-                    <td style={{ padding: '18px 24px' }}>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                        textTransform: 'uppercase', letterSpacing: '0.05em',
-                        background: 'rgba(59,130,246,0.1)', color: 'var(--info)',
-                        border: '1px solid rgba(59,130,246,0.2)',
-                      }}>
-                        {s.auth_type}
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                        {s.auth_type.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ padding: '18px 24px' }}>
+                    <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {s.tags?.split(',').filter(Boolean).map(t => (
-                          <span key={t} className="server-tag">{t.trim()}</span>
+                          <span key={t} className="server-tag" style={{ fontSize: 9 }}>{t.trim().toUpperCase()}</span>
                         ))}
                       </div>
                     </td>
-                    <td style={{ padding: '18px 24px' }}>
+                    <td style={{ padding: '12px 16px' }}>
                       {testResults[s.id] !== undefined ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                          {testResults[s.id].ok
-                            ? <><CheckCircle2 size={14} color="var(--success)" /><span style={{ color: 'var(--success)', fontWeight: 600 }}>Connected</span></>
-                            : <><XCircle size={14} color="var(--danger)" /><span style={{ color: 'var(--danger)', fontWeight: 600 }}>Failed</span></>}
-                        </div>
+                        <span className={`badge ${testResults[s.id].ok ? 'badge-online' : 'badge-offline'}`}>
+                          {testResults[s.id].ok ? 'CONNECTED' : 'FAILED'}
+                        </span>
                       ) : (
-                        <span className={`badge badge-${s.status}`}>{s.status}</span>
+                        <span className={`badge badge-${s.status}`} style={{ fontSize: 9 }}>{s.status.toUpperCase()}</span>
                       )}
                     </td>
-                    <td style={{ padding: '18px 24px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         {can('manage-servers') && (
                           s.status === 'online' ? (
                             <button

@@ -48,22 +48,24 @@ const StatCard = memo(({
   color: string; delta?: string
 }) => {
   return (
-    <div className="card stat-card fade-up" style={{ padding: '16px 20px' }}>
+    <div className="card stat-card fade-up" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
       <div
         className="stat-icon-wrapper"
-        style={{ background: `${color}10`, border: `1px solid ${color}25`, width: 36, height: 36, borderRadius: 10 }}
+        style={{ border: `1px solid var(--border)`, width: 32, height: 32, flexShrink: 0 }}
       >
-        <Icon size={18} color={color} />
+        <Icon size={14} color={color} />
       </div>
-      <div className="stat-val-group">
-        <div className="stat-value" style={{ fontSize: 20 }}>{value}</div>
-        <div className="stat-label" style={{ fontSize: 11 }}>{label}</div>
-        {delta && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-            <TrendingUp size={10} color={color} />
-            <span style={{ fontSize: 10, color, fontWeight: 700, letterSpacing: '0.02em' }}>{delta}</span>
-          </div>
-        )}
+      <div className="stat-val-group" style={{ flex: 1 }}>
+        <div className="stat-label" style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div className="stat-value" style={{ fontSize: 20, fontWeight: 900 }}>{value}</div>
+          {delta && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <TrendingUp size={10} color={color} />
+              <span style={{ fontSize: 9, color, fontWeight: 900 }}>{delta}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -86,86 +88,43 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
       style={{ cursor: 'pointer', padding: 24, overflow: 'hidden' }}
     >
       {/* Header row: icon + info + status badge */}
-      <div className="server-card-header">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1, minWidth: 0 }}>
+      <div className="server-card-header" style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: `${statusColor}10`, border: `1px solid ${statusColor}25`,
+            width: 32, height: 32, borderRadius: 0,
+            background: 'var(--bg-elevated)', border: `1px solid var(--border)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
-            {server.is_k8s ? <KubernetesIcon size={22} /> :
-             server.os === 'darwin' ? <AppleIcon size={18} color={statusColor} /> :
-             server.os === 'windows'? <WindowsIcon size={16} color={statusColor} /> :
-             server.os === 'linux'  ? <LinuxIcon size={16} color={statusColor} /> :
-             <HelpCircle size={18} color={statusColor} />}
+            {server.is_k8s ? <KubernetesIcon size={18} /> :
+             server.os === 'darwin' ? <AppleIcon size={16} color="var(--brand-primary)" /> :
+             server.os === 'windows'? <WindowsIcon size={14} color="var(--brand-primary)" /> :
+             server.os === 'linux'  ? <LinuxIcon size={14} color="var(--brand-primary)" /> :
+             <HelpCircle size={16} color="var(--brand-primary)" />}
           </div>
-          <div className="server-info-top" style={{ flex: 1, minWidth: 0 }}>
-            {/* Name + OS pill on one line, truncated */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <div className="server-name" style={{ 
-                fontSize: 15, fontWeight: 700, 
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                maxWidth: '100%'
-              }}>
-                {server.name}
-              </div>
-              <span style={{
-                fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 4,
-                background: server.os === 'darwin' ? 'rgba(255,255,255,0.1)' : 'rgba(129,140,248,0.15)',
-                color: server.os === 'darwin' ? '#fff' : 'var(--brand-primary)',
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-                border: '1px solid rgba(255,255,255,0.05)',
-                flexShrink: 0,
-              }}>
-                {server.os?.toUpperCase() || 'HOST'}
-              </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h3>
+              <span className={`badge badge-${server.status}`} style={{ fontSize: 8, padding: '1px 6px', fontWeight: 900 }}>{server.status}</span>
             </div>
-            {/* Status badge + host on second line */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-              <span className={`badge badge-${server.status}`} style={{ fontSize: 10, padding: '2px 8px' }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: '50%', background: statusColor,
-                  display: 'inline-block', marginRight: 4,
-                  boxShadow: server.status === 'online' ? `0 0 6px ${statusColor}` : undefined,
-                }} />
-                {server.status.toUpperCase()}
-              </span>
-              <div className="server-host" style={{ fontSize: 11 }}>
-                {server.host ? `${server.ssh_user}@${server.host}` : 'Direct API Only'}
-              </div>
-            </div>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800 }}>{server.host || 'DIRECT API'}</div>
           </div>
         </div>
       </div>
 
       {metric ? (
-        <div className="server-metric-stack" style={{ margin: '20px 0' }}>
+        <div className="server-metric-stack" style={{ margin: '14px 0', gap: 8 }}>
           {[
-            { label: 'CPU', value: metric.cpu_percent, icon: <Cpu size={12} /> },
-            { label: 'MEM', value: metric.mem_percent, icon: <MemoryStick size={12} /> },
-            { label: 'DISK', value: metric.disk_percent, icon: <HardDrive size={12} /> },
-            { label: 'NET', value: 0, icon: <Wifi size={12} />, display: `${metric.net_rx_mbps.toFixed(2)} / ${metric.net_tx_mbps.toFixed(2)} MB/s` },
-          ].map(({ label, value, icon, display }) => (
-            <div key={label} className="metric-row">
-              <div className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {icon} {label}
-              </div>
-              {label === 'NET' ? (
-                <div style={{ flex: 1, textAlign: 'right', fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  {display}
-                </div>
-              ) : (
-                <>
-                  <MetricBar value={value} />
-                  <span className="metric-percent" style={{
-                    color: value >= 80 ? 'var(--danger)' : value >= 60 ? 'var(--warning)' : 'var(--text-secondary)',
-                    fontWeight: 600,
-                  }}>
-                    {value.toFixed(0)}%
-                  </span>
-                </>
-              )}
+            { label: 'CPU', value: metric.cpu_percent },
+            { label: 'MEM', value: metric.mem_percent },
+            { label: 'DSK', value: metric.disk_percent },
+          ].map(({ label, value }) => (
+            <div key={label} className="metric-row" style={{ gap: 8 }}>
+              <div className="metric-label" style={{ width: 28, fontSize: 8 }}>{label}</div>
+              <MetricBar value={value} danger={90} warn={75} />
+              <span style={{ width: 24, textAlign: 'right', fontSize: 9, fontWeight: 900, color: 'var(--text-secondary)' }}>
+                {value.toFixed(0)}%
+              </span>
             </div>
           ))}
         </div>
@@ -362,38 +321,39 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="grid-stats" style={{ marginBottom: 48 }}>
+      <div className="grid-stats" style={{ marginBottom: 32 }}>
         <StatCard label="Total Servers" value={loading ? 'N/A' : (total - k8sServers)} icon={Server} color="var(--brand-primary)" />
         <StatCard label="K8s Clusters" value={loading ? 'N/A' : k8sServers} icon={Boxes} color="var(--info)" />
         <StatCard label="Status Online" value={loading ? 'N/A' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
         <StatCard label="Status Offline" value={loading ? 'N/A' : offline} icon={AlertTriangle} color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'} />
-        <StatCard label="Global Avg CPU" value={loading ? 'N/A' : avgCpu} icon={TrendingUp} color="var(--warning)" />
+        <StatCard label="Global Avg CPU" value={loading ? 'N/A' : avgCpu} icon={TrendingUp} color="var(--info)" />
       </div>
 
       {!loading && servers.length > 0 && (
-        <div className="card fade-up" style={{ marginBottom: 48, padding: 32 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' }}>
+        <div className="card fade-up" style={{ marginBottom: 32, padding: 40 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 0, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-bright)' }}>
               <Activity size={20} color="var(--brand-primary)" />
             </div>
             <div>
-              <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Performance Analytics</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Resource utilization across connected nodes</p>
+              <h3 style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Performance Analytics</h3>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resource utilization across connected nodes</p>
             </div>
           </div>
-          <div style={{ height: 300, marginTop: 32 }}>
+          <div style={{ height: 350, marginTop: 32 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} unit="%" />
+                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="name" stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '12px' }}
+                  cursor={{ fill: 'var(--bg-elevated)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 11 }} />
-                <Bar dataKey="CPU" fill="var(--brand-primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="Memory" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="Disk" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                <Bar dataKey="CPU" fill="#3b82f6" radius={0} maxBarSize={30} />
+                <Bar dataKey="Memory" fill="#10b981" radius={0} maxBarSize={30} />
+                <Bar dataKey="Disk" fill="#f59e0b" radius={0} maxBarSize={30} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -418,7 +378,7 @@ export function Dashboard() {
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
           
           {/* Managed Clusters Section */}
           {filteredServers.filter(s => s.is_k8s).length > 0 && (

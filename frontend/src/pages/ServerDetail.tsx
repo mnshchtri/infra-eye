@@ -32,55 +32,56 @@ interface LogEntry {
 }
 
 const CHART_COLORS = {
-  cpu:  { stroke: 'hsl(247, 82%, 70%)', fill: 'hsla(247, 82%, 70%, 0.12)' },
-  mem:  { stroke: 'hsl(158, 70%, 50%)', fill: 'hsla(158, 70%, 50%, 0.12)' },
-  disk: { stroke: 'hsl(38, 92%, 50%)',  fill: 'hsla(38, 92%, 50%, 0.12)' },
+  cpu:  { stroke: 'var(--info)',    fill: 'var(--info)' },
+  mem:  { stroke: 'var(--success)', fill: 'var(--success)' },
+  disk: { stroke: 'var(--warning)', fill: 'var(--warning)' },
 }
 
 const StatCard = memo(({ label, value, icon: Icon, color, unit }: any) => (
-  <div className="card stat-card" style={{ padding: '16px 20px', border: '1px solid var(--border)', transition: 'all 0.2s ease' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+  <div className="card stat-card" style={{ padding: '20px 24px', border: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
       <div style={{ 
-        width: 36, height: 36, borderRadius: 10, 
-        background: `${color}10`, border: `1px solid ${color}25`,
+        width: 36, height: 36, borderRadius: 0, 
+        background: 'transparent', border: `1px solid var(--border-bright)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
-        <Icon size={18} color={color} />
+        <Icon size={16} color="var(--brand-primary)" />
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ 
-          fontSize: value.length > 10 ? 16 : 20, 
+          fontSize: value.length > 8 ? 18 : 22, 
           fontWeight: 800, 
           color: 'var(--text-primary)', 
+          fontFamily: 'var(--font-mono)',
           lineHeight: 1.1 
         }}>
           {value}
           {unit && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>{unit}</span>}
         </div>
-        <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.05em' }}>{label}</div>
+        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{label}</div>
       </div>
     </div>
-    <div style={{ height: 4, background: 'var(--bg-app)', borderRadius: 2, overflow: 'hidden' }}>
+    <div style={{ height: 2, background: 'var(--bg-elevated)', borderRadius: 0, overflow: 'hidden' }}>
       <div style={{ 
         height: '100%', 
         width: typeof value === 'string' && value.includes('%') ? value : (label.includes('NET') ? '0%' : '50%'), 
-        background: color,
-        borderRadius: 2,
-        boxShadow: `0 0 10px ${color}40`
+        background: 'var(--brand-primary)',
+        borderRadius: 0
       }} />
     </div>
   </div>
 ))
 
 const LogLine = memo(({ log }: { log: LogEntry }) => (
-  <div className="log-line" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', padding: '6px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-    <span className="log-ts" style={{ color: '#64748b', fontSize: 11, minWidth: 85, fontFamily: 'monospace' }}>{format(new Date(log.timestamp), 'HH:mm:ss.SSS')}</span>
+  <div className="log-line" style={{ borderBottom: '1px solid var(--border)', padding: '10px 24px', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+    <span className="log-ts" style={{ color: 'var(--text-muted)', fontSize: 11, minWidth: 85, fontFamily: 'var(--font-mono)' }}>{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
     <span className="log-badge" style={{ 
-      borderRadius: 4, width: 44, textAlign: 'center', flexShrink: 0, padding: '1px 0', fontSize: 9, fontWeight: 900,
-      background: log.level === 'error' ? 'var(--danger)' : log.level === 'warn' ? 'var(--warning)' : 'var(--brand-primary)',
-      color: 'var(--text-inverse)'
+      borderRadius: 0, width: 50, textAlign: 'center', flexShrink: 0, padding: '2px 0', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+      background: log.level === 'error' ? 'var(--danger)' : log.level === 'warn' ? 'var(--warning)' : 'var(--bg-elevated)',
+      color: log.level === 'error' || log.level === 'warn' ? 'var(--text-inverse)' : 'var(--text-primary)',
+      border: '1px solid var(--border)'
     }}>{log.level.toUpperCase()}</span>
-    <span className="log-msg" style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{log.message}</span>
+    <span className="log-msg" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{log.message}</span>
   </div>
 ))
 
@@ -212,7 +213,12 @@ export function ServerDetail() {
     await import('@xterm/xterm/css/xterm.css')
 
     const xterm = new XTerm({
-      theme: { background: '#0a0c12', foreground: '#e8eaf6', cursor: '#6c63ff', selectionBackground: 'rgba(99,102,241,0.2)' },
+      theme: { 
+        background: '#020617', 
+        foreground: '#f8fafc', 
+        cursor: 'var(--brand-primary)', 
+        selectionBackground: 'var(--brand-glow)' 
+      },
       fontFamily: "'JetBrains Mono', monospace",
       fontSize: 13,
     })
@@ -384,29 +390,27 @@ export function ServerDetail() {
       </div>
 
       {/* Header */}
-      <div className="page-header server-detail-header" style={{ marginBottom: 16, flexWrap: 'wrap', gap: 16, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}>
+      <div className="page-header server-detail-header" style={{ marginBottom: 32, flexWrap: 'wrap', gap: 20, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flex: 1, minWidth: 0 }}>
           <div className="server-icon-large" style={{ 
-            width: 52, height: 52, borderRadius: 14, 
-            background: 'var(--brand-primary)', border: '1px solid var(--brand-glow)',
+            width: 56, height: 56, borderRadius: 0, 
+            background: 'var(--bg-app)', border: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 6px 14px var(--brand-glow)',
             flexShrink: 0
           }}>
-            {server.os === 'darwin' ? <AppleIcon size={26} color="#fff" /> : 
-             server.os === 'windows' ? <WindowsIcon size={22} color="#fff" /> :
-             server.os === 'linux'  ? <LinuxIcon size={24} color="#fff" /> : 
-             <HelpCircle size={26} color="#fff" />}
+            {server.os === 'darwin' ? <AppleIcon size={28} color="var(--text-primary)" /> : 
+             server.os === 'windows' ? <WindowsIcon size={24} color="var(--text-primary)" /> :
+             server.os === 'linux'  ? <LinuxIcon size={26} color="var(--text-primary)" /> : 
+             <HelpCircle size={28} color="var(--text-primary)" />}
           </div>
           <div style={{ minWidth: 0 }}>
-            <h1 className="page-title" style={{ fontSize: 22, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span className={`badge badge-${server.status}`} style={{ padding: '3px 10px' }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', marginRight: 5, display: 'inline-block' }} />
+            <h1 className="page-title" style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{server.name}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span className={`badge badge-${server.status}`} style={{ padding: '3px 12px', borderRadius: 0 }}>
                 {server.status.toUpperCase()}
               </span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: '"JetBrains Mono", monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {server.host ? `${server.ssh_user}@${server.host}:${server.port}` : 'Direct Cluster API'}
+              <span style={{ color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+                {server.host ? `${server.ssh_user}@${server.host}` : 'Direct Cluster API'}
               </span>
             </div>
           </div>
@@ -438,7 +442,7 @@ export function ServerDetail() {
         style={{
           display: 'flex',
           gap: 0,
-          borderBottom: '2px solid var(--border)',
+          borderBottom: '1px solid var(--border)',
           flexShrink: 0,
           overflowX: 'auto',
           WebkitOverflowScrolling: 'touch',
@@ -453,20 +457,23 @@ export function ServerDetail() {
             id={`tab-${tab.toLowerCase()}`}
             onClick={() => setActiveTab(tab)}
             style={{
-              padding: '14px 20px',
-              fontSize: 13,
-              fontWeight: 600,
-              transition: 'color 0.2s',
+              padding: '16px 24px',
+              fontSize: 11,
+              fontWeight: 800,
+              transition: 'all 0.2s',
               cursor: 'pointer',
               border: 'none',
               background: 'transparent',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 10,
               position: 'relative',
-              color: activeTab === tab ? 'var(--brand-primary)' : 'var(--text-secondary)',
+              color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-muted)',
               whiteSpace: 'nowrap',
               flexShrink: 0,
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em'
             }}
           >
             {tab === 'Overview'  && <Gauge size={14} />}
@@ -476,9 +483,8 @@ export function ServerDetail() {
             <span>{tab}</span>
             {activeTab === tab && (
               <div style={{
-                position: 'absolute', bottom: -2, left: 0, right: 0,
+                position: 'absolute', bottom: -1, left: 0, right: 0,
                 height: 2, background: 'var(--brand-primary)',
-                boxShadow: '0 0 8px var(--brand-glow)',
               }} />
             )}
           </button>
@@ -492,10 +498,10 @@ export function ServerDetail() {
       {activeTab === 'Overview' && (
         <div className="fade-up">
           <div className="grid-stats-4">
-            <StatCard label="CPU LOAD"   value={latest ? `${latest.cpu_percent.toFixed(1)}%`  : 'N/A'} icon={Cpu}        color="var(--brand-primary)" />
-            <StatCard label="MEMORY"     value={latest ? `${latest.mem_percent.toFixed(1)}%`  : 'N/A'} icon={MemoryStick} color="#10b981" />
-            <StatCard label="DISK USAGE" value={latest ? `${latest.disk_percent.toFixed(1)}%` : 'N/A'} icon={HardDrive}   color="#f59e0b" />
-            <StatCard label="NET RX / TX" value={latest ? `${latest.net_rx_mbps.toFixed(2)} / ${latest.net_tx_mbps.toFixed(2)}` : 'N/A'} icon={Wifi} color="#3b82f6" unit="MB/s" />
+            <StatCard label="CPU LOAD"   value={latest ? `${latest.cpu_percent.toFixed(1)}%`  : 'N/A'} icon={Cpu}        color="var(--info)" />
+            <StatCard label="MEMORY"     value={latest ? `${latest.mem_percent.toFixed(1)}%`  : 'N/A'} icon={MemoryStick} color="var(--success)" />
+            <StatCard label="DISK USAGE" value={latest ? `${latest.disk_percent.toFixed(1)}%` : 'N/A'} icon={HardDrive}   color="var(--warning)" />
+            <StatCard label="NET RX / TX" value={latest ? `${latest.net_rx_mbps.toFixed(2)} / ${latest.net_tx_mbps.toFixed(2)}` : 'N/A'} icon={Wifi} color="var(--brand-primary)" unit="MB/s" />
           </div>
 
           <div className="card" style={{ marginBottom: 28 }}>
@@ -521,16 +527,16 @@ export function ServerDetail() {
             ) : (
               <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="t" stroke="var(--text-muted)" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} stroke="var(--text-muted)" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
+                  <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                   <Tooltip
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12, boxShadow: 'var(--shadow-lg)' }}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 10, fontFamily: 'var(--font-mono)' }}
                   />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: 20, fontSize: 12 }} />
-                  <Line type="monotone" dataKey="CPU"    stroke={CHART_COLORS.cpu.stroke}  dot={false} strokeWidth={3} />
-                  <Line type="monotone" dataKey="Memory" stroke={CHART_COLORS.mem.stroke}  dot={false} strokeWidth={3} />
-                  <Line type="monotone" dataKey="Disk"   stroke={CHART_COLORS.disk.stroke} dot={false} strokeWidth={3} />
+                  <Legend iconType="square" wrapperStyle={{ paddingTop: 24, fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />
+                  <Line type="monotone" dataKey="CPU"    stroke={CHART_COLORS.cpu.stroke}  dot={false} strokeWidth={2} />
+                  <Line type="monotone" dataKey="Memory" stroke={CHART_COLORS.mem.stroke}  dot={false} strokeWidth={2} />
+                  <Line type="monotone" dataKey="Disk"   stroke={CHART_COLORS.disk.stroke} dot={false} strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             )}

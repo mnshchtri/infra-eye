@@ -65,7 +65,7 @@ export function DevTools() {
             height: auto !important;
             padding: 6px !important;
             background: var(--bg-elevated) !important;
-            border-radius: 12px !important;
+            border-radius: 0 !important;
           }
           .dev-tools-nav-inner {
             flex-direction: row !important;
@@ -91,12 +91,14 @@ function TabButton({ active, icon: Icon, label, onClick }: any) {
     <button 
       onClick={onClick}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10,
-        background: active ? 'var(--brand-primary)15' : 'transparent',
+        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 0,
+        background: active ? 'var(--bg-elevated)' : 'transparent',
         color: active ? 'var(--brand-primary)' : 'var(--text-secondary)',
-        border: active ? '1px solid var(--brand-glow)' : '1px solid transparent',
-        fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s ease',
-        textAlign: 'left'
+        border: '1px solid transparent',
+        ...(active ? { borderLeft: '3px solid var(--brand-primary)' } : {}),
+        fontWeight: 900, fontSize: 10, cursor: 'pointer', transition: 'all 0.2s ease',
+        textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.05em',
+        fontFamily: 'var(--font-mono)'
       }}
       className={active ? '' : 'hover-lift'}
     >
@@ -166,8 +168,8 @@ function JsonFormatterTool() {
         placeholder='Paste JSON here... e.g. {"name": "infra-eye"}'
         style={{
           flex: 1, padding: 24, border: 'none', background: 'transparent', resize: 'none', outline: 'none',
-          fontFamily: '"JetBrains Mono", monospace', fontSize: 13, color: 'var(--text-primary)',
-          lineHeight: 1.6
+          fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)',
+          lineHeight: 1.5, fontWeight: 500
         }}
         spellCheck={false}
       />
@@ -302,9 +304,9 @@ function EpochConverterTool() {
 
 function ResultBox({ label, value }: { label: string, value: string }) {
   return (
-    <div style={{ padding: 16, border: '1px solid var(--border)', borderRadius: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>{label.toUpperCase()}</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{value}</div>
+    <div style={{ padding: '12px 16px', border: '1px solid var(--border)', borderRadius: 0, background: 'var(--bg-elevated)20' }}>
+      <div style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</div>
     </div>
   )
 }

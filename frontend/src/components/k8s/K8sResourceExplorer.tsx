@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useRef, useCallback, useMemo, startTransitio
 import { 
   LayoutGrid, Server, 
   RefreshCw, FileCode,
-  Boxes, ChevronRight, Activity,
+  Boxes, ChevronRight, ChevronLeft, Activity,
   Globe, X, Terminal,
   List,
   Shield, Key, Lock,
@@ -11,6 +11,8 @@ import {
 import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
 import { api, buildWsUrl } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
+import { useUIStore } from '../../store/uiStore'
+import logo from '../../assets/logo.png'
 import { KTable } from './KTable'
 import { ResNavLink, NavCategory } from './K8sSidebar'
 import { PulseDashboard } from './PulseDashboard'
@@ -18,6 +20,7 @@ import { ConfigViewer } from './ConfigViewer'
 import { PortForwardModal } from './PortForwardModal'
 import { TerminalPortal } from './TerminalPortal'
 import { MCPTerminal } from './MCPTerminal'
+import logo from '../../assets/logo.png'
 
 interface Cluster {
   id: number;
@@ -42,6 +45,7 @@ interface K8sResourceExplorerProps {
 }
 
 export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8sResourceExplorerProps) => {
+  const { darkMode } = useUIStore()
   const [activeRes, setActiveRes] = useState<ResourceType>('pulse')
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -345,25 +349,45 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         transition: 'all 0.3s ease',
         zIndex: 500
       }}>
-        <div style={{ height: 60, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', boxSizing: 'border-box', flexShrink: 0 }}>
-           <button className="btn-icon" onClick={onBack} style={{ padding: 4 }}>
-             <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
+        <div style={{ 
+          height: 60, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 16, 
+          borderBottom: '1px solid var(--border)', background: 'var(--bg-sidebar)', 
+          flexShrink: 0 
+        }}>
+           <button 
+             className="btn-icon" 
+             onClick={onBack} 
+             style={{ 
+               width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', 
+               background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', 
+               justifyContent: 'center', cursor: 'pointer' 
+             }}
+           >
+             <ChevronLeft size={14} color="var(--text-muted)" />
            </button>
-           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--brand-primary)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
-                {cluster.os === 'darwin' ? <AppleIcon size={18} color="var(--text-inverse)" /> :
-                 cluster.os === 'windows'? <WindowsIcon size={16} color="var(--text-inverse)" /> :
-                 cluster.os === 'linux'  ? <LinuxIcon size={16} color="var(--text-inverse)" /> :
-                 <KubernetesIcon size={20} />}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cluster.name}</span>
-                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>Cluster Explorer</span>
+           
+           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+             <img src={logo} alt="L" style={{ height: 28, width: 'auto', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }} />
+             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={{ 
+                  fontWeight: 900, fontSize: 11, color: 'var(--text-primary)', 
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', 
+                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.02em' 
+                }}>
+                  {cluster.name}
+                </span>
+                <span style={{ 
+                  fontSize: 8, color: 'var(--text-muted)', fontWeight: 900, 
+                  textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' 
+                }}>
+                  Cluster Node
+                </span>
               </div>
            </div>
+           
            {/* Mobile Sidebar Close */}
-           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)}>
-              <X size={16} />
+           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)} style={{ borderRadius: 0, border: '1px solid var(--border)' }}>
+              <X size={14} />
            </button>
         </div>
 
@@ -521,56 +545,79 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-app)', minWidth: 0 }}>
-        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0 }}>
-           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button 
+        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, zIndex: 10 }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+               <button 
                 className="show-mobile-only btn-icon" 
                 onClick={() => setIsSidebarOpen(true)}
-                style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}
+                style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 0, border: '1px solid var(--border)' }}
               >
                 <LayoutGrid size={16} color="var(--brand-primary)" />
               </button>
-              <div className="badge badge-online hidden-mobile">REAL-TIME</div>
-              <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeRes === 'yaml' ? 'KubeConfig' : activeRes} Explorer</h2>
-              {loading && <RefreshCw size={14} className="spin" color="var(--brand-primary)" />}
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ 
+                  display: 'flex', alignItems: 'center', gap: 6, 
+                  background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)20', 
+                  padding: '4px 10px', borderRadius: 0 
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', boxShadow: '0 0 8px var(--brand-primary)' }} />
+                  <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono)' }}>Real-Time Stream</span>
+                </div>
+                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+                <h2 style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {activeRes === 'yaml' ? 'KubeConfig' : activeRes} <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>PROTOCOLS</span>
+                </h2>
+                {loading && <RefreshCw size={12} className="spin" color="var(--brand-primary)" style={{ marginLeft: 4 }} />}
+              </div>
            </div>
            
-           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               {activeRes !== 'yaml' && (
-                <div className="namespace-selector hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--brand-glow)', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--brand-primary)20' }}>
-                  <Globe size={14} color="var(--brand-primary)" />
+                <div className="namespace-selector hidden-mobile" style={{ 
+                  display: 'flex', alignItems: 'center', gap: 10, 
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border)', 
+                  padding: '6px 14px', borderRadius: 0 
+                }}>
+                  <Globe size={13} color="var(--brand-primary)" />
                   <select 
-                    style={{ background: 'transparent', border: 'none', fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)', cursor: 'pointer', outline: 'none' }}
+                    style={{ background: 'transparent', border: 'none', fontSize: 11, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', paddingRight: 4 }}
                     value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
                   >
-                      <option value="All">All</option>
-                      {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
+                      <option value="All">CLUSTER_SCOPE</option>
+                      {namespaces.map(ns => <option key={ns} value={ns}>{ns.toUpperCase()}</option>)}
                   </select>
                 </div>
               )}
+              
+              <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} className="hidden-mobile" />
+
               {activeRes === 'yaml' && (
                 <button 
-                  className="btn btn-primary btn-sm" 
+                  className="btn btn-primary" 
                   onClick={saveClusterConfig}
                   disabled={savingRaw}
+                  style={{ height: 36, padding: '0 20px', borderRadius: 0, fontWeight: 900, fontSize: 11, letterSpacing: '0.05em' }}
                 >
-                  <span className="hidden-mobile">{savingRaw ? 'Saving...' : 'Save Configuration'}</span>
-                  <span className="show-mobile-only">Save</span>
+                  {savingRaw ? 'SYNCHRONIZING...' : 'COMMIT_CHANGES'}
                 </button>
               )}
+              
               <button
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary"
                 onClick={() => setShowMCPTerminal(t => !t)}
                 style={{
-                  gap: 6,
+                  height: 36, padding: '0 16px', borderRadius: 0,
+                  gap: 8,
                   display: 'flex', alignItems: 'center',
-                  background: showMCPTerminal ? 'var(--brand-gradient)' : undefined,
-                  color: showMCPTerminal ? '#fff' : undefined,
-                  border: showMCPTerminal ? 'none' : undefined,
+                  background: showMCPTerminal ? 'var(--brand-gradient)' : 'var(--bg-elevated)',
+                  color: showMCPTerminal ? '#fff' : 'var(--text-primary)',
+                  border: showMCPTerminal ? 'none' : '1px solid var(--border)',
+                  fontWeight: 900, fontSize: 11, letterSpacing: '0.05em'
                 }}
               >
-                <Terminal size={13} />
-                <span className="hidden-mobile">kubectl</span>
+                <Terminal size={14} />
+                <span className="hidden-mobile">KUBECTL_SHELL</span>
               </button>
            </div>
         </header>

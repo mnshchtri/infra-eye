@@ -37,17 +37,20 @@ const SuggestionButton = memo(({ text, onClick }: { text: string; onClick: (s: s
   <button
     onClick={() => onClick(text)}
     style={{
-      padding: '8px 12px', borderRadius: 8,
+      padding: '10px 18px', borderRadius: 0,
       background: 'var(--bg-card)', border: '1px solid var(--border)',
-      color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer',
-      transition: 'all 0.2s', fontWeight: 600
+      color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer',
+      transition: 'all 0.15s', fontWeight: 900,
+      fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em'
     }}
     onMouseEnter={e => {
       e.currentTarget.style.borderColor = 'var(--brand-primary)'
-      e.currentTarget.style.background = 'var(--bg-elevated)'
+      e.currentTarget.style.color = 'var(--brand-primary)'
+      e.currentTarget.style.background = 'var(--brand-glow)'
     }}
     onMouseLeave={e => {
       e.currentTarget.style.borderColor = 'var(--border)'
+      e.currentTarget.style.color = 'var(--text-secondary)'
       e.currentTarget.style.background = 'var(--bg-card)'
     }}
   >
@@ -297,64 +300,63 @@ export function AIAssistant() {
           flexShrink: 0, borderBottom: '1px solid var(--border)',
           background: 'var(--bg-card)', flexWrap: 'wrap', gap: 12
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button 
               className="show-mobile-only btn-icon" 
               onClick={() => setIsSidebarCollapsed(false)}
-              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border)' }}
+              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 0, border: '1px solid var(--border)' }}
             >
               <Zap size={16} color="var(--brand-primary)" />
             </button>
             <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'var(--bg-card)',
+              width: 38, height: 38, borderRadius: 0,
+              background: 'var(--bg-app)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px var(--brand-glow)',
-              overflow: 'hidden', padding: 4, border: '1px solid var(--border-bright)'
+              overflow: 'hidden', padding: 4, border: '1px solid var(--border)'
             }}>
               <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>नेत्र</h1>
+              <h1 style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>नेत्र</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="hidden-mobile" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 500 }}>Intelligence</span>
-                <span className="hidden-mobile" style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 9, color: 'var(--brand-primary)', fontWeight: 700 }}>Active Mode</span>
+                <span className="hidden-mobile" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Core Intelligence</span>
+                <span className="hidden-mobile" style={{ width: 3, height: 3, background: 'var(--text-muted)' }} />
+                <span style={{ fontSize: 9, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Session Active</span>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Protocol</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Logic Engine</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <select value={provider} onChange={e => setProvider(e.target.value as any)}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, fontWeight: 900, cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
                    <option value="openrouter">OpenRouter</option>
                    <option value="deepseek">DeepSeek</option>
                    <option value="google">Google</option>
                    <option value="mistral">Mistral</option>
                  </select>
-                 <ChevronDown size={12} color="var(--text-muted)" />
+                 <ChevronDown size={10} color="var(--text-muted)" />
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Context</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Target System</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer', outline: 'none', maxWidth: 100 }}>
-                   <option value="">Global</option>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, fontWeight: 900, cursor: 'pointer', outline: 'none', maxWidth: 120, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                   <option value="">Infrastructure</option>
                    {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                  </select>
-                 <ChevronDown size={12} color="var(--text-muted)" />
+                 <ChevronDown size={10} color="var(--text-muted)" />
               </div>
             </div>
             
             {mcpAvailable && (
-              <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                <Zap size={10} color="var(--success)" />
-                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase' }}>MCP</span>
+              <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 0, background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)20' }}>
+                <Zap size={10} color="var(--brand-primary)" />
+                <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>MCP Active</span>
               </div>
             )}
           </div>
@@ -363,14 +365,14 @@ export function AIAssistant() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 140px' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
             {messages.length <= 1 && (
-              <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                  <h2 style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tactical Protocols</h2>
-                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', fontWeight: 700 }}>
-                    <Trash2 size={14} /> Purge History
+              <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid #18181b', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+                  <h2 style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Deployment Protocols</h2>
+                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: '10px', fontWeight: 800, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                    <Trash2 size={13} /> Purge Audit Trail
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   {SUGGESTIONS.map(s => <SuggestionButton key={s} text={s} onClick={askQuestion} />)}
                 </div>
               </div>
@@ -380,13 +382,13 @@ export function AIAssistant() {
 
             {loading && (
               <div style={{ display: 'flex', gap: 16, alignSelf: 'flex-start' }} className="fade-up">
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-bright)', padding: 4, boxShadow: '0 4px 12px var(--brand-glow)' }}>
+                <div style={{ width: 38, height: 38, borderRadius: 0, background: 'var(--bg-app)', overflow: 'hidden', padding: 4, border: '1px solid var(--border)' }}>
                   <img src={chatbotLogo} alt="L" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
                 </div>
-                <div style={{ padding: '8px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s infinite' }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s 0.2s infinite' }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s 0.4s infinite' }} />
+                <div style={{ padding: '12px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s infinite' }} />
+                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s 0.2s infinite' }} />
+                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s 0.4s infinite' }} />
                 </div>
               </div>
             )}
@@ -404,15 +406,15 @@ export function AIAssistant() {
               </div>
             )}
 
-            <div className="chat-input-container" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: selectedImage ? '0 16px 16px 16px' : 16, padding: '6px 6px 6px 12px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div className="chat-input-container" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
               <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
-              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={16} /></button>
-              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Initialize protocol analysis..." disabled={loading} rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 'var(--text-sm)', padding: '6px 0', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 150 }}
+              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 32, height: 32, borderRadius: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={16} /></button>
+              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Enter command protocol..." disabled={loading} rows={1}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 0', resize: 'none', fontFamily: 'var(--font-mono)', lineHeight: 1.6, maxHeight: 150 }}
                 onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px' }}
               />
-              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
-                <Send size={16} color={question.trim() || selectedImage ? '#fff' : 'var(--text-muted)'} />
+              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 40, height: 40, borderRadius: 0, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
+                <Send size={16} color={question.trim() || selectedImage ? 'var(--text-inverse)' : 'var(--text-muted)'} />
               </button>
             </div>
           </div>

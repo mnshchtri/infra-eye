@@ -33,29 +33,31 @@ export function Login() {
     <div className="login-screen">
       <div className="login-card fade-up" style={{ zIndex: 10 }}>
         {/* Logo */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <img src={logo} alt="InfraEye" style={{ height: 84, objectFit: 'contain' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 40, gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <img src={logo} alt="InfraEye" style={{ height: 60, objectFit: 'contain' }} />
             <span style={{
-              fontSize: 16,
-              fontWeight: 800,
+              fontSize: 11,
+              fontWeight: 900,
               color: 'var(--brand-primary)',
-              background: 'rgba(79, 70, 229, 0.06)',
-              padding: '4px 12px',
-              borderRadius: '99px',
-              border: '1px solid var(--brand-glow)',
-              letterSpacing: '0.02em',
-              marginTop: 4
+              background: 'var(--brand-glow)',
+              padding: '6px 16px',
+              borderRadius: 0,
+              border: '1px solid var(--brand-primary)20',
+              letterSpacing: '0.15em',
+              marginTop: 8,
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase'
             }}>
               InfraEye
             </span>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4, letterSpacing: '-0.02em' }}>
-              Welcome back
+            <h1 style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 6, letterSpacing: '-0.04em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+              Authentication
             </h1>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-              Sign in to your account
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Secure terminal access
             </p>
           </div>
         </div>
@@ -63,21 +65,22 @@ export function Login() {
         {/* Form */}
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           <div className="input-group">
-            <label className="input-label">Username</label>
+            <label className="input-label" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Username</label>
             <input
               id="login-username"
               className="input"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder="admin"
+              placeholder="operator"
               required
               autoFocus
               autoComplete="username"
+              style={{ borderRadius: 0 }}
             />
           </div>
 
           <div className="input-group">
-            <label className="input-label">Password</label>
+            <label className="input-label" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.1em' }}>Password</label>
             <div style={{ position: 'relative' }}>
               <input
                 id="login-password"
@@ -88,7 +91,7 @@ export function Login() {
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
-                style={{ paddingRight: 30 }}
+                style={{ paddingRight: 30, borderRadius: 0 }}
               />
               <button
                 type="button"
@@ -108,11 +111,12 @@ export function Login() {
 
           {error && (
             <div style={{
-              padding: '12px 16px', marginBottom: 20, borderRadius: 'var(--radius-md)',
-              background: '#fef2f2', border: '1px solid #fecaca',
-              color: 'var(--danger)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8,
+              padding: '12px 16px', marginBottom: 24, borderRadius: 0,
+              background: 'transparent', border: '1px solid #ef4444',
+              color: '#ef4444', fontSize: 11, display: 'flex', alignItems: 'center', gap: 10,
+              fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 700
             }}>
-              <Shield size={16} /> {error}
+              <Shield size={14} /> {error}
             </div>
           )}
 
@@ -121,12 +125,12 @@ export function Login() {
             type="submit"
             disabled={loading}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '12px', fontSize: 14, marginTop: 4 }}
+            style={{ width: '100%', padding: '14px', fontSize: 12, marginTop: 12, borderRadius: 0, fontWeight: 900 }}
           >
             {loading ? (
-              <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Signing in...</>
+              <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> INITIALIZING...</>
             ) : (
-              'Sign in'
+              'ESTABLISH SESSION'
             )}
           </button>
         </form>

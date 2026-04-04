@@ -126,40 +126,39 @@ export function Settings() {
         </div>
 
         <div className="tabs-container" style={{ 
-          display: 'flex', gap: 6, marginBottom: 20, padding: 5, 
-          background: 'var(--bg-elevated)', borderRadius: 14, width: 'fit-content',
-          border: '1px solid var(--border)', overflowX: 'auto', maxWidth: '100%',
-          flexShrink: 0,
+          display: 'flex', gap: 0, marginBottom: 32, borderBottom: '1px solid var(--border)', width: '100%'
         }}>
           <button
             onClick={() => setActiveTab('profile')}
             style={{
-              padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+              padding: '12px 24px', fontSize: 10, fontWeight: 900,
               transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-              display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
-              ...(activeTab === 'profile'
-                ? { background: 'var(--bg-card)', color: 'var(--brand-primary)', boxShadow: 'var(--shadow-md)' }
-                : { background: 'transparent', color: 'var(--text-muted)' }
-              ),
+              background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
+              display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-mono)',
+              position: 'relative',
+              color: activeTab === 'profile' ? 'var(--brand-primary)' : 'var(--text-muted)'
             }}
           >
-            <User size={14} /> <span className="hidden-mobile">My Account</span><span className="show-mobile-only">Account</span>
+            <User size={13} /> MY ACCOUNT
+            {activeTab === 'profile' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
           </button>
 
           {can('manage-users') && (
             <button
               onClick={() => setActiveTab('users')}
               style={{
-                padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+                padding: '12px 24px', fontSize: 10, fontWeight: 900,
                 transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-                display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
-                ...(activeTab === 'users'
-                  ? { background: 'var(--bg-card)', color: 'var(--brand-primary)', boxShadow: 'var(--shadow-md)' }
-                  : { background: 'transparent', color: 'var(--text-muted)' }
-                ),
+                background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
+                display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-mono)',
+                position: 'relative',
+                color: activeTab === 'users' ? 'var(--brand-primary)' : 'var(--text-muted)'
               }}
             >
-              <Shield size={14} /> <span className="hidden-mobile">User Management</span><span className="show-mobile-only">Users</span>
+              <Shield size={13} /> USER MANAGEMENT
+              {activeTab === 'users' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
             </button>
           )}
         </div>
@@ -169,11 +168,11 @@ export function Settings() {
       <div className="fade-up" style={{ flex: 1, overflowY: 'auto', paddingBottom: 40 }}>
         {activeTab === 'profile' && (
           <div className="grid-2-col" style={{ gap: 24, alignItems: 'start' }}>
-            <div className="card shadow-md" style={{ padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="card" style={{ padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                <div style={{ 
-                 width: 80, height: 80, borderRadius: '24px', background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-light))',
-                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 900, color: 'var(--text-inverse)',
-                 boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)', marginBottom: 20, textTransform: 'uppercase'
+                 width: 64, height: 64, background: 'var(--bg-elevated)',
+                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 900, color: 'var(--brand-primary)',
+                 marginBottom: 20, textTransform: 'uppercase', border: '1px solid var(--border)', borderTop: '4px solid var(--brand-primary)'
                }}>
                  {currentUser?.username.charAt(0)}
                </div>
@@ -193,7 +192,7 @@ export function Settings() {
                </div>
             </div>
 
-            <div className="card shadow-md" style={{ padding: '32px 24px' }}>
+            <div className="card" style={{ padding: '32px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><User size={20} color="var(--brand-primary)" /></div>
                 <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2><p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Update contact email and security credentials</p></div>
@@ -225,25 +224,35 @@ export function Settings() {
                 </div>
                 <button className="btn btn-primary btn-sm" onClick={() => { setShowUserForm(true); setEditUserId(null); setUserForm(emptyUserForm) }}><Plus size={16} /> <span className="hidden-mobile">Add User</span><span className="show-mobile-only">Add</span></button>
               </div>
-              <div className="table-container">
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 600 }}>
+              <div className="table-container" style={{ border: 'none' }}>
+                <table className="k-table">
                   <thead>
-                    <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
-                      {['User', 'Role', 'Status', 'Actions'].map(h => (<th key={h} style={{ padding: '14px 24px', fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>))}
+                    <tr>
+                      {['User', 'Role', 'Status', 'Actions'].map(h => (<th key={h}>{h}</th>))}
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? (<tr><td colSpan={4} style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" style={{ margin: '0 auto' }}></div></td></tr>) : users.length === 0 ? (<tr><td colSpan={4} style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>No users registered.</td></tr>) : users.map((u, i) => (
-                      <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <td style={{ padding: '20px 24px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg-app)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'var(--brand-primary)', fontSize: 12 }}>{u.username.charAt(0).toUpperCase()}</div><div><div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13 }}>{u.username}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{u.email || 'System user'}</div></div></div>
+                    {loading ? (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" style={{ margin: '0 auto' }}></div></td></tr>
+                    ) : users.length === 0 ? (
+                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>No users registered.</td></tr>
+                    ) : users.map((u) => (
+                      <tr key={u.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ width: 28, height: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: 'var(--brand-primary)', fontSize: 10 }}>{u.username.charAt(0).toUpperCase()}</div>
+                            <div>
+                              <div style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 12, textTransform: 'uppercase' }}>{u.username}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{u.email || 'SYSTEM@INFRAEYE.LOCAL'}</div>
+                            </div>
+                          </div>
                         </td>
-                        <td style={{ padding: '20px 24px' }}><span className="badge" style={{ background: `${roleColors[u.role] || '#94a3b8'}15`, color: roleColors[u.role] || '#94a3b8', border: `1px solid ${roleColors[u.role] || '#94a3b8'}25` }}>{u.role.toUpperCase()}</span></td>
-                        <td style={{ padding: '20px 24px' }}>{u.is_active ? <span style={{ color: 'var(--success)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px var(--success)' }} /> Active</span> : <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} /> Inactive</span>}</td>
-                        <td style={{ padding: '20px 24px' }}>
+                        <td><span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>{u.role.toUpperCase()}</span></td>
+                        <td>{u.is_active ? <span className="badge badge-online">ACTIVE</span> : <span className="badge badge-offline">INACTIVE</span>}</td>
+                        <td>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn-icon" onClick={() => editUser(u)}><Pencil size={14} /></button>
-                            {currentUser?.id !== u.id && (<button className="btn-icon danger" onClick={() => deleteUser(u.id, u.username)}><Trash2 size={14} /></button>)}
+                            <button className="btn-icon-sm" onClick={() => editUser(u)}><Pencil size={12} /></button>
+                            {currentUser?.id !== u.id && (<button className="btn-icon-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteUser(u.id, u.username)}><Trash2 size={12} /></button>)}
                           </div>
                         </td>
                       </tr>

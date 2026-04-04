@@ -67,25 +67,25 @@ const MCPToolCard = memo(({ raw, onExecute }: {
 
   return (
     <div style={{
-      margin: '12px 0',
-      borderRadius: 12,
-      border: `1px solid ${isMutating ? 'rgba(245,158,11,0.3)' : 'rgba(79,70,229,0.3)'}`,
-      background: isMutating ? 'rgba(245,158,11,0.04)' : 'rgba(79,70,229,0.04)',
+      margin: '16px 0',
+      borderRadius: 0,
+      border: `1px solid ${isMutating ? 'var(--warning)' : 'var(--brand-primary)'}`,
+      background: 'var(--bg-input)',
       overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 14px',
-        background: isMutating ? 'rgba(245,158,11,0.08)' : 'rgba(79,70,229,0.08)',
-        borderBottom: `1px solid ${isMutating ? 'rgba(245,158,11,0.2)' : 'rgba(79,70,229,0.2)'}`,
+        padding: '12px 18px',
+        background: isMutating ? 'var(--warning)' : 'var(--brand-primary)',
+        borderBottom: `1px solid ${isMutating ? 'var(--warning)' : 'var(--brand-primary)'}`,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Terminal size={14} color={isMutating ? 'var(--warning)' : 'var(--brand-primary)'} />
-          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: isMutating ? 'var(--warning)' : 'var(--brand-primary)' }}>
-            {isMutating ? '⚠ Mutating' : '🔍 Read'} · MCP Tool
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Terminal size={14} color="var(--text-inverse)" />
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-inverse)', fontFamily: 'var(--font-mono)' }}>
+            {isMutating ? 'SYSTEM OVERRIDE' : 'QUERY PROTOCOL'}
           </span>
-          <code style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', background: 'var(--bg-app)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+          <code style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-inverse)', border: '1px solid rgba(0,0,0,0.1)', padding: '2px 8px', fontFamily: 'var(--font-mono)', background: 'rgba(0,0,0,0.05)' }}>
             {parsed.tool}
           </code>
         </div>
@@ -94,17 +94,17 @@ const MCPToolCard = memo(({ raw, onExecute }: {
           disabled={runState === 'running' || runState === 'done'}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 14px', borderRadius: 8, border: 'none',
-            background: runState === 'idle' ? stateColors.idle : 'var(--bg-elevated)',
-            color: runState === 'idle' ? '#fff' : stateColors[runState],
-            fontSize: 12, fontWeight: 700, cursor: runState === 'idle' ? 'pointer' : 'default',
-            transition: 'all 0.2s', opacity: runState === 'running' ? 0.7 : 1,
+            padding: '8px 16px', borderRadius: 0, border: 'none',
+            background: 'var(--text-inverse)',
+            color: 'var(--text-primary)',
+            fontSize: 10, fontWeight: 900, cursor: runState === 'idle' ? 'pointer' : 'default',
+            fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em'
           }}
         >
-          {runState === 'idle' && <><Play size={12} /> Execute</>}
-          {runState === 'running' && <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>}
-          {runState === 'done' && <><CheckCircle size={12} /> Done</>}
-          {runState === 'error' && <><AlertCircle size={12} /> Error</>}
+          {runState === 'idle' && <><Play size={12} /> EXECUTE</>}
+          {runState === 'running' && <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> RUNNING</>}
+          {runState === 'done' && <><CheckCircle size={12} /> COMPLETE</>}
+          {runState === 'error' && <><AlertCircle size={12} /> FAILED</>}
         </button>
       </div>
 
@@ -112,9 +112,9 @@ const MCPToolCard = memo(({ raw, onExecute }: {
       {parsed.args && Object.keys(parsed.args).length > 0 && (
         <div style={{ padding: '10px 14px' }}>
           {Object.entries(parsed.args).map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', gap: 8, marginBottom: 4, fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 600, minWidth: 100 }}>{k}</span>
-              <span style={{ color: 'var(--text-primary)', fontFamily: '"JetBrains Mono", monospace' }}>
+            <div key={k} style={{ display: 'flex', gap: 10, marginBottom: 6, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 800, minWidth: 100, textTransform: 'uppercase' }}>{k}</span>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {typeof v === 'object' ? JSON.stringify(v) : String(v)}
               </span>
             </div>
@@ -139,17 +139,16 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
       }}
     >
       <div style={{
-        width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+        width: 38, height: 38, borderRadius: 0, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: msg.role === 'assistant' ? 'var(--bg-card)' : 'var(--bg-elevated)',
-        border: '1px solid var(--border-bright)',
-        overflow: 'hidden', padding: msg.role === 'assistant' ? 4 : 0,
-        boxShadow: msg.role === 'assistant' ? '0 4px 12px var(--brand-glow)' : 'none'
+        border: '1px solid var(--border)',
+        overflow: 'hidden', padding: msg.role === 'assistant' ? 4 : 0
       }}>
         {msg.role === 'assistant' ? (
           <img src={chatbotLogo} alt="AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         ) : (
-          <User size={14} color="var(--text-muted)" />
+          <User size={18} color="var(--brand-primary)" />
         )}
       </div>
 
@@ -159,24 +158,22 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
         alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
       }}>
         <div style={{
-          fontSize: 10, color: 'var(--text-muted)', fontWeight: 800,
-          textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em'
+          fontSize: 10, color: 'var(--text-muted)', fontWeight: 900,
+          textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)'
         }}>
-          {msg.role === 'assistant' ? 'नेत्र' : 'Analyst'}
+          {msg.role === 'assistant' ? 'नेत्र intelligence' : 'System Analyst'}
         </div>
 
         <div style={{
-          padding: msg.role === 'assistant' ? '0' : '10px 14px',
-          borderRadius: 12, fontSize: 'var(--text-sm)', lineHeight: 1.6,
+          padding: msg.role === 'assistant' ? '0' : '14px 20px',
+          borderRadius: 0, fontSize: '13px', lineHeight: 1.7,
           color: 'var(--text-primary)',
           ...(msg.role === 'user' && {
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderTopRightRadius: 2,
-            boxShadow: 'var(--shadow-sm)'
+            background: 'var(--bg-input)',
+            border: '1px solid var(--border)'
           }),
           ...(msg.role === 'assistant' && {
-            borderTopLeftRadius: 0
+            fontFamily: 'inherit'
           })
         }}>
           {msg.role === 'assistant' ? (
@@ -198,12 +195,12 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   const isInline = !className
                   return isInline ? (
                     <code style={{
-                      background: 'rgba(129, 140, 248, 0.1)', padding: '2px 4px', borderRadius: 4,
-                      fontFamily: '"JetBrains Mono", monospace', fontSize: 'var(--text-xs)', color: 'var(--brand-primary)',
-                      fontWeight: 600, border: '1px solid rgba(129, 140, 248, 0.2)'
+                      background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 0,
+                      fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-primary)',
+                      fontWeight: 900, border: '1px solid var(--border)'
                     }}>{children}</code>
                   ) : (
-                    <code style={{ fontFamily: '"JetBrains Mono", monospace' }}>{children}</code>
+                    <code style={{ fontFamily: 'var(--font-mono)' }}>{children}</code>
                   )
                 },
                 pre: ({ children, ...props }) => {
@@ -219,10 +216,10 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   }
                   return (
                     <pre style={{
-                      background: 'var(--bg-app)', padding: '12px', borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)', overflowX: 'auto', margin: '12px 0', border: '1px solid var(--border)',
-                      fontFamily: '"JetBrains Mono", monospace', color: 'var(--text-primary)',
-                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
+                      background: 'var(--bg-input)', padding: '16px', borderRadius: 0,
+                      fontSize: '11px', overflowX: 'auto', margin: '16px 0', border: '1px solid var(--border)',
+                      fontFamily: 'var(--font-mono)', color: 'var(--text-primary)',
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word'
                     }}>{children}</pre>
                   )
                 },

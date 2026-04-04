@@ -108,7 +108,7 @@ func main() {
 
 		// ── AI ────────────────────────────────────────────────────
 		api.GET("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.ListThreads)
-		api.POST("/api/ai/threads", middleware.RequireRole("admin", "devops"), handlers.CreateThread)
+		api.POST("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.CreateThread)
 		api.DELETE("/ai/threads/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteThread)
 		api.POST("/ai/chat", middleware.RequireRole("admin", "devops"), handlers.AIChat)
 		api.GET("/ai/history/:id", middleware.RequireRole("admin", "devops"), handlers.GetChatHistory)
@@ -145,7 +145,7 @@ func main() {
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
 		ws.GET("/servers/:id/kubectl/pod-terminal", middleware.RequireRole("admin", "devops"), handlers.RunPodTerminal)
-		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops"), handlers.WatchKubectl)
+		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops", "trainee", "intern"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
 		ws.GET("/metrics/all", allMetricsWsHandler)
 	}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
-import { X, Upload, Info, Terminal, Shield, CheckCircle2, XCircle, CloudUpload, FileText, Loader2 } from 'lucide-react'
+import { X, Upload, Info, Terminal, Shield, CheckCircle2, XCircle, CloudUpload, FileText, Loader2, Clock, Activity, Zap } from 'lucide-react'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 
@@ -43,23 +43,9 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
     if (file) loadFileContent(file)
   }
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) loadFileContent(file)
-  }, [loadFileContent])
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = () => setIsDragging(false)
-
   const testConnection = async () => {
     if (!form.kube_config) {
-      useToastStore.getState().error('Missing KubeConfig', 'KubeConfig is required to test connection')
+      useToastStore.getState().error('Missing KubeConfig', 'KubeConfig is required')
       return
     }
     setLoading(true)
@@ -77,12 +63,11 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.kube_config) {
-      useToastStore.getState().error('Missing KubeConfig', 'Please provide a KubeConfig')
+      useToastStore.getState().error('Missing KubeConfig', 'Provide a KubeConfig')
       return
     }
     setLoading(true)
     try {
-      // Only include SSH fields if the user actually filled them in
       const payload: Record<string, any> = {
         name: form.name,
         kube_config: form.kube_config,
@@ -95,7 +80,7 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
       if (form.ssh_password) payload.ssh_password = form.ssh_password
 
       await api.post('/api/servers', payload)
-      useToastStore.getState().success('Cluster Connected', `${form.name} is now managed by InfraEye`)
+      useToastStore.getState().success('Cluster Connected', `${form.name} integrated`)
       onSuccess()
       onClose()
     } catch (e: any) {
@@ -110,225 +95,218 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      zIndex: 1100, background: 'rgba(10, 15, 30, 0.6)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
+      zIndex: 1100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
     }}>
       <div
         className="card fade-up"
-        style={{ width: 560, padding: 0, boxShadow: '0 25px 60px rgba(0,0,0,0.3)', maxHeight: '92vh', overflowY: 'auto', border: '1px solid var(--border-bright)', borderRadius: 16 }}
+        style={{ 
+          width: 580, padding: 0, borderRadius: 0, border: '1px solid var(--border)', 
+          background: 'var(--bg-card)', boxShadow: '0 40px 100px rgba(0,0,0,0.5)',
+          maxHeight: '95vh', overflowY: 'auto'
+        }}
       >
-        {/* Header */}
+        {/* Technical Header */}
         <div style={{
-          padding: '24px 28px 20px',
+          padding: '28px 32px',
           borderBottom: '1px solid var(--border)',
-          background: 'linear-gradient(135deg, var(--brand-glow) 0%, transparent 100%)'
+          background: 'var(--bg-elevated)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12,
-                background: 'var(--brand-gradient)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(79,70,229,0.35)'
-              }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" fill="white" opacity="0.3"/>
-                  <path d="M12 6v6l4 2" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>Connect Cluster</h2>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>Add a Kubernetes cluster via KubeConfig or SSH Proxy</p>
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 0,
+              background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)30',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+               <Activity size={20} color="var(--brand-primary)" />
             </div>
-            <button onClick={onClose} className="btn-icon" style={{ padding: 6 }}><X size={18} /></button>
+            <div>
+              <h2 style={{ 
+                fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', 
+                textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' 
+              }}>
+                Connect Cluster
+              </h2>
+              <p style={{ 
+                fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', 
+                fontWeight: 800, letterSpacing: '0.1em', marginTop: 4, fontFamily: 'var(--font-mono)'
+              }}>
+                Control Plane Handshake : Protocols Active
+              </p>
+            </div>
           </div>
+          <button 
+            onClick={onClose} 
+            className="btn-icon" 
+            style={{ 
+              width: 32, height: 32, borderRadius: 0, background: 'var(--bg-app)', 
+              border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+            }}
+          >
+            <X size={14} color="var(--text-muted)" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Friendly Name */}
-          <div className="input-group" style={{ marginBottom: 0 }}>
-            <label className="input-label">Cluster Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+        <form onSubmit={handleSubmit} style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Cluster Identity */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ 
+              fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', 
+              textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' 
+            }}>
+              Cluster Identifier <span style={{ color: 'var(--brand-primary)' }}>*</span>
+            </label>
             <input
               className="input"
-              placeholder="e.g. Production Cluster"
+              placeholder="e.g. PRODUX_MAIN_CLUSTER"
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
               required
-              style={{ fontSize: 14 }}
+              style={{ borderRadius: 0, height: 44, fontSize: 13, fontFamily: 'var(--font-mono)', border: '1px solid var(--border)' }}
             />
           </div>
 
-          {/* KubeConfig Input Mode Toggle */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <label className="input-label" style={{ marginBottom: 0 }}>KubeConfig <span style={{ color: 'var(--danger)' }}>*</span></label>
-              <div style={{ display: 'flex', gap: 4, background: 'var(--bg-app)', borderRadius: 8, padding: 3, border: '1px solid var(--border)' }}>
-                {(['paste', 'upload'] as InputMode[]).map(mode => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => { setInputMode(mode); if (mode === 'paste') setUploadedFileName(null) }}
-                    style={{
-                      padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
-                      background: inputMode === mode ? 'var(--brand-gradient)' : 'transparent',
-                      color: inputMode === mode ? '#fff' : 'var(--text-muted)',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {mode === 'paste' ? '✏️ Paste' : '📁 Upload'}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* KubeConfig Logic */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <label style={{ 
+                  fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', 
+                  textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' 
+                }}>
+                  KubeConfig Source <span style={{ color: 'var(--brand-primary)' }}>*</span>
+                </label>
+                <div style={{ display: 'flex', gap: 1, background: 'var(--border)', border: '1px solid var(--border)' }}>
+                   {(['paste', 'upload'] as InputMode[]).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => { setInputMode(mode); if (mode === 'paste') setUploadedFileName(null); }}
+                        style={{
+                          padding: '6px 14px', borderRadius: 0, border: 'none', cursor: 'pointer',
+                          fontSize: 10, fontWeight: 900, textTransform: 'uppercase', fontFamily: 'var(--font-mono)',
+                          background: inputMode === mode ? 'var(--brand-primary)' : 'var(--bg-app)',
+                          color: inputMode === mode ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >
+                        {mode}
+                      </button>
+                   ))}
+                </div>
+             </div>
 
-            {inputMode === 'paste' ? (
-              <textarea
-                className="input"
-                style={{ height: 148, fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5, lineHeight: 1.6, resize: 'vertical' }}
-                placeholder="Paste contents of ~/.kube/config or k3s.yaml"
-                value={form.kube_config}
-                onChange={e => setForm({ ...form, kube_config: e.target.value })}
-              />
-            ) : (
-              <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  border: `2px dashed ${isDragging ? 'var(--brand-primary)' : uploadedFileName ? 'var(--success)' : 'var(--border-bright)'}`,
-                  borderRadius: 12, padding: '36px 24px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
-                  cursor: 'pointer', textAlign: 'center',
-                  background: isDragging ? 'var(--brand-glow)' : uploadedFileName ? 'var(--success-glow)' : 'var(--bg-app)',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {uploadedFileName ? (
-                  <>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--success-glow)', border: '1px solid var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <FileText size={20} color="var(--success)" />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>{uploadedFileName}</p>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>Click to replace</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--brand-glow)', border: '1px solid rgba(79,70,229,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <CloudUpload size={22} color="var(--brand-primary)" />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {isDragging ? 'Drop your kubeconfig here' : 'Drag & drop or click to upload'}
-                      </p>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>.yaml · .yml · .conf · config</p>
-                    </div>
-                  </>
-                )}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  style={{ display: 'none' }}
-                  accept=".yaml,.yml,.conf,config"
+             {inputMode === 'paste' ? (
+                <textarea
+                  className="input"
+                  style={{ 
+                    height: 180, borderRadius: 0, fontFamily: 'var(--font-mono)', 
+                    fontSize: 11, background: 'var(--bg-app)', border: '1px solid var(--border)',
+                    lineHeight: 1.6, resize: 'none'
+                  }}
+                  placeholder="--- YAML PAYLOAD ---"
+                  value={form.kube_config}
+                  onChange={e => setForm({ ...form, kube_config: e.target.value })}
                 />
-              </div>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-              <Info size={11} />
-              <span>KubeConfig is stored securely and only used for cluster management via MCP.</span>
-            </div>
+             ) : (
+                <div
+                  onDrop={(e) => { e.preventDefault(); setIsDragging(false); const file = e.dataTransfer.files?.[0]; if (file) loadFileContent(file); }}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    height: 180, border: `1px dashed ${isDragging ? 'var(--brand-primary)' : 'var(--border)'}`,
+                    borderRadius: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    background: isDragging ? 'var(--brand-glow)' : 'var(--bg-app)', cursor: 'pointer'
+                  }}
+                >
+                  <CloudUpload size={24} color={uploadedFileName ? 'var(--success)' : 'var(--text-muted)'} />
+                  <p style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', marginTop: 12, fontFamily: 'var(--font-mono)' }}>
+                    {uploadedFileName || (isDragging ? 'Release to Load' : 'Drag or click to upload config')}
+                  </p>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".yaml,.yml,.conf,config" />
+                </div>
+             )}
+             
+             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--bg-app)50', border: '1px solid var(--border)', borderRadius: 0 }}>
+                <Shield size={12} color="var(--brand-primary)" />
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
+                  Encryption active: KubeConfig stored in isolated secure volume via cluster-go.
+                </span>
+             </div>
           </div>
 
           {/* SSH Proxy Accordion */}
-          <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--bg-app)' }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 0, background: 'var(--bg-app)' }}>
             <button
               type="button"
               onClick={() => setShowSSH(!showSSH)}
-              style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              style={{ width: '100%', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Terminal size={15} color={showSSH ? 'var(--brand-primary)' : 'var(--text-muted)'} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: showSSH ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                  SSH Proxy Settings{' '}
-                  <span style={{ fontWeight: 400, opacity: 0.65, fontSize: 11 }}>(Optional)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Terminal size={14} color={showSSH ? 'var(--brand-primary)' : 'var(--text-muted)'} />
+                <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: showSSH ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  SSH Proxy Layers <span style={{ opacity: 0.5, fontSize: 9 }}>(Optional)</span>
                 </span>
               </div>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'inline-block', transform: showSSH ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', transform: showSSH ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</div>
             </button>
 
             {showSSH && (
-              <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border)' }}>
-                <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--brand-glow)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <Shield size={14} color="var(--brand-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
-                  <p style={{ fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                    Use SSH Proxy if the cluster API is behind a firewall. InfraEye tunnels kubectl commands through this host.
-                  </p>
-                </div>
-                <div className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">Target Node IP / Host</label>
-                  <input className="input" placeholder="e.g. 10.0.0.5" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">SSH User</label>
-                    <input className="input" placeholder="root" value={form.ssh_user} onChange={e => setForm({ ...form, ssh_user: e.target.value })} />
-                  </div>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">SSH Password</label>
-                    <input className="input" type="password" placeholder="••••••••" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
-                  </div>
-                </div>
+              <div style={{ padding: '0 20px 24px', display: 'flex', flexDirection: 'column', gap: 16, borderTop: '1px solid var(--border)' }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}>
+                    <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Node Gateway IP</label>
+                    <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} placeholder="10.0.0.X" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} />
+                 </div>
+                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                       <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_User</label>
+                       <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.ssh_user} onChange={e => setForm({ ...form, ssh_user: e.target.value })} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                       <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_Pass</label>
+                       <input className="input" type="password" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} placeholder="••••••••" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
+                    </div>
+                 </div>
               </div>
             )}
           </div>
 
-          {/* Test Result Banner */}
+          {/* Test Status Banner */}
           {testResult && (
-            <div className="fade-up" style={{
-              padding: '12px 16px',
-              borderLeft: `4px solid ${testResult.success ? 'var(--success)' : 'var(--danger)'}`,
-              borderRadius: 8,
-              background: testResult.success ? 'var(--success-glow)' : 'var(--danger-glow)',
-              display: 'flex', gap: 10, alignItems: 'flex-start'
+            <div style={{
+              padding: '16px 20px',
+              borderLeft: `3px solid ${testResult.success ? 'var(--success)' : 'var(--danger)'}`,
+              background: 'var(--bg-app)',
+              display: 'flex', gap: 12, alignItems: 'flex-start'
             }}>
-              {testResult.success
-                ? <CheckCircle2 size={16} color="var(--success)" style={{ flexShrink: 0, marginTop: 1 }} />
-                : <XCircle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-              }
-              <pre style={{ fontSize: 11, color: testResult.success ? 'var(--success)' : 'var(--danger)', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, flex: 1 }}>
+              {testResult.success ? <Zap size={14} color="var(--success)" /> : <XCircle size={14} color="var(--danger)" />}
+              <div style={{ 
+                fontSize: 10, color: testResult.success ? 'var(--text-primary)' : 'var(--danger)', 
+                fontFamily: 'var(--font-mono)', lineHeight: 1.6, textTransform: 'uppercase', fontWeight: 800 
+              }}>
                 {testResult.msg}
-              </pre>
+              </div>
             </div>
           )}
 
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+          {/* Connection Actions */}
+          <div style={{ display: 'flex', gap: 12, paddingTop: 8 }}>
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ flex: 1 }}
+              style={{ flex: 1, height: 48, borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 11 }}
               onClick={testConnection}
               disabled={loading || !hasConfig}
             >
-              {loading && !testResult
-                ? <><Loader2 size={14} className="spin" /> Testing...</>
-                : <><Upload size={14} /> Test Connection</>}
+              {loading && !testResult ? <Loader2 size={14} className="spin" /> : 'Ping API'}
             </button>
             <button
               className="btn btn-primary"
               type="submit"
               disabled={loading || !hasConfig || !form.name}
-              style={{ flex: 1.5 }}
+              style={{ flex: 1.5, height: 48, borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 11, letterSpacing: '0.05em' }}
             >
-              {loading && testResult
-                ? <><Loader2 size={14} className="spin" /> Connecting...</>
-                : 'Connect Cluster'}
+              {loading && testResult ? <Loader2 size={14} className="spin" /> : 'Authorize & Connect'}
             </button>
           </div>
         </form>
