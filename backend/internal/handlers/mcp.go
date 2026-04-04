@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,8 +21,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// mcpClient is a shared HTTP client for MCP communication
-var mcpClient = &http.Client{Timeout: 30 * time.Second}
+// mcpClient is used for short-lived JSON-RPC POST calls (tool invocations, handshake)
+var mcpClient = &http.Client{Timeout: 60 * time.Second}
+
+// mcpSSEClient has NO timeout — it owns the long-lived SSE stream.
+// A 30s timeout on the shared client was killing the stream before tool responses arrived.
+var mcpSSEClient = &http.Client{Timeout: 0}
+
 
 // ── MCP JSON-RPC types ─────────────────────────────────────────────────────
 
@@ -189,6 +195,11 @@ var (
 	mcpSSEConnection io.ReadCloser
 	mcpInitMutex     sync.Mutex
 
+	// Atomic counter for unique JSON-RPC request IDs.
+	// Using a fixed id (e.g. 1) caused concurrent tool calls to collide
+	// on the same pending channel, so only one would receive the response.
+	mcpRequestIDCounter int64
+
 	// pendingRequests keeps track of ongoing JSON-RPC calls over SSE
 	pendingRequests = make(map[int]chan json.RawMessage)
 	pendingMutex    sync.Mutex
@@ -196,8 +207,12 @@ var (
 
 // ── callMCPMethod ────────────────────────────────────────────────────────────
 // Internal helper: sends a JSON-RPC 2.0 request to the MCP HTTP server.
-// It handles SSE response parsing and automated initialization with retry logic.
-func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, error) {
+// Uses an atomic counter to generate unique request IDs, preventing concurrent
+// tool calls from colliding on the same pending SSE response channel.
+func callMCPMethod(method string, params interface{}, _ int) (json.RawMessage, error) {
+	// Generate a unique ID for this request
+	id := int(atomic.AddInt64(&mcpRequestIDCounter, 1))
+
 	// 1. Ensure the session is initialized
 	if err := ensureMCPInitialized(); err != nil {
 		return nil, err
@@ -222,11 +237,12 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 		mcpSessionURL = ""
 		mcpInitMutex.Unlock()
 
-		// Re-initialize and retry call
+		// Re-initialize and retry with a fresh unique ID
+		newID := int(atomic.AddInt64(&mcpRequestIDCounter, 1))
 		if err := ensureMCPInitialized(); err != nil {
 			return nil, err
 		}
-		return callMCPMethodRaw(method, params, intPtr(id))
+		return callMCPMethodRaw(method, params, intPtr(newID))
 	}
 
 	return result, err
@@ -246,7 +262,7 @@ func ensureMCPInitialized() error {
 	var resp *http.Response
 	var err error
 	for i := 0; i < 5; i++ {
-		resp, err = mcpClient.Get(config.C.MCPServerURL + "/sse")
+		resp, err = mcpSSEClient.Get(config.C.MCPServerURL + "/sse")
 		if err == nil {
 			break
 		}
@@ -294,10 +310,12 @@ func ensureMCPInitialized() error {
 	log.Printf("📡 MCP: Session endpoint received: %s", endpoint)
 
 	// Step 1: Start Background SSE Message Handler
-	go func(body io.ReadCloser) {
-		reader := bufio.NewReader(body)
+	// IMPORTANT: pass `reader` (the existing bufio.Reader that already wraps resp.Body),
+	// NOT a new bufio.NewReader(body). Creating a second reader on the same body would
+	// miss any data already buffered by `reader`, causing tool responses to be dropped.
+	go func(r *bufio.Reader) {
 		for {
-			line, err := reader.ReadString('\n')
+			line, err := r.ReadString('\n')
 			if err != nil {
 				log.Printf("📡 MCP: SSE Connection closed: %v. Resetting session.", err)
 				mcpInitMutex.Lock()
@@ -322,14 +340,14 @@ func ensureMCPInitialized() error {
 					pendingMutex.Lock()
 					ch, ok := pendingRequests[mcpResp.ID]
 					if ok {
-						ch <- json.RawMessage(data) // Convert string data to RawMessage
+						ch <- json.RawMessage(data)
 						delete(pendingRequests, mcpResp.ID)
 					}
 					pendingMutex.Unlock()
 				}
 			}
 		}
-	}(mcpSSEConnection)
+	}(reader)
 
 	// Prepend host if it's a relative path
 	if strings.HasPrefix(endpoint, "/") {
@@ -435,7 +453,7 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		select {
 		case asyncData := <-ch:
 			rawStr = string(asyncData)
-		case <-time.After(10 * time.Second):
+		case <-time.After(90 * time.Second):
 			pendingMutex.Lock()
 			delete(pendingRequests, *id)
 			pendingMutex.Unlock()

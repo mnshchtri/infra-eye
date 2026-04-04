@@ -241,24 +241,48 @@ export function AIAssistant() {
         arguments: args,
         server_id: selectedServer || 0,
       })
-      const output = res.data?.output || JSON.stringify(res.data)
+      const output: string = res.data?.output || JSON.stringify(res.data, null, 2)
+
+      // Detect output format for syntax highlighting
+      const trimmed = output.trim()
+      let lang = 'text'
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) lang = 'json'
+      else if (trimmed.includes(':\n') || /^[a-zA-Z]+:/m.test(trimmed)) lang = 'yaml'
+
+      // Truncate very large outputs in the display card
+      const lines = output.split('\n')
+      const MAX_LINES = 60
+      const isTruncated = lines.length > MAX_LINES
+      const displayOutput = isTruncated
+        ? lines.slice(0, MAX_LINES).join('\n') + `\n\n… (${lines.length - MAX_LINES} more lines)`
+        : output
+
       const resultMsg: Message = {
         id: Date.now().toString() + '_mcp',
         role: 'assistant',
-        content: `**🔧 MCP Tool Result: \`${tool}\`**\n\`\`\`\n${output}\n\`\`\`\n\n*Analyzing results...*`,
+        content: [
+          `**\`${tool}\`** — ${lines.length} lines retrieved`,
+          '```' + lang,
+          displayOutput,
+          '```',
+        ].join('\n'),
         timestamp: new Date()
       }
       setMessages(prev => [...prev, resultMsg])
-      // Feed output back to AI for analysis
+
+      // Feed output back to AI for analysis silently
       setTimeout(() => {
-        askQuestion(`[MCP_TOOL_RESULT for ${tool}]\n${output}\n\nAnalyze this output and tell me what to do next.`)
+        askQuestion(`Analyze the following \`${tool}\` output and summarize findings with actionable next steps:\n\`\`\`\n${output.slice(0, 4000)}\n\`\`\``)
       }, 400)
     } catch (err: any) {
       const errData = err.response?.data
       const errMsg: Message = {
         id: Date.now().toString() + '_mcperr',
         role: 'assistant',
-        content: `**⚠️ MCP Tool Error: \`${tool}\`**\n${errData?.error || err.message}${errData?.details ? `\n\n*${errData.details}*` : ''}`,
+        content: [
+          `**⚠️ MCP Tool Error: \`${tool}\`** ${errData?.error || err.message}`,
+          errData?.details ? `\n> ${errData.details}` : ''
+        ].filter(Boolean).join('\n'),
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errMsg])

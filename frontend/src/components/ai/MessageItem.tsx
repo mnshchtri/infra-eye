@@ -214,13 +214,36 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                       />
                     )
                   }
+                  const langClass = (child?.props?.className || '') as string
+                  const lang = langClass.replace('language-', '') || 'text'
+                  const code = String(child?.props?.children ?? '').trimEnd()
                   return (
-                    <pre style={{
-                      background: 'var(--bg-input)', padding: '16px', borderRadius: 0,
-                      fontSize: '11px', overflowX: 'auto', margin: '16px 0', border: '1px solid var(--border)',
-                      fontFamily: 'var(--font-mono)', color: 'var(--text-primary)',
-                      whiteSpace: 'pre-wrap', wordBreak: 'break-word'
-                    }}>{children}</pre>
+                    <div style={{ margin: '16px 0', borderRadius: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '6px 14px', background: 'var(--bg-elevated)',
+                        borderBottom: '1px solid var(--border)'
+                      }}>
+                        <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--brand-primary)', fontFamily: 'var(--font-mono)' }}>
+                          {lang}
+                        </span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(code)}
+                          style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                        >
+                          COPY
+                        </button>
+                      </div>
+                      <pre style={{
+                        background: 'var(--bg-input)', padding: '14px 16px',
+                        fontSize: '11px', overflowX: 'auto', margin: 0,
+                        fontFamily: 'var(--font-mono)', color: 'var(--text-primary)',
+                        whiteSpace: 'pre', wordBreak: 'normal', lineHeight: 1.6,
+                        maxHeight: '400px', overflowY: 'auto'
+                      }}>{children}</pre>
+                    </div>
                   )
                 },
                 table: ({ children }) => (

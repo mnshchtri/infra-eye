@@ -29,15 +29,15 @@ services:
       timeout: 5s
       retries: 5
 
-  # Tiny helper to ensure the sidecar doesn't crash on first boot
+  # Ensures shared_mcp dir and kubeconfig file exist before other services start
   mcp-init:
     image: alpine:latest
     container_name: infra-eye-mcp-init
-    restart: unless-stopped
+    restart: "no"
     volumes:
       - ./shared_mcp:/mcp
     command: >
-      sh -c "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 777 /mcp && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume initialized.' && tail -f /dev/null"
+      sh -c "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 777 /mcp && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume initialized.'"
 
   mcp-server:
     image: ghcr.io/containers/kubernetes-mcp-server:latest
@@ -45,7 +45,8 @@ services:
     restart: unless-stopped
     depends_on:
       - mcp-init
-      - app
+      # NOTE: No dependency on 'app' — that was a circular dependency.
+      # The MCP server starts with an empty kubeconfig and the backend syncs it on startup.
     volumes:
       - ./shared_mcp:/mcp:ro
     command: ["--port", "8090", "--kubeconfig", "/mcp/kubeconfig", "--cluster-provider", "kubeconfig"]
@@ -66,13 +67,13 @@ services:
       redis:
         condition: service_healthy
       mcp-init:
-        condition: service_started
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
       - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
       - REDIS_URL=redis:6379
-      - MCP_SERVER_URL=http://infra-eye-mcp:8090 # Use the container name for safer DNS
+      - MCP_SERVER_URL=http://infra-eye-mcp:8090
       - GIN_MODE=release
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     ports:
