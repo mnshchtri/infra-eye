@@ -66,6 +66,19 @@ The following volumes should be persisted:
 
 ---
 
+## 🔐 First-Time Setup & Default Credentials
+
+When you deploy InfraEye for the first time, a database seed script will automatically create the required default roles and an administrative user.
+
+If you are logging into the web dashboard on a fresh installation, use the following credentials:
+- **Username:** `admin`
+- **Password:** `infra123`
+
+> [!WARNING]
+> Please change this default password immediately after your first login via the User Management panel to secure your instance.
+
+---
+
 ## 🗺️ Future Roadmap
 
 ### Phase 1: Security & Scale
