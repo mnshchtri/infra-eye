@@ -77,6 +77,25 @@ If you are logging into the web dashboard on a fresh installation, use the follo
 > [!WARNING]
 > Please change this default password immediately after your first login via the User Management panel to secure your instance.
 
+### Troubleshooting: Verifying Database Users
+If you are unable to log in and suspect the database did not seed correctly, you can manually verify the users table by executing a `psql` command directly inside the Postgres pod:
+
+```bash
+sudo kubectl exec -it postgres-0 -n infra-eye -- psql -U infraeye -d infraeye -c "SELECT id, username, password_hash, role FROM users;"
+```
+
+You should see output similar to this:
+```text
+ id | username |                        password_hash                         |  role   
+----+----------+--------------------------------------------------------------+---------
+  1 | admin    | $2a$10$dJCl5QBnTN85pGZC24.jXuL5as8jNxuzOshgkKprhholdLrzz3PLW | admin
+  2 | devops   | $2a$10$Bzy25/e0Vl5fP4Q.yCK./eOYPz/aGIvXtcn0D4Te3h74jh9169FkO | devops
+  3 | trainee  | $2a$10$NLO4YcD.U8Gn1cA7J4jOd.v7KojHV2.65zv5s35TylnIjIdgOlQfO | trainee
+  4 | intern   | $2a$10$P.ZEhWdeyfXEm/Dc8Qb8auNqiqvoTxq5CW64VwEf9LCN79ixnA0py | intern
+(4 rows)
+```
+If the query returns `0 rows`, the seed migration has not run yet (usually because the backend app is crash-looping and hasn't connected to the database successfully).
+
 ---
 
 ## 🗺️ Future Roadmap
