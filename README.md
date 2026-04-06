@@ -55,67 +55,34 @@ graph TD
 
 ---
 
-## Docker Setup (Recommended)
+## Quick Start Deployment (Production)
 
-The fastest way to deploy InfraEye is using Docker Compose. This setup includes the backend, frontend, PostgreSQL, Redis, and the MCP sidecar.
+InfraEye can be deployed fully containerized. We deliver automated installer scripts for both native Kubernetes (recommended) and Docker Compose. Images are pulled directly from `ghcr.io/mnshchtri/infra-eye`.
 
-### 1. Prerequisites
-
-- **Docker 24.0.0+**
-- **Docker Compose v2.20.0+**
-- A `.env` file in the root (see `.env.example`)
-
-### 2. Environment Configuration
-
-Create a `.env` file in the root directory:
-
-```env
-# AI & Large Language Models
-DEEPSEEK_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-OPENROUTER_API_KEY=your_key_here
-MISTRAL_API_KEY=your_key_here
-
-# Database & Cache
-DB_DSN=postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable
-REDIS_ADDR=localhost:6379
-
-# Security & Auth
-JWT_SECRET=generate-a-long-random-string
-PORT=8080
-ENV=development
-
-# System Settings
-METRICS_INTERVAL=30
-LOG_MAX_LINES=500
-
-# Notifications
-GOOGLE_CHAT_WEBHOOK_URL=https://chat.googleapis.com/...
-
-# Kubeconfig Path (for MCP sidecar tools)
-KUBECONFIG_PATH=~/.kube/config
-```
-
-### 3. Launching the Stack
+### Option A: Kubernetes (Recommended)
+This deploys InfraEye, Postgres, Redis, and the MCP sidecar into the `infra-eye` namespace via Kustomize. It bypasses Docker networking conflicts by using a direct `NodePort`.
 
 ```bash
-# Start all services in the background
-docker-compose up -d
-
-# Check status
-docker-compose ps
+# Ensure KUBECONFIG is set (e.g., export KUBECONFIG=/etc/rancher/k3s/k3s.yaml)
+curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install-k8s.sh | bash
 ```
 
-The platform will be available at:
+### Option B: Docker Compose
+If you prefer a pure Docker setup, this isolates the stack and manages the reverse proxy bindings.
 
-- **Frontend**: [http://localhost](http://localhost) (via Nginx)
-- **Backend API**: [http://localhost:8080](http://localhost:8080)
-- **MCP Server**: [http://localhost:8090](http://localhost:8090)
+```bash
+curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh | bash
+```
+
+### Accessing the Platform
+
+After installation, the scripts will output the exact URL you need to access (e.g., `http://<node-ip>:30080` for K8s or `http://<node-ip>:8080` for Docker).
 
 **Default Login:**
-
 - **Username:** `admin`
-- **Password:** `admin123`
+- **Password:** `infra123`
+
+*(⚠ Change this password immediately after the first login!)*
 
 ---
 

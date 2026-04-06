@@ -50,19 +50,29 @@ Powered by OpenAI GPT-4o or Google Gemini.
 
 ---
 
-## 🐳 Docker Deployment Guide
+## 🚀 Deployment Guide
 
-### Recommended Stack
-We recommend running the following containers:
-- `infra-eye-app`: The main Go + React binary.
-- `infra-eye-postgres`: Data persistence for servers, users, and alert rules.
-- `infra-eye-redis`: Real-time pub/sub for metrics.
-- `infra-eye-mcp`: The Model Context Protocol sidecar for K8s diagnostics.
+InfraEye can be deployed fully containerized. We deliver automated installer scripts for both native Kubernetes (recommended) and Docker Compose. Images are pulled directly from `ghcr.io/mnshchtri/infra-eye`.
+
+### Option A: Kubernetes (Recommended)
+This deploys InfraEye, Postgres, Redis, and the MCP sidecar into the `infra-eye` namespace via Kustomize. It bypasses Docker networking conflicts by using a direct `NodePort`.
+
+```bash
+# Set up your kubeconfig first (e.g. export KUBECONFIG=/etc/rancher/k3s/k3s.yaml)
+curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install-k8s.sh | bash
+```
+
+### Option B: Docker Compose
+If you prefer a pure Docker setup, this isolates the stack and manages the reverse proxy bindings.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh | bash
+```
 
 ### Persistence
-The following volumes should be persisted:
-- `/var/lib/postgresql/data` (Postgres)
-- `~/.kube/config` (Mounted as RO for the MCP sidecar)
+The following configurations/data will automatically be persisted on the host system:
+- **Database:** `/var/lib/postgresql/data` (Docker volume or K8s PVC)
+- **Kubeconfig:** Passed automatically to the MCP sidecar via emptyDir or local bind mount to track target clusters.
 
 ---
 
