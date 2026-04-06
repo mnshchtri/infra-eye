@@ -66,10 +66,56 @@ check_cmd kubectl
 check_cmd curl
 check_cmd git
 
-# Verify kubectl can reach a cluster
-if ! kubectl cluster-info &>/dev/null; then
-  error "kubectl cannot reach a cluster. Ensure kubeconfig is configured (e.g. k3s: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml)"
-fi
+# ── Auto-detect kubeconfig (critical for curl | bash where parent export is lost) ──
+setup_kubeconfig() {
+  # 1. Already working (KUBECONFIG was exported and inherited)
+  if kubectl cluster-info &>/dev/null 2>&1; then
+    return 0
+  fi
+
+  # 2. k3s default path — readable without sudo
+  if [ -f /etc/rancher/k3s/k3s.yaml ] && [ -r /etc/rancher/k3s/k3s.yaml ]; then
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    if kubectl cluster-info &>/dev/null 2>&1; then
+      success "Using k3s kubeconfig: /etc/rancher/k3s/k3s.yaml"
+      return 0
+    fi
+  fi
+
+  # 3. k3s default path — needs sudo to read, copy to temp file
+  if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+    TMPKUBE=$(mktemp /tmp/k3s-kubeconfig.XXXXXX)
+    if sudo cp /etc/rancher/k3s/k3s.yaml "$TMPKUBE" && sudo chmod 600 "$TMPKUBE" && sudo chown "$(id -u):$(id -g)" "$TMPKUBE" 2>/dev/null; then
+      export KUBECONFIG="$TMPKUBE"
+      if kubectl cluster-info &>/dev/null 2>&1; then
+        success "Copied k3s kubeconfig to $TMPKUBE"
+        # Also install permanently for the user
+        mkdir -p "$HOME/.kube"
+        cp "$TMPKUBE" "$HOME/.kube/config"
+        chmod 600 "$HOME/.kube/config"
+        export KUBECONFIG="$HOME/.kube/config"
+        success "Installed kubeconfig to ~/.kube/config"
+        return 0
+      fi
+    fi
+  fi
+
+  # 4. ~/.kube/config fallback
+  if [ -f "$HOME/.kube/config" ]; then
+    export KUBECONFIG="$HOME/.kube/config"
+    if kubectl cluster-info &>/dev/null 2>&1; then
+      success "Using ~/.kube/config"
+      return 0
+    fi
+  fi
+
+  # Nothing worked
+  error "Cannot reach a Kubernetes cluster. Try:
+  sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown \$(id -u):\$(id -g) ~/.kube/config
+  Then re-run this script."
+}
+
+setup_kubeconfig
 success "kubectl connected to cluster"
 
 # ── 2. Clone / update repo ───────────────────
