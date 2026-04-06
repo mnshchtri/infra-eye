@@ -15,6 +15,18 @@ warn()    { echo -e "${YELLOW}${BOLD}[!]${NC} $*"; }
 error()   { echo -e "${RED}${BOLD}[✗]${NC} $*" >&2; exit 1; }
 ask()     { echo -e "${YELLOW}${BOLD}[?]${NC} $*"; }
 
+# Read from /dev/tty so prompts work even when run as: curl | bash
+tty_read() {
+  if [ -t 0 ]; then
+    read -r "$1"
+  elif [ -e /dev/tty ]; then
+    read -r "$1" </dev/tty
+  else
+    # No tty available (CI/non-interactive) — default to empty (safe/no)
+    eval "$1=''"
+  fi
+}
+
 INSTALL_DIR="${INSTALL_DIR:-$HOME/infra-eye}"
 
 echo -e "\n${BOLD}${RED}"
@@ -34,7 +46,7 @@ echo "  • Optionally remove Docker images"
 echo "  • Optionally delete the install directory: ${INSTALL_DIR}"
 echo ""
 ask "Are you sure you want to continue? [y/N]"
-read -r CONFIRM
+tty_read CONFIRM
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
   info "Uninstall cancelled."
   exit 0
@@ -68,7 +80,7 @@ fi
 # ── 2. Optionally remove Docker images ────────
 echo ""
 ask "Remove InfraEye Docker images from your system? [y/N]"
-read -r REMOVE_IMAGES
+tty_read REMOVE_IMAGES
 if [[ "$REMOVE_IMAGES" =~ ^[Yy]$ ]]; then
   info "Removing InfraEye Docker images..."
   IMAGES=$(docker images --filter "reference=infra-eye*" --filter "reference=*infra-eye*" -q 2>/dev/null || true)
@@ -85,7 +97,7 @@ fi
 # ── 3. Optionally delete the install directory ─
 echo ""
 ask "Delete the InfraEye install directory ($INSTALL_DIR)? [y/N]"
-read -r REMOVE_DIR
+tty_read REMOVE_DIR
 if [[ "$REMOVE_DIR" =~ ^[Yy]$ ]]; then
   if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
