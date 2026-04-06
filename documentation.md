@@ -101,7 +101,25 @@ You should see output similar to this:
   4 | intern   | $2a$10$P.ZEhWdeyfXEm/Dc8Qb8auNqiqvoTxq5CW64VwEf9LCN79ixnA0py | intern
 (4 rows)
 ```
-If the query returns `0 rows`, the seed migration has not run yet (usually because the backend app is crash-looping and hasn't connected to the database successfully).
+If the query returns `0 rows`, the seed migration has not run yet. You can manually insert the default admin user (with password `infra123`) directly:
+
+**For Kubernetes:**
+```bash
+sudo kubectl exec -it postgres-0 -n infra-eye -- psql -U infraeye -d infraeye -c "
+INSERT INTO users (username, password_hash, role, created_at, updated_at)
+VALUES ('admin', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lheO', 'admin', NOW(), NOW())
+ON CONFLICT (username) DO NOTHING;"
+```
+
+**For Docker Compose:**
+```bash
+cd ~/infra-eye
+docker compose exec postgres psql -U infraeye -d infraeye -c "
+INSERT INTO users (username, password_hash, role, created_at, updated_at)
+VALUES ('admin', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lheO', 'admin', NOW(), NOW())
+ON CONFLICT (username) DO NOTHING;"
+```
+*(Note: This inserts an admin user with the password `admin123`, providing an immediate backdoor to login and change the password via the UI).*
 
 ---
 
