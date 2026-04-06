@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: infra-eye
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # NOTE: secret.yaml is NOT listed here — it's gitignored and applied
+  # separately by install-k8s.sh before this kustomization runs.
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - redis/deployment.yaml
+  - redis/service.yaml
+  - app/deployment.yaml
+  - app/service.yaml

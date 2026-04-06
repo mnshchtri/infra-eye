@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infra-eye-config
+  namespace: infra-eye
+data:
+  REDIS_ADDR: "redis:6379"
+  MCP_SERVER_URL: "http://localhost:8090"
+  PORT: "8080"
+  ENV: "production"
+  GIN_MODE: "release"
+  METRICS_INTERVAL: "30"
+  LOG_MAX_LINES: "500"
+  # Comma-separated LAN IPs that the MCP server cannot reach directly.
+  # Set to your k3s node IP if kubeconfig uses 127.0.0.1 or a LAN address.
+  # The backend rewrites these to host.docker.internal in the synced kubeconfig.
+  MCP_HOST_IPS: ""

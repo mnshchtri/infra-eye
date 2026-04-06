@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infra-eye
+  namespace: infra-eye
+  labels:
+    app: infra-eye
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: infra-eye
+  template:
+    metadata:
+      labels:
+        app: infra-eye
+    spec:
+      # Allow the MCP sidecar to reach the k3s API on the host node
+      hostAliases:
+        - ip: "127.0.0.1"
+          hostnames:
+            - "host.docker.internal"
+
+      initContainers:
+        - name: mcp-init
+          image: alpine:latest
+          command:
+            - sh
+            - -c
+            - "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume ready'"
+          volumeMounts:
+            - name: mcp-volume
+              mountPath: /mcp
+
+      containers:
+        # ── Main application ────────────────────────────────────────────────
+        - name: app
+          image: ghcr.io/mnshchtri/infra-eye:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: infra-eye-config
+            - secretRef:
+                name: infra-eye-secrets
+          volumeMounts:
+            - name: mcp-volume
+              mountPath: /shared_mcp
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+        # ── MCP sidecar — shares kubeconfig via emptyDir ─────────────────
+        - name: mcp-server
+          image: ghcr.io/containers/kubernetes-mcp-server:latest
+          args:
+            - "--port"
+            - "8090"
+            - "--kubeconfig"
+            - "/mcp/kubeconfig"
+            - "--cluster-provider"
+            - "kubeconfig"
+          ports:
+            - name: mcp
+              containerPort: 8090
+          volumeMounts:
+            - name: mcp-volume
+              mountPath: /mcp
+              readOnly: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+      volumes:
+        # Shared between init container, app, and mcp-server sidecar
+        - name: mcp-volume
+          emptyDir: {}
