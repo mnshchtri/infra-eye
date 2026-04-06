@@ -37,6 +37,7 @@ check_cmd() {
 
 check_cmd git
 check_cmd docker
+check_cmd curl
 
 # Check Docker Compose (v2 plugin preferred, v1 fallback)
 if docker compose version &>/dev/null 2>&1; then
@@ -66,8 +67,16 @@ cd "$INSTALL_DIR"
 
 # ── 3. Environment setup ─────────────────────
 if [ ! -f ".env" ]; then
-  warn ".env file not found — creating one from defaults."
-  cat > .env <<'EOF'
+  warn ".env file not found — creating one with a generated JWT secret."
+
+  # Auto-generate a secure JWT secret
+  if command -v openssl &>/dev/null; then
+    JWT_SECRET_VAL=$(openssl rand -hex 32)
+  else
+    JWT_SECRET_VAL=$(tr -dc 'a-f0-9' </dev/urandom 2>/dev/null | head -c 64 || echo "please-replace-with-a-long-random-secret")
+  fi
+
+  cat > .env <<EOF
 # ── AI / LLM Keys (fill in at least one) ──────────────────
 MISTRAL_API_KEY=
 GEMINI_API_KEY=
@@ -75,7 +84,7 @@ DEEPSEEK_API_KEY=
 OPENROUTER_API_KEY=
 
 # ── Security ───────────────────────────────────────────────
-JWT_SECRET=change-me-to-a-long-random-secret
+JWT_SECRET=${JWT_SECRET_VAL}
 
 # ── App Settings ───────────────────────────────────────────
 PORT=8080
@@ -89,8 +98,8 @@ GOOGLE_CHAT_WEBHOOK_URL=
 # ── K8s MCP host IPs (optional, comma-separated LAN IPs) ──
 MCP_HOST_IPS=
 EOF
-  warn "A default .env file was created at $INSTALL_DIR/.env"
-  warn "Edit it to add your API keys: nano $INSTALL_DIR/.env"
+  success "Generated .env with a secure JWT secret."
+  warn "Edit .env to add your API keys: nano $INSTALL_DIR/.env"
 fi
 
 # ── 4. Ensure shared_mcp directory exists ────
@@ -98,22 +107,36 @@ mkdir -p shared_mcp
 touch shared_mcp/kubeconfig
 chmod 777 shared_mcp
 chmod 666 shared_mcp/kubeconfig
+success "shared_mcp directory initialized."
 
-# ── 5. Launch the stack ──────────────────────
-info "Pulling Docker images..."
-$COMPOSE_CMD pull --quiet postgres redis mcp-server 2>/dev/null || true
+# ── 5. Ensure ~/.kube/config exists (required by docker-compose volume mount) ──
+# On a fresh server without kubectl, this file won't exist. Docker would create
+# it as a directory instead of a file, breaking the mount. We create a stub.
+if [ ! -f "$HOME/.kube/config" ]; then
+  warn "No ~/.kube/config found — creating an empty stub so the volume mount works."
+  mkdir -p "$HOME/.kube"
+  touch "$HOME/.kube/config"
+  chmod 600 "$HOME/.kube/config"
+  success "Empty ~/.kube/config stub created. Add your kubeconfig later if needed."
+fi
+
+# ── 6. Launch the stack ──────────────────────
+info "Pulling pre-built Docker images..."
+$COMPOSE_CMD pull postgres redis mcp-server 2>/dev/null || true
 
 info "Building the InfraEye application image..."
-$COMPOSE_CMD build --quiet app
+if ! $COMPOSE_CMD build app; then
+  error "Docker build failed. Run '$COMPOSE_CMD logs' for details."
+fi
 
 info "Starting all services..."
 $COMPOSE_CMD up -d
 
-# ── 6. Health wait ───────────────────────────
-info "Waiting for InfraEye to become healthy..."
-MAX_WAIT=60
+# ── 7. Health wait ───────────────────────────
+info "Waiting for InfraEye to become healthy (up to 90s)..."
+MAX_WAIT=90
 ELAPSED=0
-until curl -sf http://localhost:8080/api/health &>/dev/null || [ $ELAPSED -ge $MAX_WAIT ]; do
+until curl -sf http://localhost:8080/api/health &>/dev/null || [ "$ELAPSED" -ge "$MAX_WAIT" ]; do
   sleep 3
   ELAPSED=$((ELAPSED + 3))
   echo -ne "  Waiting... ${ELAPSED}s / ${MAX_WAIT}s\r"
@@ -121,14 +144,18 @@ done
 echo ""
 
 if curl -sf http://localhost:8080/api/health &>/dev/null; then
-  success "InfraEye is up!"
+  success "InfraEye is up and healthy!"
 else
-  warn "Health check timed out — the app may still be starting. Check logs with:"
-  warn "  $COMPOSE_CMD logs -f app"
+  warn "Health check timed out after ${MAX_WAIT}s — the app may still be starting."
+  warn "Check logs: cd $INSTALL_DIR && $COMPOSE_CMD logs -f app"
 fi
 
-# ── 7. Summary ───────────────────────────────
-HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
+# ── 8. Summary ───────────────────────────────
+# Portable IP detection: try hostname -I, fall back to ip route, then localhost
+HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}') \
+  || HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}') \
+  || HOST_IP="localhost"
+HOST_IP="${HOST_IP:-localhost}"
 
 echo ""
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -136,11 +163,12 @@ echo -e "${GREEN}${BOLD}  🚀 InfraEye is running!${NC}"
 echo -e "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "  ${BOLD}Dashboard   :${NC}  http://${HOST_IP}:8080"
 echo -e "  ${BOLD}API         :${NC}  http://${HOST_IP}:8080/api"
-echo -e "  ${BOLD}MCP Server  :${NC}  http://${HOST_IP}:8090"
+echo -e "  ${BOLD}MCP Server  :${NC}  http://localhost:8090  (local only)"
 echo -e ""
 echo -e "  ${BOLD}Default Login${NC}"
 echo -e "  Username    :  admin"
 echo -e "  Password    :  admin123"
+echo -e "  ${YELLOW}${BOLD}  ⚠ Change this password immediately after first login!${NC}"
 echo -e ""
 echo -e "  ${BOLD}Useful Commands${NC}"
 echo -e "  Logs        :  cd $INSTALL_DIR && $COMPOSE_CMD logs -f"
