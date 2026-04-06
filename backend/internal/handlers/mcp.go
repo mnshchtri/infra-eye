@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,8 +21,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// mcpClient is a shared HTTP client for MCP communication
-var mcpClient = &http.Client{Timeout: 30 * time.Second}
+// mcpClient is used for short-lived JSON-RPC POST calls (tool invocations, handshake)
+var mcpClient = &http.Client{Timeout: 60 * time.Second}
+
+// mcpSSEClient has NO timeout — it owns the long-lived SSE stream.
+// A 30s timeout on the shared client was killing the stream before tool responses arrived.
+var mcpSSEClient = &http.Client{Timeout: 0}
+
 
 // ── MCP JSON-RPC types ─────────────────────────────────────────────────────
 
@@ -188,12 +194,25 @@ var (
 	mcpSessionURL    string
 	mcpSSEConnection io.ReadCloser
 	mcpInitMutex     sync.Mutex
+
+	// Atomic counter for unique JSON-RPC request IDs.
+	// Using a fixed id (e.g. 1) caused concurrent tool calls to collide
+	// on the same pending channel, so only one would receive the response.
+	mcpRequestIDCounter int64
+
+	// pendingRequests keeps track of ongoing JSON-RPC calls over SSE
+	pendingRequests = make(map[int]chan json.RawMessage)
+	pendingMutex    sync.Mutex
 )
 
 // ── callMCPMethod ────────────────────────────────────────────────────────────
 // Internal helper: sends a JSON-RPC 2.0 request to the MCP HTTP server.
-// It handles SSE response parsing and automated initialization with retry logic.
-func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, error) {
+// Uses an atomic counter to generate unique request IDs, preventing concurrent
+// tool calls from colliding on the same pending SSE response channel.
+func callMCPMethod(method string, params interface{}, _ int) (json.RawMessage, error) {
+	// Generate a unique ID for this request
+	id := int(atomic.AddInt64(&mcpRequestIDCounter, 1))
+
 	// 1. Ensure the session is initialized
 	if err := ensureMCPInitialized(); err != nil {
 		return nil, err
@@ -218,11 +237,12 @@ func callMCPMethod(method string, params interface{}, id int) (json.RawMessage, 
 		mcpSessionURL = ""
 		mcpInitMutex.Unlock()
 
-		// Re-initialize and retry call
+		// Re-initialize and retry with a fresh unique ID
+		newID := int(atomic.AddInt64(&mcpRequestIDCounter, 1))
 		if err := ensureMCPInitialized(); err != nil {
 			return nil, err
 		}
-		return callMCPMethodRaw(method, params, intPtr(id))
+		return callMCPMethodRaw(method, params, intPtr(newID))
 	}
 
 	return result, err
@@ -242,7 +262,7 @@ func ensureMCPInitialized() error {
 	var resp *http.Response
 	var err error
 	for i := 0; i < 5; i++ {
-		resp, err = mcpClient.Get(config.C.MCPServerURL + "/sse")
+		resp, err = mcpSSEClient.Get(config.C.MCPServerURL + "/sse")
 		if err == nil {
 			break
 		}
@@ -289,11 +309,13 @@ func ensureMCPInitialized() error {
 	}
 	log.Printf("📡 MCP: Session endpoint received: %s", endpoint)
 
-	// Step 1: Start Background Body Drainer to keep SSE session alive
-	go func(body io.ReadCloser) {
-		buf := make([]byte, 2048)
+	// Step 1: Start Background SSE Message Handler
+	// IMPORTANT: pass `reader` (the existing bufio.Reader that already wraps resp.Body),
+	// NOT a new bufio.NewReader(body). Creating a second reader on the same body would
+	// miss any data already buffered by `reader`, causing tool responses to be dropped.
+	go func(r *bufio.Reader) {
 		for {
-			_, err := body.Read(buf)
+			line, err := r.ReadString('\n')
 			if err != nil {
 				log.Printf("📡 MCP: SSE Connection closed: %v. Resetting session.", err)
 				mcpInitMutex.Lock()
@@ -303,8 +325,29 @@ func ensureMCPInitialized() error {
 				mcpInitMutex.Unlock()
 				return
 			}
+
+			// Handle lines like "data: { ...JSON-RPC... }"
+			if strings.HasPrefix(line, "data: ") {
+				data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+				if data == "" || data == "undefined" {
+					continue
+				}
+
+				// Try to parse the response
+				var mcpResp mcpResponse
+				if err := json.Unmarshal([]byte(data), &mcpResp); err == nil {
+					// Route the result to the waiting caller
+					pendingMutex.Lock()
+					ch, ok := pendingRequests[mcpResp.ID]
+					if ok {
+						ch <- json.RawMessage(data)
+						delete(pendingRequests, mcpResp.ID)
+					}
+					pendingMutex.Unlock()
+				}
+			}
 		}
-	}(mcpSSEConnection)
+	}(reader)
 
 	// Prepend host if it's a relative path
 	if strings.HasPrefix(endpoint, "/") {
@@ -352,6 +395,13 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		return nil, fmt.Errorf("marshal error: %v", err)
 	}
 
+	// 0. Register the request ID before sending to avoid race conditions with fast SSE responses
+	if id != nil {
+		pendingMutex.Lock()
+		pendingRequests[*id] = make(chan json.RawMessage, 1)
+		pendingMutex.Unlock()
+	}
+
 	// Use the established session URL, or fallback to default if not yet established
 	targetURL := mcpSessionURL
 	if targetURL == "" {
@@ -379,35 +429,43 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 		return nil, fmt.Errorf("MCP server unreachable at %s: %v", targetURL, err)
 	}
 	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response (status %d): %v", resp.StatusCode, err)
-	}
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("MCP server error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	// Handle SSE format: strip "event: message\ndata: "
+	body, _ := io.ReadAll(resp.Body)
 	rawStr := string(body)
-	if bytes.Contains(body, []byte("data: ")) {
-		// Quick extraction of the data part
-		parts := bytes.Split(body, []byte("data: "))
-		if len(parts) > 1 {
-			rawStr = string(bytes.TrimSpace(parts[1]))
-		}
-	}
 
-	// ── Notification Handling ──
-	// JSON-RPC 2.0: Notifications (no ID) do not expect a response body.
-	if id == nil {
-		return nil, nil
+	// --- Handle Asynchronous Responses (Status 202) ---
+	// Official Model Context Protocol behavior for SSE transport:
+	// If the server returns 202, the result will be sent later on the SSE stream.
+	if resp.StatusCode == 202 || (resp.StatusCode == 200 && strings.TrimSpace(rawStr) == "") {
+		if id == nil {
+			return nil, nil // Notification
+		}
+
+		// Use the already registered channel (registered in callMCPMethodRaw above)
+		pendingMutex.Lock()
+		ch, ok := pendingRequests[*id]
+		pendingMutex.Unlock()
+
+		if !ok {
+			return nil, fmt.Errorf("id %d was not registered for SSE response tracking", *id)
+		}
+
+		// Wait for response from the background handler or timeout
+		select {
+		case asyncData := <-ch:
+			rawStr = string(asyncData)
+		case <-time.After(90 * time.Second):
+			pendingMutex.Lock()
+			delete(pendingRequests, *id)
+			pendingMutex.Unlock()
+			return nil, fmt.Errorf("timeout waiting for SSE response for id %d", *id)
+		}
+	} else if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("MCP server error (status %d): %s", resp.StatusCode, rawStr)
 	}
 
 	// For standard requests, if the body is empty, it's an error
 	if strings.TrimSpace(rawStr) == "" {
-		return nil, fmt.Errorf("empty response (status %d) for method %s. Check sidecar health.", resp.StatusCode, method)
+		return nil, fmt.Errorf("empty response (status %d) for method %s", resp.StatusCode, method)
 	}
 
 	var mcpResp mcpResponse
@@ -420,4 +478,100 @@ func callMCPMethodRaw(method string, params interface{}, id *int) (json.RawMessa
 	}
 
 	return mcpResp.Result, nil
+}
+
+// ── RunKubectlViaMCP ─────────────────────────────────────────────────────────
+// POST /api/mcp/kubectl — Executes a kubectl command via the MCP kubernetes server.
+// Supports server context injection so the command targets the correct cluster.
+func RunKubectlViaMCP(c *gin.Context) {
+	var req struct {
+		ServerID uint   `json:"server_id"`
+		Command  string `json:"command" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Build arguments for the MCP kubectl tool
+	args := map[string]interface{}{
+		"command": req.Command,
+	}
+
+	// If a server_id is given, resolve the correct context name
+	if req.ServerID > 0 {
+		var server models.Server
+		if err := db.DB.First(&server, req.ServerID).Error; err == nil && server.KubeConfig != "" {
+			prefix := fmt.Sprintf("server-%d", server.ID)
+			cfg, parseErr := clientcmd.Load([]byte(server.KubeConfig))
+			if parseErr == nil {
+				// Find the prefixed context we wrote during SyncMasterKubeconfig
+				selectedCtx := ""
+				for name := range cfg.Contexts {
+					fullName := fmt.Sprintf("%s-%s", prefix, name)
+					selectedCtx = fullName
+					break
+				}
+				if selectedCtx == "" {
+					selectedCtx = prefix + "-default"
+				}
+				args["context"] = selectedCtx
+			} else {
+				args["context"] = prefix + "-default"
+			}
+		}
+	}
+
+	// Sync kubeconfig first to ensure the MCP server sees latest clusters
+	if err := mcp.SyncMasterKubeconfig(); err != nil {
+		log.Printf("⚠️ MCP kubectl: kubeconfig sync warning: %v", err)
+	}
+
+	params := mcpToolCallParams{
+		Name:      "kubectl_generic",
+		Arguments: args,
+	}
+
+	result, err := callMCPMethod("tools/call", params, 2)
+	if err != nil {
+		// The MCP tool name may differ; try alternate tool names
+		params.Name = "kubectl"
+		result, err = callMCPMethod("tools/call", params, 3)
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error":    "MCP kubectl execution failed",
+				"details":  err.Error(),
+				"is_error": true,
+				"success":  false,
+			})
+			return
+		}
+	}
+
+	// Parse the tool result
+	var parsed struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		IsError bool `json:"isError"`
+	}
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		c.Data(http.StatusOK, "application/json", result)
+		return
+	}
+
+	output := strings.Builder{}
+	for _, content := range parsed.Content {
+		if content.Type == "text" {
+			output.WriteString(content.Text)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"command":  req.Command,
+		"output":   output.String(),
+		"is_error": parsed.IsError,
+		"success":  !parsed.IsError,
+	})
 }

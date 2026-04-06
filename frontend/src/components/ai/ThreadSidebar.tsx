@@ -54,14 +54,28 @@ export const ThreadSidebar = memo(({
   const sidebarWidth = isCollapsed ? 64 : width
 
   return (
-    <div style={{
-      width: sidebarWidth, 
-      borderRight: '1px solid var(--border-subtle)',
-      background: 'var(--bg-app)', display: 'flex', flexDirection: 'column',
-      flexShrink: 0, transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+    <div 
+      className={`ai-sidebar ${isCollapsed ? 'collapsed' : ''}`}
+      style={{
+        width: sidebarWidth, 
+        borderRight: '1px solid var(--border)',
+        background: 'var(--bg-sidebar)', display: 'flex', flexDirection: 'column',
+        flexShrink: 0, transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        overflow: 'hidden',
+        position: 'relative',
+        zIndex: 100
+      }}
+    >
+      {/* Mobile Close Button */}
+      {!isCollapsed && (
+        <button 
+          className="show-mobile-only btn-icon" 
+          onClick={() => onToggle(true)}
+          style={{ position: 'absolute', right: 12, top: 28, zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        >
+          <X size={16} />
+        </button>
+      )}
       {/* Resizer Handle */}
       {!isCollapsed && (
         <div 
@@ -90,40 +104,43 @@ export const ThreadSidebar = memo(({
           alignItems: 'center',
           height: 48
         }}>
-           {!isCollapsed && (
-             <button
-               onClick={onNew}
-               style={{
-                 flex: 1, height: 40, borderRadius: 10,
-                 background: 'var(--brand-primary)', border: 'none',
-                 color: '#fff', fontSize: 13, fontWeight: 700,
-                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                 transition: 'all 0.2s', boxShadow: '0 4px 12px var(--brand-glow)',
-                 padding: '0 12px'
-               }}
-               onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-               onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-             >
-               <Plus size={16} strokeWidth={3} />
-               <span>New Analysis</span>
-             </button>
-           )}
+            {!isCollapsed && (
+              <button
+                onClick={onNew}
+                style={{
+                  flex: 1, height: 42, borderRadius: 0,
+                  background: 'var(--brand-primary)', border: 'none',
+                  color: 'var(--text-inverse)', fontSize: 11, fontWeight: 900,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                  transition: 'all 0.1s',
+                  padding: '0 16px',
+                  fontFamily: 'var(--font-mono)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}
+                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+              >
+                <Plus size={16} strokeWidth={3} />
+                <span>New Session</span>
+              </button>
+            )}
 
-           {isCollapsed && (
-             <button
-               onClick={onNew}
-               title="New Analysis"
-               style={{
-                 width: 40, height: 40, borderRadius: 10,
-                 background: 'var(--brand-primary)', border: 'none',
-                 color: '#fff', cursor: 'pointer', display: 'flex', 
-                 alignItems: 'center', justifyContent: 'center',
-                 transition: 'all 0.2s', boxShadow: '0 4px 12px var(--brand-glow)'
-               }}
-             >
-               <Plus size={18} strokeWidth={3} />
-             </button>
-           )}
+            {isCollapsed && (
+              <button
+                onClick={onNew}
+                title="New Session"
+                style={{
+                  width: 42, height: 42, borderRadius: 0,
+                  background: 'var(--brand-primary)', border: 'none',
+                  color: 'var(--text-inverse)', cursor: 'pointer', display: 'flex', 
+                  alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.1s'
+                }}
+              >
+                <Plus size={18} strokeWidth={3} />
+              </button>
+            )}
 
            {!isCollapsed && (
              <button
@@ -164,31 +181,24 @@ export const ThreadSidebar = memo(({
             onClick={() => onSelect(t.id)}
             title={isCollapsed ? t.title : undefined}
             style={{
-              padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+              padding: '12px 16px', borderRadius: 0, cursor: 'pointer',
               display: 'flex', alignItems: 'center',
-              background: activeThreadId === t.id ? 'var(--bg-card)' : 'transparent',
-              border: '1px solid',
-              borderColor: activeThreadId === t.id ? 'var(--border-bright)' : 'transparent',
-              transition: 'all 0.2s',
-              height: 42,
+              background: activeThreadId === t.id ? 'var(--bg-elevated)' : 'transparent',
+              borderLeft: `2px solid ${activeThreadId === t.id ? 'var(--brand-primary)' : 'transparent'}`,
+              transition: 'all 0.15s',
+              height: 44,
               justifyContent: isCollapsed ? 'center' : 'space-between',
               position: 'relative',
               overflow: 'hidden'
             }}
           >
-             {activeThreadId === t.id && (
-               <div style={{
-                 position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3,
-                 background: 'var(--brand-primary)', borderRadius: '0 4px 4px 0'
-               }} />
-             )}
 
             {!isCollapsed && (
               <div style={{ 
-                fontSize: 13, color: activeThreadId === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                fontWeight: activeThreadId === t.id ? 700 : 500,
+                fontSize: 10, color: activeThreadId === t.id ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontWeight: activeThreadId === t.id ? 900 : 700,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
-                paddingLeft: 4
+                fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em'
               }}>
                 {t.title}
               </div>

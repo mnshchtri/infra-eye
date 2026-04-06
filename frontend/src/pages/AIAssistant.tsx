@@ -37,17 +37,20 @@ const SuggestionButton = memo(({ text, onClick }: { text: string; onClick: (s: s
   <button
     onClick={() => onClick(text)}
     style={{
-      padding: '12px 20px', borderRadius: 12,
+      padding: '10px 18px', borderRadius: 0,
       background: 'var(--bg-card)', border: '1px solid var(--border)',
-      color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer',
-      transition: 'all 0.2s', fontWeight: 600
+      color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer',
+      transition: 'all 0.15s', fontWeight: 900,
+      fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em'
     }}
     onMouseEnter={e => {
       e.currentTarget.style.borderColor = 'var(--brand-primary)'
-      e.currentTarget.style.background = 'var(--bg-elevated)'
+      e.currentTarget.style.color = 'var(--brand-primary)'
+      e.currentTarget.style.background = 'var(--brand-glow)'
     }}
     onMouseLeave={e => {
       e.currentTarget.style.borderColor = 'var(--border)'
+      e.currentTarget.style.color = 'var(--text-secondary)'
       e.currentTarget.style.background = 'var(--bg-card)'
     }}
   >
@@ -238,24 +241,48 @@ export function AIAssistant() {
         arguments: args,
         server_id: selectedServer || 0,
       })
-      const output = res.data?.output || JSON.stringify(res.data)
+      const output: string = res.data?.output || JSON.stringify(res.data, null, 2)
+
+      // Detect output format for syntax highlighting
+      const trimmed = output.trim()
+      let lang = 'text'
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) lang = 'json'
+      else if (trimmed.includes(':\n') || /^[a-zA-Z]+:/m.test(trimmed)) lang = 'yaml'
+
+      // Truncate very large outputs in the display card
+      const lines = output.split('\n')
+      const MAX_LINES = 60
+      const isTruncated = lines.length > MAX_LINES
+      const displayOutput = isTruncated
+        ? lines.slice(0, MAX_LINES).join('\n') + `\n\n… (${lines.length - MAX_LINES} more lines)`
+        : output
+
       const resultMsg: Message = {
         id: Date.now().toString() + '_mcp',
         role: 'assistant',
-        content: `**🔧 MCP Tool Result: \`${tool}\`**\n\`\`\`\n${output}\n\`\`\`\n\n*Analyzing results...*`,
+        content: [
+          `**\`${tool}\`** — ${lines.length} lines retrieved`,
+          '```' + lang,
+          displayOutput,
+          '```',
+        ].join('\n'),
         timestamp: new Date()
       }
       setMessages(prev => [...prev, resultMsg])
-      // Feed output back to AI for analysis
+
+      // Feed output back to AI for analysis silently
       setTimeout(() => {
-        askQuestion(`[MCP_TOOL_RESULT for ${tool}]\n${output}\n\nAnalyze this output and tell me what to do next.`)
+        askQuestion(`Analyze the following \`${tool}\` output and summarize findings with actionable next steps:\n\`\`\`\n${output.slice(0, 4000)}\n\`\`\``)
       }, 400)
     } catch (err: any) {
       const errData = err.response?.data
       const errMsg: Message = {
         id: Date.now().toString() + '_mcperr',
         role: 'assistant',
-        content: `**⚠️ MCP Tool Error: \`${tool}\`**\n${errData?.error || err.message}${errData?.details ? `\n\n*${errData.details}*` : ''}`,
+        content: [
+          `**⚠️ MCP Tool Error: \`${tool}\`** ${errData?.error || err.message}`,
+          errData?.details ? `\n> ${errData.details}` : ''
+        ].filter(Boolean).join('\n'),
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errMsg])
@@ -273,94 +300,103 @@ export function AIAssistant() {
   }, [selectedServer, showWelcome])
 
   return (
-    <div style={{ display: 'flex', height: '100%', background: 'var(--bg-app)' }}>
+    <div className={`ai-assistant-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ display: 'flex', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
       
+      <div 
+        className={`ai-sidebar-overlay ${!isSidebarCollapsed ? 'mobile-open' : ''}`} 
+        onClick={() => setIsSidebarCollapsed(true)}
+      />
+
       <ThreadSidebar 
         threads={threads} 
         activeThreadId={activeThreadId}
-        onSelect={setActiveThreadId}
-        onNew={startNewChat}
+        onSelect={id => { setActiveThreadId(id); if (window.innerWidth <= 768) setIsSidebarCollapsed(true); }}
+        onNew={() => { startNewChat(); if (window.innerWidth <= 768) setIsSidebarCollapsed(true); }}
         onDelete={deleteThread}
         isCollapsed={isSidebarCollapsed}
         onToggle={setIsSidebarCollapsed}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
-        <header style={{
-          width: '100%', padding: '14px 30px', 
+        <header className="ai-chat-header" style={{
+          width: '100%', padding: '10px 20px', 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0, borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-card)'
+          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 12
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button 
+              className="show-mobile-only btn-icon" 
+              onClick={() => setIsSidebarCollapsed(false)}
+              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 0, border: '1px solid var(--border)' }}
+            >
+              <Zap size={16} color="var(--brand-primary)" />
+            </button>
             <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: 'var(--bg-card)',
+              width: 38, height: 38, borderRadius: 0,
+              background: 'var(--bg-app)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px var(--brand-glow)',
-              overflow: 'hidden', padding: 5, border: '1px solid var(--border-bright)'
+              overflow: 'hidden', padding: 4, border: '1px solid var(--border)'
             }}>
               <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 2 }}>नेत्र</h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>Strategic Infrastructure Intelligence</span>
-                <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 700 }}>Active Mode</span>
+              <h1 style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>नेत्र</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="hidden-mobile" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Core Intelligence</span>
+                <span className="hidden-mobile" style={{ width: 3, height: 3, background: 'var(--text-muted)' }} />
+                <span style={{ fontSize: 9, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Session Active</span>
               </div>
             </div>
           </div>
 
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 24 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>AI Protocol</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Logic Engine</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <select value={provider} onChange={e => setProvider(e.target.value as any)}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
-                   <option value="openrouter">OpenRouter (Auto)</option>
-                   <option value="deepseek">DeepSeek (Native)</option>
-                   <option value="google">Google Gemini</option>
-                   <option value="mistral">Mistral (Large)</option>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, fontWeight: 900, cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                   <option value="openrouter">OpenRouter</option>
+                   <option value="deepseek">DeepSeek</option>
+                   <option value="google">Google</option>
+                   <option value="mistral">Mistral</option>
                  </select>
-                 <ChevronDown size={14} color="var(--text-muted)" />
+                 <ChevronDown size={10} color="var(--text-muted)" />
               </div>
             </div>
 
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Context</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                 <Server size={14} color="var(--brand-primary)" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Target System</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                  <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none' }}>
-                   <option value="">Infrastructure Wide</option>
+                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, fontWeight: 900, cursor: 'pointer', outline: 'none', maxWidth: 120, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                   <option value="">Infrastructure</option>
                    {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                  </select>
-                 <ChevronDown size={14} color="var(--text-muted)" />
+                 <ChevronDown size={10} color="var(--text-muted)" />
               </div>
             </div>
+            
+            {mcpAvailable && (
+              <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 0, background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)20' }}>
+                <Zap size={10} color="var(--brand-primary)" />
+                <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>MCP Active</span>
+              </div>
+            )}
           </div>
-
-          {/* MCP Status Pill */}
-          {mcpAvailable && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-              <Zap size={12} color="var(--success)" />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>K8s MCP</span>
-            </div>
-          )}
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '40px 30px 160px' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 48 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 140px' }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
             {messages.length <= 1 && (
-              <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                  <h2 style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tactical Protocols</h2>
-                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
-                    <Trash2 size={14} /> Purge History
+              <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid #18181b', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+                  <h2 style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Deployment Protocols</h2>
+                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: '10px', fontWeight: 800, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                    <Trash2 size={13} /> Purge Audit Trail
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   {SUGGESTIONS.map(s => <SuggestionButton key={s} text={s} onClick={askQuestion} />)}
                 </div>
               </div>
@@ -369,14 +405,14 @@ export function AIAssistant() {
             {messages.map((msg) => <MessageItem key={msg.id} msg={msg} onExecuteMcpTool={executeMcpTool} />)}
 
             {loading && (
-              <div style={{ display: 'flex', gap: 24, alignSelf: 'flex-start' }} className="fade-up">
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--bg-card)', border: '1px solid var(--border-bright)', padding: 6, boxShadow: '0 4px 12px var(--brand-glow)' }}>
+              <div style={{ display: 'flex', gap: 16, alignSelf: 'flex-start' }} className="fade-up">
+                <div style={{ width: 38, height: 38, borderRadius: 0, background: 'var(--bg-app)', overflow: 'hidden', padding: 4, border: '1px solid var(--border)' }}>
                   <img src={chatbotLogo} alt="L" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
                 </div>
-                <div style={{ padding: '8px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s infinite' }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s 0.2s infinite' }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1.2s 0.4s infinite' }} />
+                <div style={{ padding: '12px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s infinite' }} />
+                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s 0.2s infinite' }} />
+                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s 0.4s infinite' }} />
                 </div>
               </div>
             )}
@@ -384,25 +420,25 @@ export function AIAssistant() {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '24px 30px 48px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
+        <div className="ai-input-wrapper" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
           <div style={{ maxWidth: 900, margin: '0 auto', pointerEvents: 'auto' }}>
             {selectedImage && (
-              <div className="fade-in" style={{ padding: '12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '20px 20px 0 0', display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 24, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
-                <img src={selectedImage} alt="Preview" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Image Ready</div>
-                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={14} /></button>
+              <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '16px 16px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
+                <img src={selectedImage} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Ready</div>
+                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={12} /></button>
               </div>
             )}
 
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: selectedImage ? '0 24px 24px 24px' : 24, padding: '10px 10px 10px 24px', boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="chat-input-container" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
               <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
-              <button onClick={() => fileInputRef.current?.click()} style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={20} /></button>
-              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Initialize protocol analysis..." disabled={loading} rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 16, padding: '12px 0', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 180 }}
-                onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 180) + 'px' }}
+              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 32, height: 32, borderRadius: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={16} /></button>
+              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Enter command protocol..." disabled={loading} rows={1}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 0', resize: 'none', fontFamily: 'var(--font-mono)', lineHeight: 1.6, maxHeight: 150 }}
+                onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px' }}
               />
-              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 48, height: 48, borderRadius: 16, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none' }}>
-                <Send size={20} color={question.trim() || selectedImage ? '#fff' : 'var(--text-muted)'} />
+              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 40, height: 40, borderRadius: 0, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
+                <Send size={16} color={question.trim() || selectedImage ? 'var(--text-inverse)' : 'var(--text-muted)'} />
               </button>
             </div>
           </div>

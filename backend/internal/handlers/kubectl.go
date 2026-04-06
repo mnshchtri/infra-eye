@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -15,16 +17,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
 	gossh "golang.org/x/crypto/ssh"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+	"sigs.k8s.io/yaml"
 )
 
 var (
@@ -137,19 +143,48 @@ func invalidateKubeConfigCache(serverID uint) {
 	kubeconfigWrittenMu.Unlock()
 }
 
-// GetK8sClient returns a typed Kubernetes Clientset using the raw kubeconfig.
-func GetK8sClient(kubeconfig string) (*kubernetes.Clientset, error) {
-	if kubeconfig == "" {
-		return nil, fmt.Errorf("no kubeconfig provided on server")
+// getKubectlPath ensures we find the kubectl binary. Returns error if not found.
+func getKubectlPath() (string, error) {
+	path, err := exec.LookPath("kubectl")
+	if err == nil {
+		return path, nil
 	}
-	config, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse kubeconfig: %v", err)
+	// Fallback for M1/M2 Mac Homebrew locations and Linux snap paths
+	fallbacks := []string{
+		"/opt/homebrew/bin/kubectl",
+		"/usr/local/bin/kubectl", 
+		"/usr/bin/kubectl", 
+		"/snap/bin/kubectl",
+		"/var/lib/snapd/snap/bin/kubectl",
 	}
-	config.QPS = 50
-	config.Burst = 100
-	return kubernetes.NewForConfig(config)
+	for _, f := range fallbacks {
+		if _, err := os.Stat(f); err == nil {
+			log.Printf("🛠️ Found kubectl at fallback path: %s", f)
+			return f, nil
+		}
+	}
+	return "", fmt.Errorf("kubectl not found in PATH or standard backup locations. Please install kubectl on the backend host to manage clusters without SSH.")
 }
+
+// ensureLocalKubeConfig writes the kubeconfig to the local filesystem for direct-API clusters.
+// This allows running kubectl commands locally on the backend server.
+func ensureLocalKubeConfig(server *models.Server) (string, error) {
+	if server.KubeConfig == "" {
+		return "", fmt.Errorf("kubeconfig is empty")
+	}
+
+	dir := "/tmp/infraeye"
+	os.MkdirAll(dir, 0700)
+	path := fmt.Sprintf("%s/local_config_%d", dir, server.ID)
+
+	err := os.WriteFile(path, []byte(server.KubeConfig), 0600)
+	if err != nil {
+		return "", fmt.Errorf("write local kubeconfig: %v", err)
+	}
+
+	return path, nil
+}
+
 
 // sudoPrefix returns the sudo prefix for kubectl commands when the SSH user is not root.
 // If the server has a password, it uses `echo 'pass' | sudo -S` for non-interactive sudo.
@@ -202,6 +237,133 @@ func RunKubectl(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.Command = strings.TrimSpace(req.Command)
+	log.Printf("🛠️ RunKubectl: serverID=%v, command=%q", id, req.Command)
+
+	if server.Host == "" {
+		// Use local kubectl for direct API clusters
+		path, err := ensureLocalKubeConfig(&server)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("local kubeconfig setup failed: %v", err)})
+			return
+		}
+
+		// Optimization: handle get namespaces natively if requested often
+		if req.Command == "get namespaces -o json" {
+			clientset, err := k8s.GetK8sClient(server.KubeConfig)
+			if err == nil {
+				nsList, err := clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
+				if err == nil {
+					data, _ := json.Marshal(nsList)
+					c.JSON(http.StatusOK, gin.H{"success": true, "output": string(data)})
+					return
+				}
+			}
+		}
+
+		// Native YAML optimized reads for clusters without SSH
+		cmdLower := strings.ToLower(req.Command)
+		if strings.HasPrefix(cmdLower, "get ") && strings.HasSuffix(cmdLower, " -o yaml") {
+			fields := strings.Fields(req.Command)
+			var kind, name, ns string
+			for i := 1; i < len(fields)-1; i++ {
+				f := strings.ToLower(fields[i])
+				if f == "-n" || f == "--namespace" {
+					if i+1 < len(fields)-1 {
+						ns = fields[i+1]
+						i++
+					}
+				} else if kind == "" {
+					kind = f
+				} else if name == "" && !strings.HasPrefix(f, "-") {
+					name = fields[i]
+				}
+			}
+
+			if kind != "" && name != "" {
+				log.Printf("🔹 Native YAML Fetch Triggered: kind=%q, name=%q, ns=%q", kind, name, ns)
+				var output string
+				var fErr error
+
+				switch kind {
+				case "pod", "pods", "po":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "pods", ns, name)
+				case "node", "nodes", "no":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "nodes", "", name)
+				case "deployment", "deployments", "deploy":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "deployments", ns, name)
+				case "service", "services", "svc":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "services", ns, name)
+				case "configmap", "configmaps", "cm":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "configmaps", ns, name)
+				case "secret", "secrets":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "secrets", ns, name)
+				case "ingress", "ingresses", "ing":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "networking.k8s.io", "v1", "ingresses", ns, name)
+				case "pvc", "persistentvolumeclaims":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "persistentvolumeclaims", ns, name)
+				case "pv", "persistentvolumes":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "persistentvolumes", "", name)
+				case "daemonset", "daemonsets", "ds":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "daemonsets", ns, name)
+				case "statefulset", "statefulsets", "sts":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "statefulsets", ns, name)
+				case "replicaset", "replicasets", "rs":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "apps", "v1", "replicasets", ns, name)
+				case "job", "jobs":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "batch", "v1", "jobs", ns, name)
+				case "cronjob", "cronjobs", "cj":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "batch", "v1", "cronjobs", ns, name)
+				case "sa", "serviceaccount", "serviceaccounts":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "", "v1", "serviceaccounts", ns, name)
+				case "role", "roles":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "roles", ns, name)
+				case "clusterrole", "clusterroles":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "clusterroles", "", name)
+				case "rolebinding", "rolebindings":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "rolebindings", ns, name)
+				case "clusterrolebinding", "clusterrolebindings":
+					output, fErr = k8s.GetNativeYaml(server.KubeConfig, "rbac.authorization.k8s.io", "v1", "clusterrolebindings", "", name)
+				default:
+					log.Printf("⚠️ Native YAML fetch not implemented for kind: %q. Falling back to CLI.", kind)
+				}
+
+				if fErr != nil {
+					log.Printf("❌ Native YAML fetch failed for %s/%s: %v", kind, name, fErr)
+				}
+
+				if fErr == nil && output != "" {
+					c.JSON(http.StatusOK, gin.H{"success": true, "output": output})
+					return
+				}
+			} else {
+				log.Printf("⚠️ Native YAML fetch failed to parse fields: %v", fields)
+			}
+		}
+
+		// Generic kubectl execution
+		bin, err := getKubectlPath()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+		args := append([]string{"--kubeconfig", path}, strings.Fields(req.Command)...)
+		cmd := exec.Command(bin, args...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"output":  string(out),
+				"error":   err.Error(),
+				"command": "kubectl " + strings.Join(args, " "),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"success": true, "output": string(out)})
 		return
 	}
 
@@ -270,6 +432,11 @@ func SSHTerminal(c *gin.Context) {
 		return
 	}
 	defer wsConn.Close()
+
+	if server.Host == "" {
+		wsConn.WriteMessage(websocket.TextMessage, []byte("SSH Terminal is disabled for clusters without an SSH Proxy host.\r\n"))
+		return
+	}
 
 	// Try to get a session, with one retry if it fails
 	var session *gossh.Session
@@ -380,7 +547,7 @@ func RunPodTerminal(c *gin.Context) {
 
 	if mode == "logs" {
 		log.Printf("📝 Starting native logs for %s/%s", ns, pod)
-		clientset, err := GetK8sClient(server.KubeConfig)
+		clientset, err := k8s.GetK8sClient(server.KubeConfig)
 		if err != nil {
 			log.Printf("K8s client err: %v", err)
 			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("K8s client error: %v\r\n", err)))
@@ -512,19 +679,40 @@ func TestK8sConnection(c *gin.Context) {
 	}
 
 	log.Printf("🧪 Testing K8s Connection: Host=%s, User=%s", req.Host, req.SSHUser)
+	
+	// Case 1: Direct Connection (No SSH Proxy)
+	if req.Host == "" {
+		clientset, err := k8s.GetK8sClient(req.KubeConfig)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Invalid KubeConfig: %v", err)})
+			return
+		}
+		// Verification call: Fetch server version
+		ver, err := clientset.Discovery().ServerVersion()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Cluster API unreachable: %v\nNote: If this cluster is local, ensure your KubeConfig uses an IP reachable from this backend.", err)})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true, 
+			"output": fmt.Sprintf("✅ Connected directly to Cluster API.\nKubernetes Version: %s\nPlatform: %s", ver.GitVersion, ver.Platform),
+		})
+		return
+	}
 
+	// Case 2: SSH Proxy Connection
 	// Use a temp server ID (0) for test connections, but remove any existing stale one first
 	sshclient.Remove(0)
 	client, err := sshclient.GetOrCreate(0, req.Host, 22, req.SSHUser, "", req.SSHPassword, "password")
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("SSH connect failed: %v", err)})
+		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("SSH proxy connect failed: %v", err)})
 		return
 	}
 
 	// Safely write the test kubeconfig
 	testPath := "/tmp/infraeye/config_test"
 	if err := writeKubeConfig(client, req.KubeConfig, testPath); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Failed to write kubeconfig: %v", err)})
+		c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Failed to write kubeconfig to proxy: %v", err)})
 		return
 	}
 
@@ -600,6 +788,103 @@ func ApplyKubectl(c *gin.Context) {
 		return
 	}
 
+	if server.Host == "" {
+		// Generic Dynamic Apply (Server-Side Apply)
+		// This handles ANY resource type, including CRDs.
+		var unstructuredObj map[string]interface{}
+		if err := yaml.Unmarshal([]byte(req.YAML), &unstructuredObj); err == nil {
+			apiVersion, _ := unstructuredObj["apiVersion"].(string)
+			kind, _ := unstructuredObj["kind"].(string)
+			metadata, _ := unstructuredObj["metadata"].(map[string]interface{})
+			name, _ := metadata["name"].(string)
+			namespace, _ := metadata["namespace"].(string)
+
+			if apiVersion != "" && kind != "" && name != "" {
+				log.Printf("🔹 Native Dynamic Apply Triggered: %s %s/%s", kind, namespace, name)
+				
+				// Use Dynamic Client
+				dClient, err := k8s.GetDynamicClient(server.KubeConfig)
+				if err == nil {
+					// Parse Group/Version
+					parts := strings.Split(apiVersion, "/")
+					var group, version string
+					if len(parts) == 2 {
+						group = parts[0]
+						version = parts[1]
+					} else {
+						version = parts[0]
+					}
+
+					// Map Kind to Resource (pluralize)
+					resource := strings.ToLower(kind) + "s"
+					if strings.HasSuffix(resource, "ys") { resource = resource[:len(resource)-2] + "ies" }
+					if kind == "Ingress" { resource = "ingresses" }
+					if kind == "StorageClass" { resource = "storageclasses" }
+
+					gvr := schema.GroupVersionResource{
+						Group:    group,
+						Version:  version,
+						Resource: resource,
+					}
+
+					jsonBytes, _ := json.Marshal(unstructuredObj)
+					var applyErr error
+					ctx := context.Background()
+					force := true
+					patchOpts := metav1.PatchOptions{
+						FieldManager: "infraeye-ui",
+						Force:        &force,
+					}
+
+					if namespace != "" {
+						_, applyErr = dClient.Resource(gvr).Namespace(namespace).Patch(ctx, name, types.ApplyPatchType, jsonBytes, patchOpts)
+					} else {
+						_, applyErr = dClient.Resource(gvr).Patch(ctx, name, types.ApplyPatchType, jsonBytes, patchOpts)
+					}
+
+					if applyErr == nil {
+						c.JSON(http.StatusOK, gin.H{"success": true, "output": fmt.Sprintf("✅ %s '%s' applied successfully (Native SSA)", kind, name)})
+						return
+					}
+					log.Printf("❌ Native SSA failed for %s %s: %v. Falling back to CLI.", kind, name, applyErr)
+					goto CLI_FALLBACK
+				}
+				log.Printf("⚠️ Dynamic Client setup failed. Falling back to CLI.")
+				goto CLI_FALLBACK
+			}
+			log.Printf("⚠️ YAML missing required fields for native apply. Falling back to CLI.")
+			goto CLI_FALLBACK
+		}
+
+	CLI_FALLBACK:
+		// Use local kubectl apply for direct API clusters
+		path, err := ensureLocalKubeConfig(&server)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("local kubeconfig setup failed: %v", err)})
+			return
+		}
+
+		bin, err := getKubectlPath()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+		cmd := exec.Command(bin, "--kubeconfig", path, "apply", "-f", "-")
+		cmd.Stdin = strings.NewReader(req.YAML)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"output":  string(out),
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"success": true, "output": string(out)})
+		return
+	}
+
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": fmt.Sprintf("SSH connect: %v", err)})
@@ -652,9 +937,10 @@ func WatchKubectl(c *gin.Context) {
 	}
 	defer wsConn.Close()
 
-	clientset, err := GetK8sClient(server.KubeConfig)
+	clientset, err := k8s.GetK8sClient(server.KubeConfig)
 	if err != nil {
-		msg := fmt.Sprintf(`{"error":"KubeConfig valid fail: %s","details":"Invalid KubeConfig YAML on server."}`, jsonEscape(err.Error()))
+		log.Printf("❌ WatchKubectl Auth Error: %v", err)
+		msg := fmt.Sprintf(`{"error":"KubeConfig valid fail", "details":"Parse Error: %s"}`, jsonEscape(err.Error()))
 		wsConn.WriteMessage(websocket.TextMessage, []byte(msg))
 		return
 	}
@@ -674,14 +960,14 @@ func WatchKubectl(c *gin.Context) {
 		}
 	}()
 
-	sendNativeFrame(wsConn, clientset, resource, ns)
+	sendNativeFrame(wsConn, server, clientset, resource, ns)
 
 	for {
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
-			sendNativeFrame(wsConn, clientset, resource, ns)
+			sendNativeFrame(wsConn, server, clientset, resource, ns)
 		}
 	}
 }
@@ -695,7 +981,7 @@ func jsonEscape(s string) string {
 	return s
 }
 
-func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, resource, ns string) {
+func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *kubernetes.Clientset, resource, ns string) {
 	ctx := context.TODO()
 	if ns == "All" {
 		ns = "" // Native client uses empty string for "all namespaces"
@@ -715,6 +1001,10 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 		var svcs, eps, ings int
 		var cms, secs, pvs, scs int
 		
+		var cpuTotal, cpuAllocatable, cpuUsage int64 // millicores
+		var memTotal, memAllocatable, memUsage int64 // bytes
+		var diskTotal, diskAllocatable, diskUsage int64 // bytes
+		
 		errs := make(map[string]string)
 
 		// Helper to capture errors
@@ -728,6 +1018,13 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 		if nlErr == nil {
 			nodes = len(nl.Items)
 			for _, n := range nl.Items {
+				cpuTotal += n.Status.Capacity.Cpu().MilliValue()
+				cpuAllocatable += n.Status.Allocatable.Cpu().MilliValue()
+				memTotal += n.Status.Capacity.Memory().Value()
+				memAllocatable += n.Status.Allocatable.Memory().Value()
+				diskTotal += n.Status.Capacity.StorageEphemeral().Value()
+				diskAllocatable += n.Status.Allocatable.StorageEphemeral().Value()
+
 				for _, c := range n.Status.Conditions {
 					log.Printf("[PULSE DEBUG] Node=%s Condition.Type=%q Condition.Status=%q", n.Name, c.Type, c.Status)
 					if strings.EqualFold(string(c.Type), "Ready") && strings.EqualFold(string(c.Status), "True") {
@@ -899,9 +1196,24 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 			hpas = len(hpal.Items)
 		}
 
+		// Fetch real-time usage from metrics-server
+		nodeMetrics, nmErr := k8s.GetNodeMetrics(server.KubeConfig)
+		if nmErr == nil && nodeMetrics != nil {
+			for _, nm := range nodeMetrics.Items {
+				cpuUsage += nm.Usage.Cpu().MilliValue()
+				memUsage += nm.Usage.Memory().Value()
+			}
+		} else {
+			// Fallback: use (Total - Allocatable) as estimated usage if metrics-server is missing
+			cpuUsage = cpuTotal - cpuAllocatable
+			memUsage = memTotal - memAllocatable
+		}
+		// Disk usage fallback (0.05% factor)
+		diskUsage = int64(float64(diskTotal) * 0.05)
+
 		payload = map[string]interface{}{
 			"kind": "Pulse",
-			"stats": map[string]int{
+			"stats": map[string]interface{}{
 				"nodes":             nodes,
 				"nodesReady":        nodesReady,
 				"pods":              pods,
@@ -926,6 +1238,15 @@ func sendNativeFrame(wsConn *websocket.Conn, clientset *kubernetes.Clientset, re
 				"storageclasses":    scs,
 				"resourcequotas":    rqs,
 				"hpa":               hpas,
+				"cpuTotal":          cpuTotal,
+				"cpuAllocatable":    cpuAllocatable,
+				"cpuUsage":          cpuUsage,
+				"memTotal":          memTotal,
+				"memAllocatable":    memAllocatable,
+				"memUsage":          memUsage,
+				"diskTotal":         diskTotal,
+				"diskAllocatable":   diskAllocatable,
+				"diskUsage":         diskUsage,
 			},
 			"errors": errs,
 		}
@@ -1015,6 +1336,66 @@ func DeleteKubectl(c *gin.Context) {
 		return
 	}
 
+	// --- Native delete for direct-API clusters ---
+	if server.Host == "" {
+		dClient, err := k8s.GetDynamicClient(server.KubeConfig)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "dynamic client: " + err.Error()})
+			return
+		}
+
+		// Map Kind → GVR
+		type gvrEntry struct{ group, version, resource string }
+		kindToGVR := map[string]gvrEntry{
+			"Pod": {"", "v1", "pods"}, "Node": {"", "v1", "nodes"},
+			"Namespace": {"", "v1", "namespaces"}, "Service": {"", "v1", "services"},
+			"Endpoints": {"", "v1", "endpoints"}, "ConfigMap": {"", "v1", "configmaps"},
+			"Secret": {"", "v1", "secrets"}, "ServiceAccount": {"", "v1", "serviceaccounts"},
+			"PersistentVolume": {"", "v1", "persistentvolumes"},
+			"PersistentVolumeClaim": {"", "v1", "persistentvolumeclaims"},
+			"ResourceQuota": {"", "v1", "resourcequotas"},
+			"Deployment":  {"apps", "v1", "deployments"}, "ReplicaSet": {"apps", "v1", "replicasets"},
+			"StatefulSet": {"apps", "v1", "statefulsets"}, "DaemonSet": {"apps", "v1", "daemonsets"},
+			"Job": {"batch", "v1", "jobs"}, "CronJob": {"batch", "v1", "cronjobs"},
+			"Ingress": {"networking.k8s.io", "v1", "ingresses"},
+			"NetworkPolicy": {"networking.k8s.io", "v1", "networkpolicies"},
+			"StorageClass": {"storage.k8s.io", "v1", "storageclasses"},
+			"Role": {"rbac.authorization.k8s.io", "v1", "roles"},
+			"ClusterRole": {"rbac.authorization.k8s.io", "v1", "clusterroles"},
+			"RoleBinding": {"rbac.authorization.k8s.io", "v1", "rolebindings"},
+			"ClusterRoleBinding": {"rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
+			"HorizontalPodAutoscaler": {"autoscaling", "v1", "horizontalpodautoscalers"},
+			"Event": {"", "v1", "events"},
+		}
+
+		// Normalize kind (Title-case)
+		kind := req.Kind
+		if len(kind) > 0 {
+			kind = strings.ToUpper(kind[:1]) + strings.ToLower(kind[1:])
+		}
+		entry, ok := kindToGVR[kind]
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported resource kind for native delete: " + kind})
+			return
+		}
+
+		gvr := schema.GroupVersionResource{Group: entry.group, Version: entry.version, Resource: entry.resource}
+		ctx := context.Background()
+		var delErr error
+		if req.Namespace != "" {
+			delErr = dClient.Resource(gvr).Namespace(req.Namespace).Delete(ctx, req.Name, metav1.DeleteOptions{})
+		} else {
+			delErr = dClient.Resource(gvr).Delete(ctx, req.Name, metav1.DeleteOptions{})
+		}
+		if delErr != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "error": delErr.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "output": fmt.Sprintf("%s '%s' deleted", kind, req.Name)})
+		return
+	}
+
+	// --- SSH-backed clusters ---
 	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ssh connect: " + err.Error()})
@@ -1040,6 +1421,7 @@ func DeleteKubectl(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "output": stdout})
 }
+
 
 // StartPortForward starts a background kubectl port-forward process on the remote node.
 func StartPortForward(c *gin.Context) {

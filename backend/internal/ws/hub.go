@@ -93,6 +93,16 @@ func (h *Hub) Broadcast(room string, msgType string, payload interface{}) {
 	}
 }
 
+func (h *Hub) JoinRoom(client *Client, room string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.rooms[room] == nil {
+		h.rooms[room] = make(map[*Client]bool)
+	}
+	h.rooms[room][client] = true
+	client.rooms[room] = true
+}
+
 func (c *Client) writePump() {
 	defer c.conn.Close()
 	for msg := range c.send {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, memo } from 'react'
-import { Plus, Bell, Trash2, Pencil, History, X, Zap, Activity, FileCode } from 'lucide-react'
+import { Plus, Bell, Trash2, Pencil, History, X, Zap, Activity, FileCode, Server, Shield, Terminal, Search } from 'lucide-react'
 import { api } from '../api/client'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
@@ -26,9 +26,9 @@ const emptyForm = {
 }
 
 const CONDITION_COLORS: Record<string, string> = {
-  cpu: 'var(--warning)', mem: 'var(--info)', disk: 'var(--brand-primary)',
-  load: 'var(--success)', log_keyword: 'var(--danger)',
-  pod_status: 'var(--info)',
+  cpu: '#f59e0b', mem: '#3b82f6', disk: '#ec4899',
+  load: '#10b981', log_keyword: '#ef4444',
+  pod_status: '#8b5cf6',
 }
 
 export function AlertRules() {
@@ -44,6 +44,7 @@ export function AlertRules() {
   const { can } = usePermission()
   const toast = useToastStore()
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [searchHistory, setSearchHistory] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -69,9 +70,9 @@ export function AlertRules() {
       else await api.post('/api/alert-rules', { ...form, server_id: Number(form.server_id) })
       setShowForm(false)
       loadData()
-      toast.success(editId ? 'Rule updated' : 'Rule created', 'The self-healing rule is now active.')
+      toast.success(editId ? 'Config Updated' : 'Policy Decoupled', 'Self-healing logic synchronized.')
     } catch (e: any) {
-      toast.error('Save failed', e.response?.data?.error || 'Could not save rule')
+      toast.error('Sync Failed', e.response?.data?.error || 'Could not commit rule')
     }
   }, [editId, form, loadData, toast])
 
@@ -83,22 +84,22 @@ export function AlertRules() {
   const deleteRule = useCallback(async (id: number) => {
     try {
       await api.delete(`/api/alert-rules/${id}`)
-      toast.success('Rule deleted', 'The self-healing rule has been removed.')
+      toast.success('Resource Purged', 'Alert rule decommissioned successfully.')
       setConfirmDelete(null)
       loadData()
     } catch (e: any) {
-      toast.error('Delete failed', e.response?.data?.error || 'Could not delete rule')
+      toast.error('Decommission Failed', e.response?.data?.error || 'Could not purge rule')
       setConfirmDelete(null)
     }
   }, [loadData, toast])
 
   const getServerName = useCallback((id: number) => {
-    if (id === 0) return 'All Servers'
-    return servers.find(s => s.id === id)?.name || `Server #${id}`
+    if (id === 0) return 'CLUSTERWIDE_HOSTS'
+    return servers.find(s => s.id === id)?.name || `NODE#${id}`
   }, [servers])
 
   const generateXml = useCallback(() => {
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<AlertRules>\n'
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<!-- INFRAEYE_AUTOREMEDIATION_PROTOCOLS -->\n<AlertRules>\n'
     rules.forEach(r => {
       xml += `  <Rule id="${r.id}" name="${r.name}" serverId="${r.server_id}" enabled="${r.enabled}">\n`
       xml += `    <Condition type="${r.condition_type}" op="${r.condition_op}" value="${r.condition_value}" />\n`
@@ -127,13 +128,13 @@ export function AlertRules() {
         action_command: node.getElementsByTagName("Action")[0]?.textContent || ""
       }))
 
-      if (newRules.length === 0) throw new Error("No valid rules found in XML")
+      if (newRules.length === 0) throw new Error("XML schema validation failed : 0_RULES_FOUND")
       await api.post('/api/alert-rules/batch', newRules)
-      toast.success("Infrastructure synchronized", `${newRules.length} rules updated.`)
+      toast.success("Logic Synchronized", `${newRules.length} protocols patched.`)
       setTab('rules')
       loadData()
     } catch (e: any) {
-      toast.error("Sync Failed", e.response?.data?.error || e.message)
+      toast.error("Handshake Failed", e.response?.data?.error || e.message)
     } finally {
       setLoading(false)
     }
@@ -145,83 +146,159 @@ export function AlertRules() {
     setShowForm(true)
   }, [])
 
+  const filteredHistory = useMemo(() => {
+    if (!searchHistory) return history
+    const s = searchHistory.toLowerCase()
+    return history.filter(h => 
+      getServerName(h.server_id).toLowerCase().includes(s) || 
+      h.trigger_info.toLowerCase().includes(s) || 
+      h.output.toLowerCase().includes(s)
+    )
+  }, [history, searchHistory, getServerName])
+
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
         <div>
-          <h1 className="page-title">Self-Healing Rules</h1>
-          <p className="page-subtitle">Automated remediation — define conditions that trigger SSH commands</p>
+          <h1 className="page-title">
+            Automated Remediation
+          </h1>
+          <p className="page-subtitle" style={{ 
+            fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', 
+            textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginTop: 2 
+          }}>
+            Policy Governance : Self-Healing Infrastructure Active
+          </p>
         </div>
         {can('manage-alerts') && (
-          <button className="btn btn-primary" onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}>
-            <Plus size={14} /> Create Rule
+          <button 
+            className="btn btn-primary" 
+            onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}
+            style={{ height: 44, borderRadius: 0, padding: '0 24px', fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}
+          >
+            <Plus size={16} /> <span className="hidden-mobile">ADD_RULE</span>
           </button>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 32, background: 'var(--bg-elevated)', borderRadius: 14, padding: 4, width: 'fit-content', border: '1px solid var(--border)' }}>
+      <div className="tabs-container" style={{ display: 'flex', gap: 1, marginBottom: 32, background: 'var(--border)', border: '1px solid var(--border)', width: 'fit-content', borderRadius: 0 }}>
         {(['rules', 'history', 'xml'] as const).map(t => (
           <button
             key={t}
             onClick={() => { if (t === 'xml') generateXml(); setTab(t); }}
             style={{
-              padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-              transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-              display: 'flex', alignItems: 'center', gap: 7,
-              ...(tab === t
-                ? { background: 'var(--brand-primary)', color: 'var(--text-inverse)', boxShadow: '0 4px 12px var(--brand-glow)' }
-                : { background: 'transparent', color: 'var(--text-muted)' }
-              ),
+              padding: '10px 20px', borderRadius: 0, fontSize: 11, fontWeight: 900,
+              transition: 'all 0.15s', cursor: 'pointer', border: 'none',
+              display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+              textTransform: 'uppercase', fontFamily: 'var(--font-mono)',
+              background: tab === t ? 'var(--brand-primary)' : 'var(--bg-app)',
+              color: tab === t ? '#fff' : 'var(--text-muted)',
             }}
           >
-            {t === 'rules' && <><Bell size={13} /> Active Rules</>}
-            {t === 'history' && <><History size={13} /> Action History</>}
-            {t === 'xml' && <><FileCode size={13} /> Source (XML)</>}
+            {t === 'rules' && <Bell size={13} />}
+            {t === 'history' && <History size={13} />}
+            {t === 'xml' && <FileCode size={13} />}
+            {t === 'rules' ? 'Active_Protocols' : t === 'history' ? 'Remediation_Logs' : 'XML_Source'}
           </button>
         ))}
       </div>
 
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'var(--glass-bg)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setShowForm(false)}>
-          <div className="fade-up" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: 24, padding: 36, width: '100%', maxWidth: 560, boxShadow: 'var(--shadow-lg)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-              <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{editId ? 'Edit Rule' : 'New Alert Rule'}</h2>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Define a condition and remediation action</p>
-              </div>
-              <button onClick={() => setShowForm(false)} style={{ width: 32, height: 32, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={15} /></button>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowForm(false)}>
+          <div 
+             className="fade-up" 
+             style={{ 
+               background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, 
+               padding: 0, width: '100%', maxWidth: 580, boxShadow: '0 40px 100px rgba(0,0,0,0.5)', 
+               maxHeight: '92vh', overflowY: 'auto' 
+             }} 
+             onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '28px 32px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ width: 44, height: 44, background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)30', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                     <Zap size={20} color="var(--brand-primary)" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>{editId ? 'Edit Remediation' : 'New System Rule'}</h2>
+                    <p style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, marginTop: 4, fontFamily: 'var(--font-mono)' }}>Define conditional hardware logic</p>
+                  </div>
+               </div>
+               <button onClick={() => setShowForm(false)} className="btn-icon" style={{ borderRadius: 0 }}><X size={14} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Rule Name</label><input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="High CPU Alert" /></div>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Target Server</label><select className="input" value={form.server_id} onChange={e => setForm({ ...form, server_id: Number(e.target.value) })}><option value={0}>All Servers</option>{servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div className="input-group">
-                <label className="input-label">Metric Type</label>
-                <select className="input" value={form.condition_type} onChange={e => setForm({ ...form, condition_type: e.target.value })}>
-                  <option value="cpu">CPU %</option><option value="mem">Memory %</option><option value="disk">Disk %</option>
-                  <option value="load">Load Average</option><option value="log_keyword">Log Keyword</option><option value="pod_status">Pods Not Running (K8s)</option>
-                </select>
-              </div>
-              <div className="input-group" style={{ display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}><label className="input-label">Operator</label><select className="input" value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}><option value="gt">Greater than (&gt;)</option><option value="lt">Less than (&lt;)</option><option value="gte">Greater or equal (&gt;=)</option></select></div>
-              <div className="input-group" style={{ gridColumn: '1 / -1', display: form.condition_type === 'pod_status' ? 'none' : 'flex' }}><label className="input-label">Threshold Value</label><input className="input" value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} placeholder="80" /></div>
-              <div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Action</label><select className="input" value={form.action_type} onChange={e => setForm({ ...form, action_type: e.target.value })}><option value="ssh_command">Execute SSH Command</option><option value="notify">Notify Only</option></select></div>
-              {form.action_type === 'ssh_command' && (<div className="input-group" style={{ gridColumn: '1 / -1' }}><label className="input-label">Remediation Command</label><textarea className="input" rows={3} style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 13, resize: 'vertical' }} value={form.action_command} onChange={e => setForm({ ...form, action_command: e.target.value })} placeholder="systemctl restart nginx && echo 'Restarted'" /></div>)}
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}><button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button><button className="btn btn-primary" style={{ flex: 2 }} onClick={saveRule}>Save Rule</button></div>
+            
+            <form style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Rule Handle</label>
+                  <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13 }} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. HIGH_THERMAL_ALERT" />
+               </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Managed Systems</label>
+                  <select className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13 }} value={form.server_id} onChange={e => setForm({ ...form, server_id: Number(e.target.value) })}>
+                     <option value={0}>BROADCAST_ALL_HOSTS</option>
+                     {servers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.host})</option>)}
+                  </select>
+               </div>
+               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                     <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Telemetry_Metric</label>
+                     <select className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.condition_type} onChange={e => setForm({ ...form, condition_type: e.target.value })}>
+                        <option value="cpu">CPU_USAGE</option><option value="mem">MEMORY_LOAD</option><option value="disk">DISK_IO</option>
+                        <option value="load">LOAD_AVG</option><option value="log_keyword">KW_LOG_HIT</option><option value="pod_status">K8S_POD_FAIL</option>
+                     </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                     <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Operator</label>
+                     <select className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}>
+                        <option value="gt">GT (&gt;)</option>
+                        <option value="lt">LT (&lt;)</option>
+                        <option value="gte">GTE (&gt;=)</option>
+                     </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                     <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Val_Lim</label>
+                     <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} placeholder="80" />
+                  </div>
+               </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Remediation_Protocol</label>
+                  <select className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13 }} value={form.action_type} onChange={e => setForm({ ...form, action_type: e.target.value })}>
+                     <option value="ssh_command">EXEC_REMOTE_SSH</option>
+                     <option value="notify">TELEMETRY_LOG_ONLY</option>
+                  </select>
+               </div>
+               {form.action_type === 'ssh_command' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                     <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Command_Payload</label>
+                     <textarea className="input" rows={3} style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 11, background: 'var(--bg-app)', border: '1px solid var(--border)', padding: 16, resize: 'none' }} value={form.action_command} onChange={e => setForm({ ...form, action_command: e.target.value })} placeholder="bash rule_reboot.sh" />
+                  </div>
+               )}
+               <div style={{ display: 'flex', gap: 12, paddingTop: 16 }}>
+                  <button type="button" className="btn btn-secondary" style={{ flex: 1, borderRadius: 0, height: 44, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 11 }} onClick={() => setShowForm(false)}>Abort</button>
+                  <button type="button" className="btn btn-primary" style={{ flex: 2, borderRadius: 0, height: 44, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 11 }} onClick={saveRule}>Synchronize Rule</button>
+               </div>
+            </form>
           </div>
         </div>
       )}
 
       {tab === 'xml' && (
         <div className="fade-in">
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card" style={{ padding: 0, borderRadius: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '28px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileCode size={22} color="var(--brand-primary)" /></div>
-                <div><h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>Rule Definitions (XML)</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Advanced configuration for infrastructure automation</p></div>
+                <div style={{ width: 44, height: 44, background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)30', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileCode size={22} color="var(--brand-primary)" /></div>
+                <div>
+                   <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Rule Configuration (XML)</h2>
+                   <p style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, marginTop: 4, fontFamily: 'var(--font-mono)' }}>Low-level logic orchestration layer</p>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 12 }}><button className="btn btn-secondary" onClick={generateXml}>Reset View</button><button className="btn btn-primary" onClick={parseXml}>Sync Rules</button></div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                 <button className="btn btn-secondary" style={{ borderRadius: 0, height: 40, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 900 }} onClick={generateXml}>RESET_VIEW</button>
+                 <button className="btn btn-primary" style={{ borderRadius: 0, height: 40, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 900 }} onClick={parseXml}>SYNC_GATEWAY</button>
+              </div>
             </div>
-            <textarea className="input" value={xmlContent} onChange={e => setXmlContent(e.target.value)} style={{ width: '100%', height: 450, border: 'none', borderRadius: 0, fontFamily: '"JetBrains Mono", monospace', fontSize: 13, padding: 32, background: 'var(--bg-app)', color: 'var(--brand-primary)', lineHeight: 1.6, resize: 'none' }} spellCheck={false} />
+            <textarea className="input" value={xmlContent} onChange={e => setXmlContent(e.target.value)} style={{ width: '100%', height: 500, border: 'none', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 32, background: 'var(--bg-app)', color: 'var(--brand-primary)', lineHeight: 1.6, resize: 'none' }} spellCheck={false} />
           </div>
         </div>
       )}
@@ -229,15 +306,16 @@ export function AlertRules() {
       {tab === 'rules' && (
         <>
           {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}><div className="spinner" /></div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '120px 0' }}><div className="loader-spin" style={{ width: 40, height: 40, border: '2px solid var(--border)', borderTopColor: 'var(--brand-primary)' }} /></div>
           ) : rules.length === 0 ? (
-            <div className="empty-state">
-              <div style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Bell size={32} color="var(--brand-primary)" /></div>
-              <p>No rules defined</p><span>Create rules to automatically remediate issues in your infrastructure</span>
-              {can('manage-alerts') && (<button className="btn btn-primary" style={{ marginTop: 8 }} onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}><Plus size={14} /> Create First Rule</button>)}
+            <div className="empty-state" style={{ border: '1px dashed var(--border)', padding: '120px 40px', borderRadius: 0 }}>
+              <div style={{ width: 72, height: 72, background: 'var(--bg-app)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 32 }}><Bell size={32} color="var(--brand-primary)" /></div>
+              <h2 style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 18, color: 'var(--text-primary)' }}>System Idle : 0_RULES_LOADED</h2>
+              <p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 10, color: 'var(--text-muted)', marginTop: 16, letterSpacing: '0.05em', maxWidth: 380, lineHeight: 1.6 }}>Deploy automated remediation protocols to manage hardware issues without manual intervention.</p>
+              {can('manage-alerts') && (<button className="btn btn-primary" style={{ marginTop: 32, borderRadius: 0, padding: '12px 32px' }} onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}><Plus size={14} /> INITIALIZE POLICY</button>)}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 24, paddingBottom: 40 }}>
               {rules.map((rule, i) => (
                 <RuleCard key={rule.id} rule={rule} serverName={getServerName(rule.server_id)} condColor={CONDITION_COLORS[rule.condition_type] || 'var(--brand-primary)'} canManage={can('manage-alerts')} onEdit={handleEdit} onDelete={deleteRule} onToggle={toggleEnable} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} />
               ))}
@@ -247,24 +325,46 @@ export function AlertRules() {
       )}
 
       {tab === 'history' && (
-        <div className="card fade-in" style={{ padding: 0, overflow: 'hidden' }}>
-          {history.length === 0 ? (
-            <div className="empty-state" style={{ padding: '80px 0' }}><History size={40} color="var(--text-muted)" /><p>Remediation log is clear</p></div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead><tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>{['Time', 'Server', 'Trigger Event', 'Remediation Output'].map(h => (<th key={h} style={{ padding: '16px 24px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>))}</tr></thead>
-              <tbody>{history.map((h, i) => (<HistoryRow key={h.id} history={h} serverName={getServerName(h.server_id)} isLast={i === history.length - 1} />))}</tbody>
-            </table>
-          )}
+        <div className="fade-in">
+           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, background: 'var(--bg-card)', border: '1px solid var(--border)', padding: '0 16px', height: 48 }}>
+              <Search size={14} color="var(--text-muted)" />
+              <input 
+                placeholder="PROBE_LOGS_DATA..." 
+                value={searchHistory} 
+                onChange={e => setSearchHistory(e.target.value)}
+                style={{ flex: 1, height: '100%', background: 'none', border: 'none', outline: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase' }}
+              />
+           </div>
+           
+           <div className="card" style={{ padding: 0, borderRadius: 0, border: '1px solid var(--border)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+             {history.length === 0 ? (
+               <div className="empty-state" style={{ padding: '120px 0' }}><History size={40} color="var(--border)" /><p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', marginTop: 24 }}>System Clean : No Anomalies Detected</p></div>
+             ) : (
+               <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 900 }}>
+                   <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                     <tr>
+                        {['Timestamp', 'Target_Node', 'Anomalous_State', 'System_Response'].map(h => (
+                           <th key={h} style={{ padding: '16px 24px', fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>{h}</th>
+                        ))}
+                     </tr>
+                   </thead>
+                   <tbody>
+                      {filteredHistory.map((h, i) => (
+                         <HistoryRow key={h.id} history={h} serverName={getServerName(h.server_id)} isLast={i === filteredHistory.length - 1} />
+                      ))}
+                   </tbody>
+                 </table>
+               </div>
+             )}
+           </div>
         </div>
       )}
 
       <style>{`
-        .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--brand-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .loader-spin { border-radius: 0; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .btn-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; background: var(--bg-card); transition: all 0.2s; box-shadow: var(--shadow-sm); }
-        .btn-icon:hover { border-color: var(--brand-primary); color: var(--brand-primary); background: var(--bg-elevated); transform: translateY(-1px); box-shadow: var(--shadow-md); }
-        .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger)10; }
+        .table-row-hover:hover { background: var(--bg-elevated)50 ! from var(--bg-hover) !important; }
       `}</style>
     </div>
   )

@@ -18,20 +18,27 @@ type Claims struct {
 
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		tokenRaw := ""
 		header := c.GetHeader("Authorization")
-		if header == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
-			return
+		if header != "" {
+			parts := strings.SplitN(header, " ", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+				tokenRaw = parts[1]
+			}
 		}
 
-		parts := strings.SplitN(header, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
+		// Fallback to query parameter (required for WebSockets)
+		if tokenRaw == "" {
+			tokenRaw = c.Query("token")
+		}
+
+		if tokenRaw == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization token"})
 			return
 		}
 
 		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(parts[1], claims, func(t *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenRaw, claims, func(t *jwt.Token) (interface{}, error) {
 			return []byte(config.C.JWTSecret), nil
 		})
 		if err != nil || !token.Valid {

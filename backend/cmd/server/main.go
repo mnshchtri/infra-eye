@@ -108,7 +108,7 @@ func main() {
 
 		// ── AI ────────────────────────────────────────────────────
 		api.GET("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.ListThreads)
-		api.POST("/api/ai/threads", middleware.RequireRole("admin", "devops"), handlers.CreateThread)
+		api.POST("/ai/threads", middleware.RequireRole("admin", "devops"), handlers.CreateThread)
 		api.DELETE("/ai/threads/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteThread)
 		api.POST("/ai/chat", middleware.RequireRole("admin", "devops"), handlers.AIChat)
 		api.GET("/ai/history/:id", middleware.RequireRole("admin", "devops"), handlers.GetChatHistory)
@@ -118,6 +118,7 @@ func main() {
 		api.GET("/mcp/status", middleware.RequireRole("admin", "devops"), handlers.MCPServerStatus)
 		api.GET("/mcp/tools", middleware.RequireRole("admin", "devops"), handlers.ListMCPTools)
 		api.POST("/mcp/tool", middleware.RequireRole("admin", "devops"), handlers.ExecuteMCPTool)
+		api.POST("/mcp/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectlViaMCP)
 
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
@@ -144,8 +145,9 @@ func main() {
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
 		ws.GET("/servers/:id/kubectl/pod-terminal", middleware.RequireRole("admin", "devops"), handlers.RunPodTerminal)
-		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops"), handlers.WatchKubectl)
+		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops", "trainee", "intern"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
+		ws.GET("/metrics/all", allMetricsWsHandler)
 	}
 
 	// ── Static Frontend ────────────────────────────────────────
@@ -212,6 +214,14 @@ func alertsWsHandler(c *gin.Context) {
 	}
 	client := wshub.GlobalHub.Register(conn, "alerts")
 	client.ReadPump(wshub.GlobalHub, nil)
+}
+
+func allMetricsWsHandler(c *gin.Context) {
+	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	if err != nil {
+		return
+	}
+	handlers.AllMetricsWSHandler(conn)
 }
 
 func startMetricsForExistingServers() {

@@ -22,7 +22,8 @@ RUN apk add --no-cache \
     tzdata \
     openssh-client \
     curl \
-    bash
+    bash \
+    kubectl
 
 WORKDIR /app
 

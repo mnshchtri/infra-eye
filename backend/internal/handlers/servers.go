@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,11 +10,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/logger"
 	"github.com/infra-eye/backend/internal/mcp"
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/metrics"
 	sshpool "github.com/infra-eye/backend/internal/ssh"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func ListServers(c *gin.Context) {
@@ -34,9 +37,9 @@ func GetServer(c *gin.Context) {
 
 type serverRequest struct {
 	Name        string `json:"name" binding:"required"`
-	Host        string `json:"host" binding:"required"`
+	Host        string `json:"host"`
 	Port        int    `json:"port"`
-	SSHUser     string `json:"ssh_user" binding:"required"`
+	SSHUser     string `json:"ssh_user"`
 	SSHKeyPath  string `json:"ssh_key_path"`
 	SSHPassword string `json:"ssh_password"`
 	AuthType    string `json:"auth_type"`
@@ -123,6 +126,7 @@ func UpdateServer(c *gin.Context) {
 	sshpool.Remove(uint(id))
 
 	db.DB.Save(&server)
+	go metrics.StartCollector(server)
 
 	// Sync MCP if K8s related
 	if server.IsK8s {
@@ -192,6 +196,38 @@ func TestServerConnection(c *gin.Context) {
 		return
 	}
 
+	// Handle Direct K8s API Clusters (Hostless)
+	if server.Host == "" {
+		clientset, err := k8s.GetK8sClient(server.KubeConfig)
+		if err != nil {
+			db.DB.Model(&server).Update("status", "offline")
+			c.JSON(http.StatusOK, gin.H{"status": "offline", "error": fmt.Sprintf("k8s api unreachable: %v", err)})
+			return
+		}
+
+		// Try to fetch nodes to verify connectivity and get OS
+		nodes, err := clientset.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			db.DB.Model(&server).Update("status", "offline")
+			c.JSON(http.StatusOK, gin.H{"status": "offline", "error": fmt.Sprintf("k8s node fetch failed: %v", err)})
+			return
+		}
+
+		osType := "linux"
+		if len(nodes.Items) > 0 {
+			osType = strings.ToLower(nodes.Items[0].Status.NodeInfo.OperatingSystem)
+		}
+
+		db.DB.Model(&server).Updates(map[string]interface{}{"status": "online", "os": osType})
+		
+		// Start metrics collector
+		go metrics.StartCollector(server)
+
+		c.JSON(http.StatusOK, gin.H{"status": "online", "output": fmt.Sprintf("k8s api online (%d nodes detected)", len(nodes.Items)), "os": osType})
+		return
+	}
+
+	// Standard SSH Server logic
 	client, err := sshpool.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
 	if err != nil {
 		db.DB.Model(&server).Update("status", "offline")

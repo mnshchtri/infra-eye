@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, Loader2, X, WifiOff, HelpCircle } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
+import { 
+  Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, 
+  Loader2, X, WifiOff, HelpCircle, Search, Terminal, Settings, Activity 
+} from 'lucide-react'
+import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
@@ -11,6 +14,7 @@ interface ServerData {
   ssh_user: string; auth_type: string; tags: string;
   description: string; status: string; ssh_key_path: string;
   os: string;
+  kube_config?: string;
 }
 
 const emptyForm = {
@@ -40,6 +44,7 @@ export function Servers() {
   const [disconnecting, setDisconnecting] = useState<number | null>(null)
   const [testResults, setTestResults] = useState<Record<number, { ok: boolean; msg: string }>>({})
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     loadServers()
@@ -50,6 +55,7 @@ export function Servers() {
     setLoading(true)
     try {
       const res = await api.get('/api/servers')
+      // Show all servers, including direct-API K8s clusters.
       setServers(res.data)
     } finally {
       setLoading(false)
@@ -131,19 +137,50 @@ export function Servers() {
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header" style={{ flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 className="page-title">Servers</h1>
-          <p className="page-subtitle">Manage and monitor your connected infrastructure</p>
+          <p className="page-subtitle hidden-mobile">Manage and monitor connected infrastructure</p>
         </div>
-        {can('manage-servers') && (
-          <button
-            className="btn btn-primary"
-            onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}
-          >
-            <Plus size={14} /> Add Server
-          </button>
-        )}
+        <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
+          <div className="search-container">
+            <Search 
+              size={14} 
+              color="var(--text-muted)" 
+              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
+            />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: 38, height: 40 }}
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                style={{ 
+                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center'
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {can('manage-servers') && (
+            <button
+              className="btn btn-primary"
+              onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}
+              style={{ height: 40 }}
+            >
+              <Plus size={14} /> 
+              <span className="hidden-mobile">Add Server</span><span className="show-mobile-only">Add</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add/Edit Modal */}
@@ -158,46 +195,44 @@ export function Servers() {
           onClick={() => setShowForm(false)}
         >
           <div
-            className="fade-up"
+            className="card fade-up modal-content"
             style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border-bright)',
-              borderRadius: 24, padding: 36, width: '100%', maxWidth: 600,
-              boxShadow: 'var(--shadow-lg)',
+              padding: 'clamp(20px, 5vw, 32px)', width: '100%', maxWidth: 640,
               maxHeight: '90vh', overflowY: 'auto',
             }}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-              <div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {editId ? 'Edit Server' : 'Connect Server'}
-                </h2>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                  {editId ? 'Update server credentials' : 'Add a new server to monitoring'}
-                </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 44, height: 44, background: 'var(--brand-primary)', borderTop: '4px solid var(--brand-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Plus size={24} color="var(--text-inverse)" />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                    {editId ? 'UPDATE_SERVER_CREDENTIALS' : 'PROVISION_CONTROL_NODE'}
+                  </h2>
+                  <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {editId ? 'Modify infrastructure access parameters' : 'Establish secure handshake with new infrastructure'}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowForm(false)}
-                style={{
-                  width: 32, height: 32, borderRadius: 10, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  color: 'var(--text-muted)', cursor: 'pointer',
-                }}
+                className="btn-icon-sm"
               >
-                <X size={15} />
+                <X size={14} />
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
               {[
-                { label: 'Server Name', key: 'name', placeholder: 'prod-web-01' },
-                { label: 'Host / IP Address', key: 'host', placeholder: '192.168.1.100' },
-                { label: 'SSH Port', key: 'port', placeholder: '22', type: 'number' },
-                { label: 'SSH User', key: 'ssh_user', placeholder: 'root' },
+                { label: 'Name', key: 'name', placeholder: 'prod-web-01' },
+                { label: 'Host', key: 'host', placeholder: '192.168.1.100' },
+                { label: 'Port', key: 'port', placeholder: '22', type: 'number' },
+                { label: 'User', key: 'ssh_user', placeholder: 'root' },
               ].map(({ label, key, placeholder, type }) => (
-                <div key={key} className="input-group">
+                <div key={key} className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">{label}</label>
                   <input
                     className="input"
@@ -213,22 +248,23 @@ export function Servers() {
             {/* Auth type */}
             <div className="input-group">
               <label className="input-label">Authentication Method</label>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 0 }}>
                 {['key', 'password'].map(t => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setForm({ ...form, auth_type: t })}
                     style={{
-                      padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                      border: '1px solid', transition: 'all 0.2s', cursor: 'pointer',
+                      flex: 1, padding: '12px', fontSize: 10, fontWeight: 900,
+                      border: '1px solid var(--border)', transition: 'all 0.2s', cursor: 'pointer',
+                      fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
                       ...(form.auth_type === t
-                        ? { background: 'rgba(129,140,248,0.15)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }
-                        : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--text-muted)' }
+                        ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--text-inverse)' }
+                        : { background: 'var(--bg-elevated)', color: 'var(--text-muted)' }
                       ),
                     }}
                   >
-                    {t === 'key' ? '🔑 SSH Key' : '🔒 Password'}
+                    {t === 'key' ? 'SSH Key File' : 'Interactive Password'}
                   </button>
                 ))}
               </div>
@@ -246,12 +282,12 @@ export function Servers() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="input-group">
-                <label className="input-label">Tags (comma-separated)</label>
-                <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, k8s, web" />
+            <div className="grid-2-col" style={{ gap: 16, marginBottom: 24 }}>
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label className="input-label">Tags</label>
+                <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, mail" />
               </div>
-              <div className="input-group">
+              <div className="input-group" style={{ marginBottom: 0 }}>
                 <label className="input-label">Description</label>
                 <input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional note" />
               </div>
@@ -288,200 +324,216 @@ export function Servers() {
           )}
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div className="table-container fade-up">
+          <table className="k-table">
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              <tr>
                 {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
-                  <th key={h} style={{
-                    padding: '16px 24px', fontSize: 11, fontWeight: 800,
-                    color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em',
-                  }}>
-                    {h}
-                  </th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {servers.map((s, i) => (
-                <tr
-                  key={s.id}
-                  className="fade-up"
-                  style={{
-                    borderBottom: i < servers.length - 1 ? '1px solid var(--border)' : 'none',
-                    transition: 'background 0.15s',
-                    animationDelay: `${i * 50}ms`,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <td style={{ padding: '18px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 10,
-                        background: `${statusColors[s.status] || 'var(--text-muted)'}15`,
-                        border: `1px solid ${statusColors[s.status] || 'var(--text-muted)'}30`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Server size={14} color={statusColors[s.status] || 'var(--text-muted)'} />
-                      </div>
-                      <div>
-                        <div
-                          style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14 }}
-                          onClick={() => navigate(`/servers/${s.id}`)}
-                          onMouseEnter={e => e.currentTarget.style.color = 'var(--brand-primary)'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
-                        >
-                          {s.name}
+              {(() => {
+                const filtered = servers.filter(s => 
+                  s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  s.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  (s.tags && s.tags.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                  (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                );
+
+                if (filtered.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '60px 0', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)' }}>
+                          <Search size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>No matching servers found</div>
+                          <div style={{ fontSize: 12, marginTop: 4 }}>Try adjusting your search or clear it to see all servers.</div>
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ marginTop: 16, height: 32, padding: '0 12px', fontSize: 11 }}
+                            onClick={() => setSearchQuery('')}
+                          >
+                            Clear Search
+                          </button>
                         </div>
-                        {s.description && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.description}</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '18px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {s.os === 'darwin' ? <AppleIcon size={16} color="var(--text-primary)" /> : 
-                       s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" /> :
-                       s.os === 'linux' ? <LinuxIcon size={15} color="var(--brand-primary)" /> : 
-                       <HelpCircle size={16} color="var(--text-muted)" />}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {s.os === 'darwin' ? 'macOS' : s.os === 'windows' ? 'Windows' : s.os === 'linux' ? 'Linux' : 'Unknown'}
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '18px 24px' }}>
-                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 12, color: 'var(--text-secondary)' }}>
-                      {s.ssh_user}@{s.host}:{s.port}
-                    </span>
-                  </td>
-                  <td style={{ padding: '18px 24px' }}>
-                    <span style={{
-                      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                      textTransform: 'uppercase', letterSpacing: '0.05em',
-                      background: 'rgba(59,130,246,0.1)', color: 'var(--info)',
-                      border: '1px solid rgba(59,130,246,0.2)',
-                    }}>
-                      {s.auth_type}
-                    </span>
-                  </td>
-                  <td style={{ padding: '18px 24px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {s.tags?.split(',').filter(Boolean).map(t => (
-                        <span key={t} className="server-tag">{t.trim()}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td style={{ padding: '18px 24px' }}>
-                    {testResults[s.id] !== undefined ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                        {testResults[s.id].ok
-                          ? <><CheckCircle2 size={14} color="var(--success)" /><span style={{ color: 'var(--success)', fontWeight: 600 }}>Connected</span></>
-                          : <><XCircle size={14} color="var(--danger)" /><span style={{ color: 'var(--danger)', fontWeight: 600 }}>Failed</span></>}
-                      </div>
-                    ) : (
-                      <span className={`badge badge-${s.status}`}>{s.status}</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '18px 24px' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {can('manage-servers') && (
-                        s.status === 'online' ? (
-                          <button
-                            title="Disconnect"
-                            style={{
-                              padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                              color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
-                              display: 'flex', alignItems: 'center',
-                            }}
-                            onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return filtered.map((s, i) => (
+                  <tr
+                    key={s.id}
+                    className="fade-up"
+                    style={{
+                      borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+                      transition: 'background 0.15s',
+                      animationDelay: `${i * 50}ms`,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 0,
+                          background: 'var(--bg-elevated)',
+                          border: `1px solid var(--border)`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>
+                          {s.kube_config
+                            ? <KubernetesIcon size={18} />
+                            : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
+                            : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />
+                            : s.os === 'linux' ? <LinuxIcon size={14} color="var(--brand-primary)" />
+                            : <Server size={14} color="var(--brand-primary)" />}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{ fontWeight: 900, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                            onClick={() => navigate(`/servers/${s.id}`)}
                           >
-                            {disconnecting === s.id
-                              ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                              : <WifiOff size={13} />}
-                          </button>
-                        ) : (
-                          <button
-                            title="Connect"
-                            style={{
-                              padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                              background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
-                              color: 'var(--success)', cursor: 'pointer', transition: 'all 0.15s',
-                              display: 'flex', alignItems: 'center',
-                            }}
-                            onClick={() => testConnection(s.id)} disabled={testing === s.id}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
-                          >
-                            {testing === s.id
-                              ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                              : <Wifi size={13} />}
-                          </button>
-                        )
-                      )}
-                      {can('manage-servers') && (
-                        <button
-                          title="Edit"
-                          style={{
-                            padding: '7px 10px', borderRadius: 8, fontSize: 12,
-                            background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                            color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
-                            display: 'flex', alignItems: 'center',
-                          }}
-                          onClick={() => editServer(s)}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                      )}
-                      {can('delete-server') && (
-                        confirmDelete === s.id ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button
-                              style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                                background: 'var(--danger)', border: 'none',
-                                color: '#fff', cursor: 'pointer',
-                              }}
-                              onClick={() => deleteServer(s.id)}
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 11,
-                                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                                color: 'var(--text-muted)', cursor: 'pointer',
-                              }}
-                              onClick={() => setConfirmDelete(null)}
-                            >
-                              Cancel
-                            </button>
+                            {s.name}
                           </div>
-                        ) : (
+                          {s.description && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800 }}>{s.description.toUpperCase()}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                         <span style={{ fontSize: 11, fontWeight: 800 }}>{s.os?.toUpperCase() || 'HOST'}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {s.host
+                        ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}</span>
+                        : <span className="badge badge-online" style={{ fontSize: 9 }}>DIRECT API</span>
+                      }
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                        {s.auth_type.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {s.tags?.split(',').filter(Boolean).map(t => (
+                          <span key={t} className="server-tag" style={{ fontSize: 9 }}>{t.trim().toUpperCase()}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {testResults[s.id] !== undefined ? (
+                        <span className={`badge ${testResults[s.id].ok ? 'badge-online' : 'badge-offline'}`}>
+                          {testResults[s.id].ok ? 'CONNECTED' : 'FAILED'}
+                        </span>
+                      ) : (
+                        <span className={`badge badge-${s.status}`} style={{ fontSize: 9 }}>{s.status.toUpperCase()}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        {can('manage-servers') && (
+                          s.status === 'online' ? (
+                            <button
+                              title="Disconnect"
+                              style={{
+                                padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'center',
+                              }}
+                              onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                            >
+                              {disconnecting === s.id
+                                ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                                : <WifiOff size={13} />}
+                            </button>
+                          ) : (
+                            <button
+                              title="Connect"
+                              style={{
+                                padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                                color: 'var(--success)', cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'center',
+                              }}
+                              onClick={() => testConnection(s.id)} disabled={testing === s.id}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
+                            >
+                              {testing === s.id
+                                ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                                : <Wifi size={13} />}
+                            </button>
+                          )
+                        )}
+                        {can('manage-servers') && (
                           <button
-                            title="Delete"
+                            title="Edit"
                             style={{
                               padding: '7px 10px', borderRadius: 8, fontSize: 12,
-                              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                              color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
+                              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                              color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
                               display: 'flex', alignItems: 'center',
                             }}
-                            onClick={() => setConfirmDelete(s.id)}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
+                            onClick={() => editServer(s)}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
                           >
-                            <Trash2 size={13} />
+                            <Pencil size={13} />
                           </button>
-                        )
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        )}
+                        {can('delete-server') && (
+                          confirmDelete === s.id ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button
+                                style={{
+                                  padding: '7px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                                  background: 'var(--danger)', border: 'none',
+                                  color: '#fff', cursor: 'pointer',
+                                }}
+                                onClick={() => deleteServer(s.id)}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                style={{
+                                  padding: '7px 10px', borderRadius: 8, fontSize: 11,
+                                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                                  color: 'var(--text-muted)', cursor: 'pointer',
+                                }}
+                                onClick={() => setConfirmDelete(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              title="Delete"
+                              style={{
+                                padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'center',
+                              }}
+                              onClick={() => setConfirmDelete(s.id)}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ));
+              })()}
             </tbody>
           </table>
         </div>

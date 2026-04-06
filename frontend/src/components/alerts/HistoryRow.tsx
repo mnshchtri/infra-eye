@@ -14,17 +14,30 @@ interface HistoryRowProps {
 
 export const HistoryRow = memo(({ history, serverName, isLast }: HistoryRowProps) => {
   return (
-    <tr style={{ borderBottom: !isLast ? '1px solid var(--border)' : 'none' }}>
-      <td style={{ padding: '20px 24px', fontSize: 12, color: 'var(--text-muted)', fontFamily: '"Courier New", monospace' }}>
+    <tr style={{ borderBottom: !isLast ? '1px solid var(--border)' : 'none', transition: 'background 0.15s' }} className="table-row-hover">
+      <td style={{ padding: '16px 24px', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>
         {format(new Date(history.created_at), 'MMM d, HH:mm:ss')}
       </td>
-      <td style={{ padding: '20px 24px', fontSize: 13, fontWeight: 700 }}>{serverName}</td>
-      <td style={{ padding: '20px 24px' }}>
-        <span className="badge" style={{ background: 'var(--warning)15', color: 'var(--warning)', border: '1px solid var(--warning)25' }}>{history.trigger_info}</span>
+      <td style={{ padding: '16px 24px', fontSize: 13, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+        {serverName}
       </td>
-      <td style={{ padding: '20px 24px' }}>
-         <div style={{ background: 'var(--bg-app)', color: 'var(--success)', padding: '10px 14px', borderRadius: 8, fontSize: 11, fontFamily: '"JetBrains Mono", monospace', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid var(--border)' }}>
-           {history.output || 'No output produced'}
+      <td style={{ padding: '16px 24px' }}>
+        <span style={{ 
+          fontSize: 10, fontWeight: 900, color: 'var(--warning)', 
+          background: 'var(--bg-app)', border: '1px solid var(--warning)30', 
+          padding: '4px 10px', borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' 
+        }}>
+          {history.trigger_info}
+        </span>
+      </td>
+      <td style={{ padding: '16px 24px' }}>
+         <div style={{ 
+           background: 'var(--bg-card)', color: history.output ? 'var(--success)' : 'var(--text-muted)', 
+           padding: '12px 16px', borderRadius: 0, fontSize: 10, fontFamily: 'var(--font-mono)', 
+           maxWidth: 450, overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid var(--border)',
+           whiteSpace: 'nowrap', fontWeight: 800, textTransform: 'uppercase'
+         }}>
+           {history.output || 'NULL_RESPONSE : SYSTEM_IDLE'}
          </div>
       </td>
     </tr>

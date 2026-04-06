@@ -6,6 +6,7 @@ interface KTableProps {
   actions?: (item: any) => React.ReactNode;
   selectedIndex: number;
   loading: boolean;
+  onNameClick?: (item: any) => void;
 }
 
 const getVal = (item: any, col: string) => {
@@ -14,10 +15,10 @@ const getVal = (item: any, col: string) => {
     case 'namespace': return item.metadata.namespace;
     case 'status': {
       const val = item.status?.phase || (item.status?.conditions?.find((c: any) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
-      return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`}>{val}</span>;
+      return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`} style={{ borderRadius: 0, textTransform: 'uppercase', fontSize: 9, minWidth: 80 }}>{val}</span>;
     }
     case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
-    case 'role': return item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'control-plane' : 'worker');
+    case 'role': return <span style={{ color: 'var(--brand-primary)', fontWeight: 800 }}>{item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'CTRL-PLANE' : 'WORKER')}</span>;
     case 'version': return item.status?.nodeInfo?.kubeletVersion;
     case 'ready': return `${item.status?.readyReplicas || item.status?.numberReady || 0}/${item.spec?.replicas || item.status?.desiredNumberScheduled || 0}`;
     case 'available': return item.status?.availableReplicas || item.status?.numberAvailable || 0;
@@ -59,17 +60,25 @@ const getVal = (item: any, col: string) => {
   }
 }
 
-const KTableRow = memo(({ item, columns, isSelected, actions }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode }) => {
+const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode; onNameClick?: (item: any) => void }) => {
   return (
     <tr className={isSelected ? 'k-row-selected' : ''}>
       {columns.map((c: string) => (
-        <td key={c} style={c === 'Name' ? { fontWeight: 700, color: 'var(--brand-primary)' } : {}}>
+        <td 
+          key={c} 
+          style={{
+            ...(c === 'Name' ? { fontWeight: 900, color: 'var(--text-primary)', cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
+            fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase',
+            padding: '10px 16px', borderBottom: '1px solid var(--border)'
+          }}
+          onClick={() => { if (c === 'Name' && onNameClick) onNameClick(item) }}
+        >
           {getVal(item, c)}
         </td>
       ))}
       {actions && (
-        <td>
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <td style={{ borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)20', padding: '10px 16px' }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             {actions(item)}
           </div>
         </td>
@@ -80,7 +89,7 @@ const KTableRow = memo(({ item, columns, isSelected, actions }: { item: any; col
 
 KTableRow.displayName = 'KTableRow';
 
-export const KTable = memo(({ columns, data, actions, selectedIndex, loading }: KTableProps) => {
+export const KTable = memo(({ columns, data, actions, selectedIndex, loading, onNameClick }: KTableProps) => {
   const colCount = columns.length + (actions ? 1 : 0)
 
   // Dynamic width helper
@@ -111,24 +120,27 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading }: 
   }
 
   return (
-    <div style={{ overflow: 'hidden', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-       <table className="k-table">
+    <div className="table-container fade-up" style={{ borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-card)', marginBottom: 20 }}>
+       <table className="k-table" style={{ width: '100%', minWidth: 800 }}>
           <colgroup>
             {columns.map(c => <col key={c} style={{ width: getColWidth(c) }} />)}
-            {actions && <col style={{ width: '140px' }} />}
+            {actions && <col style={{ width: '120px' }} />}
           </colgroup>
           <thead>
-             <tr>
-                {columns.map((c: string) => <th key={c} style={c === 'Status' ? { textAlign: 'center' } : {}}>{c}</th>)}
-                {actions && <th style={{ textAlign: 'right' }}>Management</th>}
+             <tr style={{ background: 'var(--bg-elevated)' }}>
+                {columns.map((c: string) => <th key={c} style={{ 
+                  ...(c === 'Status' ? { textAlign: 'center' } : {}),
+                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 10, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.1em'
+                }}>{c}</th>)}
+                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 10, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.1em' }}>ACTIONS</th>}
              </tr>
           </thead>
           <tbody>
              {loading ? (
-               Array.from({ length: 5 }).map((_, i) => (
+               Array.from({ length: 8 }).map((_, i) => (
                  <tr key={`skel-${i}`}>
                    {Array.from({ length: colCount }).map((_, j) => (
-                     <td key={j}><div style={{ height: 14, background: 'var(--bg-app)', borderRadius: 4, width: '40%', animation: 'pulse-skeleton 1.5s ease infinite' }} /></td>
+                     <td key={j} style={{ padding: '16px' }}><div style={{ height: 12, background: 'var(--bg-elevated)', borderRadius: 0, width: '60%', animation: 'pulse-skeleton 1.5s ease infinite' }} /></td>
                    ))}
                  </tr>
                ))
@@ -145,6 +157,7 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading }: 
                   columns={columns} 
                   isSelected={selectedIndex === i} 
                   actions={actions} 
+                  onNameClick={onNameClick}
                 />
              ))}
           </tbody>
