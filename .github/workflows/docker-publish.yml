@@ -3,7 +3,7 @@ name: Build & Push to GHCR
 on:
   push:
     branches: [main]
-  workflow_dispatch:   # Allow manual trigger
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -11,15 +11,20 @@ env:
 
 jobs:
   build-and-push:
-    name: Build & Push Docker Image
+    name: Build & Push Docker Image (multi-platform)
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # Required to push to GHCR
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up QEMU (for cross-platform arm64 build)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,18 +45,16 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (amd64 + arm64)
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            BUILDTIME=${{ github.event.head_commit.timestamp }}
-            VERSION=${{ github.sha }}
 
       - name: Image digest
         run: echo "Pushed ${{ steps.meta.outputs.tags }}"
