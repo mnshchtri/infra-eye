@@ -78,10 +78,17 @@ If you are logging into the web dashboard on a fresh installation, use the follo
 > Please change this default password immediately after your first login via the User Management panel to secure your instance.
 
 ### Troubleshooting: Verifying Database Users
-If you are unable to log in and suspect the database did not seed correctly, you can manually verify the users table by executing a `psql` command directly inside the Postgres pod:
+If you are unable to log in and suspect the database did not seed correctly, you can manually verify the users table by executing a `psql` command directly inside the Postgres container:
 
+**For Kubernetes (`install-k8s.sh`):**
 ```bash
 sudo kubectl exec -it postgres-0 -n infra-eye -- psql -U infraeye -d infraeye -c "SELECT id, username, password_hash, role FROM users;"
+```
+
+**For Docker Compose (`install.sh`):**
+```bash
+cd ~/infra-eye
+docker compose exec postgres psql -U infraeye -d infraeye -c "SELECT id, username, password_hash, role FROM users;"
 ```
 
 You should see output similar to this:
