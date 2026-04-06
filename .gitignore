@@ -31,3 +31,5 @@ Thumbs.db
 # Kubernetes configs (sensitive)
 *.kubeconfig
 kubeconfigs/
+shared_mcp/kubeconfig
+shared_mcp/
