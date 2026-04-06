@@ -107,7 +107,7 @@ If the query returns `0 rows`, the seed migration has not run yet. You can manua
 ```bash
 sudo kubectl exec -it postgres-0 -n infra-eye -- psql -U infraeye -d infraeye -c "
 INSERT INTO users (username, password_hash, role, created_at, updated_at)
-VALUES ('admin', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lheO', 'admin', NOW(), NOW())
+VALUES ('admin', '\$2a\$10\$dJCl5QBnTN85pGZC24.jXuL5as8jNxuzOshgkKprhholdLrzz3PLW', 'admin', NOW(), NOW())
 ON CONFLICT (username) DO NOTHING;"
 ```
 
@@ -116,10 +116,10 @@ ON CONFLICT (username) DO NOTHING;"
 cd ~/infra-eye
 docker compose exec postgres psql -U infraeye -d infraeye -c "
 INSERT INTO users (username, password_hash, role, created_at, updated_at)
-VALUES ('admin', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lheO', 'admin', NOW(), NOW())
+VALUES ('admin', '\$2a\$10\$dJCl5QBnTN85pGZC24.jXuL5as8jNxuzOshgkKprhholdLrzz3PLW', 'admin', NOW(), NOW())
 ON CONFLICT (username) DO NOTHING;"
 ```
-*(Note: This inserts an admin user with the password `admin123`, providing an immediate backdoor to login and change the password via the UI).*
+*(Note: This inserts an admin user with the default password `infra123`, providing an immediate backdoor to login and change the password via the UI).*
 
 ---
 
