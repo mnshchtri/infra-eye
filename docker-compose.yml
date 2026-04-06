@@ -72,10 +72,14 @@ services:
       - .env
     environment:
       - DB_DSN=postgresql://infraeye:infraeye123@postgres:5432/infraeye?sslmode=disable
-      - REDIS_URL=redis:6379
+      - REDIS_ADDR=redis:6379
       - MCP_SERVER_URL=http://infra-eye-mcp:8090
       - GIN_MODE=release
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      # IPs that OrbStack/Docker containers cannot reach directly on the LAN.
+      # These get patched to host.docker.internal so MCP traffic routes through the host gateway.
+      # Add any K8s server IPs here that are on your local network, comma-separated.
+      - MCP_HOST_IPS=${MCP_HOST_IPS:-}
     ports:
       - "8080:8080"
     volumes:

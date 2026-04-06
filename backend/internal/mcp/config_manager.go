@@ -18,22 +18,40 @@ var (
 	MasterConfigPath = "/shared_mcp/kubeconfig"
 	// Host config path if mounted (inside Docker)
 	HostConfigPath = "/kubeconfig_host"
+	// Detected once at startup — controls whether kubeconfig addresses are patched
+	runningInDocker bool
+	// Set MCP_HOST_IPS=192.168.1.87,10.x.x.x to patch specific LAN IPs to host.docker.internal
+	// when Docker containers can't route to them directly (e.g., OrbStack on macOS)
+	mcpHostIPs map[string]bool
 )
 
 func init() {
+	_, err := os.Stat("/.dockerenv")
+	runningInDocker = (err == nil)
+
+	// Parse MCP_HOST_IPS: comma-separated list of IPs that should be proxied
+	// through host.docker.internal when the backend runs inside Docker.
+	// Example: MCP_HOST_IPS=192.168.1.87,192.168.1.78
+	mcpHostIPs = make(map[string]bool)
+	if v := os.Getenv("MCP_HOST_IPS"); v != "" {
+		for _, ip := range strings.Split(v, ",") {
+			ip = strings.TrimSpace(ip)
+			if ip != "" {
+				mcpHostIPs[ip] = true
+			}
+		}
+		log.Printf("🔧 MCP config: will proxy %v → host.docker.internal when in Docker", mcpHostIPs)
+	}
 	if path := os.Getenv("MCP_SHARED_PATH"); path != "" {
 		MasterConfigPath = filepath.Join(path, "kubeconfig")
-	} else if _, err := os.Stat("/.dockerenv"); err != nil {
-		// Not in Docker: use project-relative path
+	} else if !runningInDocker {
+		// Not in Docker: use project-relative path so the file lands in ./shared_mcp/
 		cwd, _ := os.Getwd()
-		// Go up until we find the root where 'shared_mcp' should live
 		for cwd != "/" {
-			// In our repo structure, 'shared_mcp' lives next to 'backend/', 'frontend/', etc.
 			if _, err := os.Stat(filepath.Join(cwd, "backend", "go.mod")); err == nil {
 				MasterConfigPath = filepath.Join(cwd, "shared_mcp", "kubeconfig")
 				break
 			}
-			// Fallback if we are already inside the 'backend' folder
 			if _, err := os.Stat(filepath.Join(cwd, "go.mod")); err == nil {
 				MasterConfigPath = filepath.Join(cwd, "..", "shared_mcp", "kubeconfig")
 				break
@@ -41,6 +59,7 @@ func init() {
 			cwd = filepath.Dir(cwd)
 		}
 	}
+	log.Printf("🔧 MCP config: runningInDocker=%v  path=%s", runningInDocker, MasterConfigPath)
 }
 
 // SyncMasterKubeconfig merges all Kubernetes server configs from the database
@@ -110,27 +129,24 @@ func mergeConfigs(dest, src *api.Config, prefix string, srv *models.Server) {
 		hostWithPort := strings.TrimPrefix(strings.TrimPrefix(serverURL, "https://"), "http://")
 		hostOnly := strings.Split(hostWithPort, ":")[0]
 
-		// ONLY patch true loopback addresses (localhost / 127.0.0.1).
-		// These are unreachable from inside a Docker container — replace with the
-		// Docker host gateway so the MCP sidecar can reach the K8s API on the host.
-		//
-		// Do NOT patch real private/public IPs (10.x, 192.168.x, etc.) because
-		// the containers on the same host can already reach those addresses directly.
-		// Over-patching was causing "dial 0.250.250.254" errors on Linux/Ubuntu.
+		// ── Address patching ─────────────────────────────────────────────────
+		// 1. Loopback (127.0.0.1 / localhost): patch to host.docker.internal only
+		//    when running in Docker (loopback inside a container ≠ the host machine).
+		// 2. MCP_HOST_IPS: explicit set of LAN IPs unreachable from Docker network
+		//    (e.g., OrbStack containers can't route to Mac's 192.168.x LAN IPs).
+		//    Patch those to host.docker.internal so calls route through the Docker
+		//    host gateway, which CAN reach those LAN addresses.
 		isLoopback := hostOnly == "localhost" || hostOnly == "127.0.0.1"
-		if isLoopback {
-			targetHost := "host.docker.internal"
-			// If the server record has a real routable host, prefer that
-			if srv != nil && srv.Host != "" && srv.Host != "localhost" && srv.Host != "127.0.0.1" {
-				targetHost = srv.Host
-			}
-			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, hostOnly, targetHost)
+		isHostIP := mcpHostIPs[hostOnly]
+
+		if runningInDocker && (isLoopback || isHostIP) {
+			patchedCluster.Server = strings.ReplaceAll(patchedCluster.Server, hostOnly, "host.docker.internal")
 		}
-		
+
 		if originalServer != patchedCluster.Server {
-			log.Printf("🔌 MCP Sync: Patched cluster [%s] %s -> %s", uniqueName, originalServer, patchedCluster.Server)
+			log.Printf("🔌 MCP Sync: Patched cluster [%s] %s → %s", uniqueName, originalServer, patchedCluster.Server)
 		} else {
-			log.Printf("🔌 MCP Sync: Cluster [%s] server %s (NO PATCH NEEDED)", uniqueName, originalServer)
+			log.Printf("🔌 MCP Sync: Cluster [%s] server %s (no patch, runningInDocker=%v)", uniqueName, originalServer, runningInDocker)
 		}
 		dest.Clusters[uniqueName] = patchedCluster
 	}
