@@ -2,6 +2,7 @@ package seed
 
 import (
 	"log"
+	"os"
 
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
@@ -14,36 +15,27 @@ func Run() {
 }
 
 func seedUsers() {
-	type seedUser struct {
-		username string
-		password string
-		role     string
-		email    string
-	}
-
-	users := []seedUser{
-		{"admin",   "infra123",   "admin",   "admin@infraeye.local"},
-		{"devops",  "devops123",  "devops",  "devops@infraeye.local"},
-		{"trainee", "trainee123", "trainee", "trainee@infraeye.local"},
-		{"intern",  "intern123",  "intern",  "intern@infraeye.local"},
-	}
-
-	for _, u := range users {
-		var count int64
-		db.DB.Model(&models.User{}).Where("username = ?", u.username).Count(&count)
-		if count == 0 {
-			hash, _ := bcrypt.GenerateFromPassword([]byte(u.password), bcrypt.DefaultCost)
-			db.DB.Create(&models.User{
-				Username:     u.username,
-				PasswordHash: string(hash),
-				Role:         u.role,
-				Email:        u.email,
-				IsActive:     true,
-			})
+	var count int64
+	db.DB.Model(&models.User{}).Where("username = ?", "admin").Count(&count)
+	
+	if count == 0 {
+		adminPass := os.Getenv("ADMIN_PASSWORD")
+		if adminPass == "" {
+			adminPass = "infra123"
 		}
+		
+		hash, _ := bcrypt.GenerateFromPassword([]byte(adminPass), bcrypt.DefaultCost)
+		db.DB.Create(&models.User{
+			Username:     "admin",
+			PasswordHash: string(hash),
+			Role:         "admin",
+			Email:        "admin@infraeye.local",
+			IsActive:     true,
+		})
+		log.Println("✅ Seeded default admin user")
+	} else {
+		log.Println("✅ Admin user already exists, skipping seed")
 	}
-
-	log.Println("✅ Seed check complete for default RBAC users: admin, devops, trainee, intern")
 }
 
 func seedAlertRules() {
