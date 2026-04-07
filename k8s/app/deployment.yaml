@@ -15,22 +15,12 @@ spec:
       labels:
         app: infra-eye
     spec:
+      serviceAccountName: infra-eye-sa
       # Allow the MCP sidecar to reach the k3s API on the host node
       hostAliases:
         - ip: "127.0.0.1"
           hostnames:
             - "host.docker.internal"
-
-      initContainers:
-        - name: mcp-init
-          image: alpine:latest
-          command:
-            - sh
-            - -c
-            - "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume ready'"
-          volumeMounts:
-            - name: mcp-volume
-              mountPath: /mcp
 
       containers:
         # ── Main application ────────────────────────────────────────────────
@@ -45,9 +35,6 @@ spec:
                 name: infra-eye-config
             - secretRef:
                 name: infra-eye-secrets
-          volumeMounts:
-            - name: mcp-volume
-              mountPath: /shared_mcp
           readinessProbe:
             httpGet:
               path: /api/health
@@ -69,23 +56,17 @@ spec:
               memory: "512Mi"
               cpu: "500m"
 
-        # ── MCP sidecar — shares kubeconfig via emptyDir ─────────────────
+        # ── MCP sidecar — Native in-cluster connection ─────────────────
         - name: mcp-server
           image: ghcr.io/containers/kubernetes-mcp-server:latest
           args:
             - "--port"
             - "8090"
-            - "--kubeconfig"
-            - "/mcp/kubeconfig"
             - "--cluster-provider"
-            - "kubeconfig"
+            - "in-cluster"
           ports:
             - name: mcp
               containerPort: 8090
-          volumeMounts:
-            - name: mcp-volume
-              mountPath: /mcp
-              readOnly: true
           resources:
             requests:
               memory: "64Mi"
@@ -93,8 +74,3 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
-
-      volumes:
-        # Shared between init container, app, and mcp-server sidecar
-        - name: mcp-volume
-          emptyDir: {}

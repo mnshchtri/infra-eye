@@ -30,7 +30,7 @@ In an era of microservices and ephemeral infrastructure, observability shouldn't
 | :--------------------------------- | :------------------------------------------------------------------------------------- | :--------------- |
 | **Infrastructure Navigator** | Unified view of Linux servers with real-time CPU, Mem, Disk & Network telemetry.       | `Production`   |
 | **Kubernetes 'Lens'**        | Advanced resource explorer for Pods, Deployments, and Events with 1-click diagnostics. | `Production`   |
-| **Netra AI Assistant**       | LLM-powered (GPT-4o/Gemini) infrastructure consulting and log analysis.                | `Beta`         |
+| **Netra AI Assistant**       | LLM-powered infrastructure consulting and log analysis.                                | `Beta`         |
 | **Self-Healing Engine**      | XML-defined alert rules that trigger automated SSH remediation commands.               | `Production`   |
 | **MCP Sidecar**              | Model Context Protocol integration for AI-driven cluster troubleshooting.              | `Experimental` |
 | **SSH Terminal**             | Full browser-based `xterm.js` terminal over secure SSH tunnels.                      | `Production`   |
@@ -60,6 +60,7 @@ graph TD
 InfraEye can be deployed fully containerized. We deliver automated installer scripts for both native Kubernetes (recommended) and Docker Compose. Images are pulled directly from `ghcr.io/mnshchtri/infra-eye`.
 
 ### Option A: Kubernetes (Recommended)
+
 This deploys InfraEye, Postgres, Redis, and the MCP sidecar into the `infra-eye` namespace via Kustomize. It bypasses Docker networking conflicts by using a direct `NodePort`.
 
 ```bash
@@ -68,6 +69,7 @@ curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install-k8
 ```
 
 ### Option B: Docker Compose
+
 If you prefer a pure Docker setup, this isolates the stack and manages the reverse proxy bindings.
 
 ```bash
@@ -79,6 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh
 After installation, the scripts will output the exact URL you need to access (e.g., `http://<node-ip>:30080` for K8s or `http://<node-ip>:8080` for Docker).
 
 **Default Login:**
+
 - **Username:** `admin`
 - **Password:** `infra123`
 
