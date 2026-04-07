@@ -92,7 +92,15 @@ func SyncMasterKubeconfig() error {
 		mergeConfigs(masterConfig, cfg, prefix, &srv)
 	}
 
-	// 3. Write to shared volume using a temporary file for atomicity
+	// 3. Ensure we never write an empty config that crashes the MCP server
+	if len(masterConfig.Clusters) == 0 {
+		masterConfig.Clusters["empty"] = &api.Cluster{Server: "https://localhost:6443"}
+		masterConfig.Contexts["empty"] = &api.Context{Cluster: "empty", AuthInfo: "empty"}
+		masterConfig.AuthInfos["empty"] = &api.AuthInfo{}
+		masterConfig.CurrentContext = "empty"
+	}
+
+	// 4. Write to shared volume using a temporary file for atomicity
 	dir := filepath.Dir(MasterConfigPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create shared directory: %v", err)
@@ -102,6 +110,9 @@ func SyncMasterKubeconfig() error {
 	if err := clientcmd.WriteToFile(*masterConfig, tempPath); err != nil {
 		return fmt.Errorf("failed to write temp master config: %v", err)
 	}
+
+	// Ensure the new config is readable by the MCP server container (which runs as a different user)
+	os.Chmod(tempPath, 0666)
 
 	// Double check we have actual data before swapping
 	if st, err := os.Stat(tempPath); err == nil && st.Size() > 0 {

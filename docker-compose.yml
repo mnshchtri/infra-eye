@@ -37,7 +37,7 @@ services:
     volumes:
       - ./shared_mcp:/mcp
     command: >
-      sh -c "mkdir -p /mcp && touch /mcp/kubeconfig && chmod 777 /mcp && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume initialized.'"
+      sh -c "mkdir -p /mcp && echo 'apiVersion: v1\nkind: Config\nclusters:\n- cluster: {server: https://localhost:6443}\n  name: empty\ncontexts:\n- context: {cluster: empty, user: empty}\n  name: empty\ncurrent-context: empty\nusers:\n- name: empty' > /mcp/kubeconfig && chmod 777 /mcp && chmod 666 /mcp/kubeconfig && echo '✅ MCP volume initialized.'"
 
   mcp-server:
     image: ghcr.io/containers/kubernetes-mcp-server:latest
