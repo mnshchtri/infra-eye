@@ -76,6 +76,16 @@ If you prefer a pure Docker setup, this isolates the stack and manages the rever
 curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh | bash
 ```
 
+### Hot Reloading (Updates & Configurations)
+
+If you pull new updates from the GitHub repository or edit your `.env` configuration file, you can apply these changes instantaneously using our automated hot-reload script.
+
+```bash
+# Must be executed from the infra-eye directory
+./reload.sh
+```
+This automatically fetches the latest code, evaluates updated `.env` credentials, forces container recreations, and sanitizes dangling Docker images to keep your server clean.
+
 ### Accessing the Platform
 
 After installation, the scripts will output the exact URL you need to access (e.g., `http://<node-ip>:30080` for K8s or `http://<node-ip>:8080` for Docker).

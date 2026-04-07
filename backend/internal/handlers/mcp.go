@@ -95,11 +95,12 @@ func ExecuteMCPTool(c *gin.Context) {
 			prefix := fmt.Sprintf("server-%d", server.ID)
 			cfg, err := clientcmd.Load([]byte(server.KubeConfig))
 			if err == nil {
-				// Use current context if it matches our prefix, or find first matching one
 				selectedCtx := ""
-				for name := range cfg.Contexts {
-					if strings.HasPrefix(name, prefix) {
-						selectedCtx = name
+				if cfg.CurrentContext != "" {
+					selectedCtx = fmt.Sprintf("%s-%s", prefix, cfg.CurrentContext)
+				} else {
+					for name := range cfg.Contexts {
+						selectedCtx = fmt.Sprintf("%s-%s", prefix, name)
 						break
 					}
 				}
@@ -505,12 +506,14 @@ func RunKubectlViaMCP(c *gin.Context) {
 			prefix := fmt.Sprintf("server-%d", server.ID)
 			cfg, parseErr := clientcmd.Load([]byte(server.KubeConfig))
 			if parseErr == nil {
-				// Find the prefixed context we wrote during SyncMasterKubeconfig
 				selectedCtx := ""
-				for name := range cfg.Contexts {
-					fullName := fmt.Sprintf("%s-%s", prefix, name)
-					selectedCtx = fullName
-					break
+				if cfg.CurrentContext != "" {
+					selectedCtx = fmt.Sprintf("%s-%s", prefix, cfg.CurrentContext)
+				} else {
+					for name := range cfg.Contexts {
+						selectedCtx = fmt.Sprintf("%s-%s", prefix, name)
+						break
+					}
 				}
 				if selectedCtx == "" {
 					selectedCtx = prefix + "-default"

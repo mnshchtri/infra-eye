@@ -69,6 +69,21 @@ If you prefer a pure Docker setup, this isolates the stack and manages the rever
 curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh | bash
 ```
 
+### Hot Reloading & Environment Updates
+When changes are pushed to GitHub or if you've modified your `.env` file credentials/configurations post-installation, use the provided reload utility. 
+
+```bash
+cd ~/infra-eye
+chmod +x reload.sh
+./reload.sh
+```
+
+**How it works:**
+1. Pulls the latest commits from the `main` branch.
+2. Checks for your host-level `.env` file modifications.
+3. Automatically triggers a container recreation and rebuild cycle via `docker compose up -d --build --force-recreate`.
+4. Triggers background purging algorithms to clear out dangling intermediate Docker images and reclaim disk space.
+
 ### Persistence
 The following configurations/data will automatically be persisted on the host system:
 - **Database:** `/var/lib/postgresql/data` (Docker volume or K8s PVC)
