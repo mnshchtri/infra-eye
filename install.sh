@@ -12,6 +12,19 @@ info()    { echo -e "${CYAN}${BOLD}[InfraEye]${NC} $*"; }
 success() { echo -e "${GREEN}${BOLD}[✓]${NC} $*"; }
 warn()    { echo -e "${YELLOW}${BOLD}[!]${NC} $*"; }
 error()   { echo -e "${RED}${BOLD}[✗]${NC} $*" >&2; exit 1; }
+ask()     { echo -e "${YELLOW}${BOLD}[?]${NC} $*"; }
+
+# Read from /dev/tty so prompts work even when run as: curl | bash
+tty_read() {
+  local __var=$1
+  local __val=""
+  if [ -t 0 ]; then
+    read -r __val
+  elif [ -e /dev/tty ]; then
+    read -r __val </dev/tty
+  fi
+  eval "$__var=\$__val"
+}
 
 REPO_URL="${REPO_URL:-https://github.com/mnshchtri/infra-eye.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/infra-eye}"
@@ -67,7 +80,7 @@ cd "$INSTALL_DIR"
 
 # ── 3. Environment setup ─────────────────────
 if [ ! -f ".env" ]; then
-  warn ".env file not found — creating one with a generated JWT secret."
+  warn ".env file not found — creating one."
 
   # Auto-generate a secure JWT secret
   if command -v openssl &>/dev/null; then
@@ -76,12 +89,35 @@ if [ ! -f ".env" ]; then
     JWT_SECRET_VAL=$(tr -dc 'a-f0-9' </dev/urandom 2>/dev/null | head -c 64 || echo "please-replace-with-a-long-random-secret")
   fi
 
+  echo ""
+  info "Setting up environment variables in .env..."
+  echo ""
+
+  ask "Enter MISTRAL_API_KEY (press Enter to skip):"
+  tty_read MISTRAL_API_KEY
+
+  ask "Enter GEMINI_API_KEY (press Enter to skip):"
+  tty_read GEMINI_API_KEY
+
+  ask "Enter DEEPSEEK_API_KEY (press Enter to skip):"
+  tty_read DEEPSEEK_API_KEY
+
+  ask "Enter OPENROUTER_API_KEY (press Enter to skip):"
+  tty_read OPENROUTER_API_KEY
+
+  ask "Enter OPENAI_API_KEY (press Enter to skip):"
+  tty_read OPENAI_API_KEY
+
+  ask "Enter GOOGLE_CHAT_WEBHOOK_URL (press Enter to skip):"
+  tty_read GOOGLE_CHAT_WEBHOOK_URL
+
   cat > .env <<EOF
 # ── AI / LLM Keys (fill in at least one) ──────────────────
-MISTRAL_API_KEY=
-GEMINI_API_KEY=
-DEEPSEEK_API_KEY=
-OPENROUTER_API_KEY=
+MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+GEMINI_API_KEY=${GEMINI_API_KEY:-}
+DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+OPENAI_API_KEY=${OPENAI_API_KEY:-}
 
 # ── Security ───────────────────────────────────────────────
 JWT_SECRET=${JWT_SECRET_VAL}
@@ -93,13 +129,12 @@ METRICS_INTERVAL=30
 LOG_MAX_LINES=500
 
 # ── Notifications (optional) ───────────────────────────────
-GOOGLE_CHAT_WEBHOOK_URL=
+GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_URL:-}
 
 # ── K8s MCP host IPs (optional, comma-separated LAN IPs) ──
 MCP_HOST_IPS=
 EOF
-  success "Generated .env with a secure JWT secret."
-  warn "Edit .env to add your API keys: nano $INSTALL_DIR/.env"
+  success "Generated .env with secure JWT secret and API keys."
 fi
 
 # ── 4. Ensure shared_mcp directory exists ────

@@ -155,6 +155,9 @@ tty_read DEEPSEEK_API_KEY
 ask "Enter OPENROUTER_API_KEY (press Enter to skip):"
 tty_read OPENROUTER_API_KEY
 
+ask "Enter OPENAI_API_KEY (press Enter to skip):"
+tty_read OPENAI_API_KEY
+
 ask "Enter GOOGLE_CHAT_WEBHOOK_URL (press Enter to skip):"
 tty_read GOOGLE_CHAT_WEBHOOK_URL
 
@@ -175,6 +178,7 @@ stringData:
   GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
   DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
   OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+  OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
   GOOGLE_CHAT_WEBHOOK_URL: "${GOOGLE_CHAT_WEBHOOK_URL:-}"
 EOF
 success "Secret manifest generated (not committed)."
