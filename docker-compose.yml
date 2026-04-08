@@ -11,6 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "0.0.0.0:5432:5432"
+    command: postgres -c listen_addresses='*'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U infraeye -d infraeye"]
       interval: 10s

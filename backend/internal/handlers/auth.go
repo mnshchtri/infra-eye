@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,14 +27,18 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	username := strings.TrimSpace(req.Username)
+	
 	var user models.User
-	if err := db.DB.Where("username = ?", req.Username).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+	if err := db.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		log.Printf("[Login] User not found or DB error: %s - %v", username, err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		log.Printf("[Login] Password mismatch for user: %s", username)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid password"})
 		return
 	}
 
