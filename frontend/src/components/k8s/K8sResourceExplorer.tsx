@@ -62,7 +62,13 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [editingYaml, setEditingYaml] = useState<{ open: boolean; content: string; name?: string; ns?: string; kind?: string }>({ open: false, content: '' })
   const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; pod?: string; ns?: string; container?: string } | null>(null)
   const [showPortForward, setShowPortForward] = useState(false)
+  const [pfTarget, setPfTarget] = useState<{ ns?: string; target?: string; port?: string }>({})
   const [portForwards, setPortForwards] = useState<any[]>([])
+
+  const openPortForward = (ns: string, target: string, port?: string) => {
+    setPfTarget({ ns, target, port });
+    setShowPortForward(true);
+  }
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)
   const [showMCPTerminal, setShowMCPTerminal] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768)
@@ -246,6 +252,35 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
          if (curYaml.open) setEditingYaml({ open: false, content: '' });
          else { setShowCommandBar(false); setShowSearch(false); setFilterQuery(''); setDrawer(null); }
          return; 
+      }
+      if (e.key === 'F' && e.shiftKey && !curYaml.open && !drawer?.open) {
+        e.preventDefault();
+        
+        // If a resource is selected in the current view, pre-fill it
+        if (selectedIndex !== -1 && filteredData[selectedIndex]) {
+          const item = filteredData[selectedIndex];
+          const ns = item.metadata.namespace || 'default';
+          const name = item.metadata.name;
+          const randomPort = Math.floor(Math.random() * (9999 - 8000 + 1) + 8000).toString();
+          
+          let target = '';
+          let port = randomPort;
+
+          if (activeRes === 'pods') target = `pod/${name}`;
+          else if (activeRes === 'services') target = `svc/${name}`;
+          else if (['deployments', 'daemonsets', 'statefulsets'].includes(activeRes)) {
+            const kindMap: Record<string, string> = { deployments: 'deploy', daemonsets: 'ds', statefulsets: 'sts' };
+            target = `${kindMap[activeRes] || activeRes.slice(0, -1)}/${name}`;
+          }
+
+          if (target) {
+            openPortForward(ns, target, port);
+            return;
+          }
+        }
+
+        setShowPortForward(true);
+        return;
       }
       if (e.key === ':' && !showCommandBar && !showSearch && !curYaml.open) {
         e.preventDefault(); setShowCommandBar(true); setCmdError(false);
@@ -474,6 +509,11 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
               icon={Layers} label="Services" isSub 
             />
             <ResNavLink 
+              active={false} 
+              onClick={() => { setShowPortForward(true); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
+              icon={Globe} label="Port Forwarding" isSub 
+            />
+            <ResNavLink 
               active={activeRes === 'endpoints'} 
               onClick={() => { setActiveRes('endpoints'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
               icon={Activity} label="Endpoints" isSub 
@@ -649,6 +689,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('pod', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
                   <button className="btn-icon" title="Logs" onClick={() => setDrawer({ open: true, mode: 'logs', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><List size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><Terminal size={14} /></button>}
+                  {canUseKubectl && <button className="btn-icon" title="Port Forward" onClick={() => openPortForward(p.metadata.namespace, `pod/${p.metadata.name}`)}><Globe size={14} /></button>}
                 </>
              )}
           />}
@@ -672,7 +713,12 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           />}
 
           {activeRes === 'services' && <KTable columns={['Name', 'Namespace', 'Type', 'Cluster-IP', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(s: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('service', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>}
+             actions={(s: any) => (
+                <>
+                  <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('service', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>
+                  {canUseKubectl && <button className="btn-icon" title="Port Forward" onClick={() => openPortForward(s.metadata.namespace, `svc/${s.metadata.name}`, s.spec?.ports?.[0]?.port?.toString())}><Globe size={14} /></button>}
+                </>
+             )}
           />}
           {activeRes === 'endpoints' && <KTable columns={['Name', 'Namespace', 'Endpoints', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
              actions={(e: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('endpoints', e.metadata.name, e.metadata.namespace)}><FileCode size={14} /></button>}
@@ -719,7 +765,15 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       </div>
 
 
-      {showPortForward && canUseKubectl && <PortForwardModal serverID={cluster.id} sessions={portForwards} onClose={() => setShowPortForward(false)} onRefresh={fetchPortForwards} />}
+      {showPortForward && canUseKubectl && <PortForwardModal 
+          serverID={cluster.id} 
+          sessions={portForwards} 
+          onClose={() => { setShowPortForward(false); setPfTarget({}); }} 
+          onRefresh={fetchPortForwards} 
+          initialNamespace={pfTarget.ns}
+          initialTarget={pfTarget.target}
+          initialPort={pfTarget.port}
+      />}
       {drawer?.open && canUseKubectl && <TerminalPortal serverID={cluster.id} pod={drawer.pod!} namespace={drawer.ns!} container={drawer.container} mode={drawer.mode} onClose={() => setDrawer(null)} />}
       {showMCPTerminal && <MCPTerminal clusterId={cluster.id} clusterName={cluster.name} onClose={() => setShowMCPTerminal(false)} />}
       

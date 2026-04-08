@@ -29,7 +29,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport/spdy"
 	"sigs.k8s.io/yaml"
 )
 
@@ -44,6 +46,10 @@ var (
 
 	portForwardSessions   = map[uint][]PortForwardSession{}
 	portForwardSessionsMu sync.RWMutex
+
+	// Track native Go routines for port forwarding
+	nativePFCannels   = map[string]chan struct{}{}
+	nativePFCannelsMu sync.Mutex
 )
 
 type nsCacheEntry struct {
@@ -243,8 +249,8 @@ func RunKubectl(c *gin.Context) {
 	req.Command = strings.TrimSpace(req.Command)
 	log.Printf("🛠️ RunKubectl: serverID=%v, command=%q", id, req.Command)
 
-	if server.Host == "" {
-		// Use local kubectl for direct API clusters
+	if server.KubeConfig != "" {
+		// Prefer local/native execution for Kubernetes commands if KubeConfig is available
 		path, err := ensureLocalKubeConfig(&server)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "error": fmt.Sprintf("local kubeconfig setup failed: %v", err)})
@@ -787,8 +793,7 @@ func ApplyKubectl(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	if server.Host == "" {
+	if server.KubeConfig != "" {
 		// Generic Dynamic Apply (Server-Side Apply)
 		// This handles ANY resource type, including CRDs.
 		var unstructuredObj map[string]interface{}
@@ -1336,8 +1341,8 @@ func DeleteKubectl(c *gin.Context) {
 		return
 	}
 
-	// --- Native delete for direct-API clusters ---
-	if server.Host == "" {
+	// --- Native delete for clusters with KubeConfig ---
+	if server.KubeConfig != "" {
 		dClient, err := k8s.GetDynamicClient(server.KubeConfig)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "dynamic client: " + err.Error()})
@@ -1423,7 +1428,7 @@ func DeleteKubectl(c *gin.Context) {
 }
 
 
-// StartPortForward starts a background kubectl port-forward process on the remote node.
+// StartPortForward starts a background native Go port-forward session.
 func StartPortForward(c *gin.Context) {
 	id := c.Param("id")
 	var req struct {
@@ -1447,35 +1452,115 @@ func StartPortForward(c *gin.Context) {
 		return
 	}
 
-	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
+	// 1. Setup K8s Client & Config
+	restConfig, err := k8s.GetRestConfig(server.KubeConfig)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ssh connect: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "kubeconfig parse error: " + err.Error()})
+		return
+	}
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "k8s client error: " + err.Error()})
 		return
 	}
 
-	baseCmd, err := buildBaseCmd(client, &server)
+	// 2. Resolve target to a specific POD name
+	// target can be "pod/name" or "svc/name" or "deployment/name"
+	targetParts := strings.Split(req.Target, "/")
+	var podName string
+	targetKind := "pod"
+	targetName := req.Target
+	if len(targetParts) == 2 {
+		targetKind = strings.ToLower(targetParts[0])
+		targetName = targetParts[1]
+	}
+
+	switch targetKind {
+	case "pod", "po":
+		podName = targetName
+	case "svc", "service":
+		svc, err := clientset.CoreV1().Services(req.Namespace).Get(context.TODO(), targetName, metav1.GetOptions{})
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "service not found: " + err.Error()})
+			return
+		}
+		selector := ""
+		for k, v := range svc.Spec.Selector {
+			if selector != "" {
+				selector += ","
+			}
+			selector += k + "=" + v
+		}
+		pods, err := clientset.CoreV1().Pods(req.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector})
+		if err != nil || len(pods.Items) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "no pods found for service selector"})
+			return
+		}
+		podName = pods.Items[0].Name
+	case "deploy", "deployment":
+		deploy, err := clientset.AppsV1().Deployments(req.Namespace).Get(context.TODO(), targetName, metav1.GetOptions{})
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found: " + err.Error()})
+			return
+		}
+		selector, _ := metav1.LabelSelectorAsSelector(deploy.Spec.Selector)
+		pods, err := clientset.CoreV1().Pods(req.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+		if err != nil || len(pods.Items) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "no pods found for deployment selector"})
+			return
+		}
+		podName = pods.Items[0].Name
+	default:
+		podName = targetName // Fallback to raw string as pod name
+	}
+
+	// 3. Setup Port Forwarding Dialer
+	roundTripper, upgrader, err := spdy.RoundTripperFor(restConfig)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "kubeconfig setup: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "spdy setup error: " + err.Error()})
 		return
 	}
 
-	sessionID := fmt.Sprintf("pf-%d", time.Now().UnixNano())
-	logPath := fmt.Sprintf("/tmp/infraeye/%s.log", sessionID)
-	startCmd := fmt.Sprintf(
-		"mkdir -p /tmp/infraeye && nohup %s port-forward -n %s %s %d:%d --address 127.0.0.1 > %s 2>&1 & echo $!",
-		baseCmd, req.Namespace, req.Target, req.LocalPort, req.RemotePort, logPath,
-	)
+	pfURL := clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Namespace(req.Namespace).
+		Name(podName).
+		SubResource("portforward").URL()
 
-	stdout, stderr, err := client.RunCommand(startCmd)
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, "POST", pfURL)
+
+	// 4. Run Port Forwarding in background
+	stopChan := make(chan struct{}, 1)
+	readyChan := make(chan struct{})
+	
+	sessionID := fmt.Sprintf("native-pf-%d", time.Now().UnixNano())
+
+	pf, err := portforward.NewOnAddresses(dialer, []string{"0.0.0.0"}, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.RemotePort)}, stopChan, readyChan, io.Discard, io.Discard)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "stderr": stderr})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "pf initialization failed: " + err.Error()})
 		return
 	}
-	pid := strings.TrimSpace(stdout)
-	if pid == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start port-forward process"})
+
+	go func() {
+		if err := pf.ForwardPorts(); err != nil {
+			log.Printf("❌ Native PortForward failed for %s: %v", sessionID, err)
+		}
+	}()
+
+	// Wait for readiness or timeout
+	select {
+	case <-readyChan:
+		log.Printf("✅ Native PortForward ready: %s (%d:%d)", sessionID, req.LocalPort, req.RemotePort)
+	case <-time.After(10 * time.Second):
+		close(stopChan)
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "port-forward readiness timeout"})
 		return
 	}
+
+	// 5. Track Session
+	nativePFCannelsMu.Lock()
+	nativePFCannels[sessionID] = stopChan
+	nativePFCannelsMu.Unlock()
 
 	entry := PortForwardSession{
 		ID:         sessionID,
@@ -1483,7 +1568,7 @@ func StartPortForward(c *gin.Context) {
 		Target:     req.Target,
 		LocalPort:  req.LocalPort,
 		RemotePort: req.RemotePort,
-		PID:        pid,
+		PID:        "native",
 		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -1494,7 +1579,7 @@ func StartPortForward(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "session": entry})
 }
 
-// ListPortForwards returns tracked kubectl port-forward sessions for a server.
+// ListPortForwards returns tracked port-forward sessions for a server.
 func ListPortForwards(c *gin.Context) {
 	id := c.Param("id")
 	var server models.Server
@@ -1510,7 +1595,7 @@ func ListPortForwards(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "sessions": sessions})
 }
 
-// StopPortForward terminates a tracked kubectl port-forward process.
+// StopPortForward terminates a tracked port-forward session.
 func StopPortForward(c *gin.Context) {
 	id := c.Param("id")
 	sessionID := c.Param("sessionId")
@@ -1520,21 +1605,13 @@ func StopPortForward(c *gin.Context) {
 		return
 	}
 
-	client, err := sshclient.GetOrCreate(server.ID, server.Host, server.Port, server.SSHUser, server.SSHKeyPath, server.SSHPassword, server.AuthType)
-	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ssh connect: " + err.Error()})
-		return
-	}
-
 	portForwardSessionsMu.Lock()
 	defer portForwardSessionsMu.Unlock()
 	sessions := portForwardSessions[server.ID]
 	idx := -1
-	var entry PortForwardSession
 	for i, s := range sessions {
 		if s.ID == sessionID {
 			idx = i
-			entry = s
 			break
 		}
 	}
@@ -1543,9 +1620,17 @@ func StopPortForward(c *gin.Context) {
 		return
 	}
 
-	killCmd := fmt.Sprintf("kill %s", entry.PID)
-	_, _, _ = client.RunCommand(killCmd)
+	// Native Kill
+	nativePFCannelsMu.Lock()
+	if ch, ok := nativePFCannels[sessionID]; ok {
+		close(ch)
+		delete(nativePFCannels, sessionID)
+		log.Printf("🛑 Native PortForward stopped: %s", sessionID)
+	}
+	nativePFCannelsMu.Unlock()
 
 	portForwardSessions[server.ID] = append(sessions[:idx], sessions[idx+1:]...)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
+
+
