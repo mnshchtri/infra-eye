@@ -24,8 +24,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
@@ -158,8 +158,8 @@ func getKubectlPath() (string, error) {
 	// Fallback for M1/M2 Mac Homebrew locations and Linux snap paths
 	fallbacks := []string{
 		"/opt/homebrew/bin/kubectl",
-		"/usr/local/bin/kubectl", 
-		"/usr/bin/kubectl", 
+		"/usr/local/bin/kubectl",
+		"/usr/bin/kubectl",
 		"/snap/bin/kubectl",
 		"/var/lib/snapd/snap/bin/kubectl",
 	}
@@ -190,7 +190,6 @@ func ensureLocalKubeConfig(server *models.Server) (string, error) {
 
 	return path, nil
 }
-
 
 // sudoPrefix returns the sudo prefix for kubectl commands when the SSH user is not root.
 // If the server has a password, it uses `echo 'pass' | sudo -S` for non-interactive sudo.
@@ -685,7 +684,7 @@ func TestK8sConnection(c *gin.Context) {
 	}
 
 	log.Printf("🧪 Testing K8s Connection: Host=%s, User=%s", req.Host, req.SSHUser)
-	
+
 	// Case 1: Direct Connection (No SSH Proxy)
 	if req.Host == "" {
 		clientset, err := k8s.GetK8sClient(req.KubeConfig)
@@ -700,8 +699,8 @@ func TestK8sConnection(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"success": true, 
-			"output": fmt.Sprintf("✅ Connected directly to Cluster API.\nKubernetes Version: %s\nPlatform: %s", ver.GitVersion, ver.Platform),
+			"success": true,
+			"output":  fmt.Sprintf("✅ Connected directly to Cluster API.\nKubernetes Version: %s\nPlatform: %s", ver.GitVersion, ver.Platform),
 		})
 		return
 	}
@@ -806,7 +805,7 @@ func ApplyKubectl(c *gin.Context) {
 
 			if apiVersion != "" && kind != "" && name != "" {
 				log.Printf("🔹 Native Dynamic Apply Triggered: %s %s/%s", kind, namespace, name)
-				
+
 				// Use Dynamic Client
 				dClient, err := k8s.GetDynamicClient(server.KubeConfig)
 				if err == nil {
@@ -822,9 +821,15 @@ func ApplyKubectl(c *gin.Context) {
 
 					// Map Kind to Resource (pluralize)
 					resource := strings.ToLower(kind) + "s"
-					if strings.HasSuffix(resource, "ys") { resource = resource[:len(resource)-2] + "ies" }
-					if kind == "Ingress" { resource = "ingresses" }
-					if kind == "StorageClass" { resource = "storageclasses" }
+					if strings.HasSuffix(resource, "ys") {
+						resource = resource[:len(resource)-2] + "ies"
+					}
+					if kind == "Ingress" {
+						resource = "ingresses"
+					}
+					if kind == "StorageClass" {
+						resource = "storageclasses"
+					}
 
 					gvr := schema.GroupVersionResource{
 						Group:    group,
@@ -1005,16 +1010,18 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 		var jobs, cjs int
 		var svcs, eps, ings int
 		var cms, secs, pvs, scs int
-		
-		var cpuTotal, cpuAllocatable, cpuUsage int64 // millicores
-		var memTotal, memAllocatable, memUsage int64 // bytes
+
+		var cpuTotal, cpuAllocatable, cpuUsage int64    // millicores
+		var memTotal, memAllocatable, memUsage int64    // bytes
 		var diskTotal, diskAllocatable, diskUsage int64 // bytes
-		
+
 		errs := make(map[string]string)
 
 		// Helper to capture errors
 		capture := func(key string, err error) {
-			if err != nil { errs[key] = err.Error() }
+			if err != nil {
+				errs[key] = err.Error()
+			}
 		}
 
 		// Nodes (cluster-scoped - always use empty string)
@@ -1356,21 +1363,21 @@ func DeleteKubectl(c *gin.Context) {
 			"Namespace": {"", "v1", "namespaces"}, "Service": {"", "v1", "services"},
 			"Endpoints": {"", "v1", "endpoints"}, "ConfigMap": {"", "v1", "configmaps"},
 			"Secret": {"", "v1", "secrets"}, "ServiceAccount": {"", "v1", "serviceaccounts"},
-			"PersistentVolume": {"", "v1", "persistentvolumes"},
+			"PersistentVolume":      {"", "v1", "persistentvolumes"},
 			"PersistentVolumeClaim": {"", "v1", "persistentvolumeclaims"},
-			"ResourceQuota": {"", "v1", "resourcequotas"},
-			"Deployment":  {"apps", "v1", "deployments"}, "ReplicaSet": {"apps", "v1", "replicasets"},
+			"ResourceQuota":         {"", "v1", "resourcequotas"},
+			"Deployment":            {"apps", "v1", "deployments"}, "ReplicaSet": {"apps", "v1", "replicasets"},
 			"StatefulSet": {"apps", "v1", "statefulsets"}, "DaemonSet": {"apps", "v1", "daemonsets"},
 			"Job": {"batch", "v1", "jobs"}, "CronJob": {"batch", "v1", "cronjobs"},
-			"Ingress": {"networking.k8s.io", "v1", "ingresses"},
-			"NetworkPolicy": {"networking.k8s.io", "v1", "networkpolicies"},
-			"StorageClass": {"storage.k8s.io", "v1", "storageclasses"},
-			"Role": {"rbac.authorization.k8s.io", "v1", "roles"},
-			"ClusterRole": {"rbac.authorization.k8s.io", "v1", "clusterroles"},
-			"RoleBinding": {"rbac.authorization.k8s.io", "v1", "rolebindings"},
-			"ClusterRoleBinding": {"rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
+			"Ingress":                 {"networking.k8s.io", "v1", "ingresses"},
+			"NetworkPolicy":           {"networking.k8s.io", "v1", "networkpolicies"},
+			"StorageClass":            {"storage.k8s.io", "v1", "storageclasses"},
+			"Role":                    {"rbac.authorization.k8s.io", "v1", "roles"},
+			"ClusterRole":             {"rbac.authorization.k8s.io", "v1", "clusterroles"},
+			"RoleBinding":             {"rbac.authorization.k8s.io", "v1", "rolebindings"},
+			"ClusterRoleBinding":      {"rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
 			"HorizontalPodAutoscaler": {"autoscaling", "v1", "horizontalpodautoscalers"},
-			"Event": {"", "v1", "events"},
+			"Event":                   {"", "v1", "events"},
 		}
 
 		// Normalize kind (Title-case)
@@ -1426,7 +1433,6 @@ func DeleteKubectl(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "output": stdout})
 }
-
 
 // StartPortForward starts a background native Go port-forward session.
 func StartPortForward(c *gin.Context) {
@@ -1532,7 +1538,7 @@ func StartPortForward(c *gin.Context) {
 	// 4. Run Port Forwarding in background
 	stopChan := make(chan struct{}, 1)
 	readyChan := make(chan struct{})
-	
+
 	sessionID := fmt.Sprintf("native-pf-%d", time.Now().UnixNano())
 
 	pf, err := portforward.NewOnAddresses(dialer, []string{"0.0.0.0"}, []string{fmt.Sprintf("%d:%d", req.LocalPort, req.RemotePort)}, stopChan, readyChan, io.Discard, io.Discard)
@@ -1632,5 +1638,3 @@ func StopPortForward(c *gin.Context) {
 	portForwardSessions[server.ID] = append(sessions[:idx], sessions[idx+1:]...)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
-
-
