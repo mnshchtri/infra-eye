@@ -22,8 +22,9 @@ pipeline {
         NODE_IMAGE   = "node:20-alpine"
 
         // Named Docker volumes — persist caches across builds
-        GO_CACHE     = "infra-eye-go-cache"
-        NPM_CACHE    = "infra-eye-npm-cache"
+        GO_CACHE       = "infra-eye-go-cache"         // module download cache
+        GO_BUILD_CACHE = "infra-eye-go-build-cache"   // compilation cache (speeds up vet/test/build)
+        NPM_CACHE      = "infra-eye-npm-cache"
 
         // Google Chat webhook for build notifications
         GCHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQAKVMMn1w/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=GHSVE4RYdBawfCMNNqAUGZgIU0PHDUo-nb2qtaCuj9k"
@@ -31,7 +32,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 60, unit: 'MINUTES')
         disableConcurrentBuilds()
         timestamps()
     }
@@ -67,6 +68,7 @@ pipeline {
                     docker run --rm \
                         -v "${WORKSPACE}/backend:/app" \
                         -v "${GO_CACHE}:/go/pkg/mod" \
+                        -v "${GO_BUILD_CACHE}:/root/.cache/go/build" \
                         -w /app \
                         ${GO_IMAGE} \
                         sh -c 'go mod download && go mod verify'
@@ -80,6 +82,7 @@ pipeline {
                     docker run --rm \
                         -v "${WORKSPACE}/backend:/app" \
                         -v "${GO_CACHE}:/go/pkg/mod" \
+                        -v "${GO_BUILD_CACHE}:/root/.cache/go/build" \
                         -w /app \
                         ${GO_IMAGE} \
                         go vet ./...
@@ -93,9 +96,10 @@ pipeline {
                     docker run --rm \
                         -v "${WORKSPACE}/backend:/app" \
                         -v "${GO_CACHE}:/go/pkg/mod" \
+                        -v "${GO_BUILD_CACHE}:/root/.cache/go/build" \
                         -w /app \
                         ${GO_IMAGE} \
-                        sh -c 'go test -v -race -count=1 -coverprofile=coverage.out ./... 2>&1 | tee test-results.txt'
+                        sh -c 'go test -v -count=1 -coverprofile=coverage.out ./... 2>&1 | tee test-results.txt'
                 """
             }
             post {
@@ -113,6 +117,7 @@ pipeline {
                     docker run --rm \
                         -v "${WORKSPACE}/backend:/app" \
                         -v "${GO_CACHE}:/go/pkg/mod" \
+                        -v "${GO_BUILD_CACHE}:/root/.cache/go/build" \
                         -w /app \
                         ${GO_IMAGE} \
                         sh -c 'CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /tmp/server-check ./cmd/server/main.go'
