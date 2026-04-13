@@ -1,0 +1,52 @@
+# Git metadata
+.git
+.gitignore
+.github
+.gitattributes
+
+# CI / IDE
+Jenkinsfile
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.*
+
+# Frontend generated output & deps (rebuilt inside Docker)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm/
+
+# Backend build artifacts (rebuilt inside Docker)
+backend/bin/
+backend/server
+*.exe
+*.out
+
+# Kubernetes / deployment configs
+k8s/
+*.kubeconfig
+kubeconfigs/
+shared_mcp/
+
+# Docs / scripts not needed in image
+README.md
+documentation.md
+Makefile
+dev.sh
+install.sh
+install-k8s.sh
+uninstall.sh
+reload.sh
+*.sh
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
