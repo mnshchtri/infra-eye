@@ -18,12 +18,15 @@ pipeline {
         GIT_SHA      = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
         IMAGE_TAG    = "${env.BRANCH_NAME ?: 'main'}-${GIT_SHA}"
 
-        GO_IMAGE     = "golang:1.22-alpine"
+        GO_IMAGE     = "golang:1.25-alpine"
         NODE_IMAGE   = "node:20-alpine"
 
         // Named Docker volumes — persist caches across builds
         GO_CACHE     = "infra-eye-go-cache"
         NPM_CACHE    = "infra-eye-npm-cache"
+
+        // Google Chat webhook for build notifications
+        GCHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQAKVMMn1w/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=GHSVE4RYdBawfCMNNqAUGZgIU0PHDUo-nb2qtaCuj9k"
     }
 
     options {
@@ -39,6 +42,14 @@ pipeline {
             steps {
                 checkout scm
                 sh 'git log --oneline -5'
+                // Notify Google Chat that the build has started
+                sh """
+                    curl -s -X POST '${GCHAT_WEBHOOK}' \
+                        -H 'Content-Type: application/json' \
+                        -d '{
+                            "text": "🔧 *CI STARTED*\\n*Job:* ${JOB_NAME} #${BUILD_NUMBER}\\n*Branch:* ${env.BRANCH_NAME ?: 'main'}\\n*Commit:* ${GIT_SHA}\\n*Link:* ${BUILD_URL}"
+                        }'
+                """
             }
         }
 
@@ -190,6 +201,13 @@ pipeline {
 ║  Build  : #${env.BUILD_NUMBER}
 ╚══════════════════════════════════════════╝
 """
+            sh """
+                curl -s -X POST '${GCHAT_WEBHOOK}' \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                        "text": "✅ *CI PASSED*\\n*Job:* ${JOB_NAME} #${BUILD_NUMBER}\\n*Branch:* ${env.BRANCH_NAME ?: 'main'}\\n*Commit:* ${GIT_SHA}\\n*Duration:* ${currentBuild.durationString}\\n*Link:* ${BUILD_URL}"
+                    }'
+            """
         }
         failure {
             echo """
@@ -200,6 +218,13 @@ pipeline {
 ║  Build  : #${env.BUILD_NUMBER}
 ╚══════════════════════════════════════════╝
 """
+            sh """
+                curl -s -X POST '${GCHAT_WEBHOOK}' \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                        "text": "❌ *CI FAILED*\\n*Job:* ${JOB_NAME} #${BUILD_NUMBER}\\n*Branch:* ${env.BRANCH_NAME ?: 'main'}\\n*Commit:* ${GIT_SHA}\\n*Duration:* ${currentBuild.durationString}\\n*Link:* ${BUILD_URL}console"
+                    }'
+            """
         }
         always {
             cleanWs()
