@@ -2,22 +2,26 @@
 // InfraEye — CI Pipeline (Continuous Integration Only)
 // Runs on every push / PR. Does NOT deploy or push images.
 //
-// Uses "docker run" inside sh steps instead of agent{docker{}}
-// so no Docker Pipeline plugin is required.
+// Designed for a local macOS Jenkins agent with Docker Desktop.
+// Uses explicit PATH to ensure docker/go/node are discoverable.
 // ============================================================
 pipeline {
     agent any
 
     // ── Environment ──────────────────────────────────────────
     environment {
+        // Extend PATH to cover Docker Desktop + Homebrew on both
+        // Intel (/usr/local) and Apple Silicon (/opt/homebrew) Macs.
+        PATH = "/usr/local/bin:/opt/homebrew/bin:/usr/local/go/bin:/Applications/Docker.app/Contents/Resources/bin:${env.PATH}"
+
         IMAGE_NAME   = "infra-eye"
         GIT_SHA      = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-        IMAGE_TAG    = "${env.BRANCH_NAME ?: 'unknown'}-${GIT_SHA}"
+        IMAGE_TAG    = "${env.BRANCH_NAME ?: 'main'}-${GIT_SHA}"
 
         GO_IMAGE     = "golang:1.22-alpine"
         NODE_IMAGE   = "node:20-alpine"
 
-        // Cache volumes (speeds up repeated runs)
+        // Named Docker volumes — persist caches across builds
         GO_CACHE     = "infra-eye-go-cache"
         NPM_CACHE    = "infra-eye-npm-cache"
     }
@@ -38,7 +42,14 @@ pipeline {
             }
         }
 
-        // ── Stage 2: Backend CI (runs inside golang container) ─
+        // ── Stage 2: Sanity check ─────────────────────────────
+        stage('Verify: Docker') {
+            steps {
+                sh 'docker version --format "Docker {{.Client.Version}}"'
+            }
+        }
+
+        // ── Stage 3: Backend CI ───────────────────────────────
         stage('Backend: Download Deps') {
             steps {
                 sh """
@@ -99,7 +110,7 @@ pipeline {
             }
         }
 
-        // ── Stage 3: Frontend CI (runs inside node container) ──
+        // ── Stage 4: Frontend CI ──────────────────────────────
         stage('Frontend: Install') {
             steps {
                 sh """
@@ -145,14 +156,14 @@ pipeline {
             }
         }
 
-        // ── Stage 4: Docker Image Build Validation ────────────
+        // ── Stage 5: Docker Image Build Validation ────────────
         stage('Docker: Build Validation') {
             steps {
                 sh """
                     docker build \
                         --no-cache \
                         --label "git.commit=${GIT_SHA}" \
-                        --label "git.branch=${env.BRANCH_NAME ?: 'unknown'}" \
+                        --label "git.branch=${env.BRANCH_NAME ?: 'main'}" \
                         --label "build.number=${BUILD_NUMBER}" \
                         -t ${IMAGE_NAME}:ci-${IMAGE_TAG} \
                         -f Dockerfile \
@@ -174,7 +185,7 @@ pipeline {
             echo """
 ╔══════════════════════════════════════════╗
 ║  ✅  CI PASSED — ${IMAGE_NAME}:${IMAGE_TAG}
-║  Branch : ${env.BRANCH_NAME ?: 'unknown'}
+║  Branch : ${env.BRANCH_NAME ?: 'main'}
 ║  Commit : ${GIT_SHA}
 ║  Build  : #${env.BUILD_NUMBER}
 ╚══════════════════════════════════════════╝
@@ -184,7 +195,7 @@ pipeline {
             echo """
 ╔══════════════════════════════════════════╗
 ║  ❌  CI FAILED — ${IMAGE_NAME}:${IMAGE_TAG}
-║  Branch : ${env.BRANCH_NAME ?: 'unknown'}
+║  Branch : ${env.BRANCH_NAME ?: 'main'}
 ║  Commit : ${GIT_SHA}
 ║  Build  : #${env.BUILD_NUMBER}
 ╚══════════════════════════════════════════╝
