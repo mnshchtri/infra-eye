@@ -272,8 +272,27 @@ export function Servers() {
 
             {form.auth_type === 'key' ? (
               <div className="input-group">
-                <label className="input-label">Private Key Path</label>
-                <input className="input" value={form.ssh_key_path} onChange={e => setForm({ ...form, ssh_key_path: e.target.value })} placeholder="~/.ssh/id_rsa" />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label className="input-label" style={{ marginBottom: 0 }}>SSH Private Key</label>
+                  <label style={{ fontSize: 10, color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600, background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
+                    Upload Key File
+                    <input type="file" style={{ display: 'none' }} onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => setForm({ ...form, ssh_key_path: ev.target?.result as string });
+                        reader.readAsText(file);
+                      }
+                    }} />
+                  </label>
+                </div>
+                <textarea 
+                  className="input" 
+                  value={form.ssh_key_path} 
+                  onChange={e => setForm({ ...form, ssh_key_path: e.target.value })} 
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----" 
+                  style={{ height: 120, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 10, whiteSpace: 'pre' }} 
+                />
               </div>
             ) : (
               <div className="input-group">

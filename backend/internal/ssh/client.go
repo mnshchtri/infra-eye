@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,16 +67,23 @@ func NewClient(serverID uint, host string, port int, user, keyPath, password, au
 	case "password":
 		authMethods = append(authMethods, gossh.Password(password))
 	default: // "key"
+		var key []byte
+		var err error
 		if keyPath == "" {
 			homeDir, _ := os.UserHomeDir()
-			keyPath = homeDir + "/.ssh/id_rsa"
+			key, err = os.ReadFile(homeDir + "/.ssh/id_rsa")
+		} else if strings.Contains(keyPath, "-----BEGIN") {
+			key = []byte(keyPath)
+		} else {
+			key, err = os.ReadFile(keyPath)
 		}
-		key, err := os.ReadFile(keyPath)
+
 		if err != nil {
 			return nil, fmt.Errorf("read SSH key: %w", err)
 		}
 		signer, err := gossh.ParsePrivateKey(key)
 		if err != nil {
+
 			return nil, fmt.Errorf("parse SSH key: %w", err)
 		}
 		authMethods = append(authMethods, gossh.PublicKeys(signer))
