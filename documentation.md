@@ -23,6 +23,7 @@ The primary dashboard for server management.
 - **Telemetry**: Visualized using high-performance Recharts. CPU usage is broken down by core if needed.
 - **Log Tailer**: Uses `tail -f` over SSH to stream any log file (Syslog, Auth, or custom App logs) directly to your browser.
 - **Smart Tags**: Group servers by environment (`prod`, `staging`), location, or role.
+- **Secure Authentication**: Manage server credentials safely by uploading or pasting SSH Private Keys (or using interactive passwords) directly through the UI, ensuring containers have the necessary access without relying on host-filesystem mounts.
 
 ### 2. Kubernetes 'Lens' Resource Explorer
 A powerful, browser-based alternative to `kubectl`.
@@ -47,6 +48,11 @@ The most powerful feature of InfraEye. It allows you to define "If-Then" logic f
 Powered by OpenAI GPT-4o or Google Gemini.
 - **Contextual Awareness**: When you ask "Why is my server slow?", Netra automatically queries the latest metrics and logs for that server before answering.
 - **Remediation Suggestions**: Netra doesn't just explain errors; it provides the exact shell commands to fix them.
+
+### 5. Secure Networking & VPNs
+When monitoring remote servers from cloud environments (like Azure or AWS), standard networking often blocks private IP access. InfraEye includes a built-in **VPN & Networking** module to seamlessly establish secure connections:
+- **Tailscale & ZeroTier**: Provides auto-generated installation commands using your Auth Key/Network ID, allowing target servers to quickly join your mesh network.
+- **OpenVPN Integration**: Allows you to upload or paste a `.ovpn` configuration file directly into the UI. InfraEye can generate a base64-encoded shell script to auto-provision and connect remote Linux servers to your OpenVPN network instantly.
 
 ---
 

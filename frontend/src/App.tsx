@@ -9,6 +9,7 @@ import { AlertRules } from './pages/AlertRules'
 import { Settings } from './pages/Settings'
 import { Kubernetes } from './pages/Kubernetes'
 import { DevTools } from './pages/DevTools'
+import { VPN } from './pages/VPN'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="kubernetes" element={<Kubernetes />} />
           <Route path="devtools" element={<DevTools />} />
+          <Route path="vpn" element={<VPN />} />
         </Route>
       </Routes>
     </BrowserRouter>
