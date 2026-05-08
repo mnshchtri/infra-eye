@@ -3,11 +3,11 @@
 # Start core infrastructure in Docker (DB, Redis)
 # This uses official pre-built images, avoiding DNS/build issues
 infra:
-	docker-compose up postgres redis -d
+	docker compose up postgres redis -d
 
 # Stop infrastructure
 infra-down:
-	docker-compose down
+	docker compose down
 
 # Run backend dev server
 backend:

@@ -387,7 +387,7 @@ export function AIAssistant() {
         </header>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 140px' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
             {messages.length <= 1 && (
               <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid #18181b', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -421,7 +421,7 @@ export function AIAssistant() {
         </div>
 
         <div className="ai-input-wrapper" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', pointerEvents: 'auto' }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', pointerEvents: 'auto' }}>
             {selectedImage && (
               <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '16px 16px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
                 <img src={selectedImage} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />

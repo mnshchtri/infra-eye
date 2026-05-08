@@ -330,7 +330,7 @@ export function Dashboard() {
       </div>
 
       {!loading && servers.length > 0 && (
-        <div className="card fade-up" style={{ marginBottom: 32, padding: 40 }}>
+        <div className="card fade-up" style={{ marginBottom: 32, padding: '32px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
             <div style={{ width: 44, height: 44, borderRadius: 0, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-bright)' }}>
               <Activity size={20} color="var(--brand-primary)" />
@@ -340,7 +340,7 @@ export function Dashboard() {
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resource utilization across connected nodes</p>
             </div>
           </div>
-          <div style={{ height: 350, marginTop: 32 }}>
+          <div style={{ height: 450, marginTop: 32 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />

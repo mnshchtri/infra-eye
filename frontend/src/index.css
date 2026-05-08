@@ -229,7 +229,7 @@ p { font-size: var(--text-base); color: var(--text-secondary); margin: 0; }
 .page { 
   flex: 1; overflow-y: auto; padding: 24px 32px; 
   display: flex; flex-direction: column; 
-  max-width: 1400px; margin: 0 auto; width: 100%;
+  max-width: 1800px; margin: 0 auto; width: 100%;
 }
 
 @media (max-width: 768px) {
@@ -597,7 +597,7 @@ p { font-size: var(--text-base); color: var(--text-secondary); margin: 0; }
 /* Grids */
 .grid-stats { 
   display: grid; 
-  grid-template-columns: repeat(3, 1fr); 
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
   gap: 20px; 
   margin-bottom: 32px; 
 }
@@ -613,7 +613,7 @@ p { font-size: var(--text-base); color: var(--text-secondary); margin: 0; }
 /* 4-column stat grid (ServerDetail overview) */
 .grid-stats-4 {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
   margin-bottom: 28px;
 }

@@ -7,7 +7,7 @@ echo "🚀 Starting InfraEye Full Stack (Development)..."
 
 # Ensure core infra is running (DB, Redis only — NOT mcp-server via docker)
 echo "🐘 Starting infrastructure (DB + Redis)..."
-docker-compose up -d postgres redis
+docker compose up -d postgres redis
 
 # Ensure shared_mcp dir exists for the backend to write into
 mkdir -p ./shared_mcp
@@ -37,7 +37,7 @@ else
   echo "   Falling back to Docker container (may not reach localhost K8s on macOS)."
   echo "   To fix, install natively:"
   echo "   go install github.com/containers/kubernetes-mcp-server/cmd/kubernetes-mcp-server@latest"
-  docker-compose up -d mcp-init mcp-server
+  docker compose up -d mcp-init mcp-server
 fi
 
 # ── Backend ──────────────────────────────────────────────────────────────────
