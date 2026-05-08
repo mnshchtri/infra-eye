@@ -39,17 +39,18 @@ const CHART_COLORS = {
 
 const StatCard = memo(({ label, value, icon: Icon, color, unit }: any) => (
   <div className="card stat-card" style={{ padding: '20px 24px', border: '1px solid var(--border)' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
       <div style={{ 
         width: 36, height: 36, borderRadius: 0, 
         background: 'transparent', border: `1px solid var(--border-bright)`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0
       }}>
         <Icon size={16} color="var(--brand-primary)" />
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ 
-          fontSize: value.length > 8 ? 18 : 22, 
+          fontSize: value.length > 8 ? 16 : 20, 
           fontWeight: 800, 
           color: 'var(--text-primary)', 
           fontFamily: 'var(--font-mono)',
@@ -58,7 +59,7 @@ const StatCard = memo(({ label, value, icon: Icon, color, unit }: any) => (
           {value}
           {unit && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>{unit}</span>}
         </div>
-        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{label}</div>
+        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
       </div>
     </div>
     <div style={{ height: 2, background: 'var(--bg-elevated)', borderRadius: 0, overflow: 'hidden' }}>
