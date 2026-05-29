@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
-  Boxes, Search, X, Terminal, Settings
+  Boxes, Search, X, Terminal, Settings, Database
 } from 'lucide-react'
 import { useUIStore } from '../store/uiStore'
 import {
@@ -23,6 +23,10 @@ interface ServerData {
 interface MetricData {
   cpu_percent: number; mem_percent: number; disk_percent: number;
   net_rx_mbps: number; net_tx_mbps: number; load_avg_1: number;
+}
+interface ResourceData {
+  id: number; name: string; status: string; protocol: string; host: string;
+  port: number; resource_type: string; use_gateway: boolean;
 }
 
 const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) => {
@@ -167,6 +171,7 @@ export function Dashboard() {
   const { darkMode } = useUIStore()
   const [servers, setServers] = useState<ServerData[]>([])
   const [metrics, setMetrics] = useState<Record<number, MetricData>>({})
+  const [resources, setResources] = useState<ResourceData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -176,6 +181,10 @@ export function Dashboard() {
       const serversRes = await api.get('/api/servers')
       const list = Array.isArray(serversRes.data) ? serversRes.data : []
       setServers(list)
+
+      const resourcesRes = await api.get('/api/resources')
+      const resourcesList = Array.isArray(resourcesRes.data) ? resourcesRes.data : []
+      setResources(resourcesList)
       
       // Stop full-page loading once servers are listed
       setLoading(false)
@@ -188,7 +197,7 @@ export function Dashboard() {
         } catch { /* no metrics yet */ }
       })
     } catch (err) {
-      console.error('Failed to load servers', err)
+      console.error('Failed to load dashboard data', err)
       setLoading(false)
     }
   }
@@ -327,7 +336,48 @@ export function Dashboard() {
         <StatCard label="Status Online" value={loading ? 'N/A' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
         <StatCard label="Status Offline" value={loading ? 'N/A' : offline} icon={AlertTriangle} color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'} />
         <StatCard label="Global Avg CPU" value={loading ? 'N/A' : avgCpu} icon={TrendingUp} color="var(--info)" />
+        <StatCard label="Resources" value={loading ? 'N/A' : resources.length} icon={Database} color="var(--brand-primary)" delta={loading ? undefined : `${resources.filter(r => r.status === 'online').length} online`} />
       </div>
+
+      {!loading && resources.length > 0 && (
+        <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 22 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Resource Inventory</h3>
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>Click any resource to manage user access and audit logs.</p>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/resources')}><span className="hidden-mobile">View full resources</span><span className="show-mobile-only">Resources</span></button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="k-table" style={{ minWidth: 680 }}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Protocol</th>
+                  <th>Host</th>
+                  <th>Port</th>
+                  <th>Status</th>
+                  <th>Users</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resources.slice(0, 4).map((resource) => (
+                  <tr key={resource.id} onClick={() => navigate(`/resources/${resource.id}`)} style={{ cursor: 'pointer' }}>
+                    <td>{resource.name}</td>
+                    <td>{resource.resource_type}</td>
+                    <td>{resource.protocol}</td>
+                    <td>{resource.host}</td>
+                    <td>{resource.port || '—'}</td>
+                    <td style={{ textTransform: 'capitalize' }}>{resource.status}</td>
+                    <td>{resource.use_gateway ? 'Gateway' : 'Direct'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {!loading && servers.length > 0 && (
         <div className="card fade-up" style={{ marginBottom: 32, padding: '32px 24px' }}>

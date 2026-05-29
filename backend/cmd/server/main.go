@@ -88,6 +88,19 @@ func main() {
 		api.POST("/servers/:id/diagnose", middleware.RequireRole("admin", "devops"), handlers.DiagnoseServer)
 		api.POST("/servers/test-k8s", middleware.RequireRole("admin", "devops"), handlers.TestK8sConnection)
 
+		// ── Resources ───────────────────────────────────────────
+		api.GET("/resources", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResources)
+		api.POST("/resources", middleware.RequireRole("admin", "devops"), handlers.CreateResource)
+		api.GET("/resources/:id", middleware.RequireRole("admin", "devops", "trainee"), handlers.GetResource)
+		api.PUT("/resources/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateResource)
+		api.DELETE("/resources/:id", middleware.RequireRole("admin"), handlers.DeleteResource)
+		api.POST("/resources/:id/test", middleware.RequireRole("admin", "devops"), handlers.TestResourceConnection)
+		api.GET("/resources/:id/access", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceAccess)
+		api.POST("/resources/:id/access", middleware.RequireRole("admin", "devops"), handlers.CreateResourceAccess)
+		api.PUT("/resources/:id/access/:accessId", middleware.RequireRole("admin", "devops"), handlers.UpdateResourceAccess)
+		api.DELETE("/resources/:id/access/:accessId", middleware.RequireRole("admin", "devops"), handlers.DeleteResourceAccess)
+		api.GET("/resources/:id/audit", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceAudit)
+
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)
 		api.GET("/servers/:id/metrics/latest", handlers.GetLatestMetric)

@@ -41,6 +41,48 @@ type Server struct {
 	OS           string         `json:"os"`           // linux, darwin, unknown
 }
 
+type Resource struct {
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	Name         string         `gorm:"not null" json:"name"`
+	Description  string         `json:"description"`
+	Tags         string         `json:"tags"`
+	ResourceType string         `gorm:"default:'generic'" json:"resource_type"`
+	Protocol     string         `gorm:"default:'tcp'" json:"protocol"`
+	Host         string         `json:"host"`
+	Port         int            `json:"default:0" json:"port"`
+	Username     string         `json:"username"`
+	Password     string         `json:"-"` // encrypted
+	Secret       string         `json:"-"` // token or api key
+	AuthType     string         `gorm:"default:'none'" json:"auth_type"`
+	UseGateway   bool           `gorm:"default:true" json:"use_gateway"`
+	Status       string         `gorm:"default:'unknown'" json:"status"`
+	Metadata     string         `gorm:"type:text" json:"metadata"`
+}
+
+type ResourceAccess struct {
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	ResourceID  uint           `gorm:"index;not null" json:"resource_id"`
+	UserID      uint           `gorm:"index;not null" json:"user_id"`
+	AccessLevel string         `gorm:"default:'read'" json:"access_level"`
+	User        User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+type ResourceAudit struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	ResourceID  uint      `gorm:"index;not null" json:"resource_id"`
+	UserID      uint      `gorm:"index" json:"user_id"`
+	Action      string    `gorm:"not null" json:"action"`
+	Details     string    `gorm:"type:text" json:"details"`
+	PerformedBy string    `json:"performed_by"`
+}
+
 type Metric struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	ServerID     uint      `gorm:"index;not null" json:"server_id"`

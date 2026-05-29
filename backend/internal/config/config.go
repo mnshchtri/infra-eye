@@ -9,21 +9,23 @@ import (
 )
 
 type Config struct {
-	Port            string
-	Env             string
-	DBDSN           string
-	RedisAddr       string
-	JWTSecret       string
-	OpenAIKey       string
-	GeminiKey       string
-	DeepSeekKey     string
-	OpenRouterKey   string
-	MistralKey      string
-	MetricsInterval      int
-	LogMaxLines          int
-	GoogleChatWebhookURL string
-	SlackWebhookURL      string
-	MCPServerURL         string
+	Port                  string
+	Env                   string
+	DBDSN                 string
+	RedisAddr             string
+	JWTSecret             string
+	OpenAIKey             string
+	GeminiKey             string
+	DeepSeekKey           string
+	OpenRouterKey         string
+	MistralKey            string
+	ResourceGatewayURL    string
+	ResourceGatewayToken  string
+	MetricsInterval       int
+	LogMaxLines           int
+	GoogleChatWebhookURL  string
+	SlackWebhookURL       string
+	MCPServerURL          string
 }
 
 var C Config
@@ -49,7 +51,9 @@ func Load() {
 		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
 		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", ""),
 		SlackWebhookURL:        getEnv("SLACK_WEBHOOK_URL", ""),
-		MCPServerURL:           getEnv("MCP_SERVER_URL", "http://localhost:8090"),
+		ResourceGatewayURL:    getEnv("RESOURCE_GATEWAY_URL", ""),
+		ResourceGatewayToken:  getEnv("RESOURCE_GATEWAY_TOKEN", ""),
+		MCPServerURL:          getEnv("MCP_SERVER_URL", "http://localhost:8090"),
 	}
 }
 

@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
-  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield
+  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -31,6 +31,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Infrastructure',
     items: [
       { to: '/kubernetes', icon: KubernetesIcon,  label: 'Kubernetes',  action: 'use-kubectl' },
+      { to: '/resources',  icon: Database,        label: 'Resources',   action: 'manage-resources' },
       { to: '/alerts',     icon: Bell,            label: 'Alert Rules', action: 'view-alerts' },
       { to: '/vpn',        icon: Shield,          label: 'VPN Tunnel' },
     ]

@@ -32,6 +32,9 @@ func Connect() {
 	if err := DB.AutoMigrate(
 		&models.User{},
 		&models.Server{},
+		&models.Resource{},
+		&models.ResourceAccess{},
+		&models.ResourceAudit{},
 		&models.Metric{},
 		&models.LogEntry{},
 		&models.AlertRule{},

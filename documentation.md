@@ -31,7 +31,14 @@ A powerful, browser-based alternative to `kubectl`.
 - **Resource Maps**: Visualize the relationship between Services -> Deployments -> Pods.
 - **Event Streaming**: Listen to cluster-wide events in real-time to catch "CrashLoopBackOff" or "ImagePullBackOff" errors instantly.
 
-### 3. Self-Healing Engine (Automation)
+### 3. Resource Catalog & Secure Gateway Access
+InfraEye now includes a dedicated **Resources** page for managing databases and other internal services.
+- **First-class resource entries**: Add Postgres, MySQL, Redis, HTTP/S, or generic TCP services with host, port, and metadata.
+- **Secure gateway connectivity**: Resources can be tested and accessed through a configured gateway URL and token, eliminating the need to expose SSH directly on each target.
+- **Credential support**: Store usernames, passwords, and API secrets safely and use them only when testing or validating connectivity.
+- **Status monitoring**: Watch resource status changes and verify reachability from the backend without opening additional public ports.
+
+### 4. Self-Healing Engine (Automation)
 The most powerful feature of InfraEye. It allows you to define "If-Then" logic for infrastructure.
 - **Rule Structure (XML)**:
   ```xml
@@ -53,6 +60,7 @@ Powered by OpenAI GPT-4o or Google Gemini.
 When monitoring remote servers from cloud environments (like Azure or AWS), standard networking often blocks private IP access. InfraEye includes a built-in **VPN & Networking** module to seamlessly establish secure connections:
 - **Tailscale & ZeroTier**: Provides auto-generated installation commands using your Auth Key/Network ID, allowing target servers to quickly join your mesh network.
 - **OpenVPN Integration**: Allows you to upload or paste a `.ovpn` configuration file directly into the UI. InfraEye can generate a base64-encoded shell script to auto-provision and connect remote Linux servers to your OpenVPN network instantly.
+- **Gateway-backed resource access**: Resources like databases and internal services can be reached via the configured gateway URL and token, preventing direct exposure of SSH or service ports on your internal network.
 
 ---
 

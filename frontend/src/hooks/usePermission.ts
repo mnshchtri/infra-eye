@@ -8,6 +8,7 @@ export type PermissionAction =
   | 'use-kubectl'
   | 'use-ai'
   | 'manage-alerts'
+  | 'manage-resources'
   | 'manage-users'
   | 'view-alerts'
   | 'view-settings'
@@ -31,6 +32,8 @@ export function usePermission() {
       case 'use-ai':
         return ['admin', 'devops'].includes(role)
       case 'manage-alerts':
+        return ['admin', 'devops'].includes(role)
+      case 'manage-resources':
         return ['admin', 'devops'].includes(role)
       case 'view-alerts':
         return ['admin', 'devops', 'trainee'].includes(role)

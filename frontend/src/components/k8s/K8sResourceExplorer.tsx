@@ -62,7 +62,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [editingYaml, setEditingYaml] = useState<{ open: boolean; content: string; name?: string; ns?: string; kind?: string }>({ open: false, content: '' })
   const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; pod?: string; ns?: string; container?: string } | null>(null)
   const [showPortForward, setShowPortForward] = useState(false)
-  const [pfTarget, setPfTarget] = useState<{ ns?: string; target?: string; port?: string }>({})
+  const [pfTarget, setPfTarget] = useState<{ ns?: string; target?: string; port?: string; suggestedLocal?: string }>({})
   const [portForwards, setPortForwards] = useState<any[]>([])
 
   const openPortForward = (ns: string, target: string, port?: string) => {

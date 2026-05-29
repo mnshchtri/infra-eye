@@ -7,6 +7,8 @@ import { ServerDetail } from './pages/ServerDetail'
 import { AIAssistant } from './pages/AIAssistant'
 import { AlertRules } from './pages/AlertRules'
 import { Settings } from './pages/Settings'
+import { Resources } from './pages/Resources'
+import { ResourceDetail } from './pages/ResourceDetail'
 import { Kubernetes } from './pages/Kubernetes'
 import { DevTools } from './pages/DevTools'
 import { VPN } from './pages/VPN'
@@ -27,6 +29,8 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="servers" element={<Servers />} />
           <Route path="servers/:id" element={<ServerDetail />} />
+          <Route path="resources" element={<Resources />} />
+          <Route path="resources/:id" element={<ResourceDetail />} />
           <Route path="logs" element={<Navigate to="/" />} /> {/* Redirects to select a server */}
           <Route path="terminal" element={<Navigate to="/" />} />
           <Route path="kubectl" element={<Navigate to="/" />} />
