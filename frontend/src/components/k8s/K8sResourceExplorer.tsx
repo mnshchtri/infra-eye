@@ -66,7 +66,8 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [portForwards, setPortForwards] = useState<any[]>([])
 
   const openPortForward = (ns: string, target: string, port?: string) => {
-    setPfTarget({ ns, target, port });
+    const suggestedLocal = Math.floor(Math.random() * (9999 - 8000 + 1) + 8000).toString();
+    setPfTarget({ ns, target, port, suggestedLocal });
     setShowPortForward(true);
   }
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)

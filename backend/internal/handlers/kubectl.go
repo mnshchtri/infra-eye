@@ -1440,15 +1440,15 @@ func StartPortForward(c *gin.Context) {
 	var req struct {
 		Namespace  string `json:"namespace" binding:"required"`
 		Target     string `json:"target" binding:"required"` // e.g. svc/my-service or pod/my-pod
-		LocalPort  int    `json:"local_port" binding:"required"`
+		LocalPort  int    `json:"local_port"`
 		RemotePort int    `json:"remote_port" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if req.LocalPort <= 0 || req.RemotePort <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ports must be positive integers"})
+	if req.RemotePort <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "remote port must be a positive integer"})
 		return
 	}
 
@@ -1556,6 +1556,10 @@ func StartPortForward(c *gin.Context) {
 	// Wait for readiness or timeout
 	select {
 	case <-readyChan:
+		ports, err := pf.GetPorts()
+		if err == nil && len(ports) > 0 {
+			req.LocalPort = int(ports[0].Local)
+		}
 		log.Printf("✅ Native PortForward ready: %s (%d:%d)", sessionID, req.LocalPort, req.RemotePort)
 	case <-time.After(10 * time.Second):
 		close(stopChan)
