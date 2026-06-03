@@ -11,7 +11,13 @@ import (
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/resources"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
+
+type queryRequest struct {
+	SQL string `json:"sql" binding:"required"`
+}
 
 type resourceRequest struct {
 	Name         string `json:"name" binding:"required"`
@@ -26,6 +32,7 @@ type resourceRequest struct {
 	Secret       string `json:"secret"`
 	AuthType     string `json:"auth_type"`
 	UseGateway   *bool  `json:"use_gateway"`
+	Database     string `json:"database"`
 }
 
 type resourceAccessRequest struct {
@@ -80,6 +87,7 @@ func CreateResource(c *gin.Context) {
 		AuthType:     req.AuthType,
 		UseGateway:   useGateway,
 		Status:       "unknown",
+		Database:     req.Database,
 	}
 
 	if err := db.DB.Create(&resource).Error; err != nil {
@@ -124,6 +132,7 @@ func UpdateResource(c *gin.Context) {
 	if req.UseGateway != nil {
 		resource.UseGateway = *req.UseGateway
 	}
+	resource.Database = req.Database
 
 	if err := db.DB.Save(&resource).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("update resource: %v", err)})
@@ -219,7 +228,7 @@ func CreateResourceAccess(c *gin.Context) {
 		return
 	}
 
-	logResourceAudit(c, uint(resourceID), req.UserID, "grant_access", "granted access level: "+req.AccessLevel)
+	logResourceAudit(c, uint(resourceID), req.UserID, "grant_access", gin.H{"access_level": req.AccessLevel, "message": "granted access level"})
 	c.JSON(http.StatusCreated, entry)
 }
 
@@ -248,7 +257,7 @@ func UpdateResourceAccess(c *gin.Context) {
 		return
 	}
 
-	logResourceAudit(c, entry.ResourceID, entry.UserID, "update_access", "updated access level to: "+req.AccessLevel)
+	logResourceAudit(c, entry.ResourceID, entry.UserID, "update_access", gin.H{"access_level": req.AccessLevel, "message": "updated access level"})
 	c.JSON(http.StatusOK, entry)
 }
 
@@ -270,7 +279,7 @@ func DeleteResourceAccess(c *gin.Context) {
 		return
 	}
 
-	logResourceAudit(c, entry.ResourceID, entry.UserID, "revoke_access", "revoked user access")
+	logResourceAudit(c, entry.ResourceID, entry.UserID, "revoke_access", gin.H{"status": "revoked", "message": "revoked user access"})
 	c.JSON(http.StatusOK, gin.H{"message": "access revoked"})
 }
 
@@ -286,8 +295,22 @@ func ListResourceAudit(c *gin.Context) {
 		return
 	}
 
+	limitStr := c.DefaultQuery("limit", "200")
+	limit, _ := strconv.Atoi(limitStr)
+	since := c.Query("since")
+	until := c.Query("until")
+
+	query := db.DB.Where("resource_id = ?", resourceID)
+
+	if since != "" {
+		query = query.Where("created_at >= ?", since)
+	}
+	if until != "" {
+		query = query.Where("created_at <= ?", until)
+	}
+
 	var audits []models.ResourceAudit
-	if err := db.DB.Where("resource_id = ?", resourceID).Order("created_at desc").Limit(200).Find(&audits).Error; err != nil {
+	if err := query.Order("created_at desc").Limit(limit).Find(&audits).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to load audit logs: %v", err)})
 		return
 	}
@@ -299,14 +322,15 @@ func ensureResourceTables() error {
 	return db.DB.AutoMigrate(&models.ResourceAccess{}, &models.ResourceAudit{})
 }
 
-func logResourceAudit(c *gin.Context, resourceID, userID uint, action, details string) {
+func logResourceAudit(c *gin.Context, resourceID, userID uint, action string, details interface{}) {
+	detailsJSON, _ := json.Marshal(details)
 	username, _ := c.Get("username")
 	performedBy, _ := username.(string)
 	audit := models.ResourceAudit{
 		ResourceID:  resourceID,
 		UserID:      userID,
 		Action:      action,
-		Details:     details,
+		Details:     string(detailsJSON),
 		PerformedBy: performedBy,
 	}
 	db.DB.Create(&audit)
@@ -348,4 +372,95 @@ func TestResourceConnection(c *gin.Context) {
 
 	db.DB.Model(&resource).Update("status", status)
 	c.JSON(http.StatusOK, gin.H{"status": status, "message": "resource connection verified"})
+}
+
+func QueryResource(c *gin.Context) {
+	id := c.Param("id")
+	var resource models.Resource
+	if err := db.DB.First(&resource, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "resource not found"})
+		return
+	}
+
+	var req queryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Only support Postgres for now
+	if !strings.EqualFold(resource.Protocol, "postgres") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only postgres protocol is supported for querying currently"})
+		return
+	}
+
+	dbName := resource.Database
+	if dbName == "" {
+		dbName = "postgres"
+	}
+	// Build DSN
+	// If the user is using host.docker.internal, it should work from the container.
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		resource.Username, resource.Password, resource.Host, resource.Port, dbName)
+
+	// Use a temporary GORM instance to execute
+	targetDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("connect to target: %v", err)})
+		return
+	}
+	sqlDB, _ := targetDB.DB()
+	defer sqlDB.Close()
+
+	// Execute query
+	query := strings.TrimSpace(req.SQL)
+	isSelect := strings.HasPrefix(strings.ToUpper(query), "SELECT")
+
+	if isSelect {
+		rows, err := sqlDB.Query(query)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("query failed: %v", err)})
+			return
+		}
+		defer rows.Close()
+
+		columns, _ := rows.Columns()
+		var result []map[string]interface{}
+
+		for rows.Next() {
+			values := make([]interface{}, len(columns))
+			valuePtrs := make([]interface{}, len(columns))
+			for i := range columns {
+				valuePtrs[i] = &values[i]
+			}
+
+			if err := rows.Scan(valuePtrs...); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("scan failed: %v", err)})
+				return
+			}
+
+			row := make(map[string]interface{})
+			for i, col := range columns {
+				val := values[i]
+				b, ok := val.([]byte)
+				if ok {
+					row[col] = string(b)
+				} else {
+					row[col] = val
+				}
+			}
+			result = append(result, row)
+		}
+		c.JSON(http.StatusOK, gin.H{"type": "select", "columns": columns, "rows": result})
+	} else {
+		res, err := sqlDB.Exec(query)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("execution failed: %v", err)})
+			return
+		}
+		affected, _ := res.RowsAffected()
+		c.JSON(http.StatusOK, gin.H{"type": "exec", "rows_affected": affected})
+	}
+
+	logResourceAudit(c, uint(resource.ID), 0, "query_resource", gin.H{"sql": query, "message": "executed sql query"})
 }

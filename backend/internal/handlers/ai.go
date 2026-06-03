@@ -138,8 +138,12 @@ func AIChat(c *gin.Context) {
 	systemCtx := buildContext(req.ServerID)
 	fullCtx := systemCtx + historyCtx
 
+	// Fetch user for personal keys
+	var user models.User
+	db.DB.First(&user, uID)
+
 	// 4. Get AI Response
-	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType, req.Provider)
+	answer := askAI(fullCtx, req.Question, req.ImageBase64, req.ImageMimeType, req.Provider, &user)
 
 	// 5. Save Assistant Response
 	assistantMsg := models.ChatMessage{
@@ -390,37 +394,42 @@ The user will see an "▶ Execute" button. After they click it, the output will 
 	return ctx
 }
 
-func askAI(systemContext, question, imageBase64, imageMime, provider string) string {
+func askAI(systemContext, question, imageBase64, imageMime, provider string, user *models.User) string {
 	
-	// Check user selected provider
-	if provider == "openrouter" && config.C.OpenRouterKey != "" {
-		return askOpenRouter(systemContext, question)
-	}
-	if provider == "deepseek" && config.C.DeepSeekKey != "" {
-		return askDeepSeek(systemContext, question)
-	}
-	if provider == "google" && config.C.GeminiKey != "" {
-		return askGemini(systemContext, question, imageBase64, imageMime)
-	}
-	if provider == "mistral" && config.C.MistralKey != "" {
-		return askMistral(systemContext, question, imageBase64, imageMime)
+	// Priority: 1. User specified provider + User key -> 2. User specified provider + Global key -> 3. Auto-fallback
+
+	// Google/Gemini
+	if provider == "google" || (provider == "" && (user.GeminiKey != "" || config.C.GeminiKey != "")) {
+		key := config.C.GeminiKey
+		if user.GeminiKey != "" { key = user.GeminiKey }
+		if key != "" { return askGemini(systemContext, question, imageBase64, imageMime, key) }
 	}
 
-	// Default logic if no provider specified or keys missing
-	if config.C.OpenRouterKey != "" {
-		return askOpenRouter(systemContext, question)
+	// DeepSeek
+	if provider == "deepseek" || (provider == "" && (user.DeepSeekKey != "" || config.C.DeepSeekKey != "")) {
+		key := config.C.DeepSeekKey
+		if user.DeepSeekKey != "" { key = user.DeepSeekKey }
+		if key == "" { key = config.C.DeepSeekKey }
+		if key != "" { return askDeepSeek(systemContext, question, key) }
 	}
 
-	if config.C.DeepSeekKey != "" {
-		return askDeepSeek(systemContext, question)
+	// Claude (User key only for now as requested, or can add global)
+	if provider == "claude" || (provider == "" && user.ClaudeKey != "") {
+		if user.ClaudeKey != "" { return askClaude(systemContext, question, user.ClaudeKey) }
 	}
 
-	if config.C.GeminiKey != "" {
-		return askGemini(systemContext, question, imageBase64, imageMime)
+	// OpenRouter (Default fallback)
+	if provider == "openrouter" || provider == "" {
+		key := config.C.OpenRouterKey
+		if user.OpenRouterKey != "" { key = user.OpenRouterKey }
+		if key != "" { return askOpenRouter(systemContext, question, key) }
 	}
 
-	if config.C.MistralKey != "" {
-		return askMistral(systemContext, question, imageBase64, imageMime)
+	// Mistral
+	if provider == "mistral" || (provider == "" && (user.MistralKey != "" || config.C.MistralKey != "")) {
+		key := config.C.MistralKey
+		if user.MistralKey != "" { key = user.MistralKey }
+		if key != "" { return askMistral(systemContext, question, imageBase64, imageMime, key) }
 	}
 
 	if config.C.OpenAIKey != "" {
@@ -430,8 +439,8 @@ func askAI(systemContext, question, imageBase64, imageMime, provider string) str
 	return mockAIResponse(question)
 }
 
-func askGemini(systemContext, question, imageBase64, imageMime string) string {
-	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s", config.C.GeminiKey)
+func askGemini(systemContext, question, imageBase64, imageMime, apiKey string) string {
+	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s", apiKey)
 
 	parts := []geminiPart{
 		{Text: "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question},
@@ -522,7 +531,7 @@ func askOpenAI(systemContext, question string) string {
 	return aiResp.Choices[0].Message.Content.(string)
 }
 
-func askDeepSeek(systemContext, question string) string {
+func askDeepSeek(systemContext, question, apiKey string) string {
 	reqBody := openAIRequest{
 		Model: "deepseek-chat",
 		Messages: []openAIMessage{
@@ -537,7 +546,7 @@ func askDeepSeek(systemContext, question string) string {
 		return fmt.Sprintf("Request creation failed: %v", err)
 	}
 
-	httpReq.Header.Set("Authorization", "Bearer "+config.C.DeepSeekKey)
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -564,7 +573,7 @@ func askDeepSeek(systemContext, question string) string {
 	return aiResp.Choices[0].Message.Content.(string)
 }
 
-func askOpenRouter(systemContext, question string) string {
+func askOpenRouter(systemContext, question, apiKey string) string {
 	reqBody := openAIRequest{
 		Model: "deepseek/deepseek-chat", // You can change to google/gemini-2.5-flash or meta-llama/llama-3.1-8b-instruct
 		Messages: []openAIMessage{
@@ -579,7 +588,7 @@ func askOpenRouter(systemContext, question string) string {
 		return fmt.Sprintf("Request creation failed: %v", err)
 	}
 
-	httpReq.Header.Set("Authorization", "Bearer "+config.C.OpenRouterKey)
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("HTTP-Referer", "http://localhost:80")
 	httpReq.Header.Set("X-Title", "InfraEye")
@@ -608,7 +617,7 @@ func askOpenRouter(systemContext, question string) string {
 	return aiResp.Choices[0].Message.Content.(string)
 }
 
-func askMistral(systemContext, question, imageBase64, imageMime string) string {
+func askMistral(systemContext, question, imageBase64, imageMime, apiKey string) string {
 	model := "mistral-large-latest"
 	var content interface{} = "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question
 
@@ -642,7 +651,7 @@ func askMistral(systemContext, question, imageBase64, imageMime string) string {
 		return fmt.Sprintf("Request creation failed: %v", err)
 	}
 
-	httpReq.Header.Set("Authorization", "Bearer "+config.C.MistralKey)
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 90 * time.Second}
@@ -668,6 +677,69 @@ func askMistral(systemContext, question, imageBase64, imageMime string) string {
 	}
 
 	return aiResp.Choices[0].Message.Content.(string)
+}
+
+func askClaude(systemContext, question, apiKey string) string {
+	type anthropicMessage struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	type anthropicRequest struct {
+		Model     string             `json:"model"`
+		MaxTokens int                `json:"max_tokens"`
+		System    string             `json:"system"`
+		Messages  []anthropicMessage `json:"messages"`
+	}
+	type anthropicResponse struct {
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	reqBody := anthropicRequest{
+		Model:     "claude-3-5-sonnet-20240620",
+		MaxTokens: 4096,
+		System:    systemContext,
+		Messages: []anthropicMessage{
+			{Role: "user", Content: question},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Claude request creation failed: %v", err)
+	}
+
+	httpReq.Header.Set("x-api-key", apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	httpReq.Header.Set("content-type", "application/json")
+
+	client := &http.Client{Timeout: 45 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("Claude request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp anthropicResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		return fmt.Sprintf("Claude parse error: %v | raw: %s", err, string(body))
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("Claude API error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Content) == 0 {
+		return "No response from Claude."
+	}
+
+	return aiResp.Content[0].Text
 }
 
 func mockAIResponse(question string) string {

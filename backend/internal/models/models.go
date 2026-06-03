@@ -18,6 +18,12 @@ type User struct {
 	Email        string         `json:"email"`
 	Avatar       string         `json:"avatar"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
+	// Personal AI API Keys
+	OpenRouterKey string `json:"open_router_key"`
+	DeepSeekKey   string `json:"deep_seek_key"`
+	ClaudeKey     string `json:"claude_key"`
+	GeminiKey     string `json:"gemini_key"`
+	MistralKey    string `json:"mistral_key"`
 }
 
 type Server struct {
@@ -52,13 +58,14 @@ type Resource struct {
 	ResourceType string         `gorm:"default:'generic'" json:"resource_type"`
 	Protocol     string         `gorm:"default:'tcp'" json:"protocol"`
 	Host         string         `json:"host"`
-	Port         int            `json:"default:0" json:"port"`
+	Port         int            `gorm:"default:0" json:"port"`
 	Username     string         `json:"username"`
 	Password     string         `json:"-"` // encrypted
 	Secret       string         `json:"-"` // token or api key
 	AuthType     string         `gorm:"default:'none'" json:"auth_type"`
 	UseGateway   bool           `gorm:"default:true" json:"use_gateway"`
 	Status       string         `gorm:"default:'unknown'" json:"status"`
+	Database     string         `json:"database"`
 	Metadata     string         `gorm:"type:text" json:"metadata"`
 }
 

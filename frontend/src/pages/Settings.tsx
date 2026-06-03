@@ -18,7 +18,7 @@ export function Settings() {
   const { can } = usePermission()
   const toast = useToastStore()
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'ai'>('profile')
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -26,6 +26,13 @@ export function Settings() {
   const [profileEmail, setProfileEmail] = useState(currentUser?.email || '')
   const [profilePassword, setProfilePassword] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
+
+  // AI Configuration state
+  const [openRouterKey, setOpenRouterKey] = useState((currentUser as any)?.open_router_key || '')
+  const [deepSeekKey, setDeepSeekKey] = useState((currentUser as any)?.deep_seek_key || '')
+  const [claudeKey, setClaudeKey] = useState((currentUser as any)?.claude_key || '')
+  const [geminiKey, setGeminiKey] = useState((currentUser as any)?.gemini_key || '')
+  const [mistralKey, setMistralKey] = useState((currentUser as any)?.mistral_key || '')
 
   // User management form state
   const [showUserForm, setShowUserForm] = useState(false)
@@ -58,12 +65,19 @@ export function Settings() {
       if (profileEmail) payload.email = profileEmail
       if (profilePassword) payload.password = profilePassword
       
+      // Include AI keys in the update
+      payload.open_router_key = openRouterKey
+      payload.deep_seek_key = deepSeekKey
+      payload.claude_key = claudeKey
+      payload.gemini_key = geminiKey
+      payload.mistral_key = mistralKey
+
       const res = await api.put('/api/auth/me', payload)
       useAuthStore.getState().setAuth(useAuthStore.getState().token!, res.data)
-      toast.success('Profile updated', 'Your account details have been saved.')
+      toast.success('Settings updated', 'Your personal parameters and AI credentials have been synchronized.')
       setProfilePassword('')
     } catch (err: any) {
-      toast.error('Update failed', err.response?.data?.error || 'Could not update profile.')
+      toast.error('Update failed', err.response?.data?.error || 'Could not update settings.')
     } finally {
       setProfileSaving(false)
     }
@@ -144,6 +158,22 @@ export function Settings() {
             {activeTab === 'profile' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
           </button>
 
+          <button
+            onClick={() => setActiveTab('ai')}
+            style={{
+              padding: '12px 24px', fontSize: 10, fontWeight: 900,
+              transition: 'all 0.2s', cursor: 'pointer', border: 'none',
+              background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
+              display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-mono)',
+              position: 'relative',
+              color: activeTab === 'ai' ? 'var(--brand-primary)' : 'var(--text-muted)'
+            }}
+          >
+            <Lock size={13} /> AI_CREDENTIALS
+            {activeTab === 'ai' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
+          </button>
+
           {can('manage-users') && (
             <button
               onClick={() => setActiveTab('users')}
@@ -208,6 +238,53 @@ export function Settings() {
                 </div>
                 <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ width: '100%', maxWidth: 200, height: 44, fontSize: 14, fontWeight: 700 }}>{profileSaving ? 'Saving...' : 'Save Settings'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'ai' && (
+          <div className="fade-up" style={{ maxWidth: 800 }}>
+             <div className="card" style={{ padding: '32px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Lock size={20} color="var(--brand-primary)" /></div>
+                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal AI Infrastructure</h2><p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Configure individual API keys to power your Netra AI interactions.</p></div>
+              </div>
+
+              <form onSubmit={updateProfile}>
+                <div style={{ display: 'grid', gap: 24 }}>
+                  <div className="input-group">
+                    <label className="input-label">OpenRouter API Key</label>
+                    <input className="input" type="password" value={openRouterKey} onChange={e => setOpenRouterKey(e.target.value)} placeholder="sk-or-v1-..." />
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Used as primary fallback for most models.</p>
+                  </div>
+
+                  <div className="grid-2-col" style={{ gap: 20 }}>
+                    <div className="input-group">
+                      <label className="input-label">DeepSeek API Key</label>
+                      <input className="input" type="password" value={deepSeekKey} onChange={e => setDeepSeekKey(e.target.value)} placeholder="sk-..." />
+                    </div>
+                    <div className="input-group">
+                      <label className="input-label">Anthropic (Claude) API Key</label>
+                      <input className="input" type="password" value={claudeKey} onChange={e => setClaudeKey(e.target.value)} placeholder="sk-ant-..." />
+                    </div>
+                  </div>
+
+                  <div className="grid-2-col" style={{ gap: 20 }}>
+                    <div className="input-group">
+                      <label className="input-label">Google (Gemini) API Key</label>
+                      <input className="input" type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIza..." />
+                    </div>
+                    <div className="input-group">
+                      <label className="input-label">Mistral API Key</label>
+                      <input className="input" type="password" value={mistralKey} onChange={e => setMistralKey(e.target.value)} placeholder="sk-..." />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ width: '100%', maxWidth: 200, height: 44, fontSize: 14, fontWeight: 700 }}>{profileSaving ? 'Saving...' : 'Sync AI Keys'}</button>
                 </div>
               </form>
             </div>

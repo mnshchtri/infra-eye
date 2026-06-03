@@ -67,7 +67,7 @@ export function AIAssistant() {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
-  const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google' | 'mistral'>('mistral')
+  const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude'>('mistral')
   const [mcpAvailable, setMcpAvailable] = useState(false)
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
@@ -360,6 +360,7 @@ export function AIAssistant() {
                    <option value="deepseek">DeepSeek</option>
                    <option value="google">Google</option>
                    <option value="mistral">Mistral</option>
+                   <option value="claude">Claude</option>
                  </select>
                  <ChevronDown size={10} color="var(--text-muted)" />
               </div>

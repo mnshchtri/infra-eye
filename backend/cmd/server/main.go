@@ -71,7 +71,7 @@ func main() {
 		api.PUT("/auth/me", handlers.UpdateProfile)
 
 		// ── User Management (admin only) ──────────────────────────
-		api.GET("/users", middleware.RequireRole("admin"), handlers.ListUsers)
+		api.GET("/users", middleware.RequireRole("admin", "devops"), handlers.ListUsers)
 		api.POST("/users", middleware.RequireRole("admin"), handlers.CreateUser)
 		api.PUT("/users/:id", middleware.RequireRole("admin"), handlers.UpdateUser)
 		api.DELETE("/users/:id", middleware.RequireRole("admin"), handlers.DeleteUser)
@@ -100,6 +100,7 @@ func main() {
 		api.PUT("/resources/:id/access/:accessId", middleware.RequireRole("admin", "devops"), handlers.UpdateResourceAccess)
 		api.DELETE("/resources/:id/access/:accessId", middleware.RequireRole("admin", "devops"), handlers.DeleteResourceAccess)
 		api.GET("/resources/:id/audit", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceAudit)
+		api.POST("/resources/:id/query", middleware.RequireRole("admin", "devops"), handlers.QueryResource)
 
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)

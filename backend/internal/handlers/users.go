@@ -137,8 +137,13 @@ func UpdateProfile(c *gin.Context) {
 	}
 
 	var body struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email         string `json:"email"`
+		Password      string `json:"password"`
+		OpenRouterKey string `json:"open_router_key"`
+		DeepSeekKey   string `json:"deep_seek_key"`
+		ClaudeKey     string `json:"claude_key"`
+		GeminiKey     string `json:"gemini_key"`
+		MistralKey    string `json:"mistral_key"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -146,6 +151,21 @@ func UpdateProfile(c *gin.Context) {
 	}
 	if body.Email != "" {
 		user.Email = body.Email
+	}
+	if body.OpenRouterKey != "" {
+		user.OpenRouterKey = body.OpenRouterKey
+	}
+	if body.DeepSeekKey != "" {
+		user.DeepSeekKey = body.DeepSeekKey
+	}
+	if body.ClaudeKey != "" {
+		user.ClaudeKey = body.ClaudeKey
+	}
+	if body.GeminiKey != "" {
+		user.GeminiKey = body.GeminiKey
+	}
+	if body.MistralKey != "" {
+		user.MistralKey = body.MistralKey
 	}
 	if body.Password != "" {
 		if len(body.Password) < 6 {
@@ -157,11 +177,16 @@ func UpdateProfile(c *gin.Context) {
 	}
 	db.DB.Save(&user)
 	c.JSON(http.StatusOK, gin.H{
-		"id":       user.ID,
-		"username": user.Username,
-		"role":     user.Role,
-		"email":    user.Email,
-		"is_active": user.IsActive,
+		"id":              user.ID,
+		"username":        user.Username,
+		"role":            user.Role,
+		"email":           user.Email,
+		"is_active":       user.IsActive,
+		"open_router_key": user.OpenRouterKey,
+		"deep_seek_key":   user.DeepSeekKey,
+		"claude_key":      user.ClaudeKey,
+		"gemini_key":      user.GeminiKey,
+		"mistral_key":     user.MistralKey,
 	})
 }
 

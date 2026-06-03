@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2, Shield } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import logo from '../assets/logo.png'
+import loginBg from '../assets/login-bg.png'
 
 export function Login() {
   const [username, setUsername] = useState('')
@@ -30,8 +31,25 @@ export function Login() {
   }
 
   return (
-    <div className="login-screen">
-      <div className="login-card fade-up" style={{ zIndex: 10 }}>
+    <div className="login-screen" style={{
+      backgroundImage: `url(${loginBg})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      position: 'relative'
+    }}>
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.45)', // Overlay for depth
+        backdropFilter: 'blur(3px)',
+        zIndex: 1
+      }} />
+      <div className="login-card fade-up" style={{ 
+        zIndex: 10, 
+        background: 'var(--glass-bg)', 
+        backdropFilter: 'blur(10px)',
+        borderColor: 'var(--border-bright)'
+      }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 40, gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
