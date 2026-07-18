@@ -4,6 +4,8 @@
 
 # InfraEye
 
+[InfraEye website](https://infraeye.manishkarki7.com.np/)
+
 **Observing the Unseen • Healing the Broken**
 
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
