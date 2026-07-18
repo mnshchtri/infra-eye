@@ -6,6 +6,9 @@
 
 [InfraEye website](https://infraeye.manishkarki7.com.np/)
 
+![Website](<img width="1440" height="900" alt="Screenshot 2026-07-19 at 2 23 28 AM" src="https://github.com/user-attachments/assets/00c8b085-fe79-49a3-9a77-2ff459a0f0ea" />
+public/logo.png)
+
 **Observing the Unseen • Healing the Broken**
 
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
