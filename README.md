@@ -6,8 +6,7 @@
 
 [InfraEye website](https://infraeye.manishkarki7.com.np/)
 
-![Website](<img width="1440" height="900" alt="Screenshot 2026-07-19 at 2 23 28 AM" src="https://github.com/user-attachments/assets/00c8b085-fe79-49a3-9a77-2ff459a0f0ea" />
-public/logo.png)
+<img width="1440" height="900" alt="Screenshot 2026-07-19 at 2 23 28 AM" src="https://github.com/user-attachments/assets/00c8b085-fe79-49a3-9a77-2ff459a0f0ea" />
 
 **Observing the Unseen • Healing the Broken**
 
