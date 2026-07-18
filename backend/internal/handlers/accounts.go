@@ -18,12 +18,21 @@ import (
 // All mutations are admin-only (see routes) and run over SSH with sudo.
 
 type OSAccount struct {
-	Username string `json:"username"`
-	UID      int    `json:"uid"`
-	Home     string `json:"home"`
-	Shell    string `json:"shell"`
-	IsAdmin  bool   `json:"is_admin"`
+	Username  string `json:"username"`
+	UID       int    `json:"uid"`
+	Home      string `json:"home"`
+	Shell     string `json:"shell"`
+	IsAdmin   bool   `json:"is_admin"`
+	Privilege string `json:"privilege"` // admin | logs | readonly | standard
 }
+
+// Privilege levels and their Unix semantics:
+//
+//	admin    — member of sudo/wheel (full root via sudo)
+//	standard — regular account: read-write within their own home
+//	logs     — regular account + adm/systemd-journal groups (read /var/log & journalctl)
+//	readonly — restricted shell (rbash): no cd, no redirects, PATH-only commands (Linux)
+var validPrivileges = map[string]bool{"admin": true, "standard": true, "logs": true, "readonly": true}
 
 var usernameRe = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 
@@ -86,13 +95,19 @@ func listLinuxAccounts(client *sshpool.Client) []OSAccount {
 	accounts := []OSAccount{}
 	out, _, _ := client.RunCommandTimeout("getent passwd", cmdTimeout)
 	adminsOut, _, _ := client.RunCommandTimeout("getent group sudo wheel admin 2>/dev/null | cut -d: -f4 | tr ',' '\\n'", cmdTimeout)
+	logsOut, _, _ := client.RunCommandTimeout("getent group adm systemd-journal 2>/dev/null | cut -d: -f4 | tr ',' '\\n'", cmdTimeout)
 
-	admins := map[string]bool{}
-	for _, l := range strings.Split(adminsOut, "\n") {
-		if l = strings.TrimSpace(l); l != "" {
-			admins[l] = true
+	toSet := func(out string) map[string]bool {
+		m := map[string]bool{}
+		for _, l := range strings.Split(out, "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				m[l] = true
+			}
 		}
+		return m
 	}
+	admins := toSet(adminsOut)
+	logReaders := toSet(logsOut)
 
 	for _, line := range strings.Split(out, "\n") {
 		parts := strings.Split(line, ":")
@@ -107,12 +122,23 @@ func listLinuxAccounts(client *sshpool.Client) []OSAccount {
 		if (uid < 1000 && uid != 0) || uid >= 65534 {
 			continue
 		}
+		isAdmin := uid == 0 || admins[parts[0]]
+		priv := "standard"
+		switch {
+		case isAdmin:
+			priv = "admin"
+		case strings.HasSuffix(parts[6], "rbash"):
+			priv = "readonly"
+		case logReaders[parts[0]]:
+			priv = "logs"
+		}
 		accounts = append(accounts, OSAccount{
-			Username: parts[0],
-			UID:      uid,
-			Home:     parts[5],
-			Shell:    parts[6],
-			IsAdmin:  uid == 0 || admins[parts[0]],
+			Username:  parts[0],
+			UID:       uid,
+			Home:      parts[5],
+			Shell:     parts[6],
+			IsAdmin:   isAdmin,
+			Privilege: priv,
 		})
 	}
 	return accounts
@@ -155,22 +181,29 @@ func listDarwinAccounts(client *sshpool.Client) []OSAccount {
 		if (uid < 500 && uid != 0) || strings.HasPrefix(f[0], "_") {
 			continue
 		}
+		isAdmin := uid == 0 || admins[f[0]]
+		priv := "standard"
+		if isAdmin {
+			priv = "admin"
+		}
 		accounts = append(accounts, OSAccount{
-			Username: f[0],
-			UID:      uid,
-			Home:     homes[f[0]],
-			Shell:    shells[f[0]],
-			IsAdmin:  uid == 0 || admins[f[0]],
+			Username:  f[0],
+			UID:       uid,
+			Home:      homes[f[0]],
+			Shell:     shells[f[0]],
+			IsAdmin:   isAdmin,
+			Privilege: priv,
 		})
 	}
 	return accounts
 }
 
 type createAccountRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
-	Admin    bool   `json:"admin"`
-	SSHKey   string `json:"ssh_key"`
+	Username  string `json:"username" binding:"required"`
+	Password  string `json:"password" binding:"required,min=6"`
+	Admin     bool   `json:"admin"` // legacy: equivalent to privilege=admin
+	Privilege string `json:"privilege"`
+	SSHKey    string `json:"ssh_key"`
 }
 
 // CreateOSAccount — POST /servers/:id/accounts
@@ -189,25 +222,52 @@ func CreateOSAccount(c *gin.Context) {
 		return
 	}
 
+	priv := req.Privilege
+	if priv == "" {
+		if req.Admin {
+			priv = "admin"
+		} else {
+			priv = "standard"
+		}
+	}
+	if !validPrivileges[priv] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "privilege must be one of: admin, standard, logs, readonly"})
+		return
+	}
+
 	server, client, ok := accountServer(c)
 	if !ok {
 		return
 	}
 
 	var script string
+	note := ""
 	if server.OS == "darwin" {
 		adminFlag := ""
-		if req.Admin {
+		if priv == "admin" {
 			adminFlag = "-admin"
+		} else if priv != "standard" {
+			note = " (macOS supports admin/standard only — created as standard)"
 		}
 		script = fmt.Sprintf("sysadminctl -addUser %s -password %s %s 2>&1", req.Username, shQuote(req.Password), adminFlag)
 	} else {
+		shell := "/bin/bash"
+		if priv == "readonly" {
+			// Restricted bash: no cd, no output redirects, PATH-only commands
+			shell = "/bin/rbash"
+		}
 		lines := []string{
-			fmt.Sprintf("useradd -m -s /bin/bash %s 2>&1", req.Username),
+			fmt.Sprintf("useradd -m -s %s %s 2>&1", shell, req.Username),
 			fmt.Sprintf("echo %s | chpasswd 2>&1", shQuote(req.Username+":"+req.Password)),
 		}
-		if req.Admin {
+		switch priv {
+		case "admin":
 			lines = append(lines, fmt.Sprintf("if getent group sudo >/dev/null; then usermod -aG sudo %s; else usermod -aG wheel %s; fi 2>&1", req.Username, req.Username))
+		case "logs":
+			lines = append(lines, fmt.Sprintf("{ usermod -aG adm %s 2>/dev/null; usermod -aG systemd-journal %s 2>/dev/null; true; }", req.Username, req.Username))
+		case "readonly":
+			// Fall back to bash if this distro has no rbash
+			lines = append(lines, fmt.Sprintf("command -v rbash >/dev/null || usermod -s /bin/bash %s", req.Username))
 		}
 		if key := strings.TrimSpace(req.SSHKey); key != "" {
 			lines = append(lines,
@@ -222,15 +282,16 @@ func CreateOSAccount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "error": firstNonEmpty(stderr, stdout, err.Error())})
 		return
 	}
-	logger.RecordLog(server.ID, "accounts", "info", fmt.Sprintf("OS user created: %s (admin=%v) by %s", req.Username, req.Admin, c.GetString("username")))
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": fmt.Sprintf("user %s created", req.Username)})
+	logger.RecordLog(server.ID, "accounts", "info", fmt.Sprintf("OS user created: %s (privilege=%s) by %s", req.Username, priv, c.GetString("username")))
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": fmt.Sprintf("user %s created as %s%s", req.Username, priv, note)})
 }
 
 type modifyAccountRequest struct {
-	Admin *bool `json:"admin"`
+	Admin     *bool  `json:"admin"` // legacy toggle
+	Privilege string `json:"privilege"`
 }
 
-// UpdateOSAccount — PUT /servers/:id/accounts/:username (toggle admin privilege)
+// UpdateOSAccount — PUT /servers/:id/accounts/:username (set privilege level)
 func UpdateOSAccount(c *gin.Context) {
 	username := c.Param("username")
 	if !usernameRe.MatchString(username) {
@@ -238,8 +299,20 @@ func UpdateOSAccount(c *gin.Context) {
 		return
 	}
 	var req modifyAccountRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Admin == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "body must include {\"admin\": true|false}"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	priv := req.Privilege
+	if priv == "" && req.Admin != nil {
+		if *req.Admin {
+			priv = "admin"
+		} else {
+			priv = "standard"
+		}
+	}
+	if !validPrivileges[priv] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "privilege must be one of: admin, standard, logs, readonly"})
 		return
 	}
 
@@ -247,24 +320,39 @@ func UpdateOSAccount(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if username == server.SSHUser && !*req.Admin {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "refusing to remove admin from the connection user — InfraEye would lose sudo on this server"})
+	if username == server.SSHUser && priv != "admin" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "refusing to downgrade the connection user — InfraEye would lose sudo on this server"})
 		return
 	}
 
 	var script string
 	if server.OS == "darwin" {
-		op := "-a"
-		if !*req.Admin {
-			op = "-d"
+		switch priv {
+		case "admin":
+			script = fmt.Sprintf("dseditgroup -o edit -a %s -t user admin 2>&1", username)
+		case "standard":
+			script = fmt.Sprintf("dseditgroup -o edit -d %s -t user admin 2>&1", username)
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "macOS supports admin and standard privilege levels only"})
+			return
 		}
-		script = fmt.Sprintf("dseditgroup -o edit %s %s -t user admin 2>&1", op, username)
 	} else {
-		if *req.Admin {
-			script = fmt.Sprintf("sh -c 'if getent group sudo >/dev/null; then usermod -aG sudo %s; else usermod -aG wheel %s; fi' 2>&1", username, username)
-		} else {
-			script = fmt.Sprintf("sh -c 'gpasswd -d %s sudo 2>/dev/null; gpasswd -d %s wheel 2>/dev/null; true' 2>&1", username, username)
+		// Start from a clean slate (drop all privilege groups + restore bash),
+		// then layer the target level on top.
+		reset := fmt.Sprintf("gpasswd -d %s sudo 2>/dev/null; gpasswd -d %s wheel 2>/dev/null; gpasswd -d %s adm 2>/dev/null; gpasswd -d %s systemd-journal 2>/dev/null; usermod -s /bin/bash %s;",
+			username, username, username, username, username)
+		var apply string
+		switch priv {
+		case "admin":
+			apply = fmt.Sprintf("if getent group sudo >/dev/null; then usermod -aG sudo %s; else usermod -aG wheel %s; fi;", username, username)
+		case "logs":
+			apply = fmt.Sprintf("usermod -aG adm %s 2>/dev/null; usermod -aG systemd-journal %s 2>/dev/null;", username, username)
+		case "readonly":
+			apply = fmt.Sprintf("command -v rbash >/dev/null && usermod -s /bin/rbash %s;", username)
+		case "standard":
+			apply = ""
 		}
+		script = "sh -c " + shQuote(reset+apply+" true") + " 2>&1"
 	}
 
 	stdout, stderr, err := client.RunCommandTimeout(sudoWrap(*server, script), cmdTimeout)
@@ -272,7 +360,7 @@ func UpdateOSAccount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "error": firstNonEmpty(stderr, stdout, err.Error())})
 		return
 	}
-	logger.RecordLog(server.ID, "accounts", "info", fmt.Sprintf("OS user privilege changed: %s admin=%v by %s", username, *req.Admin, c.GetString("username")))
+	logger.RecordLog(server.ID, "accounts", "info", fmt.Sprintf("OS user privilege changed: %s → %s by %s", username, priv, c.GetString("username")))
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 

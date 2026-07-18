@@ -5,7 +5,7 @@ import {
   ScrollText, Terminal as TerminalIcon, RefreshCw, Wifi, Shield,
   Search, Download, Power, Settings as SettingsIcon, Loader2,
   ChevronRight, Gauge, Layers, HelpCircle,
-  Trash2, Maximize2, Minimize2, Network
+  Trash2, Maximize2, Minimize2, Network, Users, Plus
 } from 'lucide-react'
 import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import {
@@ -127,6 +127,8 @@ export function ServerDetail() {
   const [rebooting, setRebooting] = useState(false)
   const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
   const [isLogsFullscreen, setIsLogsFullscreen] = useState(false)
+  const [logSource, setLogSource] = useState('')
+  const [logSources, setLogSources] = useState<{ id: string; label: string }[]>([])
   
   // Preferences form
   const [prefName, setPrefName] = useState('')
@@ -143,8 +145,11 @@ export function ServerDetail() {
   const xtermRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
 
-  // Always show all tabs — permissions enforced at the server/API level
-  const tabs = ['Overview', 'Networking', 'Logs', 'Terminal', 'Settings']
+  // Accounts tab needs the admin/devops-gated list endpoint — hide it otherwise
+  const canSeeAccounts = can('manage-servers')
+  const tabs = canSeeAccounts
+    ? ['Overview', 'Networking', 'Accounts', 'Logs', 'Terminal', 'Settings']
+    : ['Overview', 'Networking', 'Logs', 'Terminal', 'Settings']
 
   useEffect(() => {
     loadServer()
@@ -198,6 +203,90 @@ export function ServerDetail() {
       const res = await api.get(`/api/servers/${id}/logs?limit=100`)
       setLogs(res.data?.data || [])
     } catch { }
+  }
+
+  // Load the selectable log sources for this server's OS (journalctl/syslog/…)
+  useEffect(() => {
+    if (activeTab !== 'Logs' || logSources.length > 0) return
+    api.get(`/api/servers/${id}/log-sources`)
+      .then(res => {
+        const list = res.data?.sources || []
+        setLogSources(list)
+        if (!logSource && list.length > 0) setLogSource(list[0].id)
+      })
+      .catch(() => {})
+  }, [activeTab, id])
+
+  // ── OS accounts on the target server (Cockpit-style) ──
+  interface OSAccount { username: string; uid: number; home: string; shell: string; is_admin: boolean; privilege: string }
+  const [osAccounts, setOsAccounts] = useState<OSAccount[] | null>(null)
+  const [osAccountsLoading, setOsAccountsLoading] = useState(false)
+  const [osAccountsError, setOsAccountsError] = useState('')
+  const [showCreateAccount, setShowCreateAccount] = useState(false)
+  const [newAcc, setNewAcc] = useState({ username: '', password: '', privilege: 'standard', ssh_key: '' })
+  const [accBusy, setAccBusy] = useState(false)
+
+  const PRIVILEGES: { value: string; label: string; hint: string }[] = [
+    { value: 'admin', label: 'Admin (sudo)', hint: 'Full root access via sudo' },
+    { value: 'standard', label: 'Read / Write', hint: 'Normal user — full access within their own home' },
+    { value: 'logs', label: 'Log Viewer', hint: 'Read /var/log and journalctl only (adm + systemd-journal groups)' },
+    { value: 'readonly', label: 'Read Only', hint: 'Restricted shell (rbash) — no cd, no writes, PATH commands only' },
+  ]
+  const privLabel = (p: string) => PRIVILEGES.find(x => x.value === p)?.label || p
+
+  async function loadOsAccounts() {
+    setOsAccountsLoading(true)
+    setOsAccountsError('')
+    try {
+      const res = await api.get(`/api/servers/${id}/accounts`)
+      setOsAccounts(res.data?.accounts || [])
+    } catch (e: any) {
+      setOsAccounts(null)
+      setOsAccountsError(e.response?.data?.error || e.message)
+    } finally { setOsAccountsLoading(false) }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'Accounts' && canSeeAccounts && osAccounts === null && !osAccountsLoading) loadOsAccounts()
+  }, [activeTab])
+
+  async function createOsAccount() {
+    setAccBusy(true)
+    try {
+      const res = await api.post(`/api/servers/${id}/accounts`, newAcc)
+      if (res.data.success) {
+        toast.success('User created', res.data.message || `${newAcc.username} added as ${privLabel(newAcc.privilege)}`)
+        setShowCreateAccount(false)
+        setNewAcc({ username: '', password: '', privilege: 'standard', ssh_key: '' })
+        loadOsAccounts()
+      } else {
+        toast.error('Create failed', res.data.error || 'Command failed on the server')
+      }
+    } catch (e: any) {
+      toast.error('Create failed', e.response?.data?.error || e.message)
+    } finally { setAccBusy(false) }
+  }
+
+  async function setOsPrivilege(acc: OSAccount, privilege: string) {
+    if (privilege === acc.privilege) return
+    try {
+      const res = await api.put(`/api/servers/${id}/accounts/${acc.username}`, { privilege })
+      if (res.data.success) {
+        toast.success('Privilege updated', `${acc.username} → ${privLabel(privilege)}`)
+        loadOsAccounts()
+      } else toast.error('Update failed', res.data.error)
+    } catch (e: any) { toast.error('Update failed', e.response?.data?.error || e.message) }
+  }
+
+  async function deleteOsAccount(acc: OSAccount) {
+    if (!window.confirm(`Delete OS user "${acc.username}" and their home directory from ${server?.name}? This cannot be undone.`)) return
+    try {
+      const res = await api.delete(`/api/servers/${id}/accounts/${acc.username}`)
+      if (res.data.success) {
+        toast.success('User deleted', `${acc.username} removed from the server`)
+        loadOsAccounts()
+      } else toast.error('Delete failed', res.data.error)
+    } catch (e: any) { toast.error('Delete failed', e.response?.data?.error || e.message) }
   }
 
   // ── Access control (per-user grants; admin only) ──
@@ -283,9 +372,10 @@ export function ServerDetail() {
     }
   }
 
-  function startLogsWs() {
+  function startLogsWs(source?: string) {
     if (logWsRef.current) logWsRef.current.close()
-    const ws = new WebSocket(buildWsUrl(`/ws/servers/${id}/logs`))
+    const src = source ?? logSource
+    const ws = new WebSocket(buildWsUrl(`/ws/servers/${id}/logs${src ? `?source=${encodeURIComponent(src)}` : ''}`))
     logWsRef.current = ws
     ws.onmessage = (event) => {
       try {
@@ -295,6 +385,12 @@ export function ServerDetail() {
         }
       } catch {}
     }
+  }
+
+  function switchLogSource(source: string) {
+    setLogSource(source)
+    setLogs([])            // drop the previous source's lines
+    startLogsWs(source)    // reconnect the live tail to the new source
   }
 
   // Initialize xterm terminal when tab becomes active
@@ -590,6 +686,7 @@ export function ServerDetail() {
           >
             {tab === 'Overview'   && <Gauge size={14} />}
             {tab === 'Networking' && <Network size={14} />}
+            {tab === 'Accounts'   && <Users size={14} />}
             {tab === 'Logs'       && <ScrollText size={14} />}
             {tab === 'Terminal'   && <TerminalIcon size={14} />}
             {tab === 'Settings'   && <SettingsIcon size={14} />}
@@ -877,6 +974,144 @@ export function ServerDetail() {
         </div>
       )}
 
+      {activeTab === 'Accounts' && canSeeAccounts && (
+        <div className="fade-up">
+          <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Users size={16} color="var(--brand-primary)" />
+                <span style={{ fontWeight: 800, fontSize: 14 }}>OS Accounts</span>
+                {osAccounts && <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({osAccounts.length})</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-secondary btn-sm" onClick={loadOsAccounts} disabled={osAccountsLoading}>
+                  <RefreshCw size={13} style={osAccountsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+                </button>
+                {canManageUsers && (
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowCreateAccount(v => !v)} style={{ gap: 6 }}>
+                    <Plus size={13} /> Create User
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {showCreateAccount && canManageUsers && (
+              <div style={{ padding: 20, borderBottom: '1px solid var(--border)', background: 'var(--bg-app)' }}>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <div style={{ flex: '1 1 150px' }}>
+                    <label className="input-label">Username</label>
+                    <input className="input" placeholder="e.g. deploy" value={newAcc.username} onChange={e => setNewAcc(a => ({ ...a, username: e.target.value }))} />
+                  </div>
+                  <div style={{ flex: '1 1 150px' }}>
+                    <label className="input-label">Password</label>
+                    <input className="input" type="password" placeholder="min 6 characters" value={newAcc.password} onChange={e => setNewAcc(a => ({ ...a, password: e.target.value }))} />
+                    {newAcc.password.length > 0 && newAcc.password.length < 6 && (
+                      <span style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700 }}>Password must be at least 6 characters</span>
+                    )}
+                  </div>
+                  <div style={{ flex: '1 1 170px' }}>
+                    <label className="input-label">Privilege</label>
+                    <select className="input" value={newAcc.privilege} onChange={e => setNewAcc(a => ({ ...a, privilege: e.target.value }))}>
+                      {PRIVILEGES.map(p => (
+                        <option key={p.value} value={p.value} disabled={server.os === 'darwin' && !['admin', 'standard'].includes(p.value)}>
+                          {p.label}{server.os === 'darwin' && !['admin', 'standard'].includes(p.value) ? ' (linux only)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ flex: '2 1 220px' }}>
+                    <label className="input-label">SSH Public Key (optional{server.os === 'darwin' ? ', linux only' : ''})</label>
+                    <input className="input" placeholder="ssh-ed25519 AAAA…" value={newAcc.ssh_key} onChange={e => setNewAcc(a => ({ ...a, ssh_key: e.target.value }))} disabled={server.os === 'darwin'} />
+                  </div>
+                  <button className="btn btn-primary" onClick={createOsAccount} disabled={accBusy || !newAcc.username || newAcc.password.length < 6} style={{ height: 40 }}>
+                    {accBusy ? 'Creating…' : 'Create on Server'}
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: newAcc.privilege === 'admin' ? 'var(--warning)' : 'var(--text-muted)', marginTop: 12 }}>
+                  {newAcc.privilege === 'admin' && '⚠ '}
+                  {PRIVILEGES.find(p => p.value === newAcc.privilege)?.hint}
+                </p>
+              </div>
+            )}
+
+            {osAccountsLoading && !osAccounts ? (
+              <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}>
+                <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} color="var(--brand-primary)" />
+              </div>
+            ) : osAccountsError ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Users size={28} style={{ marginBottom: 10, opacity: 0.3 }} />
+                <div style={{ fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{osAccountsError}</div>
+                <button className="btn btn-secondary btn-sm" style={{ marginTop: 14 }} onClick={loadOsAccounts}>Retry</button>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="k-table" style={{ minWidth: 640 }}>
+                  <thead>
+                    <tr>
+                      <th>Username</th>
+                      <th>UID</th>
+                      <th>Privilege</th>
+                      <th>Shell</th>
+                      <th>Home</th>
+                      {canManageUsers && <th style={{ textAlign: 'right' }}>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(osAccounts || []).map(acc => {
+                      const isConnUser = acc.username === server.ssh_user
+                      const isRoot = acc.username === 'root'
+                      return (
+                        <tr key={acc.username}>
+                          <td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                            {acc.username}
+                            {isConnUser && <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 900, color: 'var(--brand-primary)', border: '1px solid var(--brand-primary)40', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>CONNECTION</span>}
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)' }}>{acc.uid}</td>
+                          <td>
+                            {canManageUsers && !isRoot && !(isConnUser) ? (
+                              <select
+                                className="input"
+                                style={{ height: 30, width: 150, fontSize: 11, fontWeight: 700 }}
+                                value={acc.privilege}
+                                onChange={e => setOsPrivilege(acc, e.target.value)}
+                              >
+                                {PRIVILEGES.map(p => (
+                                  <option key={p.value} value={p.value} disabled={server.os === 'darwin' && !['admin', 'standard'].includes(p.value)}>
+                                    {p.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 900, color: acc.is_admin ? 'var(--warning)' : 'var(--text-muted)' }}>
+                                {acc.is_admin && <Shield size={11} />} {privLabel(acc.privilege).toUpperCase()}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{acc.shell || '—'}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{acc.home || '—'}</td>
+                          {canManageUsers && (
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: 8 }}>
+                                {!isRoot && !isConnUser && (
+                                  <button className="btn-icon" title="Delete user" onClick={() => deleteOsAccount(acc)} style={{ color: 'var(--danger)' }}>
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'Logs' && (
         <div className={`fade-in ${isLogsFullscreen ? 'logs-fullscreen' : ''}`} style={isLogsFullscreen ? { position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--bg-app)', padding: 16 } : {}}>
           <div className="card" style={{ padding: 0, overflow: 'hidden', height: isLogsFullscreen ? '100%' : 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -892,10 +1127,21 @@ export function ServerDetail() {
                 <span style={{ fontWeight: 800, fontSize: 14 }}>Explorer</span>
               </div>
                <div className="header-actions" style={{ display: 'flex', gap: 8, flex: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  <div className="search-box search-container" style={{ minWidth: 200, maxWidth: 280 }}>
+                  {logSources.length > 0 && (
+                    <select
+                      className="input"
+                      value={logSource}
+                      onChange={e => switchLogSource(e.target.value)}
+                      title="Log source"
+                      style={{ height: 36, fontSize: 12, fontWeight: 700, width: 200, fontFamily: 'var(--font-mono)' }}
+                    >
+                      {logSources.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    </select>
+                  )}
+                  <div className="search-box search-container" style={{ minWidth: 160, maxWidth: 240 }}>
                     <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input className="input" placeholder="Search logs…" value={logSearch} 
-                     onChange={e => setLogSearch(e.target.value)} 
+                    <input className="input" placeholder="Search logs…" value={logSearch}
+                     onChange={e => setLogSearch(e.target.value)}
                      style={{ paddingLeft: 34, height: 36, fontSize: 13 }} />
                   </div>
                   <button className="btn btn-secondary btn-sm" onClick={runDiagnostics} title="Run Diagnostics">

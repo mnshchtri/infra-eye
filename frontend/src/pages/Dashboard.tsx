@@ -50,6 +50,25 @@ const timeAgo = (iso: string) => {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+const RangeSelector = memo(({ value, onChange, ranges }: { value: number; onChange: (m: number) => void; ranges: { minutes: number; label: string }[] }) => (
+  <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+    {ranges.map(r => (
+      <button
+        key={r.minutes}
+        onClick={() => onChange(r.minutes)}
+        style={{
+          padding: '5px 12px', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
+          background: value === r.minutes ? 'var(--brand-primary)' : 'transparent',
+          color: value === r.minutes ? 'var(--text-inverse)' : 'var(--text-muted)',
+          border: 'none', cursor: 'pointer', transition: 'all 0.15s'
+        }}
+      >
+        {r.label}
+      </button>
+    ))}
+  </div>
+))
+
 const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) => {
   const color = value >= danger
     ? 'var(--danger)'
@@ -197,7 +216,36 @@ export function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [history, setHistory] = useState<Record<number, HistPoint[]>>({})
   const [fleetMetric, setFleetMetric] = useState<'cpu' | 'mem' | 'disk'>('cpu')
+  const [fleetRange, setFleetRange] = useState(60) // minutes
   const [healingActions, setHealingActions] = useState<HealingAction[] | null>(null)
+
+  const RANGES: { minutes: number; label: string }[] = [
+    { minutes: 15, label: '15m' },
+    { minutes: 60, label: '1h' },
+    { minutes: 360, label: '6h' },
+    { minutes: 1440, label: '24h' },
+  ]
+
+  // Fetch per-server history for the current time range. Called on load and
+  // whenever the range changes (widening it needs a fresh, longer fetch).
+  async function loadHistory(serverList: ServerData[], minutes: number) {
+    serverList.forEach(async (s) => {
+      try {
+        const h = await api.get(`/api/servers/${s.id}/metrics?minutes=${minutes}`)
+        const pts: HistPoint[] = (Array.isArray(h.data) ? h.data : []).map((m: any) => ({
+          t: new Date(m.timestamp).getTime(),
+          cpu: m.cpu_percent, mem: m.mem_percent, disk: m.disk_percent,
+          rx: m.net_rx_mbps, tx: m.net_tx_mbps,
+        }))
+        setHistory(prev => ({ ...prev, [s.id]: pts }))
+      } catch { /* no history yet */ }
+    })
+  }
+
+  // Refetch history when the user widens/narrows the time range
+  useEffect(() => {
+    if (servers.length > 0) loadHistory(servers, fleetRange)
+  }, [fleetRange])
 
   async function loadData() {
     setLoading(true)
@@ -209,25 +257,18 @@ export function Dashboard() {
       const resourcesRes = await api.get('/api/resources')
       const resourcesList = Array.isArray(resourcesRes.data) ? resourcesRes.data : []
       setResources(resourcesList)
-      
+
       // Stop full-page loading once servers are listed
       setLoading(false)
 
-      // Fetch metrics in parallel but update state incrementally
+      loadHistory(list, fleetRange)
+
+      // Fetch latest metric per server for the cards
       list.forEach(async (s: ServerData) => {
         try {
           const m = await api.get(`/api/servers/${s.id}/metrics/latest`)
           setMetrics(prev => ({ ...prev, [s.id]: m.data }))
         } catch { /* no metrics yet */ }
-        try {
-          const h = await api.get(`/api/servers/${s.id}/metrics?minutes=60`)
-          const pts: HistPoint[] = (Array.isArray(h.data) ? h.data : []).map((m: any) => ({
-            t: new Date(m.timestamp).getTime(),
-            cpu: m.cpu_percent, mem: m.mem_percent, disk: m.disk_percent,
-            rx: m.net_rx_mbps, tx: m.net_tx_mbps,
-          }))
-          setHistory(prev => ({ ...prev, [s.id]: pts }))
-        } catch { /* no history yet */ }
       })
 
       // Automation activity (403 for roles without access — hide the panel)
@@ -279,7 +320,8 @@ export function Dashboard() {
               cpu: payload.cpu_percent, mem: payload.mem_percent, disk: payload.disk_percent,
               rx: payload.net_rx_mbps, tx: payload.net_tx_mbps,
             }
-            return { ...prev, [payload.server_id]: [...arr, pt].slice(-240) }
+            // Keep enough points for a 24h window at 30s cadence (~2880) + margin
+            return { ...prev, [payload.server_id]: [...arr, pt].slice(-3200) }
           })
         }
       } catch (err) {
@@ -335,27 +377,34 @@ export function Dashboard() {
 
   const seriesColors = darkMode ? SERIES_DARK : SERIES_LIGHT
 
+  // Bucket width scales with the range so every window shows a readable ~30-60
+  // points: 1-min buckets for ≤1h, 5-min for 6h, 15-min for 24h.
+  const bucketMs = fleetRange <= 60 ? 60_000 : fleetRange <= 360 ? 300_000 : 900_000
+  const windowStart = () => Date.now() - fleetRange * 60_000
+
   // 1-minute buckets so points from different servers align on the time axis
   const timelineData = useMemo(() => {
-    const BUCKET = 60_000
+    const cutoff = windowStart()
     const rows = new Map<number, any>()
     seriesServers.forEach(s => {
       (history[s.id] || []).forEach(p => {
-        const t = Math.round(p.t / BUCKET) * BUCKET
+        if (p.t < cutoff) return
+        const t = Math.round(p.t / bucketMs) * bucketMs
         const row = rows.get(t) || { t }
         row[s.name] = parseFloat((fleetMetric === 'cpu' ? p.cpu : fleetMetric === 'mem' ? p.mem : p.disk).toFixed(1))
         rows.set(t, row)
       })
     })
-    return [...rows.values()].sort((a, b) => a.t - b.t).slice(-60)
-  }, [history, seriesServers, fleetMetric])
+    return [...rows.values()].sort((a, b) => a.t - b.t)
+  }, [history, seriesServers, fleetMetric, fleetRange])
 
   const networkData = useMemo(() => {
-    const BUCKET = 60_000
+    const cutoff = windowStart()
     const rows = new Map<number, { t: number; RX: number; TX: number }>()
     seriesServers.forEach(s => {
       (history[s.id] || []).forEach(p => {
-        const t = Math.round(p.t / BUCKET) * BUCKET
+        if (p.t < cutoff) return
+        const t = Math.round(p.t / bucketMs) * bucketMs
         const row = rows.get(t) || { t, RX: 0, TX: 0 }
         row.RX += p.rx || 0
         row.TX += p.tx || 0
@@ -364,10 +413,13 @@ export function Dashboard() {
     })
     return [...rows.values()]
       .map(r => ({ ...r, RX: parseFloat(r.RX.toFixed(2)), TX: parseFloat(r.TX.toFixed(2)) }))
-      .sort((a, b) => a.t - b.t).slice(-60)
-  }, [history, seriesServers])
+      .sort((a, b) => a.t - b.t)
+  }, [history, seriesServers, fleetRange])
 
-  const fmtClock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // On short ranges show HH:MM; on 24h include the day so the axis reads clearly
+  const fmtClock = (t: number) => fleetRange >= 1440
+    ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   // Direct label at the last point of each line — series identity is never
   // carried by color alone (relief rule for the light-mode palette).
@@ -450,24 +502,27 @@ export function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Utilization</h3>
-                <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per-node {fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last hour, live</p>
+                <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per-node {fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last {RANGES.find(r => r.minutes === fleetRange)?.label}, live</p>
               </div>
-              <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                {([['cpu', 'CPU'], ['mem', 'MEM'], ['disk', 'DISK']] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setFleetMetric(key)}
-                    style={{
-                      padding: '5px 14px', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
-                      letterSpacing: '0.08em',
-                      background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
-                      color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
-                      border: 'none', cursor: 'pointer', transition: 'all 0.15s'
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                  {([['cpu', 'CPU'], ['mem', 'MEM'], ['disk', 'DISK']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setFleetMetric(key)}
+                      style={{
+                        padding: '5px 14px', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+                        letterSpacing: '0.08em',
+                        background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
+                        color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
+                        border: 'none', cursor: 'pointer', transition: 'all 0.15s'
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
               </div>
             </div>
             <div style={{ height: 260 }}>
@@ -548,9 +603,12 @@ export function Dashboard() {
       {/* Fleet network throughput */}
       {!loading && networkData.length > 1 && (
         <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
-          <div style={{ marginBottom: 20 }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
-            <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
+              <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
+            </div>
+            <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
           </div>
           <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">

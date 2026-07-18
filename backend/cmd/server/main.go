@@ -135,6 +135,7 @@ func main() {
 
 		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)
+		api.GET("/servers/:id/log-sources", handlers.LogSources)
 		api.DELETE("/servers/:id/logs", middleware.RequireRole("admin", "devops"), handlers.ClearLogs)
 
 		// ── Kubectl ───────────────────────────────────────────────

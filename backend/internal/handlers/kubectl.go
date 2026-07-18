@@ -532,11 +532,15 @@ func SSHTerminal(c *gin.Context) {
 
 // RunPodTerminal — specific terminal session for Pod Exec or Logs
 func RunPodTerminal(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	pod := c.Query("pod")
 	ns := c.Query("namespace")
 	mode := c.Query("mode")
 	container := c.Query("container")
+	previous := c.Query("previous") == "true"
 
 	var server models.Server
 	if err := db.DB.First(&server, id).Error; err != nil {
@@ -568,36 +572,40 @@ func RunPodTerminal(c *gin.Context) {
 			}
 		}
 
-		tailLines := int64(100)
+		tailLines := int64(200)
 		req := clientset.CoreV1().Pods(ns).GetLogs(pod, &corev1.PodLogOptions{
-			Container: container,
-			Follow:    true,
-			TailLines: &tailLines,
+			Container:  container,
+			Follow:     !previous, // can't follow a terminated (previous) container
+			Previous:   previous,
+			Timestamps: true, // prefix each line with RFC3339 time for readability
+			TailLines:  &tailLines,
 		})
 
 		stream, err := req.Stream(context.TODO())
 		if err != nil {
 			log.Printf("Stream request err: %v", err)
-			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Failed to open logs stream: %v\r\n", err)))
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Failed to open logs for %s/%s [%s]: %v\r\n", ns, pod, container, err)))
 			return
 		}
 		defer stream.Close()
 
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\x1b[90m── streaming logs: %s/%s [container: %s]%s ──\x1b[0m\r\n", ns, pod, container, map[bool]string{true: " (previous instance)", false: ""}[previous])))
+
+		wrote := false
 		buf := make([]byte, 8192)
 		for {
 			n, err := stream.Read(buf)
 			if n > 0 {
-				log.Printf("Streamed %d bytes to ws", n)
-
-				// Fix newline CR translation for pure \n log streams to render in xterm correctly!
-				// Xterm requires \r\n to go back to the beginning of the line.
-				chunk := string(buf[:n])
-				chunk = strings.ReplaceAll(chunk, "\n", "\r\n")
-
+				wrote = true
+				// Xterm needs \r\n to return to column 0.
+				chunk := strings.ReplaceAll(string(buf[:n]), "\n", "\r\n")
 				wsConn.WriteMessage(websocket.BinaryMessage, []byte(chunk))
 			}
 			if err != nil {
-				log.Printf("Stream closed: %v", err)
+				if !wrote {
+					wsConn.WriteMessage(websocket.TextMessage, []byte("\x1b[33m(no log output — the container may not have written anything yet)\x1b[0m\r\n"))
+				}
+				log.Printf("Pod log stream closed: %v", err)
 				break
 			}
 		}
