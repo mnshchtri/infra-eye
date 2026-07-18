@@ -15,15 +15,14 @@ func Run() {
 }
 
 func seedUsers() {
-	var count int64
-	db.DB.Model(&models.User{}).Where("username = ?", "admin").Count(&count)
-	
-	if count == 0 {
-		adminPass := os.Getenv("ADMIN_PASSWORD")
-		if adminPass == "" {
-			adminPass = "infra123"
-		}
-		
+	adminPass := os.Getenv("ADMIN_PASSWORD")
+	if adminPass == "" {
+		adminPass = "infra123"
+	}
+
+	var admin models.User
+	if err := db.DB.Where("username = ?", "admin").First(&admin).Error; err != nil {
+		// Admin doesn't exist — create it
 		hash, _ := bcrypt.GenerateFromPassword([]byte(adminPass), bcrypt.DefaultCost)
 		db.DB.Create(&models.User{
 			Username:     "admin",
@@ -32,9 +31,16 @@ func seedUsers() {
 			Email:        "admin@infraeye.local",
 			IsActive:     true,
 		})
-		log.Println("✅ Seeded default admin user")
+		log.Println("✅ Seeded default admin user (admin / infra123)")
 	} else {
-		log.Println("✅ Admin user already exists, skipping seed")
+		// Admin exists — ensure password matches the configured default
+		if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(adminPass)); err != nil {
+			hash, _ := bcrypt.GenerateFromPassword([]byte(adminPass), bcrypt.DefaultCost)
+			db.DB.Model(&admin).Update("password_hash", string(hash))
+			log.Println("🔑 Admin password reset to default (admin / infra123)")
+		} else {
+			log.Println("✅ Admin user exists with correct password")
+		}
 	}
 }
 

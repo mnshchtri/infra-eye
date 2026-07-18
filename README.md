@@ -32,6 +32,7 @@ In an era of microservices and ephemeral infrastructure, observability shouldn't
 | **Kubernetes 'Lens'**        | Advanced resource explorer for Pods, Deployments, and Events with 1-click diagnostics. | `Production`   |
 | **Netra AI Assistant**       | LLM-powered infrastructure consulting and log analysis.                                | `Beta`         |
 | **Self-Healing Engine**      | XML-defined alert rules that trigger automated SSH remediation commands.               | `Production`   |
+| **OIDC/SSO Authentication**  | Keycloak, Auth0, Okta, Azure AD integration for enterprise single sign-on.            | `Production`   |
 | **MCP Sidecar**              | Model Context Protocol integration for AI-driven cluster troubleshooting.              | `Experimental` |
 | **SSH Terminal**             | Full browser-based `xterm.js` terminal over secure SSH tunnels.                      | `Production`   |
 
@@ -125,7 +126,7 @@ make frontend
 
 We are constantly evolving. Here's what's currently in the pipeline:
 
-- [ ] **OIDC / SSO Integration**: Support for Google, GitHub, and Okta authentication.
+- [x] **OIDC / SSO Integration**: Support for Keycloak, Google, GitHub, Okta, and Azure AD authentication. See [OIDC Integration Guide](docs/OIDC_INTEGRATION.md).
 - [ ] **Infrastructure-as-Code Sync**: Sync your server list and alert rules directly from a Git repo.
 - [ ] **Terraform Bridge**: Visualize and drift-detect Terraform-managed resources.
 - [ ] **Metric Persistence**: Long-term data retention using Prometheus/VictoriaMetrics.

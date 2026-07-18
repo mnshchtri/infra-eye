@@ -1,18 +1,17 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo, startTransition } from 'react'
-import { 
-  LayoutGrid, Server, 
+import {
+  LayoutGrid, Server,
   RefreshCw, FileCode,
   Boxes, ChevronRight, ChevronLeft, Activity,
   Globe, X, Terminal,
   List,
   Shield, Key, Lock,
-  Database, Gauge, Cpu, Layers
+  Database, Gauge, Cpu, Layers,
+  Hash, RotateCw, Expand, Route, Waypoints, Network, Puzzle, Plus
 } from 'lucide-react'
 import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
 import { api, buildWsUrl } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
-import { useUIStore } from '../../store/uiStore'
-import logo from '../../assets/logo.png'
 import { KTable } from './KTable'
 import { ResNavLink, NavCategory } from './K8sSidebar'
 import { PulseDashboard } from './PulseDashboard'
@@ -29,10 +28,11 @@ interface Cluster {
   kube_config?: string;
 }
 
-type ResourceType = 
-  | 'pulse' | 'nodes' | 'pods' | 'deployments' | 'daemonsets' | 'statefulsets' | 'replicasets' | 'jobs' | 'cronjobs'
-  | 'configmaps' | 'secrets' | 'resourcequotas' | 'hpa'
+type ResourceType =
+  | 'pulse' | 'nodes' | 'namespaces' | 'crds' | 'pods' | 'deployments' | 'daemonsets' | 'statefulsets' | 'replicasets' | 'jobs' | 'cronjobs'
+  | 'configmaps' | 'secrets' | 'resourcequotas' | 'hpa' | 'poddisruptionbudgets'
   | 'services' | 'endpoints' | 'ingresses' | 'networkpolicies'
+  | 'gatewayclasses' | 'gateways' | 'httproutes' | 'grpcroutes' | 'referencegrants'
   | 'pvcs' | 'pvs' | 'storageclasses'
   | 'serviceaccounts' | 'roles' | 'clusterroles' | 'rolebindings' | 'clusterrolebindings'
   | 'events' | 'yaml';
@@ -43,8 +43,204 @@ interface K8sResourceExplorerProps {
   canUseKubectl: boolean;
 }
 
+// Lens-style creation templates: starting points the user edits before applying.
+const K8S_TEMPLATES: Record<string, string> = {
+  Pod: `apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+  namespace: default
+  labels:
+    app: my-pod
+spec:
+  containers:
+    - name: app
+      image: nginx:latest
+      ports:
+        - containerPort: 80
+`,
+  Deployment: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment
+  namespace: default
+  labels:
+    app: my-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+`,
+  Service: `apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: my-app
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+`,
+  ConfigMap: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-config
+  namespace: default
+data:
+  KEY: value
+`,
+  Secret: `apiVersion: v1
+kind: Secret
+metadata:
+  name: my-secret
+  namespace: default
+type: Opaque
+stringData:
+  password: changeme
+`,
+  Ingress: `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  namespace: default
+spec:
+  rules:
+    - host: example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 80
+`,
+  PersistentVolumeClaim: `apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+`,
+  Job: `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: my-job
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - name: job
+          image: busybox:latest
+          command: ["sh", "-c", "echo hello"]
+      restartPolicy: Never
+  backoffLimit: 3
+`,
+  CronJob: `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: my-cronjob
+  namespace: default
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: job
+              image: busybox:latest
+              command: ["sh", "-c", "echo hello"]
+          restartPolicy: OnFailure
+`,
+  Namespace: `apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-namespace
+`,
+  NetworkPolicy: `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: my-networkpolicy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: my-app
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+      ports:
+        - protocol: TCP
+          port: 80
+`,
+  Gateway: `apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: my-gateway
+  namespace: default
+spec:
+  gatewayClassName: my-gateway-class
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+`,
+  HTTPRoute: `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-route
+  namespace: default
+spec:
+  parentRefs:
+    - name: my-gateway
+  hostnames:
+    - example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: my-service
+          port: 80
+`,
+}
+
 export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8sResourceExplorerProps) => {
-  const { darkMode } = useUIStore()
   const [activeRes, setActiveRes] = useState<ResourceType>('pulse')
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -59,7 +255,8 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [commandInput, setCommandInput] = useState('')
   const [cmdError, setCmdError] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [editingYaml, setEditingYaml] = useState<{ open: boolean; content: string; name?: string; ns?: string; kind?: string }>({ open: false, content: '' })
+  const [editingYaml, setEditingYaml] = useState<{ open: boolean; content: string; name?: string; ns?: string; kind?: string; isNew?: boolean }>({ open: false, content: '' })
+  const [createKind, setCreateKind] = useState('Deployment')
   const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; pod?: string; ns?: string; container?: string } | null>(null)
   const [showPortForward, setShowPortForward] = useState(false)
   const [pfTarget, setPfTarget] = useState<{ ns?: string; target?: string; port?: string; suggestedLocal?: string }>({})
@@ -79,6 +276,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     workloads: true,
     config: false,
     network: false,
+    gateway: false,
     storage: false,
     rbac: false
   })
@@ -98,6 +296,11 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
   const toggleCategory = useCallback((cat: string) => {
     setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }))
+  }, [])
+
+  const goTo = useCallback((r: ResourceType) => () => {
+    setActiveRes(r)
+    if (window.innerWidth <= 768) setIsSidebarOpen(false)
   }, [])
 
   const filteredData = useMemo(() => {
@@ -203,6 +406,18 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const applyYamlRef = useRef(applyYaml)
   useEffect(() => { applyYamlRef.current = applyYaml }, [applyYaml])
 
+  const openCreateResource = useCallback((kind?: string) => {
+    const k = kind || 'Deployment'
+    setCreateKind(k)
+    setApplyResult(null)
+    setEditingYaml({ open: true, content: K8S_TEMPLATES[k], isNew: true })
+  }, [])
+
+  const switchCreateTemplate = (kind: string) => {
+    setCreateKind(kind)
+    setEditingYaml(c => ({ ...c, content: K8S_TEMPLATES[kind] }))
+  }
+
   const handleDeleteResource = useCallback(async (item: any) => {
     const kind = item.kind || activeRes.slice(0, -1);
     if (!window.confirm(`Delete ${kind} ${item.metadata.name}?`)) return;
@@ -213,6 +428,35 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       toast.success('Resource deleted', `Deleted ${item.metadata.name}`)
     } catch (e: any) { toast.error('Delete failed', e.response?.data?.error || 'Failed to delete resource') }
   }, [cluster.id, activeRes, toast])
+
+  const singularKind: Record<string, string> = {
+    deployments: 'deployment', daemonsets: 'daemonset', statefulsets: 'statefulset', replicasets: 'replicaset'
+  }
+
+  const rolloutRestart = useCallback(async (item: any) => {
+    const kind = singularKind[stateRef.current.activeRes] || 'deployment'
+    const ns = item.metadata.namespace ? `-n ${item.metadata.namespace}` : ''
+    try {
+      const res = await api.post(`/api/servers/${cluster.id}/kubectl`, { command: `rollout restart ${kind}/${item.metadata.name} ${ns}` })
+      if (res.data.success) toast.success('Rollout restarted', `${kind}/${item.metadata.name} is restarting`)
+      else toast.error('Restart failed', res.data.stderr || res.data.error || 'kubectl rollout restart failed')
+    } catch (e: any) { toast.error('Restart failed', e.response?.data?.error || e.message) }
+  }, [cluster.id, toast])
+
+  const scaleWorkload = useCallback(async (item: any) => {
+    const kind = singularKind[stateRef.current.activeRes] || 'deployment'
+    const current = item.spec?.replicas ?? 1
+    const input = window.prompt(`Scale ${kind}/${item.metadata.name} — desired replicas:`, String(current))
+    if (input === null) return
+    const replicas = parseInt(input, 10)
+    if (isNaN(replicas) || replicas < 0) { toast.error('Invalid replica count', 'Enter a non-negative integer'); return }
+    const ns = item.metadata.namespace ? `-n ${item.metadata.namespace}` : ''
+    try {
+      const res = await api.post(`/api/servers/${cluster.id}/kubectl`, { command: `scale ${kind}/${item.metadata.name} --replicas=${replicas} ${ns}` })
+      if (res.data.success) toast.success('Scaled', `${kind}/${item.metadata.name} → ${replicas} replicas`)
+      else toast.error('Scale failed', res.data.stderr || res.data.error || 'kubectl scale failed')
+    } catch (e: any) { toast.error('Scale failed', e.response?.data?.error || e.message) }
+  }, [cluster.id, toast])
 
   const fetchPortForwards = useCallback(async () => {
     if (!canUseKubectl) return
@@ -332,7 +576,11 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           'cm': 'configmaps', 'sec': 'secrets', 'rq': 'resourcequotas', 'hpa': 'hpa',
           's': 'services', 'svc': 'services', 'ep': 'endpoints', 'ing': 'ingresses', 'np': 'networkpolicies',
           'pvc': 'pvcs', 'pv': 'pvs', 'sc': 'storageclasses', 'sa': 'serviceaccounts', 'role': 'roles', 'crole': 'clusterroles',
-          'rb': 'rolebindings', 'crb': 'clusterrolebindings', 'e': 'events', 'ev': 'events', 'pulse': 'pulse', 'y': 'yaml'
+          'rb': 'rolebindings', 'crb': 'clusterrolebindings', 'e': 'events', 'ev': 'events', 'pulse': 'pulse', 'y': 'yaml',
+          'ns': 'namespaces', 'namespaces': 'namespaces', 'crd': 'crds', 'crds': 'crds', 'pdb': 'poddisruptionbudgets',
+          'gc': 'gatewayclasses', 'gw': 'gateways', 'gateway': 'gateways', 'gateways': 'gateways',
+          'hr': 'httproutes', 'httproute': 'httproutes', 'httproutes': 'httproutes',
+          'gr': 'grpcroutes', 'grpcroutes': 'grpcroutes', 'rg': 'referencegrants'
         }
        if (routes[input]) { setActiveRes(routes[input]); setCmdError(false); }
        else { setCmdError(true); setTimeout(() => setCmdError(false), 800); return; }
@@ -384,10 +632,10 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         transition: 'all 0.3s ease',
         zIndex: 500
       }}>
-        <div style={{ 
-          height: 60, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 16, 
-          borderBottom: '1px solid var(--border)', background: 'var(--bg-sidebar)', 
-          flexShrink: 0 
+        <div style={{
+          height: 'var(--header-h)', padding: '0 16px', display: 'flex', alignItems: 'center', gap: 16,
+          borderBottom: '1px solid var(--border)', background: 'var(--bg-sidebar)',
+          flexShrink: 0
         }}>
            <button 
              className="btn-icon" 
@@ -402,7 +650,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
            </button>
            
            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-             <img src={logo} alt="L" style={{ height: 28, width: 'auto', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }} />
+             <KubernetesIcon size={26} />
              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                 <span style={{ 
                   fontWeight: 900, fontSize: 11, color: 'var(--text-primary)', 
@@ -433,15 +681,25 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             icon={Activity} label="Pulse Dashboard" 
           />
           <NavCategory label="Cluster" icon={Gauge} isOpen={expandedCats.cluster} onToggle={() => toggleCategory('cluster')}>
-            <ResNavLink 
-              active={activeRes === 'nodes'} 
-              onClick={() => { setActiveRes('nodes'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
-              icon={Server} label="Nodes" isSub 
+            <ResNavLink
+              active={activeRes === 'nodes'}
+              onClick={goTo('nodes')}
+              icon={Server} label="Nodes" isSub
             />
-            <ResNavLink 
-              active={activeRes === 'events'} 
-              onClick={() => { setActiveRes('events'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
-              icon={List} label="Events" isSub 
+            <ResNavLink
+              active={activeRes === 'namespaces'}
+              onClick={goTo('namespaces')}
+              icon={Hash} label="Namespaces" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'events'}
+              onClick={goTo('events')}
+              icon={List} label="Events" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'crds'}
+              onClick={goTo('crds')}
+              icon={Puzzle} label="CRDs" isSub
             />
           </NavCategory>
           <NavCategory label="Workloads" icon={Layers} isOpen={expandedCats.workloads} onToggle={() => toggleCategory('workloads')}>
@@ -497,10 +755,15 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
               onClick={() => { setActiveRes('resourcequotas'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
               icon={Shield} label="ResourceQuotas" isSub 
             />
-            <ResNavLink 
-              active={activeRes === 'hpa'} 
-              onClick={() => { setActiveRes('hpa'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
-              icon={Activity} label="HPA" isSub 
+            <ResNavLink
+              active={activeRes === 'hpa'}
+              onClick={() => { setActiveRes('hpa'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }}
+              icon={Activity} label="HPA" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'poddisruptionbudgets'}
+              onClick={goTo('poddisruptionbudgets')}
+              icon={Shield} label="PodDisruptionBudgets" isSub
             />
           </NavCategory>
           <NavCategory label="Network" icon={Globe} isOpen={expandedCats.network} onToggle={() => toggleCategory('network')}>
@@ -524,10 +787,37 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
               onClick={() => { setActiveRes('ingresses'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
               icon={Globe} label="Ingresses" isSub 
             />
-            <ResNavLink 
-              active={activeRes === 'networkpolicies'} 
-              onClick={() => { setActiveRes('networkpolicies'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }} 
-              icon={Shield} label="NetworkPolicies" isSub 
+            <ResNavLink
+              active={activeRes === 'networkpolicies'}
+              onClick={() => { setActiveRes('networkpolicies'); if (window.innerWidth <= 768) setIsSidebarOpen(false); }}
+              icon={Shield} label="NetworkPolicies" isSub
+            />
+          </NavCategory>
+          <NavCategory label="Gateway API" icon={Waypoints} isOpen={expandedCats.gateway} onToggle={() => toggleCategory('gateway')}>
+            <ResNavLink
+              active={activeRes === 'gatewayclasses'}
+              onClick={goTo('gatewayclasses')}
+              icon={Network} label="GatewayClasses" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'gateways'}
+              onClick={goTo('gateways')}
+              icon={Waypoints} label="Gateways" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'httproutes'}
+              onClick={goTo('httproutes')}
+              icon={Route} label="HTTPRoutes" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'grpcroutes'}
+              onClick={goTo('grpcroutes')}
+              icon={Route} label="GRPCRoutes" isSub
+            />
+            <ResNavLink
+              active={activeRes === 'referencegrants'}
+              onClick={goTo('referencegrants')}
+              icon={Shield} label="ReferenceGrants" isSub
             />
           </NavCategory>
           <NavCategory label="Storage" icon={Database} isOpen={expandedCats.storage} onToggle={() => toggleCategory('storage')}>
@@ -585,7 +875,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-app)', minWidth: 0 }}>
-        <header style={{ height: 60, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, zIndex: 10 }}>
+        <header style={{ height: 'var(--header-h)', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', flexShrink: 0, zIndex: 10 }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                <button 
                 className="show-mobile-only btn-icon" 
@@ -643,6 +933,22 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                 </button>
               )}
               
+              {canUseKubectl && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => openCreateResource()}
+                  title="Create a new resource from a YAML template"
+                  style={{
+                    height: 36, padding: '0 16px', borderRadius: 0,
+                    gap: 8, display: 'flex', alignItems: 'center',
+                    fontWeight: 900, fontSize: 11, letterSpacing: '0.05em'
+                  }}
+                >
+                  <Plus size={14} />
+                  <span className="hidden-mobile">CREATE</span>
+                </button>
+              )}
+
               <button
                 className="btn btn-secondary"
                 onClick={() => setShowMCPTerminal(t => !t)}
@@ -695,9 +1001,17 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
 
-          {['deployments', 'daemonsets', 'statefulsets', 'replicasets', 'jobs', 'cronjobs'].includes(activeRes) && 
+          {['deployments', 'daemonsets', 'statefulsets', 'replicasets', 'jobs', 'cronjobs'].includes(activeRes) &&
             <KTable columns={['Name', 'Namespace', 'Ready', 'Available', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-              actions={(d: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>}
+              actions={(d: any) => (
+                <>
+                  <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>
+                  {canUseKubectl && ['deployments', 'daemonsets', 'statefulsets'].includes(activeRes) &&
+                    <button className="btn-icon" title="Rollout Restart" onClick={() => rolloutRestart(d)}><RotateCw size={14} /></button>}
+                  {canUseKubectl && ['deployments', 'statefulsets', 'replicasets'].includes(activeRes) &&
+                    <button className="btn-icon" title="Scale" onClick={() => scaleWorkload(d)}><Expand size={14} /></button>}
+                </>
+              )}
             />}
 
           {activeRes === 'configmaps' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
@@ -753,6 +1067,29 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
           {activeRes === 'events' && <KTable columns={['Type', 'Reason', 'Object', 'Message', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} />}
 
+          {activeRes === 'namespaces' && <KTable columns={['Name', 'Status', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(n: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('namespace', n.metadata.name)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'crds' && <KTable columns={['Name', 'Group', 'Scope', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(c: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('crd', c.metadata.name)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'poddisruptionbudgets' && <KTable columns={['Name', 'Namespace', 'MinAvailable', 'MaxUnavailable', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(p: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('poddisruptionbudget', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+
+          {activeRes === 'gatewayclasses' && <KTable columns={['Name', 'Controller', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(g: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('gatewayclass', g.metadata.name)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'gateways' && <KTable columns={['Name', 'Namespace', 'Class', 'Address', 'Listeners', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(g: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('gateway', g.metadata.name, g.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {['httproutes', 'grpcroutes'].includes(activeRes) && <KTable columns={['Name', 'Namespace', 'Hostnames', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(r: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(activeRes.slice(0, -1), r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+          {activeRes === 'referencegrants' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
+             actions={(r: any) => <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('referencegrant', r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>}
+          />}
+
           {activeRes === 'yaml' && (
             <div style={{ height: 'calc(100vh - 160px)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
               <ConfigViewer 
@@ -780,14 +1117,36 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       
       {editingYaml.open && (
         <div className="fade-in" style={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', background: 'var(--bg-app)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 64, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{editingYaml.kind?.toUpperCase()}: {editingYaml.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{editingYaml.ns || 'cluster-scoped'} • CMD+S TO APPLY</span>
-            </div>
-            <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ height: 64, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', gap: 16 }}>
+            {editingYaml.isNew ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>CREATE RESOURCE</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Pick a template, edit, apply • CMD+S TO APPLY</span>
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                  padding: '6px 14px', borderRadius: 0
+                }}>
+                  <FileCode size={13} color="var(--brand-primary)" />
+                  <select
+                    style={{ background: 'transparent', border: 'none', fontSize: 11, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', paddingRight: 4 }}
+                    value={createKind} onChange={e => switchCreateTemplate(e.target.value)}
+                  >
+                    {Object.keys(K8S_TEMPLATES).map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{editingYaml.kind?.toUpperCase()}: {editingYaml.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{editingYaml.ns || 'cluster-scoped'} • CMD+S TO APPLY</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
               <button className="btn btn-secondary" onClick={() => setEditingYaml({ open: false, content: '' })}>Cancel</button>
-              <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying...' : 'Save & Apply'}</button>
+              <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying...' : editingYaml.isNew ? 'Create & Apply' : 'Save & Apply'}</button>
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

@@ -120,6 +120,10 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete your own account"})
 		return
 	}
+	// Hard-delete the user's access grants first (including soft-deleted rows) —
+	// the FK from server_accesses/resource_accesses would otherwise block this.
+	db.DB.Unscoped().Where("user_id = ?", id).Delete(&models.ServerAccess{})
+	db.DB.Unscoped().Where("user_id = ?", id).Delete(&models.ResourceAccess{})
 	if err := db.DB.Unscoped().Delete(&models.User{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
 		return

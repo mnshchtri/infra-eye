@@ -32,6 +32,7 @@ func Connect() {
 	if err := DB.AutoMigrate(
 		&models.User{},
 		&models.Server{},
+		&models.ServerAccess{},
 		&models.Resource{},
 		&models.ResourceAccess{},
 		&models.ResourceAudit{},
@@ -46,7 +47,7 @@ func Connect() {
 	}
 
 	log.Println("✅ Database migrated")
-	
+
 	// Ensure all servers with KubeConfig are flagged as IsK8s
 	DB.Model(&models.Server{}).Where("kube_config != ? AND is_k8s = ?", "", false).Update("is_k8s", true)
 }

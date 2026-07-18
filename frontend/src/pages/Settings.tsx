@@ -139,7 +139,7 @@ export function Settings() {
           </div>
         </div>
 
-        <div className="tabs-container" style={{ 
+        <div className="tabs-container tabs-scroll-x" style={{ 
           display: 'flex', gap: 0, marginBottom: 32, borderBottom: '1px solid var(--border)', width: '100%'
         }}>
           <button

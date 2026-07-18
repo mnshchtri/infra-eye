@@ -12,6 +12,7 @@ import { ResourceDetail } from './pages/ResourceDetail'
 import { Kubernetes } from './pages/Kubernetes'
 import { DevTools } from './pages/DevTools'
 import { VPN } from './pages/VPN'
+import { Networking } from './pages/Networking'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="servers" element={<Servers />} />
           <Route path="servers/:id" element={<ServerDetail />} />
+          <Route path="servers/:id/networking" element={<Networking />} />
           <Route path="resources" element={<Resources />} />
           <Route path="resources/:id" element={<ResourceDetail />} />
           <Route path="logs" element={<Navigate to="/" />} /> {/* Redirects to select a server */}

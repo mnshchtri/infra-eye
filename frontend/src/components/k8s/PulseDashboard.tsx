@@ -1,9 +1,9 @@
 import { memo } from 'react'
-import { 
-  Server, Boxes, LayoutGrid, Zap, RefreshCw, Globe, 
-  FileCode, Key, Database, Layers, Cpu, Activity, 
-  Shield, Hash, Network, HardDrive, Box, Clock, 
-  Binary, Activity as PulseIcon
+import {
+  Server, Boxes, LayoutGrid, Zap, RefreshCw, Globe,
+  FileCode, Key, Database, Layers, Cpu, Activity,
+  Shield, Hash, Network, HardDrive, Box, Clock,
+  Binary, Activity as PulseIcon, AlertTriangle
 } from 'lucide-react'
 
 interface PulseDashboardProps {
@@ -56,6 +56,12 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                   <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
                   <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>ENGINE: <span style={{ color: 'var(--brand-primary)' }}>NATIVE_K8S</span></span>
                   <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
+                  {stats?.k8sVersion && (
+                    <>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>VERSION: <span style={{ color: 'var(--text-secondary)' }}>{stats.k8sVersion}</span></span>
+                      <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                      <Clock size={10} color="var(--text-muted)" />
                      <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>99.9% UPTIME</span>
@@ -155,12 +161,24 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                            <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.3 }} />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+                           <MiniStat label="Namespaces" count={stats.namespaces} icon={Hash} onClick={() => onJump('namespaces')} />
                            <MiniStat label="Services" count={stats.services} icon={Network} onClick={() => onJump('services')} />
+                           <MiniStat label="Endpoints" count={stats.endpoints} icon={Boxes} onClick={() => onJump('endpoints')} />
                            <MiniStat label="Ingresses" count={stats.ingresses} icon={Globe} onClick={() => onJump('ingresses')} />
                            <MiniStat label="ConfigMaps" count={stats.configmaps} icon={FileCode} onClick={() => onJump('configmaps')} />
                            <MiniStat label="Secrets" count={stats.secrets} icon={Key} onClick={() => onJump('secrets')} />
+                           <MiniStat label="ResourceQuotas" count={stats.resourcequotas} icon={Shield} onClick={() => onJump('resourcequotas')} />
+                           <MiniStat label="HPA" count={stats.hpa} icon={PulseIcon} onClick={() => onJump('hpa')} />
                            <MiniStat label="PVCs" count={stats.pvcs} icon={HardDrive} onClick={() => onJump('pvcs')} />
+                           <MiniStat label="PVs" count={stats.pvs} icon={Database} onClick={() => onJump('pvs')} />
+                           <MiniStat label="StorageClasses" count={stats.storageclasses} icon={Box} onClick={() => onJump('storageclasses')} />
+                           <MiniStat label="Jobs" count={stats.jobs} icon={Zap} onClick={() => onJump('jobs')} />
                            <MiniStat label="CronJobs" count={stats.cronjobs} icon={Binary} onClick={() => onJump('cronjobs')} />
+                           <MiniStat
+                             label="Warning Events" count={stats.eventsWarning} icon={AlertTriangle}
+                             color={stats.eventsWarning > 0 ? 'var(--warning)' : undefined}
+                             onClick={() => onJump('events')}
+                           />
                         </div>
                      </div>
                   </>
@@ -261,16 +279,16 @@ const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, l
    )
 })
 
-const MiniStat = memo(({ label, count, icon: Icon, onClick }: any) => (
-   <div className="card hover-lift" style={{ 
-      cursor: 'pointer', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, 
-      border: '1px solid var(--border)', borderRadius: 0, background: 'var(--bg-card)'
+const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: any) => (
+   <div className="card hover-lift" style={{
+      cursor: 'pointer', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
+      border: color ? `1px solid ${color}` : '1px solid var(--border)', borderRadius: 0, background: 'var(--bg-card)'
    }} onClick={onClick}>
-      <div style={{ color: 'var(--brand-primary)', opacity: 0.8 }}>
+      <div style={{ color: color || 'var(--brand-primary)', opacity: 0.8 }}>
          <Icon size={12} />
       </div>
       <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', fontFamily: 'var(--font-mono)' }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count || 0}</div>
+      <div style={{ fontSize: 13, fontWeight: 900, color: color || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count || 0}</div>
    </div>
 ))
 

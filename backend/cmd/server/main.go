@@ -26,6 +26,13 @@ func main() {
 	// Connect DB & migrate
 	db.Connect()
 
+	// Initialize OIDC if enabled
+	if config.C.OIDCEnabled {
+		if err := handlers.InitOIDC(); err != nil {
+			log.Fatalf("Failed to initialize OIDC: %v", err)
+		}
+	}
+
 	// MCP Master Config Sync
 	mcp.SyncMasterKubeconfig()
 
@@ -63,6 +70,11 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok", "version": "1.0.0", "time": time.Now()})
 	})
 
+	// OIDC routes
+	r.GET("/api/auth/oidc/config", handlers.GetOIDCConfig)
+	r.GET("/api/auth/oidc/login", handlers.OIDCLogin)
+	r.GET("/api/auth/oidc/callback", handlers.OIDCCallback)
+
 	// ── Protected routes ───────────────────────────────────────
 	api := r.Group("/api", middleware.Auth())
 	{
@@ -88,6 +100,18 @@ func main() {
 		api.POST("/servers/:id/diagnose", middleware.RequireRole("admin", "devops"), handlers.DiagnoseServer)
 		api.POST("/servers/test-k8s", middleware.RequireRole("admin", "devops"), handlers.TestK8sConnection)
 
+		// ── OS accounts on target servers (Cockpit-style) ────────
+		api.GET("/servers/:id/accounts", middleware.RequireRole("admin", "devops"), handlers.ListOSAccounts)
+		api.POST("/servers/:id/accounts", middleware.RequireRole("admin"), handlers.CreateOSAccount)
+		api.PUT("/servers/:id/accounts/:username", middleware.RequireRole("admin"), handlers.UpdateOSAccount)
+		api.DELETE("/servers/:id/accounts/:username", middleware.RequireRole("admin"), handlers.DeleteOSAccount)
+
+		// ── Server access grants (per-user RBAC) ─────────────────
+		api.GET("/servers/:id/access", middleware.RequireRole("admin", "devops"), handlers.ListServerAccess)
+		api.POST("/servers/:id/access", middleware.RequireRole("admin"), handlers.CreateServerAccess)
+		api.PUT("/servers/:id/access/:accessId", middleware.RequireRole("admin"), handlers.UpdateServerAccess)
+		api.DELETE("/servers/:id/access/:accessId", middleware.RequireRole("admin"), handlers.DeleteServerAccess)
+
 		// ── Resources ───────────────────────────────────────────
 		api.GET("/resources", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResources)
 		api.POST("/resources", middleware.RequireRole("admin", "devops"), handlers.CreateResource)
@@ -105,6 +129,9 @@ func main() {
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)
 		api.GET("/servers/:id/metrics/latest", handlers.GetLatestMetric)
+
+		// ── Networking / Services ────────────────────────────────
+		api.GET("/servers/:id/networking", handlers.GetServerNetworking)
 
 		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)
@@ -204,6 +231,9 @@ func wsAuthMiddleware() gin.HandlerFunc {
 
 // metricsWsHandler subscribes a client to the server's metrics room
 func metricsWsHandler(c *gin.Context) {
+	if handlers.DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	var srv models.Server
 	if err := db.DB.First(&srv, id).Error; err != nil {

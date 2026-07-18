@@ -146,6 +146,38 @@ func (c *Client) RunCommand(cmd string) (string, string, error) {
 	return outBuf.String(), errBuf.String(), nil
 }
 
+// RunCommandTimeout is like RunCommand but aborts (closing the session) if the
+// command hasn't finished within timeout, so a hung remote command can't block
+// the connection forever.
+func (c *Client) RunCommandTimeout(cmd string, timeout time.Duration) (string, string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	session, err := c.client.NewSession()
+	if err != nil {
+		return "", "", fmt.Errorf("new session: %w", err)
+	}
+	defer session.Close()
+
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	session.Stdout = &outBuf
+	session.Stderr = &errBuf
+
+	done := make(chan error, 1)
+	go func() { done <- session.Run(cmd) }()
+
+	select {
+	case err := <-done:
+		return outBuf.String(), errBuf.String(), err
+	case <-time.After(timeout):
+		// Don't read outBuf/errBuf here: session.Run's goroutine may still be
+		// writing to them concurrently until session.Close() unblocks it.
+		session.Close()
+		return "", "", fmt.Errorf("command timed out after %s", timeout)
+	}
+}
+
 // NewSession returns a raw SSH session for interactive terminal use
 func (c *Client) NewSession() (*gossh.Session, error) {
 	c.mu.Lock()

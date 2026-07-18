@@ -181,7 +181,7 @@ export function AlertRules() {
         )}
       </div>
 
-      <div className="tabs-container" style={{ display: 'flex', gap: 1, marginBottom: 32, background: 'var(--border)', border: '1px solid var(--border)', width: 'fit-content', borderRadius: 0 }}>
+      <div className="tabs-container tabs-scroll-x" style={{ display: 'flex', gap: 1, marginBottom: 32, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 0 }}>
         {(['rules', 'history', 'xml'] as const).map(t => (
           <button
             key={t}
@@ -193,6 +193,7 @@ export function AlertRules() {
               textTransform: 'uppercase', fontFamily: 'var(--font-mono)',
               background: tab === t ? 'var(--brand-primary)' : 'var(--bg-app)',
               color: tab === t ? '#fff' : 'var(--text-muted)',
+              flexShrink: 0,
             }}
           >
             {t === 'rules' && <Bell size={13} />}
@@ -239,7 +240,7 @@ export function AlertRules() {
                      {servers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.host})</option>)}
                   </select>
                </div>
-               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: 12 }}>
+               <div className="alert-form-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: 12 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                      <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Telemetry_Metric</label>
                      <select className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.condition_type} onChange={e => setForm({ ...form, condition_type: e.target.value })}>
@@ -315,7 +316,7 @@ export function AlertRules() {
               {can('manage-alerts') && (<button className="btn btn-primary" style={{ marginTop: 32, borderRadius: 0, padding: '12px 32px' }} onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}><Plus size={14} /> INITIALIZE POLICY</button>)}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 24, paddingBottom: 40 }}>
+            <div className="alert-rules-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 24, paddingBottom: 40 }}>
               {rules.map((rule, i) => (
                 <RuleCard key={rule.id} rule={rule} serverName={getServerName(rule.server_id)} condColor={CONDITION_COLORS[rule.condition_type] || 'var(--brand-primary)'} canManage={can('manage-alerts')} onEdit={handleEdit} onDelete={deleteRule} onToggle={toggleEnable} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} />
               ))}

@@ -5,7 +5,7 @@ import {
   ScrollText, Terminal as TerminalIcon, RefreshCw, Wifi, Shield,
   Search, Download, Power, Settings as SettingsIcon, Loader2,
   ChevronRight, Gauge, Layers, HelpCircle,
-  Trash2, Maximize2, Minimize2
+  Trash2, Maximize2, Minimize2, Network
 } from 'lucide-react'
 import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
 import {
@@ -25,10 +25,35 @@ interface Server {
 interface Metric {
   id: number; timestamp: string; cpu_percent: number; mem_percent: number;
   disk_percent: number; mem_used_mb: number; mem_total_mb: number;
+  disk_used_gb: number; disk_total_gb: number;
   load_avg_1: number; uptime_seconds: number; net_rx_mbps: number; net_tx_mbps: number;
+}
+
+const fmtUptime = (secs: number) => {
+  if (!secs || secs <= 0) return 'N/A'
+  const d = Math.floor(secs / 86400)
+  const h = Math.floor((secs % 86400) / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }
 interface LogEntry {
   id: number; timestamp: string; level: 'info' | 'warn' | 'error' | 'debug'; message: string; stream: string;
+}
+interface NetworkingPort {
+  protocol: string; state: string; local: string; remote: string; program: string; pid: string;
+}
+interface NetworkingService {
+  name: string; active: string; sub: string; description: string;
+}
+interface NetworkingInterface {
+  name: string; state: string; ipv4: string; ipv6: string; mtu: string;
+  rx_bytes: string; tx_bytes: string;
+}
+interface NetworkingInfo {
+  hostname: string; uptime: string;
+  ports: NetworkingPort[]; services: NetworkingService[]; interfaces: NetworkingInterface[];
 }
 
 const CHART_COLORS = {
@@ -109,6 +134,8 @@ export function ServerDetail() {
   const [prefDesc, setPrefDesc] = useState('')
   const [prefSaving, setPrefSaving] = useState(false)
   const [purgingMetrics, setPurgingMetrics] = useState(false)
+  const [netInfo, setNetInfo] = useState<NetworkingInfo | null>(null)
+  const [netLoading, setNetLoading] = useState(false)
   
   const terminalRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -117,7 +144,7 @@ export function ServerDetail() {
   const fitAddonRef = useRef<any>(null)
 
   // Always show all tabs — permissions enforced at the server/API level
-  const tabs = ['Overview', 'Logs', 'Terminal', 'Settings']
+  const tabs = ['Overview', 'Networking', 'Logs', 'Terminal', 'Settings']
 
   useEffect(() => {
     loadServer()
@@ -173,6 +200,75 @@ export function ServerDetail() {
     } catch { }
   }
 
+  // ── Access control (per-user grants; admin only) ──
+  const canManageUsers = can('manage-users')
+  const [accessList, setAccessList] = useState<any[]>([])
+  const [allUsers, setAllUsers] = useState<any[]>([])
+  const [grantUserId, setGrantUserId] = useState('')
+  const [grantLevel, setGrantLevel] = useState('read')
+  const [grantSaving, setGrantSaving] = useState(false)
+
+  async function loadAccess() {
+    try {
+      const [a, u] = await Promise.all([
+        api.get(`/api/servers/${id}/access`),
+        api.get('/api/users'),
+      ])
+      setAccessList(Array.isArray(a.data) ? a.data : [])
+      setAllUsers(Array.isArray(u.data) ? u.data : (u.data?.data || []))
+    } catch { /* not permitted */ }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'Settings' && canManageUsers) loadAccess()
+  }, [activeTab, canManageUsers])
+
+  async function grantAccess() {
+    if (!grantUserId) return
+    setGrantSaving(true)
+    try {
+      await api.post(`/api/servers/${id}/access`, { user_id: parseInt(grantUserId, 10), access_level: grantLevel })
+      toast.success('Access granted', 'User can now see this server')
+      setGrantUserId('')
+      loadAccess()
+    } catch (e: any) {
+      toast.error('Grant failed', e.response?.data?.error || e.message)
+    } finally { setGrantSaving(false) }
+  }
+
+  async function changeAccessLevel(accessId: number, level: string) {
+    try {
+      await api.put(`/api/servers/${id}/access/${accessId}`, { access_level: level })
+      loadAccess()
+    } catch (e: any) { toast.error('Update failed', e.response?.data?.error || e.message) }
+  }
+
+  async function revokeAccess(accessId: number) {
+    try {
+      await api.delete(`/api/servers/${id}/access/${accessId}`)
+      toast.success('Access revoked', 'User no longer sees this server')
+      loadAccess()
+    } catch (e: any) { toast.error('Revoke failed', e.response?.data?.error || e.message) }
+  }
+
+  async function loadNetworking() {
+    setNetLoading(true)
+    try {
+      const res = await api.get(`/api/servers/${id}/networking`)
+      setNetInfo({
+        ...res.data,
+        ports: res.data?.ports || [],
+        services: res.data?.services || [],
+        interfaces: res.data?.interfaces || [],
+      })
+    } catch (err: any) {
+      setNetInfo(null)
+      toast.error('Failed to load networking data', err.response?.data?.error || err.message)
+    } finally {
+      setNetLoading(false)
+    }
+  }
+
   function startMetricsWs() {
     if (wsRef.current) wsRef.current.close()
     const ws = new WebSocket(buildWsUrl(`/ws/servers/${id}/metrics`))
@@ -205,6 +301,13 @@ export function ServerDetail() {
   useEffect(() => {
     if (activeTab === 'Terminal' && terminalRef.current && !xtermRef.current) {
       initTerminal()
+    }
+  }, [activeTab])
+
+  // Load networking data when tab becomes active
+  useEffect(() => {
+    if (activeTab === 'Networking' && !netInfo && !netLoading) {
+      loadNetworking()
     }
   }, [activeTab])
 
@@ -308,6 +411,14 @@ export function ServerDetail() {
   }, [metrics])
 
   const latest = useMemo(() => metrics[metrics.length - 1], [metrics])
+
+  const netChartData = useMemo(() => {
+    return metrics.slice(-30).map(m => ({
+      t: format(new Date(m.timestamp), 'HH:mm'),
+      RX: parseFloat((m.net_rx_mbps || 0).toFixed(2)),
+      TX: parseFloat((m.net_tx_mbps || 0).toFixed(2)),
+    }))
+  }, [metrics])
   
   const filteredLogs = useMemo(() => {
     if (!logSearch) return logs;
@@ -477,10 +588,11 @@ export function ServerDetail() {
               letterSpacing: '0.08em'
             }}
           >
-            {tab === 'Overview'  && <Gauge size={14} />}
-            {tab === 'Logs'      && <ScrollText size={14} />}
-            {tab === 'Terminal'  && <TerminalIcon size={14} />}
-            {tab === 'Settings'  && <SettingsIcon size={14} />}
+            {tab === 'Overview'   && <Gauge size={14} />}
+            {tab === 'Networking' && <Network size={14} />}
+            {tab === 'Logs'       && <ScrollText size={14} />}
+            {tab === 'Terminal'   && <TerminalIcon size={14} />}
+            {tab === 'Settings'   && <SettingsIcon size={14} />}
             <span>{tab}</span>
             {activeTab === tab && (
               <div style={{
@@ -503,6 +615,23 @@ export function ServerDetail() {
             <StatCard label="MEMORY"     value={latest ? `${latest.mem_percent.toFixed(1)}%`  : 'N/A'} icon={MemoryStick} color="var(--success)" />
             <StatCard label="DISK USAGE" value={latest ? `${latest.disk_percent.toFixed(1)}%` : 'N/A'} icon={HardDrive}   color="var(--warning)" />
             <StatCard label="NET RX / TX" value={latest ? `${latest.net_rx_mbps.toFixed(2)} / ${latest.net_tx_mbps.toFixed(2)}` : 'N/A'} icon={Wifi} color="var(--brand-primary)" unit="MB/s" />
+          </div>
+
+          <div className="grid-stats-4">
+            <StatCard label="UPTIME" value={latest ? fmtUptime(latest.uptime_seconds) : 'N/A'} icon={Gauge} color="var(--brand-primary)" />
+            <StatCard label="LOAD AVG (1M)" value={latest ? latest.load_avg_1.toFixed(2) : 'N/A'} icon={Activity} color="var(--info)" />
+            <StatCard
+              label="MEMORY USED / TOTAL"
+              value={latest && latest.mem_total_mb > 0 ? `${(latest.mem_used_mb / 1024).toFixed(1)} / ${(latest.mem_total_mb / 1024).toFixed(1)}` : 'N/A'}
+              unit={latest && latest.mem_total_mb > 0 ? 'GB' : undefined}
+              icon={MemoryStick} color="var(--success)"
+            />
+            <StatCard
+              label="DISK USED / TOTAL"
+              value={latest && latest.disk_total_gb > 0 ? `${latest.disk_used_gb.toFixed(0)} / ${latest.disk_total_gb.toFixed(0)}` : 'N/A'}
+              unit={latest && latest.disk_total_gb > 0 ? 'GB' : undefined}
+              icon={HardDrive} color="var(--warning)"
+            />
           </div>
 
           <div className="card" style={{ marginBottom: 28 }}>
@@ -542,6 +671,209 @@ export function ServerDetail() {
               </ResponsiveContainer>
             )}
           </div>
+
+          {/* Network throughput */}
+          {netChartData.length > 1 && (
+            <div className="card" style={{ marginBottom: 28 }}>
+              <div style={{ marginBottom: 20, padding: '4px 8px' }}>
+                <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Network Throughput</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Receive / transmit — MB/s</p>
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={netChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    formatter={(v: any) => `${v} MB/s`}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                  />
+                  <Legend iconType="plainline" wrapperStyle={{ paddingTop: 16, fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />
+                  <Line type="monotone" dataKey="RX" stroke="var(--info)" dot={false} strokeWidth={2} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="TX" stroke="var(--success)" dot={false} strokeWidth={2} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* System information */}
+          <div className="card" style={{ marginBottom: 28, padding: '24px' }}>
+            <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', marginBottom: 20 }}>System Information</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px 32px' }}>
+              {[
+                { k: 'Operating System', v: server.os === 'darwin' ? 'macOS' : server.os === 'linux' ? 'Linux' : server.os === 'windows' ? 'Windows' : 'Unknown' },
+                { k: 'Host', v: server.host ? `${server.host}:${server.port}` : 'Direct Cluster API' },
+                { k: 'SSH User', v: server.ssh_user || '—' },
+                { k: 'Auth Method', v: server.auth_type === 'password' ? 'Password' : 'SSH Key' },
+                { k: 'Kubernetes', v: server.is_k8s ? 'Cluster attached' : 'No' },
+                { k: 'Last Metric', v: latest ? format(new Date(latest.timestamp), 'HH:mm:ss') : 'Never' },
+                { k: 'Tags', v: server.tags || '—' },
+                { k: 'Description', v: server.description || '—' },
+              ].map(({ k, v }) => (
+                <div key={k} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                  <div style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'Networking' && (
+        <div className="fade-up">
+          {netLoading && !netInfo ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
+            </div>
+          ) : netInfo ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* Summary Stats */}
+              <div className="grid-stats-4">
+                <StatCard label="LISTENING" value={`${netInfo.ports.filter(p => p.state === 'LISTEN').length}`} icon={Network} color="var(--info)" />
+                <StatCard label="SERVICES" value={`${netInfo.services.filter(s => s.active === 'active').length}`} icon={Activity} color="var(--success)" />
+                <StatCard label="FAILED" value={`${netInfo.services.filter(s => s.active === 'failed').length}`} icon={Power} color="var(--danger)" />
+                <StatCard label="INTERFACES" value={`${netInfo.interfaces.length}`} icon={Wifi} color="var(--brand-primary)" />
+              </div>
+
+              {/* Listening Ports */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Network size={16} color="var(--brand-primary)" />
+                  <span style={{ fontWeight: 800, fontSize: 14 }}>Listening Ports</span>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({netInfo.ports.length})</span>
+                </div>
+                {netInfo.ports.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No listening ports detected</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          {['Proto', 'State', 'Local Address', 'Program'].map(h => (
+                            <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {netInfo.ports.map((p, i) => {
+                          const protoColor = (p.protocol === 'tcp' || p.protocol === 'tcp6') ? 'var(--info)' : 'var(--warning)'
+                          const stateColor = p.state === 'LISTEN' ? 'var(--success)' : p.state === 'ESTABLISHED' ? 'var(--brand-primary)' : 'var(--text-muted)'
+                          const localParts = p.local.split(':')
+                          const localPort = localParts[localParts.length - 1]
+                          const localAddr = localParts.slice(0, -1).join(':') || '::'
+                          return (
+                            <tr key={`${p.local}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ padding: '10px 16px' }}>
+                                <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${protoColor}18`, color: protoColor, border: `1px solid ${protoColor}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{p.protocol}</span>
+                              </td>
+                              <td style={{ padding: '10px 16px' }}>
+                                <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${stateColor}18`, color: stateColor, border: `1px solid ${stateColor}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{p.state}</span>
+                              </td>
+                              <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{localAddr}</span>
+                                <span style={{ fontWeight: 800, color: 'var(--brand-primary)' }}>:{localPort}</span>
+                              </td>
+                              <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                {p.program || '—'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Services */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Activity size={16} color="var(--brand-primary)" />
+                  <span style={{ fontWeight: 800, fontSize: 14 }}>System Services</span>
+                </div>
+                <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['Name', 'Active', 'Sub', 'Description'].map(h => (
+                          <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)', position: 'sticky', top: 0 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {netInfo.services.filter(s => s.active === 'active' || s.active === 'failed').slice(0, 30).map(s => {
+                        const ac = s.active === 'active' ? 'var(--success)' : 'var(--danger)'
+                        return (
+                          <tr key={s.name} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: 0, background: ac }} />
+                                {s.name}
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 16px' }}>
+                              <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${ac}18`, color: ac, border: `1px solid ${ac}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{s.active}</span>
+                            </td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{s.sub}</td>
+                            <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Network Interfaces */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Wifi size={16} color="var(--brand-primary)" />
+                  <span style={{ fontWeight: 800, fontSize: 14 }}>Network Interfaces</span>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['Interface', 'IP Address', 'MTU', 'Traffic'].map(h => (
+                          <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {netInfo.interfaces.map(iface => {
+                        const sc = iface.state === 'UP' ? 'var(--success)' : 'var(--text-muted)'
+                        const fmtBytes = (b: string) => { const n = parseInt(b); if (isNaN(n) || n === 0) return '0 B'; const u = ['B','KB','MB','GB']; const i = Math.floor(Math.log(n)/Math.log(1024)); return (n/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i]; }
+                        return (
+                          <tr key={iface.name} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '10px 16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: 0, background: sc }} />
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{iface.name}</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{iface.ipv4 || '—'}</td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{iface.mtu}</td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                              <span style={{ color: 'var(--success)' }}>RX {fmtBytes(iface.rx_bytes)}</span>
+                              <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>/</span>
+                              <span style={{ color: 'var(--info)' }}>TX {fmtBytes(iface.tx_bytes)}</span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Network size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
+              <div style={{ fontSize: 13 }}>Unable to load networking data</div>
+              <button className="btn btn-secondary" onClick={loadNetworking} style={{ marginTop: 16 }}>Retry</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -613,6 +945,72 @@ export function ServerDetail() {
 
       {activeTab === 'Settings' && (
         <div className="fade-in">
+           {canManageUsers && (
+             <div className="card" style={{ marginBottom: 24 }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                 <Shield size={16} color="var(--brand-primary)" />
+                 <h3 style={{ fontWeight: 800, fontSize: 16 }}>Access Control</h3>
+               </div>
+               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
+                 Grant trainee/intern users visibility of this {server.is_k8s ? 'cluster' : 'server'}. Admin and DevOps roles always have access. Users without a grant cannot see it anywhere in the app.
+               </p>
+
+               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 20 }}>
+                 <select className="input" style={{ flex: '1 1 200px', height: 38 }} value={grantUserId} onChange={e => setGrantUserId(e.target.value)}>
+                   <option value="">Select a user…</option>
+                   {allUsers
+                     .filter(u => !['admin', 'devops'].includes(u.role) && !accessList.some(a => a.user_id === u.id))
+                     .map(u => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
+                 </select>
+                 <select className="input" style={{ width: 130, height: 38 }} value={grantLevel} onChange={e => setGrantLevel(e.target.value)}>
+                   <option value="read">Read</option>
+                   <option value="operate">Operate</option>
+                 </select>
+                 <button className="btn btn-primary" style={{ height: 38 }} onClick={grantAccess} disabled={!grantUserId || grantSaving}>
+                   {grantSaving ? 'Granting…' : 'Grant Access'}
+                 </button>
+               </div>
+
+               {accessList.length === 0 ? (
+                 <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                   No per-user grants yet — only Admin and DevOps can see this {server.is_k8s ? 'cluster' : 'server'}.
+                 </div>
+               ) : (
+                 <div style={{ overflowX: 'auto' }}>
+                   <table className="k-table" style={{ minWidth: 480 }}>
+                     <thead>
+                       <tr>
+                         <th>User</th>
+                         <th>Role</th>
+                         <th>Access Level</th>
+                         <th style={{ textAlign: 'right' }}>Actions</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {accessList.map(a => (
+                         <tr key={a.id}>
+                           <td style={{ fontWeight: 700 }}>{a.user?.username || `user #${a.user_id}`}</td>
+                           <td style={{ textTransform: 'capitalize' }}>{a.user?.role || '—'}</td>
+                           <td>
+                             <select className="input" style={{ height: 32, width: 120, fontSize: 12 }} value={a.access_level} onChange={e => changeAccessLevel(a.id, e.target.value)}>
+                               <option value="read">Read</option>
+                               <option value="operate">Operate</option>
+                             </select>
+                           </td>
+                           <td style={{ textAlign: 'right' }}>
+                             <button className="btn-icon" title="Revoke access" onClick={() => revokeAccess(a.id)} style={{ color: 'var(--danger)' }}>
+                               <Trash2 size={14} />
+                             </button>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               )}
+             </div>
+           )}
+
            <div className="grid-2-col" style={{ gap: 24 }}>
              <div className="card">
                 <h3 style={{ fontWeight: 800, fontSize: 16, marginBottom: 24 }}>Preferences</h3>

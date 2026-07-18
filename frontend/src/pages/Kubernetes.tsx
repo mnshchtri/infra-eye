@@ -69,30 +69,30 @@ export function Kubernetes() {
     }
   }
 
-  if (selectedCluster) {
-    return (
-      <K8sResourceExplorer 
-        cluster={selectedCluster} 
-        onBack={() => setSelectedCluster(null)}
-        canUseKubectl={canUseKubectl}
-      />
-    )
-  }
-
   return (
     <>
-      <K8sClusterGrid 
-        clusters={clusters}
-        onSelect={setSelectedCluster}
-        onAdd={() => setShowAddCluster(true)}
-        onDisconnect={handleDisconnect}
-        onReconnect={handleReconnect}
-        onDelete={handleDelete}
-        confirmDisconnect={confirmDisconnect}
-        setConfirmDisconnect={setConfirmDisconnect}
-        confirmDelete={confirmDelete}
-        setConfirmDelete={setConfirmDelete}
-      />
+      {selectedCluster ? (
+        <K8sResourceExplorer 
+          cluster={selectedCluster} 
+          onBack={() => setSelectedCluster(null)}
+          canUseKubectl={canUseKubectl}
+        />
+      ) : (
+        <div className="page">
+          <K8sClusterGrid 
+            clusters={clusters}
+            onSelect={setSelectedCluster}
+            onAdd={() => setShowAddCluster(true)}
+            onDisconnect={handleDisconnect}
+            onReconnect={handleReconnect}
+            onDelete={handleDelete}
+            confirmDisconnect={confirmDisconnect}
+            setConfirmDisconnect={setConfirmDisconnect}
+            confirmDelete={confirmDelete}
+            setConfirmDelete={setConfirmDelete}
+          />
+        </div>
+      )}
       {showAddCluster && <AddClusterModal onClose={() => setShowAddCluster(false)} onSuccess={loadClusters} />}
     </>
   )

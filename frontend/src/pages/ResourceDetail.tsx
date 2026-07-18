@@ -239,7 +239,7 @@ export function ResourceDetail() {
         </div>
       </div>
 
-      <div className="tabs-container" style={{ display: 'flex', gap: 2, marginBottom: 28, borderBottom: '1px solid var(--border)' }}>
+      <div className="tabs-container tabs-scroll-x" style={{ display: 'flex', gap: 2, marginBottom: 28, borderBottom: '1px solid var(--border)' }}>
         {[
           { id: 'overview', label: 'OVERVIEW', icon: Database },
           { id: 'query', label: 'SQL CONSOLE', icon: Code },
@@ -293,7 +293,7 @@ export function ResourceDetail() {
       </div>
 
       {activeTab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
+        <div className="resource-overview-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
               <Activity size={18} color="var(--brand-primary)" />
@@ -434,7 +434,7 @@ export function ResourceDetail() {
           </div>
 
           {canManage && (
-            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 200px 160px', alignItems: 'end', padding: 20, background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginBottom: 24 }}>
+            <div className="resource-access-grid" style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 200px 160px', alignItems: 'end', padding: 20, background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginBottom: 24 }}>
               <div className="input-group" style={{ marginBottom: 0 }}>
                 <label className="input-label" style={{ fontSize: 10, fontWeight: 900 }}>TARGET_USER</label>
                 <select className="input" value={assignUserId} onChange={(e) => setAssignUserId(Number(e.target.value) || '')}>

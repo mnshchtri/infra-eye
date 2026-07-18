@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
-  Boxes, Search, X, Terminal, Settings, Database
+  Boxes, Search, X, Terminal, Settings, Database, Zap, CheckCircle, XCircle
 } from 'lucide-react'
 import { useUIStore } from '../store/uiStore'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { api, buildWsUrl } from '../api/client'
 
@@ -27,6 +27,27 @@ interface MetricData {
 interface ResourceData {
   id: number; name: string; status: string; protocol: string; host: string;
   port: number; resource_type: string; use_gateway: boolean;
+}
+interface HistPoint {
+  t: number; cpu: number; mem: number; disk: number; rx: number; tx: number;
+}
+interface HealingAction {
+  id: number; created_at: string; server_id: number;
+  trigger_info: string; command: string; status: string;
+}
+
+// Categorical series palette (validated CVD-safe, adjacent pairs, light+dark).
+// Slot is keyed to the server's position in id order — color follows the
+// entity, never its rank in a filtered view.
+const SERIES_LIGHT = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#4a3aa7', '#e34948']
+const SERIES_DARK = ['#3987e5', '#008300', '#d55181', '#c98500', '#199e70', '#d95926', '#9085e9', '#e66767']
+
+const timeAgo = (iso: string) => {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000
+  if (diff < 60) return `${Math.floor(diff)}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
 }
 
 const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) => {
@@ -174,6 +195,9 @@ export function Dashboard() {
   const [resources, setResources] = useState<ResourceData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [history, setHistory] = useState<Record<number, HistPoint[]>>({})
+  const [fleetMetric, setFleetMetric] = useState<'cpu' | 'mem' | 'disk'>('cpu')
+  const [healingActions, setHealingActions] = useState<HealingAction[] | null>(null)
 
   async function loadData() {
     setLoading(true)
@@ -195,7 +219,22 @@ export function Dashboard() {
           const m = await api.get(`/api/servers/${s.id}/metrics/latest`)
           setMetrics(prev => ({ ...prev, [s.id]: m.data }))
         } catch { /* no metrics yet */ }
+        try {
+          const h = await api.get(`/api/servers/${s.id}/metrics?minutes=60`)
+          const pts: HistPoint[] = (Array.isArray(h.data) ? h.data : []).map((m: any) => ({
+            t: new Date(m.timestamp).getTime(),
+            cpu: m.cpu_percent, mem: m.mem_percent, disk: m.disk_percent,
+            rx: m.net_rx_mbps, tx: m.net_tx_mbps,
+          }))
+          setHistory(prev => ({ ...prev, [s.id]: pts }))
+        } catch { /* no history yet */ }
       })
+
+      // Automation activity (403 for roles without access — hide the panel)
+      try {
+        const ha = await api.get('/api/healing-actions')
+        setHealingActions(Array.isArray(ha.data) ? ha.data.slice(0, 8) : [])
+      } catch { setHealingActions(null) }
     } catch (err) {
       console.error('Failed to load dashboard data', err)
       setLoading(false)
@@ -222,8 +261,8 @@ export function Dashboard() {
         const msg = JSON.parse(event.data);
         if (msg.type === 'metric') {
           const payload = msg.payload;
-          setMetrics(prev => ({ 
-            ...prev, 
+          setMetrics(prev => ({
+            ...prev,
             [payload.server_id]: {
               cpu_percent: payload.cpu_percent,
               mem_percent: payload.mem_percent,
@@ -233,6 +272,15 @@ export function Dashboard() {
               load_avg_1: payload.load_avg_1,
             }
           }))
+          setHistory(prev => {
+            const arr = prev[payload.server_id] || []
+            const pt: HistPoint = {
+              t: Date.now(),
+              cpu: payload.cpu_percent, mem: payload.mem_percent, disk: payload.disk_percent,
+              rx: payload.net_rx_mbps, tx: payload.net_tx_mbps,
+            }
+            return { ...prev, [payload.server_id]: [...arr, pt].slice(-240) }
+          })
         }
       } catch (err) {
         console.error('WS metrics parse error', err);
@@ -275,6 +323,62 @@ export function Dashboard() {
       }
     })
   }, [filteredServers, metrics])
+
+  // Servers with any history, in stable id order — palette slot is keyed to
+  // this order so a search filter never repaints the surviving series.
+  const seriesServers = useMemo(() => {
+    return [...servers]
+      .sort((a, b) => a.id - b.id)
+      .filter(s => (history[s.id] || []).length > 0)
+      .slice(0, 8)
+  }, [servers, history])
+
+  const seriesColors = darkMode ? SERIES_DARK : SERIES_LIGHT
+
+  // 1-minute buckets so points from different servers align on the time axis
+  const timelineData = useMemo(() => {
+    const BUCKET = 60_000
+    const rows = new Map<number, any>()
+    seriesServers.forEach(s => {
+      (history[s.id] || []).forEach(p => {
+        const t = Math.round(p.t / BUCKET) * BUCKET
+        const row = rows.get(t) || { t }
+        row[s.name] = parseFloat((fleetMetric === 'cpu' ? p.cpu : fleetMetric === 'mem' ? p.mem : p.disk).toFixed(1))
+        rows.set(t, row)
+      })
+    })
+    return [...rows.values()].sort((a, b) => a.t - b.t).slice(-60)
+  }, [history, seriesServers, fleetMetric])
+
+  const networkData = useMemo(() => {
+    const BUCKET = 60_000
+    const rows = new Map<number, { t: number; RX: number; TX: number }>()
+    seriesServers.forEach(s => {
+      (history[s.id] || []).forEach(p => {
+        const t = Math.round(p.t / BUCKET) * BUCKET
+        const row = rows.get(t) || { t, RX: 0, TX: 0 }
+        row.RX += p.rx || 0
+        row.TX += p.tx || 0
+        rows.set(t, row)
+      })
+    })
+    return [...rows.values()]
+      .map(r => ({ ...r, RX: parseFloat(r.RX.toFixed(2)), TX: parseFloat(r.TX.toFixed(2)) }))
+      .sort((a, b) => a.t - b.t).slice(-60)
+  }, [history, seriesServers])
+
+  const fmtClock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  // Direct label at the last point of each line — series identity is never
+  // carried by color alone (relief rule for the light-mode palette).
+  const endLabel = (name: string, count: number) => (props: any) => {
+    if (props.index !== count - 1) return <g key={`el-${name}-${props.index}`} />
+    return (
+      <text key={`el-${name}-${props.index}`} x={props.x + 6} y={props.y + 3} fontSize={9} fontFamily="var(--font-mono)" fill="var(--text-secondary)" fontWeight={700}>
+        {name}
+      </text>
+    )
+  }
 
   const [currentTime, setCurrentTime] = useState(new Date())
   useEffect(() => {
@@ -338,6 +442,135 @@ export function Dashboard() {
         <StatCard label="Global Avg CPU" value={loading ? 'N/A' : avgCpu} icon={TrendingUp} color="var(--info)" />
         <StatCard label="Resources" value={loading ? 'N/A' : resources.length} icon={Database} color="var(--brand-primary)" delta={loading ? undefined : `${resources.filter(r => r.status === 'online').length} online`} />
       </div>
+
+      {/* Fleet timeline + automation activity */}
+      {!loading && seriesServers.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
+          <div className="card fade-up" style={{ flex: '2 1 480px', minWidth: 0, padding: '24px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Utilization</h3>
+                <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per-node {fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last hour, live</p>
+              </div>
+              <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                {([['cpu', 'CPU'], ['mem', 'MEM'], ['disk', 'DISK']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setFleetMetric(key)}
+                    style={{
+                      padding: '5px 14px', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+                      letterSpacing: '0.08em',
+                      background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
+                      color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
+                      border: 'none', cursor: 'pointer', transition: 'all 0.15s'
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={timelineData} margin={{ top: 6, right: 76, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
+                  <Tooltip
+                    labelFormatter={(t: any) => fmtClock(t)}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                  />
+                  {seriesServers.length > 1 && (
+                    <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                  )}
+                  {seriesServers.map((s, i) => (
+                    <Line
+                      key={s.id}
+                      type="monotone"
+                      dataKey={s.name}
+                      stroke={seriesColors[i]}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                      connectNulls
+                      isAnimationActive={false}
+                      label={endLabel(s.name, timelineData.length)}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {healingActions !== null && (
+            <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Zap size={14} color="var(--warning)" />
+                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Automation Activity</h3>
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={() => navigate('/alerts')}>Rules</button>
+              </div>
+              {healingActions.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: 10, padding: '24px 0' }}>
+                  <Zap size={22} style={{ opacity: 0.3 }} />
+                  <span style={{ fontSize: 11 }}>No self-healing actions fired yet</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflowY: 'auto', maxHeight: 260 }}>
+                  {healingActions.map(a => {
+                    const ok = a.status === 'success'
+                    const srv = servers.find(s => s.id === a.server_id)
+                    return (
+                      <div key={a.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', alignItems: 'flex-start' }}>
+                        {ok
+                          ? <CheckCircle size={13} color="var(--success)" style={{ flexShrink: 0, marginTop: 2 }} />
+                          : <XCircle size={13} color="var(--danger)" style={{ flexShrink: 0, marginTop: 2 }} />}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {a.trigger_info || 'Alert rule triggered'}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                            {srv?.name ? `${srv.name} • ` : ''}{a.command || '—'}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0, marginTop: 2 }}>{timeAgo(a.created_at)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fleet network throughput */}
+      {!loading && networkData.length > 1 && (
+        <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
+            <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
+          </div>
+          <div style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={networkData} margin={{ top: 6, right: 46, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                <YAxis stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  labelFormatter={(t: any) => fmtClock(t)}
+                  formatter={(v: any) => `${v} MB/s`}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                />
+                <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('RX', networkData.length)} />
+                <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('TX', networkData.length)} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {!loading && resources.length > 0 && (
         <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>

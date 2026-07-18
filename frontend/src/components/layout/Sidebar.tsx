@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
-  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database
+  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -53,7 +53,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 
 export function Sidebar() {
   const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode, mobileNavOpen } = useUIStore()
+  const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode, mobileNavOpen, toggleMobileNav } = useUIStore()
   const { can } = usePermission()
   const navigate = useNavigate()
 
@@ -76,9 +76,9 @@ export function Sidebar() {
   return (
     <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileNavOpen ? 'mobile-open' : ''}`}>
       {/* Header / Logo */}
-      <div className="sidebar-header" style={{ 
-        height: 60, 
-        padding: sidebarCollapsed ? '0 12px' : '0 16px', 
+      <div className="sidebar-header" style={{
+        height: 'var(--header-h)',
+        padding: sidebarCollapsed ? '0 12px' : '0 16px',
         display: 'flex', 
         alignItems: 'center', 
         borderBottom: '1px solid var(--border)', 
@@ -105,6 +105,21 @@ export function Sidebar() {
             style={{ opacity: 0.5 }}
           >
             <ChevronLeft size={14} />
+          </button>
+        )}
+        {mobileNavOpen && (
+          <button
+            className="sidebar-close-btn"
+            onClick={toggleMobileNav}
+            title="Close menu"
+            style={{
+              marginLeft: 'auto', width: 28, height: 28, borderRadius: 0,
+              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+              display: 'none', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0
+            }}
+          >
+            <X size={14} />
           </button>
         )}
       </div>
@@ -203,11 +218,11 @@ export function Sidebar() {
 
 
       {/* Theme Toggle & User Footer */}
-      <div className="sidebar-footer" style={{ padding: '20px 16px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, padding: '0 8px' }}>
+      <div className="sidebar-footer" style={{ padding: sidebarCollapsed ? '16px 8px' : '20px 16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', marginBottom: 16, padding: sidebarCollapsed ? 0 : '0 8px' }}>
           {!sidebarCollapsed && <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>System Theme</span>}
-          <button 
-            className="btn-icon" 
+          <button
+            className="btn-icon"
             onClick={toggleDarkMode}
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             style={{ width: 28, height: 28, borderRadius: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
@@ -216,7 +231,12 @@ export function Sidebar() {
           </button>
         </div>
 
-        <div className="sidebar-user" style={{ background: 'var(--bg-elevated)40', padding: '12px', border: '1px solid var(--border)40', gap: 10 }}>
+        <div
+          className="sidebar-user"
+          style={sidebarCollapsed
+            ? { flexDirection: 'column', alignItems: 'center', gap: 10 }
+            : { background: 'var(--bg-elevated)40', padding: '12px', border: '1px solid var(--border)40', gap: 10 }}
+        >
           <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined} style={{ width: 28, height: 28, fontSize: 11, borderRadius: 0, background: 'var(--brand-primary)', color: 'var(--text-inverse)' }}>
             {user?.username?.[0]?.toUpperCase() ?? 'A'}
           </div>
@@ -226,11 +246,14 @@ export function Sidebar() {
               <span className="sidebar-user-role" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800 }}>{user?.role ?? 'operator'}</span>
             </div>
           )}
-          {!sidebarCollapsed && (
-            <button className="sidebar-logout" onClick={handleLogout} title="Sign out" style={{ marginLeft: 'auto', opacity: 0.5 }}>
-              <LogOut size={12} />
-            </button>
-          )}
+          <button
+            className="sidebar-logout"
+            onClick={handleLogout}
+            title="Sign out"
+            style={sidebarCollapsed ? { opacity: 0.5 } : { marginLeft: 'auto', opacity: 0.5 }}
+          >
+            <LogOut size={sidebarCollapsed ? 14 : 12} />
+          </button>
         </div>
       </div>
 

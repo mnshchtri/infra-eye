@@ -30,7 +30,7 @@ export const K8sClusterGrid = memo(({
   confirmDisconnect, setConfirmDisconnect, confirmDelete, setConfirmDelete
 }: K8sClusterGridProps) => {
   return (
-    <div className="page fade-in">
+    <div className="fade-in">
       <div className="page-header" style={{ marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
         <div>
           <h1 className="page-title">

@@ -22,6 +22,9 @@ var upgrader = websocket.Upgrader{
 
 // GetLogs — paginated historical logs
 func GetLogs(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
@@ -73,6 +76,9 @@ func ClearLogs(c *gin.Context) {
 
 // StreamLogs — WebSocket that tails /var/log/syslog live
 func StreamLogs(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	serverID, _ := strconv.ParseUint(id, 10, 64)
 
@@ -115,14 +121,26 @@ func tailLogs(server models.Server, room string) {
 	if err != nil {
 		return
 	}
-	session.Stderr = nil
+	// Capture stderr too (instead of discarding it) so real failures — e.g. a
+	// macOS `log`/`log stream` call blocked by TCC because sshd lacks Full
+	// Disk Access — show up as visible error entries instead of an empty list.
+	errPr, err := session.StderrPipe()
+	if err != nil {
+		return
+	}
 
 	// Use sudo for journalctl and tail if possible (to catch restricted logs)
 	// Fallback to non-sudo if it fails or password is not available.
 	cmd := "sudo journalctl -n 50 -f 2>/dev/null || sudo tail -n 50 -F /var/log/syslog 2>/dev/null || journalctl -n 50 -f 2>/dev/null || tail -n 50 -F /var/log/syslog 2>/dev/null || tail -n 50 -F /var/log/messages 2>/dev/null"
-	
+
 	if server.OS == "darwin" {
-		cmd = "log show --last 2m 2>/dev/null; log stream --level info 2>/dev/null"
+		// No stderr redirection here (unlike the linux chain above): this is
+		// a plain sequential command with no fallback depending on stderr
+		// being silenced, so let real errors reach the SSH channel.
+		// Absolute path avoids picking up a shell function/alias named "log"
+		// from the user's zsh/bash startup files (a common dotfile shortcut
+		// for "git log"), which would otherwise shadow the real binary.
+		cmd = "/usr/bin/log show --last 2m; /usr/bin/log stream --level info"
 	} else if server.OS == "windows" {
 		// Windows Event Log tailing via PowerShell with 50 initial events
 		cmd = `powershell -Command "$lastTime = [DateTime]::Now; Get-WinEvent -LogName System -MaxEvents 50 | Sort-Object TimeCreated; while($true) { $newEvents = Get-WinEvent -LogName System -FilterHashtable @{LogName='System'; StartTime=$lastTime} -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -gt $lastTime } | Sort-Object TimeCreated; if ($newEvents) { $newEvents | ForEach-Object { Write-Host \"[$($_.TimeCreated.ToString('HH:mm:ss'))] [$($_.LevelDisplayName)] $($_.Message)\" }; $lastTime = $newEvents[-1].TimeCreated }; Start-Sleep -Milliseconds 1000 }"`
@@ -137,6 +155,28 @@ func tailLogs(server models.Server, room string) {
 		ws.GlobalHub.Broadcast(room, "error", gin.H{"message": fmt.Sprintf("Failed to start log stream: %v", err)})
 		return
 	}
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := errPr.Read(buf)
+			if n > 0 {
+				line := string(buf[:n])
+				entry := models.LogEntry{
+					ServerID:  server.ID,
+					Timestamp: time.Now(),
+					Stream:    "syslog",
+					Level:     "error",
+					Message:   line,
+				}
+				db.DB.Create(&entry)
+				ws.GlobalHub.Broadcast(room, "log", entry)
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
 
 	buf := make([]byte, 4096)
 	for {

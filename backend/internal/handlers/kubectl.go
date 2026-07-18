@@ -930,6 +930,9 @@ func ApplyKubectl(c *gin.Context) {
 
 // WatchKubectl — streams resource queries to frontend natively via client-go WebSocket loop
 func WatchKubectl(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	resource := c.Query("resource")
 	ns := c.Query("namespace")
@@ -1208,6 +1211,29 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 			hpas = len(hpal.Items)
 		}
 
+		var nss int
+		nspl, nspErr := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		capture("namespaces", nspErr)
+		if nspErr == nil {
+			nss = len(nspl.Items)
+		}
+
+		var evWarn int
+		evl, evErr := clientset.CoreV1().Events(ns).List(ctx, metav1.ListOptions{})
+		capture("events", evErr)
+		if evErr == nil {
+			for _, e := range evl.Items {
+				if e.Type == "Warning" {
+					evWarn++
+				}
+			}
+		}
+
+		k8sVersion := ""
+		if v, verr := clientset.Discovery().ServerVersion(); verr == nil {
+			k8sVersion = v.GitVersion
+		}
+
 		// Fetch real-time usage from metrics-server
 		nodeMetrics, nmErr := k8s.GetNodeMetrics(server.KubeConfig)
 		if nmErr == nil && nodeMetrics != nil {
@@ -1250,6 +1276,9 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 				"storageclasses":    scs,
 				"resourcequotas":    rqs,
 				"hpa":               hpas,
+				"namespaces":        nss,
+				"eventsWarning":     evWarn,
+				"k8sVersion":        k8sVersion,
 				"cpuTotal":          cpuTotal,
 				"cpuAllocatable":    cpuAllocatable,
 				"cpuUsage":          cpuUsage,
@@ -1314,6 +1343,12 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 			payload, fetchErr = clientset.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{})
 		case "events":
 			payload, fetchErr = clientset.CoreV1().Events(ns).List(ctx, metav1.ListOptions{})
+		case "namespaces":
+			payload, fetchErr = clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		case "poddisruptionbudgets":
+			payload, fetchErr = clientset.PolicyV1().PodDisruptionBudgets(ns).List(ctx, metav1.ListOptions{})
+		case "crds", "gatewayclasses", "gateways", "httproutes", "grpcroutes", "referencegrants":
+			payload, fetchErr = listDynamicResource(ctx, server.KubeConfig, resource, ns)
 		default:
 			fetchErr = fmt.Errorf("unsupported native resource: %s", resource)
 		}
@@ -1327,6 +1362,46 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 
 	b, _ := json.Marshal(payload)
 	wsConn.WriteMessage(websocket.TextMessage, b)
+}
+
+// dynamicGVRs maps resource names (as used by the frontend explorer) to their
+// GroupVersionResource for types outside the standard clientset — CRDs and the
+// Gateway API family, which are served by CRDs rather than built-in APIs.
+var dynamicGVRs = map[string]struct {
+	gvr        schema.GroupVersionResource
+	namespaced bool
+}{
+	"crds":            {schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}, false},
+	"gatewayclasses":  {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"}, false},
+	"gateways":        {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways"}, true},
+	"httproutes":      {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"}, true},
+	"grpcroutes":      {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "grpcroutes"}, true},
+	"referencegrants": {schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1beta1", Resource: "referencegrants"}, true},
+}
+
+func listDynamicResource(ctx context.Context, kubeconfig, resource, ns string) (interface{}, error) {
+	entry, ok := dynamicGVRs[resource]
+	if !ok {
+		return nil, fmt.Errorf("unsupported dynamic resource: %s", resource)
+	}
+	dClient, err := k8s.GetDynamicClient(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	var list interface{}
+	if entry.namespaced && ns != "" {
+		list, err = dClient.Resource(entry.gvr).Namespace(ns).List(ctx, metav1.ListOptions{})
+	} else {
+		list, err = dClient.Resource(entry.gvr).List(ctx, metav1.ListOptions{})
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "could not find the requested resource") ||
+			strings.Contains(err.Error(), "the server doesn't have a resource type") {
+			return nil, fmt.Errorf("%s API is not installed on this cluster (missing %s CRDs)", entry.gvr.Group, entry.gvr.Group)
+		}
+		return nil, err
+	}
+	return list, nil
 }
 
 // DeleteKubectl — handles resource deletion
@@ -1356,36 +1431,42 @@ func DeleteKubectl(c *gin.Context) {
 			return
 		}
 
-		// Map Kind → GVR
+		// Map Kind → GVR (keys lowercase; lookup is case-insensitive since the
+		// frontend sends kinds in varying casings — "ConfigMap", "configmap", …)
 		type gvrEntry struct{ group, version, resource string }
 		kindToGVR := map[string]gvrEntry{
-			"Pod": {"", "v1", "pods"}, "Node": {"", "v1", "nodes"},
-			"Namespace": {"", "v1", "namespaces"}, "Service": {"", "v1", "services"},
-			"Endpoints": {"", "v1", "endpoints"}, "ConfigMap": {"", "v1", "configmaps"},
-			"Secret": {"", "v1", "secrets"}, "ServiceAccount": {"", "v1", "serviceaccounts"},
-			"PersistentVolume":      {"", "v1", "persistentvolumes"},
-			"PersistentVolumeClaim": {"", "v1", "persistentvolumeclaims"},
-			"ResourceQuota":         {"", "v1", "resourcequotas"},
-			"Deployment":            {"apps", "v1", "deployments"}, "ReplicaSet": {"apps", "v1", "replicasets"},
-			"StatefulSet": {"apps", "v1", "statefulsets"}, "DaemonSet": {"apps", "v1", "daemonsets"},
-			"Job": {"batch", "v1", "jobs"}, "CronJob": {"batch", "v1", "cronjobs"},
-			"Ingress":                 {"networking.k8s.io", "v1", "ingresses"},
-			"NetworkPolicy":           {"networking.k8s.io", "v1", "networkpolicies"},
-			"StorageClass":            {"storage.k8s.io", "v1", "storageclasses"},
-			"Role":                    {"rbac.authorization.k8s.io", "v1", "roles"},
-			"ClusterRole":             {"rbac.authorization.k8s.io", "v1", "clusterroles"},
-			"RoleBinding":             {"rbac.authorization.k8s.io", "v1", "rolebindings"},
-			"ClusterRoleBinding":      {"rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
-			"HorizontalPodAutoscaler": {"autoscaling", "v1", "horizontalpodautoscalers"},
-			"Event":                   {"", "v1", "events"},
+			"pod": {"", "v1", "pods"}, "node": {"", "v1", "nodes"},
+			"namespace": {"", "v1", "namespaces"}, "service": {"", "v1", "services"},
+			"endpoints": {"", "v1", "endpoints"}, "configmap": {"", "v1", "configmaps"},
+			"secret": {"", "v1", "secrets"}, "serviceaccount": {"", "v1", "serviceaccounts"},
+			"persistentvolume":      {"", "v1", "persistentvolumes"},
+			"persistentvolumeclaim": {"", "v1", "persistentvolumeclaims"},
+			"resourcequota":         {"", "v1", "resourcequotas"},
+			"deployment":            {"apps", "v1", "deployments"}, "replicaset": {"apps", "v1", "replicasets"},
+			"statefulset": {"apps", "v1", "statefulsets"}, "daemonset": {"apps", "v1", "daemonsets"},
+			"job": {"batch", "v1", "jobs"}, "cronjob": {"batch", "v1", "cronjobs"},
+			"ingress":                  {"networking.k8s.io", "v1", "ingresses"},
+			"networkpolicy":            {"networking.k8s.io", "v1", "networkpolicies"},
+			"storageclass":             {"storage.k8s.io", "v1", "storageclasses"},
+			"role":                     {"rbac.authorization.k8s.io", "v1", "roles"},
+			"clusterrole":              {"rbac.authorization.k8s.io", "v1", "clusterroles"},
+			"rolebinding":              {"rbac.authorization.k8s.io", "v1", "rolebindings"},
+			"clusterrolebinding":       {"rbac.authorization.k8s.io", "v1", "clusterrolebindings"},
+			"horizontalpodautoscaler":  {"autoscaling", "v1", "horizontalpodautoscalers"},
+			"hpa":                      {"autoscaling", "v1", "horizontalpodautoscalers"},
+			"event":                    {"", "v1", "events"},
+			"poddisruptionbudget":      {"policy", "v1", "poddisruptionbudgets"},
+			"customresourcedefinition": {"apiextensions.k8s.io", "v1", "customresourcedefinitions"},
+			"crd":                      {"apiextensions.k8s.io", "v1", "customresourcedefinitions"},
+			"gatewayclass":             {"gateway.networking.k8s.io", "v1", "gatewayclasses"},
+			"gateway":                  {"gateway.networking.k8s.io", "v1", "gateways"},
+			"httproute":                {"gateway.networking.k8s.io", "v1", "httproutes"},
+			"grpcroute":                {"gateway.networking.k8s.io", "v1", "grpcroutes"},
+			"referencegrant":           {"gateway.networking.k8s.io", "v1beta1", "referencegrants"},
 		}
 
-		// Normalize kind (Title-case)
 		kind := req.Kind
-		if len(kind) > 0 {
-			kind = strings.ToUpper(kind[:1]) + strings.ToLower(kind[1:])
-		}
-		entry, ok := kindToGVR[kind]
+		entry, ok := kindToGVR[strings.ToLower(kind)]
 		if !ok {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported resource kind for native delete: " + kind})
 			return

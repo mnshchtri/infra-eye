@@ -14,10 +14,10 @@ type User struct {
 	Username     string         `gorm:"uniqueIndex;not null" json:"username"`
 	PasswordHash string         `gorm:"not null" json:"-"`
 	// Role defines access level: admin | devops | trainee | intern
-	Role         string         `gorm:"default:'intern'" json:"role"`
-	Email        string         `json:"email"`
-	Avatar       string         `json:"avatar"`
-	IsActive     bool           `gorm:"default:true" json:"is_active"`
+	Role     string `gorm:"default:'intern'" json:"role"`
+	Email    string `json:"email"`
+	Avatar   string `json:"avatar"`
+	IsActive bool   `gorm:"default:true" json:"is_active"`
 	// Personal AI API Keys
 	OpenRouterKey string `json:"open_router_key"`
 	DeepSeekKey   string `json:"deep_seek_key"`
@@ -27,24 +27,38 @@ type User struct {
 }
 
 type Server struct {
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	Name         string         `gorm:"not null" json:"name"`
+	Host         string         `json:"host"`
+	Port         int            `gorm:"default:22" json:"port"`
+	SSHUser      string         `json:"ssh_user"`
+	SSHKeyPath   string         `json:"ssh_key_path"`
+	SSHPassword  string         `json:"-"`                               // encrypted
+	AuthType     string         `gorm:"default:'key'" json:"auth_type"`  // key or password
+	Tags         string         `json:"tags"`                            // comma-separated
+	Status       string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
+	Description  string         `json:"description"`
+	KubeConfig   string         `gorm:"type:text" json:"kube_config"`
+	IsK8s        bool           `gorm:"default:false" json:"is_k8s"`
+	K8sConnected bool           `gorm:"default:true" json:"k8s_connected"`
+	OS           string         `json:"os"` // linux, darwin, unknown
+}
+
+// ServerAccess grants a non-privileged user visibility of a specific server or
+// cluster. Admin and devops roles bypass grants; trainee and intern only see
+// servers they have been explicitly granted.
+type ServerAccess struct {
 	ID          uint           `gorm:"primaryKey" json:"id"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
-	Name        string         `gorm:"not null" json:"name"`
-	Host        string         `json:"host"`
-	Port        int            `gorm:"default:22" json:"port"`
-	SSHUser     string         `json:"ssh_user"`
-	SSHKeyPath  string         `json:"ssh_key_path"`
-	SSHPassword string         `json:"-"` // encrypted
-	AuthType    string         `gorm:"default:'key'" json:"auth_type"` // key or password
-	Tags        string         `json:"tags"`    // comma-separated
-	Status      string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
-	Description string         `json:"description"`
-	KubeConfig   string         `gorm:"type:text" json:"kube_config"`
-	IsK8s        bool           `gorm:"default:false" json:"is_k8s"`
-	K8sConnected bool           `gorm:"default:true" json:"k8s_connected"`
-	OS           string         `json:"os"`           // linux, darwin, unknown
+	ServerID    uint           `gorm:"index;not null" json:"server_id"`
+	UserID      uint           `gorm:"index;not null" json:"user_id"`
+	AccessLevel string         `gorm:"default:'read'" json:"access_level"` // read | operate
+	User        User           `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
 
 type Resource struct {
@@ -91,20 +105,20 @@ type ResourceAudit struct {
 }
 
 type Metric struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	ServerID     uint      `gorm:"index;not null" json:"server_id"`
-	Timestamp    time.Time `gorm:"index" json:"timestamp"`
-	CPUPercent   float64   `json:"cpu_percent"`
-	MemPercent   float64   `json:"mem_percent"`
-	MemUsedMB    float64   `json:"mem_used_mb"`
-	MemTotalMB   float64   `json:"mem_total_mb"`
-	DiskPercent  float64   `json:"disk_percent"`
-	DiskUsedGB   float64   `json:"disk_used_gb"`
-	DiskTotalGB  float64   `json:"disk_total_gb"`
-	NetRxMBps    float64   `json:"net_rx_mbps"`
-	NetTxMBps    float64   `json:"net_tx_mbps"`
-	LoadAvg1     float64   `json:"load_avg_1"`
-	Uptime       int64     `json:"uptime_seconds"`
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	ServerID    uint      `gorm:"index;not null" json:"server_id"`
+	Timestamp   time.Time `gorm:"index" json:"timestamp"`
+	CPUPercent  float64   `json:"cpu_percent"`
+	MemPercent  float64   `json:"mem_percent"`
+	MemUsedMB   float64   `json:"mem_used_mb"`
+	MemTotalMB  float64   `json:"mem_total_mb"`
+	DiskPercent float64   `json:"disk_percent"`
+	DiskUsedGB  float64   `json:"disk_used_gb"`
+	DiskTotalGB float64   `json:"disk_total_gb"`
+	NetRxMBps   float64   `json:"net_rx_mbps"`
+	NetTxMBps   float64   `json:"net_tx_mbps"`
+	LoadAvg1    float64   `json:"load_avg_1"`
+	Uptime      int64     `json:"uptime_seconds"`
 }
 
 type LogEntry struct {
@@ -123,12 +137,12 @@ type AlertRule struct {
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 	Name            string         `gorm:"not null" json:"name"`
-	ServerID        uint           `json:"server_id"` // 0 = all servers
+	ServerID        uint           `json:"server_id"`                      // 0 = all servers
 	ConditionType   string         `gorm:"not null" json:"condition_type"` // cpu, mem, disk, log_keyword
 	ConditionOp     string         `gorm:"not null" json:"condition_op"`   // gt, lt, contains
 	ConditionValue  string         `gorm:"not null" json:"condition_value"`
 	Severity        string         `gorm:"default:'warning'" json:"severity"` // warning, critical
-	ActionType      string         `gorm:"not null" json:"action_type"` // ssh_command, notify
+	ActionType      string         `gorm:"not null" json:"action_type"`       // ssh_command, notify
 	ActionCommand   string         `gorm:"type:text" json:"action_command"`
 	CooldownMinutes int            `gorm:"default:5" json:"cooldown_minutes"`
 	Enabled         bool           `gorm:"default:true" json:"enabled"`

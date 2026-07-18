@@ -35,7 +35,15 @@ const getVal = (item: any, col: string) => {
     case 'maxpods': return item.spec?.maxReplicas ?? 0;
     case 'replicas': return item.status?.currentReplicas ?? 0;
     case 'hosts': return item.spec?.rules?.[0]?.host || '—';
-    case 'address': return item.status?.loadBalancer?.ingress?.[0]?.ip || item.status?.loadBalancer?.ingress?.[0]?.hostname || '—';
+    case 'address': return item.status?.loadBalancer?.ingress?.[0]?.ip || item.status?.loadBalancer?.ingress?.[0]?.hostname || item.status?.addresses?.[0]?.value || '—';
+    case 'controller': return item.spec?.controllerName || '—';
+    case 'class': return item.spec?.gatewayClassName || '—';
+    case 'hostnames': return item.spec?.hostnames?.join(', ') || '*';
+    case 'listeners': return item.spec?.listeners?.length ?? 0;
+    case 'group': return item.spec?.group || '—';
+    case 'scope': return item.spec?.scope || '—';
+    case 'minavailable': return item.spec?.minAvailable ?? '—';
+    case 'maxunavailable': return item.spec?.maxUnavailable ?? '—';
     case 'volume': return item.spec?.volumeName || '—';
     case 'capacity': return item.status?.capacity?.storage || item.spec?.resources?.requests?.storage || '—';
     case 'accessmodes': return item.spec?.accessModes?.join(', ') || '—';

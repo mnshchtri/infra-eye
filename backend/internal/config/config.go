@@ -26,6 +26,14 @@ type Config struct {
 	GoogleChatWebhookURL  string
 	SlackWebhookURL       string
 	MCPServerURL          string
+	
+	// OIDC Configuration
+	OIDCEnabled       bool
+	OIDCIssuerURL     string
+	OIDCClientID      string
+	OIDCClientSecret  string
+	OIDCRedirectURL   string
+	OIDCScopes        string
 }
 
 var C Config
@@ -54,6 +62,14 @@ func Load() {
 		ResourceGatewayURL:    getEnv("RESOURCE_GATEWAY_URL", ""),
 		ResourceGatewayToken:  getEnv("RESOURCE_GATEWAY_TOKEN", ""),
 		MCPServerURL:          getEnv("MCP_SERVER_URL", "http://localhost:8090"),
+		
+		// OIDC Configuration
+		OIDCEnabled:      getEnv("OIDC_ENABLED", "false") == "true",
+		OIDCIssuerURL:    getEnv("OIDC_ISSUER_URL", ""),
+		OIDCClientID:     getEnv("OIDC_CLIENT_ID", ""),
+		OIDCClientSecret: getEnv("OIDC_CLIENT_SECRET", ""),
+		OIDCRedirectURL:  getEnv("OIDC_REDIRECT_URL", "http://localhost:8080/api/auth/oidc/callback"),
+		OIDCScopes:       getEnv("OIDC_SCOPES", "openid profile email"),
 	}
 }
 

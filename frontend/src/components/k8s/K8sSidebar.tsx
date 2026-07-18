@@ -12,8 +12,8 @@ interface ResNavLinkProps {
 export const ResNavLink = memo(({ active, onClick, icon: Icon, label, isSub }: ResNavLinkProps) => {
   return (
     <div className={`res-nav-link ${active ? 'active' : ''} ${isSub ? 'sub' : ''}`} onClick={onClick}>
-      <Icon size={isSub ? 13 : 15} strokeWidth={active ? 2.5 : 1.5} />
-      <span>{label}</span>
+      <Icon size={isSub ? 12 : 14} strokeWidth={active ? 2.5 : 2} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </div>
   )
 })

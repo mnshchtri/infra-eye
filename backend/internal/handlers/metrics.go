@@ -11,6 +11,9 @@ import (
 )
 
 func GetMetrics(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	minutesStr := c.DefaultQuery("minutes", "60")
 	minutes, _ := strconv.Atoi(minutesStr)
@@ -30,6 +33,9 @@ func GetMetrics(c *gin.Context) {
 }
 
 func GetLatestMetric(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	var metric models.Metric
 	if err := db.DB.Where("server_id = ?", id).

@@ -13,19 +13,58 @@ import (
 	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/logger"
 	"github.com/infra-eye/backend/internal/mcp"
-	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/metrics"
+	"github.com/infra-eye/backend/internal/models"
 	sshpool "github.com/infra-eye/backend/internal/ssh"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// HasServerAccess reports whether a user may see the given server.
+// Admin and devops bypass grants; other roles need a ServerAccess row.
+func HasServerAccess(role string, userID, serverID uint) bool {
+	if role == "admin" || role == "devops" {
+		return true
+	}
+	var count int64
+	db.DB.Model(&models.ServerAccess{}).Where("server_id = ? AND user_id = ?", serverID, userID).Count(&count)
+	return count > 0
+}
+
+// DenyWithoutServerAccess aborts the request with 403 unless the requesting
+// user (from auth middleware context) has access to the server in the :id
+// param. Returns true when the request was aborted.
+func DenyWithoutServerAccess(c *gin.Context) bool {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid server id"})
+		return true
+	}
+	role := c.GetString("role")
+	userID := c.GetUint("user_id")
+	if !HasServerAccess(role, userID, uint(id)) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "you have not been granted access to this server"})
+		return true
+	}
+	return false
+}
+
 func ListServers(c *gin.Context) {
+	role := c.GetString("role")
+	userID := c.GetUint("user_id")
 	var servers []models.Server
-	db.DB.Find(&servers)
+	if role == "admin" || role == "devops" {
+		db.DB.Find(&servers)
+	} else {
+		db.DB.Joins("JOIN server_accesses ON server_accesses.server_id = servers.id AND server_accesses.user_id = ? AND server_accesses.deleted_at IS NULL", userID).
+			Find(&servers)
+	}
 	c.JSON(http.StatusOK, servers)
 }
 
 func GetServer(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
 	id := c.Param("id")
 	var server models.Server
 	if err := db.DB.First(&server, id).Error; err != nil {
@@ -33,6 +72,106 @@ func GetServer(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, server)
+}
+
+// ── Server access grants (per-user RBAC on servers/clusters) ──
+
+type serverAccessRequest struct {
+	UserID      uint   `json:"user_id" binding:"required"`
+	AccessLevel string `json:"access_level"`
+}
+
+func ListServerAccess(c *gin.Context) {
+	serverID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid server id"})
+		return
+	}
+	var access []models.ServerAccess
+	if err := db.DB.Preload("User").Where("server_id = ?", serverID).Find(&access).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load access records"})
+		return
+	}
+	c.JSON(http.StatusOK, access)
+}
+
+func CreateServerAccess(c *gin.Context) {
+	serverID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid server id"})
+		return
+	}
+	var req serverAccessRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.AccessLevel == "" {
+		req.AccessLevel = "read"
+	}
+	var server models.Server
+	if err := db.DB.First(&server, serverID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+	var user models.User
+	if err := db.DB.First(&user, req.UserID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	var existing models.ServerAccess
+	if err := db.DB.Where("server_id = ? AND user_id = ?", serverID, req.UserID).First(&existing).Error; err == nil {
+		existing.AccessLevel = req.AccessLevel
+		db.DB.Save(&existing)
+		c.JSON(http.StatusOK, existing)
+		return
+	}
+	entry := models.ServerAccess{ServerID: uint(serverID), UserID: req.UserID, AccessLevel: req.AccessLevel}
+	if err := db.DB.Create(&entry).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create access grant"})
+		return
+	}
+	db.DB.Preload("User").First(&entry, entry.ID)
+	c.JSON(http.StatusCreated, entry)
+}
+
+func UpdateServerAccess(c *gin.Context) {
+	accessID, err := strconv.Atoi(c.Param("accessId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid access id"})
+		return
+	}
+	var req struct {
+		AccessLevel string `json:"access_level" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var entry models.ServerAccess
+	if err := db.DB.First(&entry, accessID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "access record not found"})
+		return
+	}
+	entry.AccessLevel = req.AccessLevel
+	if err := db.DB.Save(&entry).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update access"})
+		return
+	}
+	c.JSON(http.StatusOK, entry)
+}
+
+func DeleteServerAccess(c *gin.Context) {
+	accessID, err := strconv.Atoi(c.Param("accessId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid access id"})
+		return
+	}
+	if err := db.DB.Delete(&models.ServerAccess{}, accessID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke access"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "access revoked"})
 }
 
 type serverRequest struct {
@@ -139,26 +278,26 @@ func UpdateServer(c *gin.Context) {
 func DeleteServer(c *gin.Context) {
 	idStr := c.Param("id")
 	id, _ := strconv.Atoi(idStr)
-	
+
 	sshpool.Remove(uint(id))
-	
+
 	// Hard delete the server and all related data (cascading cleanup)
 	tx := db.DB.Begin()
-	
+
 	// Delete associatied metrics
 	if err := tx.Where("server_id = ?", id).Delete(&models.Metric{}).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete metrics"})
 		return
 	}
-	
+
 	// Delete associated logs
 	if err := tx.Where("server_id = ?", id).Delete(&models.LogEntry{}).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete logs"})
 		return
 	}
-	
+
 	// Delete associated alert rules (Hard Delete)
 	if err := tx.Unscoped().Where("server_id = ?", id).Delete(&models.AlertRule{}).Error; err != nil {
 		tx.Rollback()
@@ -172,14 +311,14 @@ func DeleteServer(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete healing actions"})
 		return
 	}
-	
+
 	// Finally, Hard Delete the server itself
 	if err := tx.Unscoped().Delete(&models.Server{}, id).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete server"})
 		return
 	}
-	
+
 	tx.Commit()
 
 	// Sync MCP as a cluster might have been removed
@@ -219,7 +358,7 @@ func TestServerConnection(c *gin.Context) {
 		}
 
 		db.DB.Model(&server).Updates(map[string]interface{}{"status": "online", "os": osType})
-		
+
 		// Start metrics collector
 		go metrics.StartCollector(server)
 
