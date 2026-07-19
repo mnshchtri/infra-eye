@@ -2,15 +2,17 @@ import React, { useState, useRef, useCallback } from 'react'
 import { X, Upload, Info, Terminal, Shield, CheckCircle2, XCircle, CloudUpload, FileText, Loader2, Clock, Activity, Zap } from 'lucide-react'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
+import type { FolderItem } from '../../hooks/useFolders'
 
 interface AddClusterModalProps {
   onClose: () => void;
   onSuccess: () => void;
+  folders?: FolderItem[];
 }
 
 type InputMode = 'paste' | 'upload';
 
-export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
+export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddClusterModalProps) {
   const [loading, setLoading] = useState(false)
   const [showSSH, setShowSSH] = useState(false)
   const [inputMode, setInputMode] = useState<InputMode>('paste')
@@ -21,7 +23,8 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
     host: '',
     ssh_user: 'root',
     ssh_password: '',
-    kube_config: ''
+    kube_config: '',
+    folder_id: '' as number | ''
   })
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -78,6 +81,7 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
       if (form.host)         payload.host         = form.host
       if (form.ssh_user && form.ssh_user !== 'root') payload.ssh_user = form.ssh_user
       if (form.ssh_password) payload.ssh_password = form.ssh_password
+      if (form.folder_id)    payload.folder_id    = form.folder_id
 
       await api.post('/api/servers', payload)
       useToastStore.getState().success('Cluster Connected', `${form.name} integrated`)
@@ -95,7 +99,7 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      zIndex: 1100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)',
+      zIndex: 'var(--z-modal-backdrop)', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
     }}>
       <div
@@ -165,6 +169,25 @@ export function AddClusterModal({ onClose, onSuccess }: AddClusterModalProps) {
               required
               style={{ borderRadius: 0, height: 44, fontSize: 13, fontFamily: 'var(--font-mono)', border: '1px solid var(--border)' }}
             />
+          </div>
+
+          {/* Folder */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{
+              fontSize: 10, fontWeight: 900, color: 'var(--text-muted)',
+              textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)'
+            }}>
+              Folder
+            </label>
+            <select
+              className="input"
+              value={form.folder_id}
+              onChange={e => setForm({ ...form, folder_id: e.target.value ? Number(e.target.value) : '' })}
+              style={{ borderRadius: 0, height: 44, fontSize: 13, fontFamily: 'var(--font-mono)', border: '1px solid var(--border)' }}
+            >
+              <option value="">No folder</option>
+              {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
           </div>
 
           {/* KubeConfig Logic */}

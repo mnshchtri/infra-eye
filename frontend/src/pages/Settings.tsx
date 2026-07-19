@@ -343,7 +343,7 @@ export function Settings() {
       </div>{/* end scrollable content */}
 
       {showUserForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'var(--glass-bg)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-modal-backdrop)', background: 'var(--glass-bg)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="card fade-up" style={{ width: '100%', maxWidth: 460, padding: '24px 20px', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}><div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={20} color="var(--brand-primary)" /></div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{editUserId ? 'Update User' : 'Provision User'}</h2></div>
             <form onSubmit={saveUser}>

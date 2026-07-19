@@ -31,11 +31,13 @@ func Connect() {
 	// Auto-migrate all models
 	if err := DB.AutoMigrate(
 		&models.User{},
+		&models.Folder{},
 		&models.Server{},
 		&models.ServerAccess{},
 		&models.Resource{},
 		&models.ResourceAccess{},
 		&models.ResourceAudit{},
+		&models.ResourceMetric{},
 		&models.Metric{},
 		&models.LogEntry{},
 		&models.AlertRule{},

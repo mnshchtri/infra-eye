@@ -15,6 +15,7 @@ import (
 	"github.com/infra-eye/backend/internal/metrics"
 	"github.com/infra-eye/backend/internal/middleware"
 	"github.com/infra-eye/backend/internal/models"
+	"github.com/infra-eye/backend/internal/resources"
 	"github.com/infra-eye/backend/internal/seed"
 	wshub "github.com/infra-eye/backend/internal/ws"
 )
@@ -47,6 +48,9 @@ func main() {
 
 	// Start self-healing engine
 	healing.StartEngine()
+
+	// Start resource observability collector (polls DBs/caches/brokers)
+	resources.StartCollector()
 
 	// Setup Gin
 	if config.C.Env == "production" {
@@ -88,6 +92,12 @@ func main() {
 		api.PUT("/users/:id", middleware.RequireRole("admin"), handlers.UpdateUser)
 		api.DELETE("/users/:id", middleware.RequireRole("admin"), handlers.DeleteUser)
 
+		// ── Folders (shared grouping across servers/clusters/resources) ──
+		api.GET("/folders", handlers.ListFolders)
+		api.POST("/folders", middleware.RequireRole("admin", "devops"), handlers.CreateFolder)
+		api.PUT("/folders/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateFolder)
+		api.DELETE("/folders/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteFolder)
+
 		// ── Servers ───────────────────────────────────────────────
 		api.GET("/servers", handlers.ListServers)
 		api.POST("/servers", middleware.RequireRole("admin", "devops"), handlers.CreateServer)
@@ -99,6 +109,7 @@ func main() {
 		api.POST("/servers/:id/reboot", middleware.RequireRole("admin", "devops"), handlers.RebootServer)
 		api.POST("/servers/:id/diagnose", middleware.RequireRole("admin", "devops"), handlers.DiagnoseServer)
 		api.POST("/servers/test-k8s", middleware.RequireRole("admin", "devops"), handlers.TestK8sConnection)
+		api.PATCH("/servers/:id/folder", middleware.RequireRole("admin", "devops"), handlers.MoveServerFolder)
 
 		// ── OS accounts on target servers (Cockpit-style) ────────
 		api.GET("/servers/:id/accounts", middleware.RequireRole("admin", "devops"), handlers.ListOSAccounts)
@@ -119,12 +130,15 @@ func main() {
 		api.PUT("/resources/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateResource)
 		api.DELETE("/resources/:id", middleware.RequireRole("admin"), handlers.DeleteResource)
 		api.POST("/resources/:id/test", middleware.RequireRole("admin", "devops"), handlers.TestResourceConnection)
+		api.GET("/resources/:id/observe", middleware.RequireRole("admin", "devops", "trainee"), handlers.ObserveResource)
+		api.GET("/resources/:id/metrics", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceMetrics)
 		api.GET("/resources/:id/access", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceAccess)
 		api.POST("/resources/:id/access", middleware.RequireRole("admin", "devops"), handlers.CreateResourceAccess)
 		api.PUT("/resources/:id/access/:accessId", middleware.RequireRole("admin", "devops"), handlers.UpdateResourceAccess)
 		api.DELETE("/resources/:id/access/:accessId", middleware.RequireRole("admin", "devops"), handlers.DeleteResourceAccess)
 		api.GET("/resources/:id/audit", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceAudit)
 		api.POST("/resources/:id/query", middleware.RequireRole("admin", "devops"), handlers.QueryResource)
+		api.PATCH("/resources/:id/folder", middleware.RequireRole("admin", "devops"), handlers.MoveResourceFolder)
 
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)

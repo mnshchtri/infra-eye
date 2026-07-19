@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { 
-  Code2, KeySquare, Clock, ArrowRightLeft, 
-  FileJson, Copy, Check, AlertCircle, Trash2
+import {
+  KeySquare, Clock, ArrowRightLeft,
+  FileJson, Copy, Check, AlertCircle, Trash2, Eraser
 } from 'lucide-react'
+import { cleanManifest, DEFAULT_CLEAN_OPTIONS, type CleanOptions } from '../utils/k8sManifestCleaner'
 
 export function DevTools() {
-  const [activeTab, setActiveTab] = useState<'json' | 'base64' | 'epoch' | 'jwt'>('json')
+  const [activeTab, setActiveTab] = useState<'json' | 'base64' | 'epoch' | 'jwt' | 'k8s-clean'>('json')
 
   return (
     <div className="page" style={{ minHeight: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
@@ -33,6 +34,7 @@ export function DevTools() {
             <TabButton active={activeTab === 'base64'} icon={ArrowRightLeft} label="Base64 Encoder" onClick={() => setActiveTab('base64')} />
             <TabButton active={activeTab === 'epoch'} icon={Clock} label="Epoch Converter" onClick={() => setActiveTab('epoch')} />
             <TabButton active={activeTab === 'jwt'} icon={KeySquare} label="JWT Decoder" onClick={() => setActiveTab('jwt')} />
+            <TabButton active={activeTab === 'k8s-clean'} icon={Eraser} label="K8s Manifest Cleaner" onClick={() => setActiveTab('k8s-clean')} />
           </div>
         </div>
 
@@ -42,6 +44,7 @@ export function DevTools() {
           {activeTab === 'base64' && <Base64Tool />}
           {activeTab === 'epoch' && <EpochConverterTool />}
           {activeTab === 'jwt' && <JwtDecoderTool />}
+          {activeTab === 'k8s-clean' && <K8sManifestCleanerTool />}
         </div>
       </div>
 
@@ -383,6 +386,148 @@ function JwtDecoderTool() {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── K8S MANIFEST CLEANER ──
+
+function K8sManifestCleanerTool() {
+  const [input, setInput] = useState('')
+  const [output, setOutput] = useState('')
+  const [error, setError] = useState('')
+  const [removedFields, setRemovedFields] = useState<string[]>([])
+  const [documentCount, setDocumentCount] = useState(0)
+  const [copied, setCopied] = useState(false)
+  const [options, setOptions] = useState<CleanOptions>(DEFAULT_CLEAN_OPTIONS)
+
+  function clean() {
+    if (!input.trim()) return
+    const result = cleanManifest(input, options)
+    if (result.error) {
+      setError(result.error)
+      setOutput('')
+      setRemovedFields([])
+      setDocumentCount(0)
+      return
+    }
+    setError('')
+    setOutput(result.output)
+    setRemovedFields(result.removedFields)
+    setDocumentCount(result.documentCount)
+  }
+
+  function copy() {
+    if (!output) return
+    navigator.clipboard.writeText(output)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function clearAll() {
+    setInput('')
+    setOutput('')
+    setError('')
+    setRemovedFields([])
+    setDocumentCount(0)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 20, overflowY: 'auto' }}>
+      <div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Kubernetes Manifest Cleaner</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Paste a manifest pulled from a live cluster (e.g. <code>kubectl get -o yaml</code>) to strip server-generated
+          fields — <code>status</code>, <code>metadata.uid</code>, <code>resourceVersion</code>, <code>creationTimestamp</code>,{' '}
+          <code>generation</code>, <code>managedFields</code>, <code>selfLink</code>, <code>ownerReferences</code> — so it
+          can be applied fresh to any cluster. Supports multi-document YAML separated by <code>---</code>.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={options.stripLastApplied}
+            onChange={e => setOptions(o => ({ ...o, stripLastApplied: e.target.checked }))}
+          />
+          Strip <code>kubectl.kubernetes.io/last-applied-configuration</code> annotation
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={options.stripNamespace}
+            onChange={e => setOptions(o => ({ ...o, stripNamespace: e.target.checked }))}
+          />
+          Strip <code>metadata.namespace</code> (apply into any namespace)
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT MANIFEST</label>
+        <textarea
+          className="input"
+          value={input}
+          onChange={e => { setInput(e.target.value); setError('') }}
+          placeholder="Paste kubectl get -o yaml output here..."
+          spellCheck={false}
+          style={{ height: 220, fontFamily: '"JetBrains Mono", monospace', padding: 16, resize: 'vertical' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn btn-secondary btn-sm" onClick={clearAll}><Trash2 size={14} /> Clear</button>
+        <button className="btn btn-primary" onClick={clean} style={{ flex: 1, height: 42, fontSize: 13 }}>Clean Manifest</button>
+      </div>
+
+      {error && (
+        <div style={{ padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, borderRadius: 10 }}>
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
+
+      {output && (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                CLEANED OUTPUT <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({documentCount} document{documentCount === 1 ? '' : 's'})</span>
+              </label>
+              <button className="btn" style={{ fontSize: 11, height: 24, padding: '0 8px' }} onClick={copy}>
+                {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy Output'}</span>
+              </button>
+            </div>
+            <textarea
+              className="input"
+              value={output}
+              readOnly
+              style={{ flex: 1, minHeight: 220, background: 'var(--bg-app)', fontFamily: '"JetBrains Mono", monospace', padding: 16, resize: 'vertical' }}
+            />
+          </div>
+
+          {removedFields.length > 0 && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }}>
+                FIELDS REMOVED
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {removedFields.map(field => (
+                  <span
+                    key={field}
+                    style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 11, padding: '4px 8px', borderRadius: 6,
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)'
+                    }}
+                  >
+                    {field}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

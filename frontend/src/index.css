@@ -1872,11 +1872,52 @@ p {
 .empty-state p { font-size: var(--text-lg); font-weight: 600; color: var(--text-primary); margin: 12px 0 6px; }
 .empty-state span { font-size: var(--text-base); color: var(--text-secondary); max-width: 300px; line-height: 1.5; }
 
-/* Login Page Special Modern Edition */
+/* Login Page — split console layout */
 .login-screen {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; display: flex;
   background-color: var(--bg-app);
-  position: relative; overflow: hidden;
+}
+
+.login-panel-brand {
+  flex: 1 1 55%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 64px;
+  background: var(--brand-gradient-intense);
+  color: #ffffff;
+}
+
+.login-panel-brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.16) 1px, transparent 0);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 90% 70% at 30% 30%, #000 0%, transparent 75%);
+  pointer-events: none;
+}
+
+.login-panel-brand::after {
+  content: '';
+  position: absolute;
+  width: 720px; height: 720px;
+  right: -280px; bottom: -320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.login-panel-form {
+  flex: 1 1 45%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--bg-app);
 }
 
 .login-card {
@@ -1884,8 +1925,26 @@ p {
   background: var(--bg-card);
   border-radius: 0;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  border-top: 4px solid var(--brand-primary);
+  box-shadow: var(--shadow-xl);
+}
+
+.login-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.login-feature-icon {
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+@media (max-width: 900px) {
+  .login-panel-brand { display: none; }
+  .login-panel-form { flex: 1 1 100%; }
 }
 
 /* Kubernetes Specialized Sidebar */

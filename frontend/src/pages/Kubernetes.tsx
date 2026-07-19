@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
 import { usePermission } from '../hooks/usePermission'
+import { useFolders } from '../hooks/useFolders'
+import { FolderBar, type FolderSelection } from '../components/ui/FolderBar'
 
 // Sub-components
 import { K8sClusterGrid } from '../components/k8s/K8sClusterGrid'
@@ -15,6 +17,7 @@ interface Cluster {
   kube_config?: string;
   k8s_connected?: boolean;
   os?: string;
+  folder_id?: number | null;
 }
 
 export function Kubernetes() {
@@ -23,10 +26,13 @@ export function Kubernetes() {
   const [showAddCluster, setShowAddCluster] = useState(false)
   const [confirmDisconnect, setConfirmDisconnect] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
-  
+  const [selectedFolder, setSelectedFolder] = useState<FolderSelection>('all')
+
   const toast = useToastStore()
   const { can } = usePermission()
   const canUseKubectl = can('use-kubectl')
+  const canManage = can('manage-servers')
+  const { folders, createFolder, deleteFolder } = useFolders()
 
   const loadClusters = useCallback(async () => {
     try {
@@ -34,6 +40,21 @@ export function Kubernetes() {
       setClusters(res.data?.filter((c: any) => c.kube_config) || [])
     } catch (e) { console.error(e) }
   }, [])
+
+  const filteredClusters = useMemo(() => clusters.filter(c => {
+    if (selectedFolder === 'all') return true
+    if (selectedFolder === 'unassigned') return !c.folder_id
+    return c.folder_id === selectedFolder
+  }), [clusters, selectedFolder])
+
+  async function moveClusterFolder(id: number, folderId: number | null) {
+    try {
+      await api.patch(`/api/servers/${id}/folder`, { folder_id: folderId })
+      setClusters(prev => prev.map(c => c.id === id ? { ...c, folder_id: folderId } : c))
+    } catch (e: any) {
+      toast.error('Move failed', e.response?.data?.error || 'Could not move cluster.')
+    }
+  }
 
   useEffect(() => { loadClusters() }, [loadClusters])
 
@@ -79,8 +100,24 @@ export function Kubernetes() {
         />
       ) : (
         <div className="page">
-          <K8sClusterGrid 
-            clusters={clusters}
+          {clusters.length > 0 && (
+            <FolderBar
+              folders={folders}
+              counts={clusters.reduce((acc, c) => {
+                if (c.folder_id) acc[c.folder_id] = (acc[c.folder_id] || 0) + 1
+                return acc
+              }, {} as Record<number, number>)}
+              unassignedCount={clusters.filter(c => !c.folder_id).length}
+              totalCount={clusters.length}
+              selected={selectedFolder}
+              onSelect={setSelectedFolder}
+              onCreate={createFolder}
+              onDelete={deleteFolder}
+              canManage={canManage}
+            />
+          )}
+          <K8sClusterGrid
+            clusters={filteredClusters}
             onSelect={setSelectedCluster}
             onAdd={() => setShowAddCluster(true)}
             onDisconnect={handleDisconnect}
@@ -90,10 +127,13 @@ export function Kubernetes() {
             setConfirmDisconnect={setConfirmDisconnect}
             confirmDelete={confirmDelete}
             setConfirmDelete={setConfirmDelete}
+            folders={folders}
+            onMoveFolder={moveClusterFolder}
+            canManage={canManage}
           />
         </div>
       )}
-      {showAddCluster && <AddClusterModal onClose={() => setShowAddCluster(false)} onSuccess={loadClusters} />}
+      {showAddCluster && <AddClusterModal onClose={() => setShowAddCluster(false)} onSuccess={loadClusters} folders={folders} />}
     </>
   )
 }

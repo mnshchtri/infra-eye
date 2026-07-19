@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import { Plus, Zap, ChevronRight, Unlink, Globe, Trash2, RefreshCw, Cpu, Database, Activity } from 'lucide-react'
 import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
+import { FolderTag } from '../ui/FolderTag'
+import type { FolderItem } from '../../hooks/useFolders'
 import logo from '../../assets/logo.png'
 
 interface Cluster {
@@ -10,6 +12,7 @@ interface Cluster {
   k8s_connected?: boolean;
   os?: string;
   kube_config?: string;
+  folder_id?: number | null;
 }
 
 interface K8sClusterGridProps {
@@ -23,11 +26,15 @@ interface K8sClusterGridProps {
   setConfirmDisconnect: (id: number | null) => void;
   confirmDelete: number | null;
   setConfirmDelete: (id: number | null) => void;
+  folders: FolderItem[];
+  onMoveFolder: (id: number, folderId: number | null) => void;
+  canManage: boolean;
 }
 
 export const K8sClusterGrid = memo(({
   clusters, onSelect, onAdd, onDisconnect, onReconnect, onDelete,
-  confirmDisconnect, setConfirmDisconnect, confirmDelete, setConfirmDelete
+  confirmDisconnect, setConfirmDisconnect, confirmDelete, setConfirmDelete,
+  folders, onMoveFolder, canManage
 }: K8sClusterGridProps) => {
   return (
     <div className="fade-in">
@@ -109,7 +116,7 @@ export const K8sClusterGrid = memo(({
                  </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 32, marginBottom: 28 }}>
+              <div style={{ display: 'flex', gap: 32, marginBottom: 28, alignItems: 'flex-start' }}>
                  <div>
                     <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Protocol</div>
                     <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>KUBERNETES_API</div>
@@ -117,6 +124,15 @@ export const K8sClusterGrid = memo(({
                  <div>
                     <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Infrastructure</div>
                     <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>PRODUCTION_CORE</div>
+                 </div>
+                 <div onClick={e => e.stopPropagation()}>
+                    <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Folder</div>
+                    <FolderTag
+                      folders={folders}
+                      value={cluster.folder_id ?? null}
+                      onChange={fid => onMoveFolder(cluster.id, fid)}
+                      disabled={!canManage}
+                    />
                  </div>
               </div>
 

@@ -8,6 +8,9 @@ import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
+import { useFolders } from '../hooks/useFolders'
+import { FolderBar, type FolderSelection } from '../components/ui/FolderBar'
+import { FolderTag } from '../components/ui/FolderTag'
 
 interface ServerData {
   id: number; name: string; host: string; port: number;
@@ -15,12 +18,14 @@ interface ServerData {
   description: string; status: string; ssh_key_path: string;
   os: string;
   kube_config?: string;
+  folder_id?: number | null;
 }
 
 const emptyForm = {
   name: '', host: '', port: 22, ssh_user: 'root',
   auth_type: 'key', ssh_key_path: '~/.ssh/id_rsa',
   ssh_password: '', tags: '', description: '',
+  folder_id: null as number | null,
 }
 
 const statusColors: Record<string, string> = {
@@ -45,6 +50,8 @@ export function Servers() {
   const [testResults, setTestResults] = useState<Record<number, { ok: boolean; msg: string }>>({})
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const { folders, createFolder, deleteFolder } = useFolders()
+  const [selectedFolder, setSelectedFolder] = useState<FolderSelection>('all')
 
   useEffect(() => {
     loadServers()
@@ -84,9 +91,19 @@ export function Servers() {
       name: s.name, host: s.host, port: s.port, ssh_user: s.ssh_user,
       auth_type: s.auth_type, ssh_key_path: s.ssh_key_path || '',
       ssh_password: '', tags: s.tags, description: s.description,
+      folder_id: s.folder_id ?? null,
     })
     setEditId(s.id)
     setShowForm(true)
+  }
+
+  async function moveServerFolder(id: number, folderId: number | null) {
+    try {
+      await api.patch(`/api/servers/${id}/folder`, { folder_id: folderId })
+      setServers(prev => prev.map(s => s.id === id ? { ...s, folder_id: folderId } : s))
+    } catch (err: any) {
+      toast.error('Move failed', err.response?.data?.error || 'Could not move server.')
+    }
   }
 
   async function deleteServer(id: number) {
@@ -187,7 +204,7 @@ export function Servers() {
       {showForm && (
         <div
           style={{
-            position: 'fixed', inset: 0, zIndex: 999,
+            position: 'fixed', inset: 0, zIndex: 'var(--z-modal-backdrop)',
             background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 24,
@@ -301,7 +318,7 @@ export function Servers() {
               </div>
             )}
 
-            <div className="grid-2-col" style={{ gap: 16, marginBottom: 24 }}>
+            <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
               <div className="input-group" style={{ marginBottom: 0 }}>
                 <label className="input-label">Tags</label>
                 <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, mail" />
@@ -310,6 +327,18 @@ export function Servers() {
                 <label className="input-label">Description</label>
                 <input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional note" />
               </div>
+            </div>
+
+            <div className="input-group" style={{ marginBottom: 24 }}>
+              <label className="input-label">Folder</label>
+              <select
+                className="input"
+                value={form.folder_id ?? ''}
+                onChange={e => setForm({ ...form, folder_id: e.target.value ? Number(e.target.value) : null })}
+              >
+                <option value="">No folder</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
             </div>
 
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
@@ -322,6 +351,24 @@ export function Servers() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Folder filter bar */}
+      {!loading && servers.length > 0 && (
+        <FolderBar
+          folders={folders}
+          counts={servers.reduce((acc, s) => {
+            if (s.folder_id) acc[s.folder_id] = (acc[s.folder_id] || 0) + 1
+            return acc
+          }, {} as Record<number, number>)}
+          unassignedCount={servers.filter(s => !s.folder_id).length}
+          totalCount={servers.length}
+          selected={selectedFolder}
+          onSelect={setSelectedFolder}
+          onCreate={createFolder}
+          onDelete={deleteFolder}
+          canManage={can('manage-servers')}
+        />
       )}
 
       {/* Content */}
@@ -347,24 +394,30 @@ export function Servers() {
           <table className="k-table">
             <thead>
               <tr>
-                {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Status', 'Actions'].map(h => (
+                {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Folder', 'Status', 'Actions'].map(h => (
                   <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(() => {
-                const filtered = servers.filter(s => 
-                  s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  s.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  (s.tags && s.tags.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                  (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()))
-                );
+                const filtered = servers.filter(s => {
+                  const matchesSearch =
+                    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    s.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (s.tags && s.tags.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                    (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                  const matchesFolder =
+                    selectedFolder === 'all' ? true :
+                    selectedFolder === 'unassigned' ? !s.folder_id :
+                    s.folder_id === selectedFolder
+                  return matchesSearch && matchesFolder
+                });
 
                 if (filtered.length === 0) {
                   return (
                     <tr>
-                      <td colSpan={7} style={{ padding: '60px 0', textAlign: 'center' }}>
+                      <td colSpan={8} style={{ padding: '60px 0', textAlign: 'center' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)' }}>
                           <Search size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
                           <div style={{ fontWeight: 600, fontSize: 14 }}>No matching servers found</div>
@@ -442,6 +495,14 @@ export function Servers() {
                           <span key={t} className="server-tag" style={{ fontSize: 9 }}>{t.trim().toUpperCase()}</span>
                         ))}
                       </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <FolderTag
+                        folders={folders}
+                        value={s.folder_id ?? null}
+                        onChange={fid => moveServerFolder(s.id, fid)}
+                        disabled={!can('manage-servers')}
+                      />
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {testResults[s.id] !== undefined ? (

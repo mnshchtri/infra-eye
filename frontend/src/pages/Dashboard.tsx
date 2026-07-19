@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useUIStore } from '../store/uiStore'
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { api, buildWsUrl } from '../api/client'
 
@@ -366,6 +366,18 @@ export function Dashboard() {
     })
   }, [filteredServers, metrics])
 
+  // Latest disk utilization per server, ranked highest-first for the pie + legend.
+  const diskUsageData = useMemo(() => {
+    return filteredServers
+      .filter(s => metrics[s.id])
+      .map(s => ({ id: s.id, name: s.name, value: parseFloat(metrics[s.id]!.disk_percent.toFixed(1)) }))
+      .sort((a, b) => b.value - a.value)
+  }, [filteredServers, metrics])
+
+  const avgDisk = diskUsageData.length > 0
+    ? Math.round(diskUsageData.reduce((a, d) => a + d.value, 0) / diskUsageData.length)
+    : null
+
   // Servers with any history, in stable id order — palette slot is keyed to
   // this order so a search filter never repaints the surviving series.
   const seriesServers = useMemo(() => {
@@ -498,7 +510,7 @@ export function Dashboard() {
       {/* Fleet timeline + automation activity */}
       {!loading && seriesServers.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
-          <div className="card fade-up" style={{ flex: '2 1 480px', minWidth: 0, padding: '24px 20px' }}>
+          <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Utilization</h3>
@@ -525,7 +537,7 @@ export function Dashboard() {
                 <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
               </div>
             </div>
-            <div style={{ height: 260 }}>
+            <div style={{ flex: 1, minHeight: 200 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timelineData} margin={{ top: 6, right: 76, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
@@ -600,33 +612,86 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Fleet network throughput */}
-      {!loading && networkData.length > 1 && (
-        <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
-              <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
+      {/* Fleet network throughput + disk usage breakdown, side by side */}
+      {!loading && (networkData.length > 1 || diskUsageData.length > 0) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
+          {networkData.length > 1 && (
+            <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
+                  <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
+                </div>
+                <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
+              </div>
+              <div style={{ flex: 1, minHeight: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={networkData} margin={{ top: 6, right: 46, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                    <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                    <YAxis stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      labelFormatter={(t: any) => fmtClock(t)}
+                      formatter={(v: any) => `${v} MB/s`}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                    />
+                    <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                    <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('RX', networkData.length)} />
+                    <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('TX', networkData.length)} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
-          </div>
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={networkData} margin={{ top: 6, right: 46, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                <YAxis stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  labelFormatter={(t: any) => fmtClock(t)}
-                  formatter={(v: any) => `${v} MB/s`}
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
-                />
-                <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
-                <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('RX', networkData.length)} />
-                <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('TX', networkData.length)} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          )}
+
+          {diskUsageData.length > 0 && (
+            <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Disk Usage by Server</h3>
+                <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {diskUsageData.length} node{diskUsageData.length === 1 ? '' : 's'} reporting
+                </p>
+              </div>
+              <div style={{ width: 168, height: 168, position: 'relative', flexShrink: 0, margin: '0 auto 16px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={diskUsageData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={48}
+                      outerRadius={80}
+                      paddingAngle={diskUsageData.length > 1 ? 2 : 0}
+                      stroke="var(--bg-card)"
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                    >
+                      {diskUsageData.map((d, i) => (
+                        <Cell key={d.id} fill={seriesColors[i % seriesColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v: any, n: any) => [`${v}%`, n]}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{avgDisk}%</span>
+                  <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fleet Avg</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 150 }}>
+                {diskUsageData.map((d, i) => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: seriesColors[i % seriesColors.length], flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                    <span style={{ width: 34, textAlign: 'right', fontSize: 10, fontWeight: 900, color: d.value >= 90 ? 'var(--danger)' : d.value >= 75 ? 'var(--warning)' : 'var(--text-primary)' }}>{d.value}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

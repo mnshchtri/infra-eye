@@ -185,6 +185,7 @@ type serverRequest struct {
 	Tags        string `json:"tags"`
 	Description string `json:"description"`
 	KubeConfig  string `json:"kube_config"`
+	FolderID    *uint  `json:"folder_id"`
 }
 
 func CreateServer(c *gin.Context) {
@@ -214,6 +215,7 @@ func CreateServer(c *gin.Context) {
 		IsK8s:       req.KubeConfig != "",
 		Status:      "unknown",
 		OS:          "unknown",
+		FolderID:    req.FolderID,
 	}
 
 	if err := db.DB.Create(&server).Error; err != nil {
@@ -260,6 +262,7 @@ func UpdateServer(c *gin.Context) {
 	}
 	server.KubeConfig = req.KubeConfig
 	server.IsK8s = req.KubeConfig != ""
+	server.FolderID = req.FolderID
 
 	// Remove stale SSH connection
 	sshpool.Remove(uint(id))
@@ -593,4 +596,34 @@ func ClearServerMetrics(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "metric history purged"})
+}
+
+// MoveServerFolder — PATCH /api/servers/:id/folder
+// Reassigns a server (or cluster, since clusters are servers with is_k8s=true)
+// to a different folder without touching any other field. folder_id: null clears it.
+func MoveServerFolder(c *gin.Context) {
+	id := c.Param("id")
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+	var req struct {
+		FolderID *uint `json:"folder_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.FolderID != nil {
+		if err := db.DB.First(&models.Folder{}, *req.FolderID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
+			return
+		}
+	}
+	if err := db.DB.Model(&server).Updates(map[string]interface{}{"folder_id": req.FolderID}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to move server"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "moved", "folder_id": req.FolderID})
 }

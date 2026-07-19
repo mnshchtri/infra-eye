@@ -45,6 +45,18 @@ type Server struct {
 	IsK8s        bool           `gorm:"default:false" json:"is_k8s"`
 	K8sConnected bool           `gorm:"default:true" json:"k8s_connected"`
 	OS           string         `json:"os"` // linux, darwin, unknown
+	FolderID     *uint          `gorm:"index" json:"folder_id"`
+}
+
+// Folder is a user-defined grouping (e.g. "dev", "staging", "production")
+// that servers, clusters, and resources can be filed under. Flat — no nesting.
+type Folder struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	Name      string         `gorm:"not null" json:"name"`
+	Color     string         `json:"color"` // hex accent used for badges/chips
 }
 
 // ServerAccess grants a non-privileged user visibility of a specific server or
@@ -81,6 +93,7 @@ type Resource struct {
 	Status       string         `gorm:"default:'unknown'" json:"status"`
 	Database     string         `json:"database"`
 	Metadata     string         `gorm:"type:text" json:"metadata"`
+	FolderID     *uint          `gorm:"index" json:"folder_id"`
 }
 
 type ResourceAccess struct {
@@ -102,6 +115,19 @@ type ResourceAudit struct {
 	Action      string    `gorm:"not null" json:"action"`
 	Details     string    `gorm:"type:text" json:"details"`
 	PerformedBy string    `json:"performed_by"`
+}
+
+// ResourceMetric is a single health/observability probe snapshot for a resource,
+// captured by the background collector (or an on-demand probe). Metrics holds a
+// JSON blob of type-specific numbers (db connections, redis memory, kafka lag…).
+type ResourceMetric struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	ResourceID uint      `gorm:"index;not null" json:"resource_id"`
+	Timestamp  time.Time `gorm:"index" json:"timestamp"`
+	Status     string    `json:"status"`     // online | degraded | offline
+	LatencyMs  float64   `json:"latency_ms"` // probe round-trip
+	Error      string    `json:"error"`      // populated when offline/degraded
+	Metrics    string    `gorm:"type:text" json:"metrics"` // JSON: type-specific gauges
 }
 
 type Metric struct {

@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/db"
@@ -34,6 +34,7 @@ type resourceRequest struct {
 	AuthType     string `json:"auth_type"`
 	UseGateway   *bool  `json:"use_gateway"`
 	Database     string `json:"database"`
+	FolderID     *uint  `json:"folder_id"`
 }
 
 type resourceAccessRequest struct {
@@ -89,6 +90,7 @@ func CreateResource(c *gin.Context) {
 		UseGateway:   useGateway,
 		Status:       "unknown",
 		Database:     req.Database,
+		FolderID:     req.FolderID,
 	}
 
 	if err := db.DB.Create(&resource).Error; err != nil {
@@ -134,6 +136,7 @@ func UpdateResource(c *gin.Context) {
 		resource.UseGateway = *req.UseGateway
 	}
 	resource.Database = req.Database
+	resource.FolderID = req.FolderID
 
 	if err := db.DB.Save(&resource).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("update resource: %v", err)})
@@ -350,29 +353,60 @@ func TestResourceConnection(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
-	var err error
-	if strings.EqualFold(resource.Protocol, "http") || strings.EqualFold(resource.Protocol, "https") {
-		err = resources.HTTPReachable(ctx, resource.Host, resource.Port, resource.Protocol, resource.UseGateway)
-	} else {
-		conn, dialErr := resources.DialResource(resource.Host, resource.Port, resource.UseGateway)
-		if dialErr != nil {
-			err = dialErr
-		} else {
-			conn.Close()
-		}
+	// A test is a full observability probe: it records a history sample, updates
+	// the live status, and returns the type-specific metrics it gathered.
+	res := resources.CollectOne(resource)
+	payload := gin.H{
+		"status":     res.Status,
+		"latency_ms": res.LatencyMs,
+		"metrics":    res.Metrics,
 	}
+	if res.Error != "" {
+		payload["error"] = res.Error
+	} else {
+		payload["message"] = "resource connection verified"
+	}
+	c.JSON(http.StatusOK, payload)
+}
 
-	status := "online"
-	if err != nil {
-		status = "offline"
-		db.DB.Model(&resource).Update("status", status)
-		c.JSON(http.StatusOK, gin.H{"status": status, "error": err.Error()})
+// ObserveResource forces a fresh probe and returns the live snapshot. Used by the
+// detail page's Observability tab for an immediate reading.
+func ObserveResource(c *gin.Context) {
+	id := c.Param("id")
+	var resource models.Resource
+	if err := db.DB.First(&resource, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "resource not found"})
 		return
 	}
+	if resource.Host == "" || resource.Port == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "resource host and port are required"})
+		return
+	}
+	res := resources.CollectOne(resource)
+	c.JSON(http.StatusOK, res)
+}
 
-	db.DB.Model(&resource).Update("status", status)
-	c.JSON(http.StatusOK, gin.H{"status": status, "message": "resource connection verified"})
+// ListResourceMetrics returns the health/observability history for a resource
+// within the requested window (default 60 minutes), oldest-first for charting.
+func ListResourceMetrics(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid resource id"})
+		return
+	}
+	minutes, _ := strconv.Atoi(c.DefaultQuery("minutes", "60"))
+	if minutes <= 0 {
+		minutes = 60
+	}
+	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+
+	var rows []models.ResourceMetric
+	if err := db.DB.Where("resource_id = ? AND timestamp >= ?", id, since).
+		Order("timestamp asc").Limit(2000).Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to load metrics: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, rows)
 }
 
 func QueryResource(c *gin.Context) {
@@ -464,4 +498,34 @@ func QueryResource(c *gin.Context) {
 	}
 
 	logResourceAudit(c, uint(resource.ID), 0, "query_resource", gin.H{"sql": query, "message": "executed sql query"})
+}
+
+// MoveResourceFolder — PATCH /api/resources/:id/folder
+// Reassigns a resource to a different folder without touching any other field.
+// folder_id: null clears it.
+func MoveResourceFolder(c *gin.Context) {
+	id := c.Param("id")
+	var resource models.Resource
+	if err := db.DB.First(&resource, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "resource not found"})
+		return
+	}
+	var req struct {
+		FolderID *uint `json:"folder_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.FolderID != nil {
+		if err := db.DB.First(&models.Folder{}, *req.FolderID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
+			return
+		}
+	}
+	if err := db.DB.Model(&resource).Updates(map[string]interface{}{"folder_id": req.FolderID}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to move resource"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "moved", "folder_id": req.FolderID})
 }
