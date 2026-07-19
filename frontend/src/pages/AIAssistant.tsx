@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
-import { Send, Server, ChevronDown, Image as ImageIcon, X, Trash2, Zap } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
+import { Send, ChevronDown, Image as ImageIcon, X, Trash2, Zap, Activity, Shield, Boxes, Gauge, Menu } from 'lucide-react'
 import { api } from '../api/client'
 import chatbotLogo from '../assets/chatbot-logo.png'
 
@@ -7,7 +7,7 @@ import chatbotLogo from '../assets/chatbot-logo.png'
 import { MessageItem } from '../components/ai/MessageItem'
 import { ThreadSidebar } from '../components/ai/ThreadSidebar'
 
-interface ServerData { id: number; name: string }
+interface ServerData { id: number; name: string; is_k8s?: boolean }
 
 interface Message {
   id: string
@@ -24,39 +24,88 @@ interface ChatThread {
   updated_at: string
 }
 
-const SUGGESTIONS = [
-  'Run a post-mortem on the last 15 minutes of logs.',
-  'Analyze resource utilization vs. limits for pods in the default namespace.',
-  'Suggest a kubectl one-liner to find pods with restart count > 0.',
-  'Check for potential zombie processes or memory leaks in the last metric snapshot.',
-  'Draft a Terraform or Ansible snippet to scale this node\'s disk if it hits 90%.',
-  'What\'s the MTTR for the recent alert spikes?',
+// ── Suggestion prompts, grouped by DevSecOps discipline ─────────────────────
+interface SuggestionGroup {
+  label: string
+  icon: typeof Activity
+  color: string
+  items: string[]
+}
+
+const SUGGESTION_GROUPS: SuggestionGroup[] = [
+  {
+    label: 'Diagnose',
+    icon: Activity,
+    color: 'var(--brand-primary)',
+    items: [
+      'Run a post-mortem on the recent logs — what broke, when, and why?',
+      'CPU and load are climbing. Walk me through the top suspects with exact commands.',
+      'Disk usage is growing fast — help me find what is eating space safely.',
+    ],
+  },
+  {
+    label: 'Kubernetes',
+    icon: Boxes,
+    color: 'var(--info, #3b82f6)',
+    items: [
+      'Find pods that are CrashLooping or OOMKilled and explain the root cause.',
+      'Audit resource requests vs limits — which workloads are at eviction or throttling risk?',
+      'A service is unreachable. Debug it end-to-end: endpoints, DNS, NetworkPolicy, CNI.',
+    ],
+  },
+  {
+    label: 'Security',
+    icon: Shield,
+    color: 'var(--danger)',
+    items: [
+      'Audit RBAC: which service accounts have cluster-admin or wildcard permissions?',
+      'Scan recent logs for SSH brute-force attempts or auth anomalies.',
+      'Find privileged containers, hostPath mounts, and workloads running as root.',
+    ],
+  },
+  {
+    label: 'Reliability',
+    icon: Gauge,
+    color: 'var(--success)',
+    items: [
+      'Review my alert rules for coverage gaps and suggest self-healing rules worth adding.',
+      'Check the resource catalog — are any dependencies degraded or exposed without the gateway?',
+      'Draft a rollback-safe remediation plan for the current failing workload.',
+    ],
+  },
 ]
 
-const SuggestionButton = memo(({ text, onClick }: { text: string; onClick: (s: string) => void }) => (
-  <button
-    onClick={() => onClick(text)}
-    style={{
-      padding: '10px 18px', borderRadius: 0,
-      background: 'var(--bg-card)', border: '1px solid var(--border)',
-      color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer',
-      transition: 'all 0.15s', fontWeight: 900,
-      fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em'
-    }}
-    onMouseEnter={e => {
-      e.currentTarget.style.borderColor = 'var(--brand-primary)'
-      e.currentTarget.style.color = 'var(--brand-primary)'
-      e.currentTarget.style.background = 'var(--brand-glow)'
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.borderColor = 'var(--border)'
-      e.currentTarget.style.color = 'var(--text-secondary)'
-      e.currentTarget.style.background = 'var(--bg-card)'
-    }}
-  >
-    {text}
-  </button>
-))
+const SuggestionCard = memo(({ group, text, onClick }: { group: SuggestionGroup; text: string; onClick: (s: string) => void }) => {
+  const Icon = group.icon
+  return (
+    <button
+      onClick={() => onClick(text)}
+      style={{
+        display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left',
+        padding: '14px 16px', borderRadius: 'var(--radius-lg)',
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        color: 'var(--text-secondary)', fontSize: 12.5, lineHeight: 1.5,
+        cursor: 'pointer', transition: 'all 0.15s', fontWeight: 500,
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = group.color
+        e.currentTarget.style.transform = 'translateY(-1px)'
+        e.currentTarget.style.boxShadow = 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08))'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = 'var(--border)'
+        e.currentTarget.style.transform = 'none'
+        e.currentTarget.style.boxShadow = 'none'
+      }}
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: group.color }}>
+        <Icon size={12} /> {group.label}
+      </span>
+      <span style={{ color: 'var(--text-primary)' }}>{text}</span>
+    </button>
+  )
+})
+SuggestionCard.displayName = 'SuggestionCard'
 
 export function AIAssistant() {
   const [servers, setServers] = useState<ServerData[]>([])
@@ -69,17 +118,17 @@ export function AIAssistant() {
   const [loading, setLoading] = useState(false)
   const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude'>('mistral')
   const [mcpAvailable, setMcpAvailable] = useState(false)
-  
+  const [inputFocused, setInputFocused] = useState(false)
+
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState<string | null>(null)
-  
+
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     api.get('/api/servers').then(res => setServers(res.data)).catch(() => {})
-    // Check MCP server availability
     api.get('/api/mcp/status').then(res => {
       setMcpAvailable(res.data?.available === true)
     }).catch(() => setMcpAvailable(false))
@@ -95,7 +144,7 @@ export function AIAssistant() {
         setActiveThreadId(null)
       }
     } catch (err) {
-      console.error("Failed to fetch AI threads", err)
+      console.error('Failed to fetch AI threads', err)
     }
   }, [selectedServer, activeThreadId])
 
@@ -108,7 +157,7 @@ export function AIAssistant() {
       id: 'welcome',
       role: 'assistant',
       timestamp: new Date(),
-      content: "Systems online. I am **नेत्र (Netra)**.\n\nI've indexed your infrastructure. What's the mission? Post a log, ask for a post-mortem, or upload a dashboard capture. Let's make it stable."
+      content: "**नेत्र (Netra)** online — your DevSecOps copilot.\n\nI have live context on your fleet: metrics, logs, cluster events, alert rules, self-healing history, and the resource catalog. Pick a target system above, then describe the incident, paste a log, or upload a screenshot — I'll debug it with evidence and propose rollback-safe fixes.",
     }])
   }, [])
 
@@ -125,11 +174,11 @@ export function AIAssistant() {
           id: m.id.toString(),
           role: m.role,
           content: m.content,
-          timestamp: new Date(m.created_at)
+          timestamp: new Date(m.created_at),
         }))
         setMessages(history)
       } catch (err) {
-        console.error("Failed to fetch AI history", err)
+        console.error('Failed to fetch AI history', err)
       }
     }
     fetchHistory()
@@ -150,7 +199,7 @@ export function AIAssistant() {
         setActiveThreadId(null)
       }
     } catch (err) {
-      console.error("Failed to delete thread", err)
+      console.error('Failed to delete thread', err)
     }
   }, [activeThreadId])
 
@@ -176,14 +225,14 @@ export function AIAssistant() {
     if (loading) return
 
     const base64Data = selectedImage ? selectedImage.split(',')[1] : ''
-    const userMsg: Message = { 
-      id: Date.now().toString(), 
-      role: 'user', 
-      content: text, 
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
       timestamp: new Date(),
-      image: selectedImage || undefined
+      image: selectedImage || undefined,
     }
-    
+
     setMessages(prev => [...prev, userMsg])
     setQuestion('')
     setSelectedImage(null)
@@ -192,34 +241,33 @@ export function AIAssistant() {
 
     try {
       const serverId = selectedServer ? Number(selectedServer) : 0
-      const res = await api.post('/api/ai/chat', { 
+      const res = await api.post('/api/ai/chat', {
         thread_id: activeThreadId,
-        server_id: serverId, 
+        server_id: serverId,
         question: text,
         image_base64: base64Data,
         image_mime_type: imageMime,
-        provider: provider
+        provider: provider,
       })
-      
+
       const newAssistantMsg: Message = {
-        id: Date.now().toString() + 'r', 
+        id: Date.now().toString() + 'r',
         role: 'assistant',
-        content: res.data.answer, 
-        timestamp: new Date()
+        content: res.data.answer,
+        timestamp: new Date(),
       }
-      
+
       setMessages(prev => [...prev, newAssistantMsg])
 
       if (!activeThreadId) {
         setActiveThreadId(res.data.thread_id)
-        // Re-fetch threads to get the new one
         api.get(`/api/ai/threads?server_id=${selectedServer || 0}`).then(res => setThreads(res.data))
       }
     } catch (err: any) {
       setMessages(prev => [...prev, {
         id: Date.now().toString() + 'e', role: 'assistant',
-        content: `**Error:** ${err.response?.data?.error || 'Failed to reach नेत्र service.'}`,
-        timestamp: new Date()
+        content: `**Error:** ${err.response?.data?.error || 'Failed to reach the Netra service.'}`,
+        timestamp: new Date(),
       }])
     } finally {
       setLoading(false)
@@ -233,7 +281,7 @@ export function AIAssistant() {
     }
   }
 
-  // MCP Tool execution — called by MessageItem when user clicks "▶ Execute"
+  // MCP Tool execution — called by MessageItem when user clicks "Execute"
   const executeMcpTool = useCallback(async (tool: string, args: Record<string, unknown>) => {
     try {
       const res = await api.post('/api/mcp/tool', {
@@ -266,11 +314,11 @@ export function AIAssistant() {
           displayOutput,
           '```',
         ].join('\n'),
-        timestamp: new Date()
+        timestamp: new Date(),
       }
       setMessages(prev => [...prev, resultMsg])
 
-      // Feed output back to AI for analysis silently
+      // Feed output back to AI for analysis
       setTimeout(() => {
         askQuestion(`Analyze the following \`${tool}\` output and summarize findings with actionable next steps:\n\`\`\`\n${output.slice(0, 4000)}\n\`\`\``)
       }, 400)
@@ -281,124 +329,140 @@ export function AIAssistant() {
         role: 'assistant',
         content: [
           `**⚠️ MCP Tool Error: \`${tool}\`** ${errData?.error || err.message}`,
-          errData?.details ? `\n> ${errData.details}` : ''
+          errData?.details ? `\n> ${errData.details}` : '',
         ].filter(Boolean).join('\n'),
-        timestamp: new Date()
+        timestamp: new Date(),
       }
       setMessages(prev => [...prev, errMsg])
     }
   }, [selectedServer, askQuestion])
 
   const handleClearHistory = useCallback(async () => {
-    if (!window.confirm('Clear conversation history?')) return
+    if (!window.confirm('Clear conversation history for this scope?')) return
     try {
       await api.delete(`/api/ai/history?server_id=${selectedServer || 0}`)
       showWelcome()
     } catch (err) {
-      console.error("Failed to clear AI history", err)
+      console.error('Failed to clear AI history', err)
     }
   }, [selectedServer, showWelcome])
 
+  const selectedServerData = servers.find(s => s.id === selectedServer)
+  const scopeLabel = selectedServerData
+    ? selectedServerData.name
+    : 'Entire infrastructure'
+
+  const selectStyle: React.CSSProperties = {
+    height: 34, padding: '0 26px 0 10px', borderRadius: 'var(--radius-md)',
+    background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+    color: 'var(--text-primary)', fontSize: 12, fontWeight: 700,
+    cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none',
+  }
+
   return (
     <div className={`ai-assistant-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ display: 'flex', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
-      
-      <div 
-        className={`ai-sidebar-overlay ${!isSidebarCollapsed ? 'mobile-open' : ''}`} 
+
+      <div
+        className={`ai-sidebar-overlay ${!isSidebarCollapsed ? 'mobile-open' : ''}`}
         onClick={() => setIsSidebarCollapsed(true)}
       />
 
-      <ThreadSidebar 
-        threads={threads} 
+      <ThreadSidebar
+        threads={threads}
         activeThreadId={activeThreadId}
-        onSelect={id => { setActiveThreadId(id); if (window.innerWidth <= 768) setIsSidebarCollapsed(true); }}
-        onNew={() => { startNewChat(); if (window.innerWidth <= 768) setIsSidebarCollapsed(true); }}
+        onSelect={id => { setActiveThreadId(id); if (window.innerWidth <= 768) setIsSidebarCollapsed(true) }}
+        onNew={() => { startNewChat(); if (window.innerWidth <= 768) setIsSidebarCollapsed(true) }}
         onDelete={deleteThread}
         isCollapsed={isSidebarCollapsed}
         onToggle={setIsSidebarCollapsed}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
+        {/* ── Header ── */}
         <header className="ai-chat-header" style={{
-          width: '100%', padding: '10px 20px', 
+          width: '100%', padding: '12px 20px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0, borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 12
+          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 12,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button 
-              className="show-mobile-only btn-icon" 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              className="show-mobile-only btn-icon"
               onClick={() => setIsSidebarCollapsed(false)}
-              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 0, border: '1px solid var(--border)' }}
+              title="Conversations"
+              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}
             >
-              <Zap size={16} color="var(--brand-primary)" />
+              <Menu size={16} />
             </button>
             <div style={{
-              width: 38, height: 38, borderRadius: 0,
+              width: 38, height: 38, borderRadius: 'var(--radius-md)',
               background: 'var(--bg-app)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden', padding: 4, border: '1px solid var(--border)'
+              overflow: 'hidden', padding: 4, border: '1px solid var(--border)',
             }}>
               <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>नेत्र</h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="hidden-mobile" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Core Intelligence</span>
-                <span className="hidden-mobile" style={{ width: 3, height: 3, background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 9, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Session Active</span>
+              <h1 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+                नेत्र <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Netra</span>
+              </h1>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                DevSecOps copilot · <span style={{ color: 'var(--text-secondary)' }}>{scopeLabel}</span>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Logic Engine</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                 <select value={provider} onChange={e => setProvider(e.target.value as any)}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, fontWeight: 900, cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                   <option value="openrouter">OpenRouter</option>
-                   <option value="deepseek">DeepSeek</option>
-                   <option value="google">Google</option>
-                   <option value="mistral">Mistral</option>
-                   <option value="claude">Claude</option>
-                 </select>
-                 <ChevronDown size={10} color="var(--text-muted)" />
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <select value={provider} onChange={e => setProvider(e.target.value as any)} title="AI model provider" style={selectStyle}>
+                <option value="mistral">Mistral</option>
+                <option value="claude">Claude</option>
+                <option value="google">Gemini</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+              <ChevronDown size={12} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Target System</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                 <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')}
-                   style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, fontWeight: 900, cursor: 'pointer', outline: 'none', maxWidth: 120, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                   <option value="">Infrastructure</option>
-                   {servers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                 </select>
-                 <ChevronDown size={10} color="var(--text-muted)" />
-              </div>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')} title="Context scope — which system Netra analyzes" style={{ ...selectStyle, maxWidth: 180 }}>
+                <option value="">All infrastructure</option>
+                {servers.map(s => <option key={s.id} value={s.id}>{s.is_k8s ? '☸ ' : ''}{s.name}</option>)}
+              </select>
+              <ChevronDown size={12} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
             </div>
-            
-            {mcpAvailable && (
-              <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 0, background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)20' }}>
-                <Zap size={10} color="var(--brand-primary)" />
-                <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>MCP Active</span>
-              </div>
-            )}
+
+            <div className="hidden-mobile" title={mcpAvailable ? 'Live cluster access is available — Netra can run Kubernetes queries from chat' : 'MCP sidecar unreachable — cluster tool execution disabled'} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              background: mcpAvailable ? 'var(--brand-glow)' : 'var(--bg-elevated)',
+              border: `1px solid ${mcpAvailable ? 'var(--brand-primary)' : 'var(--border)'}`,
+            }}>
+              <Zap size={11} color={mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)'} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {mcpAvailable ? 'MCP Live' : 'MCP Offline'}
+              </span>
+            </div>
           </div>
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 140px' }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* ── Messages ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 150px' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
             {messages.length <= 1 && (
-              <div className="fade-in" style={{ padding: '20px 0 60px', borderBottom: '1px solid #18181b', marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-                  <h2 style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Deployment Protocols</h2>
-                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: '10px', fontWeight: 800, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                    <Trash2 size={13} /> Purge Audit Trail
+              <div className="fade-in" style={{ padding: '8px 0 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <h2 style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Where do you want to start?
+                  </h2>
+                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
+                    <Trash2 size={13} /> Clear history
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {SUGGESTIONS.map(s => <SuggestionButton key={s} text={s} onClick={askQuestion} />)}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                  {SUGGESTION_GROUPS.flatMap(g => g.items.map(text => (
+                    <SuggestionCard key={text} group={g} text={text} onClick={askQuestion} />
+                  )))}
                 </div>
               </div>
             )}
@@ -406,14 +470,15 @@ export function AIAssistant() {
             {messages.map((msg) => <MessageItem key={msg.id} msg={msg} onExecuteMcpTool={executeMcpTool} />)}
 
             {loading && (
-              <div style={{ display: 'flex', gap: 16, alignSelf: 'flex-start' }} className="fade-up">
-                <div style={{ width: 38, height: 38, borderRadius: 0, background: 'var(--bg-app)', overflow: 'hidden', padding: 4, border: '1px solid var(--border)' }}>
-                  <img src={chatbotLogo} alt="L" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
+              <div style={{ display: 'flex', gap: 14, alignSelf: 'flex-start', alignItems: 'center' }} className="fade-up">
+                <div style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', background: 'var(--bg-card)', overflow: 'hidden', padding: 4, border: '1px solid var(--border)', flexShrink: 0 }}>
+                  <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
                 </div>
-                <div style={{ padding: '12px 0', display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s infinite' }} />
-                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s 0.2s infinite' }} />
-                  <span style={{ width: 4, height: 4, background: 'var(--brand-primary)', animation: 'blink 1s 0.4s infinite' }} />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Analyzing</span>
+                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s infinite' }} />
+                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s 0.2s infinite' }} />
+                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s 0.4s infinite' }} />
                 </div>
               </div>
             )}
@@ -421,26 +486,45 @@ export function AIAssistant() {
           </div>
         </div>
 
-        <div className="ai-input-wrapper" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(to top, var(--bg-app) 40%, transparent)', pointerEvents: 'none' }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', pointerEvents: 'auto' }}>
+        {/* ── Input ── */}
+        <div className="ai-input-wrapper" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(to top, var(--bg-app) 55%, transparent)', pointerEvents: 'none' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto', pointerEvents: 'auto' }}>
             {selectedImage && (
-              <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '16px 16px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
+              <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '12px 12px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
                 <img src={selectedImage} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Ready</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Image attached</div>
                 <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={12} /></button>
               </div>
             )}
 
-            <div className="chat-input-container" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="chat-input-container" style={{
+              background: 'var(--bg-input)',
+              border: `1px solid ${inputFocused ? 'var(--brand-primary)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-lg)', padding: '12px 14px',
+              display: 'flex', gap: 10, alignItems: 'flex-end',
+              boxShadow: inputFocused ? '0 0 0 3px var(--brand-glow)' : 'var(--shadow-sm, none)',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}>
               <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
-              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} style={{ width: 32, height: 32, borderRadius: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><ImageIcon size={16} /></button>
-              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown} placeholder="Enter command protocol..." disabled={loading} rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '13px', padding: '6px 0', resize: 'none', fontFamily: 'var(--font-mono)', lineHeight: 1.6, maxHeight: 150 }}
+              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} title="Attach a screenshot or dashboard capture"
+                style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}>
+                <ImageIcon size={16} />
+              </button>
+              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown}
+                onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
+                placeholder="Ask Netra — describe the incident, paste a log, or attach a screenshot…"
+                disabled={loading} rows={1}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 13, padding: '8px 0', resize: 'none', lineHeight: 1.6, maxHeight: 150 }}
                 onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px' }}
               />
-              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} style={{ width: 40, height: 40, borderRadius: 0, flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
+              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} title="Send (Enter)"
+                style={{ width: 38, height: 38, borderRadius: 'var(--radius-md)', flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
                 <Send size={16} color={question.trim() || selectedImage ? 'var(--text-inverse)' : 'var(--text-muted)'} />
               </button>
+            </div>
+            <div className="hidden-mobile" style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 8, fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+              <span>Enter to send · Shift+Enter for a new line</span>
+              {mcpAvailable && <span>· Cluster queries run only after you approve them</span>}
             </div>
           </div>
         </div>

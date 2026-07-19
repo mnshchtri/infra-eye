@@ -2195,3 +2195,45 @@ p {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── Console (kubectl shell) palette — theme-aware ─────────────────────────
+   Light theme: GitHub-light "paper console". Dark theme: GitHub-dark. */
+:root {
+  --term-bg: #ffffff;
+  --term-bg-subtle: #f6f8fa;
+  --term-border: #d0d7de;
+  --term-text: #1f2328;
+  --term-text-bright: #24292f;
+  --term-muted: #57606a;
+  --term-faint: #8c959f;
+  --term-green: #1a7f37;
+  --term-red: #cf222e;
+  --term-yellow: #9a6700;
+  --term-blue: #0969da;
+  --term-blue-bg: rgba(9, 105, 218, 0.08);
+  --term-blue-border: rgba(9, 105, 218, 0.3);
+  --term-yellow-bg: rgba(154, 103, 0, 0.08);
+  --term-yellow-border: rgba(154, 103, 0, 0.35);
+  --term-red-bg: rgba(207, 34, 46, 0.06);
+  --term-red-border: rgba(207, 34, 46, 0.35);
+}
+
+.dark {
+  --term-bg: #0d1117;
+  --term-bg-subtle: #161b22;
+  --term-border: #21262d;
+  --term-text: #c9d1d9;
+  --term-text-bright: #e6edf3;
+  --term-muted: #8b949e;
+  --term-faint: #484f58;
+  --term-green: #3fb950;
+  --term-red: #f85149;
+  --term-yellow: #d29922;
+  --term-blue: #58a6ff;
+  --term-blue-bg: rgba(88, 166, 255, 0.12);
+  --term-blue-border: rgba(88, 166, 255, 0.25);
+  --term-yellow-bg: rgba(210, 153, 34, 0.12);
+  --term-yellow-border: rgba(210, 153, 34, 0.3);
+  --term-red-bg: rgba(248, 81, 73, 0.06);
+  --term-red-border: rgba(248, 81, 73, 0.3);
+}

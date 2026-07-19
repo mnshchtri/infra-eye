@@ -3,19 +3,26 @@ package k8s
 import (
 	"fmt"
 	"strings"
+	"time"
 
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
+	"context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/yaml"
-	"context"
 )
+
+// apiTimeout bounds every request made to a cluster's API server. Without it,
+// an unreachable or firewalled endpoint (e.g. a kubeconfig pointing at a
+// private/VM-local IP the backend can't route to) hangs the calling request
+// for the OS-level TCP timeout instead of failing fast with a clear error.
+const apiTimeout = 10 * time.Second
 
 // GetRestConfig parses and returns a rest.Config from kubeconfig string.
 func GetRestConfig(kubeconfig string) (*rest.Config, error) {
@@ -43,6 +50,7 @@ func GetRestConfig(kubeconfig string) (*rest.Config, error) {
 	}
 	config.QPS = 50
 	config.Burst = 100
+	config.Timeout = apiTimeout
 	return config, nil
 }
 
@@ -69,17 +77,18 @@ func GetNodeMetrics(kubeconfig string) (*metricsv1beta1.NodeMetricsList, error) 
 	if kubeconfig == "" {
 		return nil, fmt.Errorf("no kubeconfig provided")
 	}
-	
+
 	apiConfig, err := clientcmd.Load([]byte(kubeconfig))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	clientConfig := clientcmd.NewDefaultClientConfig(*apiConfig, &clientcmd.ConfigOverrides{})
 	config, err := clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
+	config.Timeout = apiTimeout
 
 	mClient, err := metrics.NewForConfig(config)
 	if err != nil {
@@ -137,9 +146,9 @@ func GetNativeYaml(kubeconfig, group, version, resource, namespace, name string)
 		"daemonsets": "DaemonSet", "jobs": "Job", "cronjobs": "CronJob",
 		"roles": "Role", "clusterroles": "ClusterRole",
 		"rolebindings": "RoleBinding", "clusterrolebindings": "ClusterRoleBinding",
-		"networkpolicies": "NetworkPolicy",
+		"networkpolicies":          "NetworkPolicy",
 		"horizontalpodautoscalers": "HorizontalPodAutoscaler",
-		"events": "Event",
+		"events":                   "Event",
 	}
 	kind := kindMap[resource]
 	if kind == "" {

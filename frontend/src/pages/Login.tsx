@@ -40,7 +40,7 @@ export function Login() {
       {/* Brand panel */}
       <div className="login-panel-brand">
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src={logo} alt="InfraEye" style={{ height: 30, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+          <img src={logo} alt="InfraEye" style={{ height: 38, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
           <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>InfraEye</span>
         </div>
 
@@ -85,7 +85,7 @@ export function Login() {
         <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div className="login-card fade-up">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-              <img src={logo} alt="InfraEye" style={{ height: 24, objectFit: 'contain' }} />
+              <img src={logo} alt="InfraEye" style={{ height: 32, objectFit: 'contain' }} />
               <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>InfraEye</span>
             </div>
 
@@ -181,8 +181,17 @@ export function Login() {
             </div>
           </div>
 
-          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 24 }}>
-            © {new Date().getFullYear()} InfraEye. All rights reserved.
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>© {new Date().getFullYear()} InfraEye. All rights reserved.</span>
+            <span style={{ opacity: 0.5 }}>·</span>
+            <a
+              href="https://infraeye.manishkarki7.com.np"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--text-muted)', textDecoration: 'underline', textUnderlineOffset: 2 }}
+            >
+              Documentation
+            </a>
           </p>
         </div>
       </div>

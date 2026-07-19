@@ -479,6 +479,40 @@ export function ServerDetail() {
     if (activeTab === 'Accounts' && canSeeAccounts && osAccounts === null && !osAccountsLoading) loadOsAccounts()
   }, [activeTab])
 
+  // ── Kubernetes service accounts (read-only, K8s clusters only) ──
+  interface K8sAccount { name: string; namespace: string; created_at: string; roles: string[] }
+  const [k8sAccounts, setK8sAccounts] = useState<K8sAccount[] | null>(null)
+  const [k8sAccountsLoading, setK8sAccountsLoading] = useState(false)
+  const [k8sAccountsError, setK8sAccountsError] = useState('')
+  const [k8sAccountsSearch, setK8sAccountsSearch] = useState('')
+
+  async function loadK8sAccounts() {
+    setK8sAccountsLoading(true)
+    setK8sAccountsError('')
+    try {
+      const res = await api.get(`/api/servers/${id}/k8s-accounts`)
+      setK8sAccounts(res.data?.accounts || [])
+    } catch (e: any) {
+      setK8sAccounts(null)
+      setK8sAccountsError(e.response?.data?.error || e.message)
+    } finally { setK8sAccountsLoading(false) }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'Accounts' && canSeeAccounts && server?.is_k8s && k8sAccounts === null && !k8sAccountsLoading) loadK8sAccounts()
+  }, [activeTab, server?.is_k8s])
+
+  const filteredK8sAccounts = useMemo(() => {
+    if (!k8sAccounts) return []
+    const q = k8sAccountsSearch.trim().toLowerCase()
+    if (!q) return k8sAccounts
+    return k8sAccounts.filter(a =>
+      a.name.toLowerCase().includes(q) ||
+      a.namespace.toLowerCase().includes(q) ||
+      a.roles.some(r => r.toLowerCase().includes(q))
+    )
+  }, [k8sAccounts, k8sAccountsSearch])
+
   async function createOsAccount() {
     setAccBusy(true)
     try {
@@ -1357,6 +1391,88 @@ export function ServerDetail() {
               </div>
             )}
           </div>
+
+          {server.is_k8s && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <KubernetesIcon size={16} />
+                  <span style={{ fontWeight: 800, fontSize: 14 }}>Kubernetes Service Accounts</span>
+                  {k8sAccounts && <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({k8sAccounts.length})</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  {k8sAccounts && k8sAccounts.length > 0 && (
+                    <div className="search-box search-container" style={{ minWidth: 160, maxWidth: 220 }}>
+                      <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input className="input" placeholder="Filter…" value={k8sAccountsSearch}
+                        onChange={e => setK8sAccountsSearch(e.target.value)}
+                        style={{ paddingLeft: 32, height: 32, fontSize: 12 }} />
+                    </div>
+                  )}
+                  <button className="btn btn-secondary btn-sm" onClick={loadK8sAccounts} disabled={k8sAccountsLoading}>
+                    <RefreshCw size={13} style={k8sAccountsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+                  </button>
+                </div>
+              </div>
+
+              {k8sAccountsLoading && !k8sAccounts ? (
+                <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}>
+                  <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} color="var(--brand-primary)" />
+                </div>
+              ) : k8sAccountsError ? (
+                <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <Users size={28} style={{ marginBottom: 10, opacity: 0.3 }} />
+                  <div style={{ fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{k8sAccountsError}</div>
+                  <button className="btn btn-secondary btn-sm" style={{ marginTop: 14 }} onClick={loadK8sAccounts}>Retry</button>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="k-table" style={{ minWidth: 640 }}>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Namespace</th>
+                        <th>Bound Roles</th>
+                        <th>Created</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredK8sAccounts.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            {k8sAccountsSearch ? 'No service accounts match the filter' : 'No service accounts found'}
+                          </td>
+                        </tr>
+                      ) : filteredK8sAccounts.map(acc => (
+                        <tr key={`${acc.namespace}/${acc.name}`}>
+                          <td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{acc.name}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{acc.namespace}</td>
+                          <td>
+                            {acc.roles.length === 0 ? (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {acc.roles.map(role => (
+                                  <span key={role} style={{
+                                    fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)',
+                                    color: role.startsWith('ClusterRole/') ? 'var(--warning)' : 'var(--text-secondary)',
+                                    border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 4,
+                                  }}>
+                                    {role}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{acc.created_at}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

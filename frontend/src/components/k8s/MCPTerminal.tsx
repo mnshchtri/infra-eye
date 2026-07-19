@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Terminal, Play, Loader2, X, ChevronDown, Cpu, CheckCircle2, AlertTriangle, Wrench, RefreshCw } from 'lucide-react'
+import { Terminal, Play, Loader2, X, ChevronDown, Zap, Wrench, RefreshCw, Copy, Check, Maximize2, Minimize2, Eraser, CornerDownLeft } from 'lucide-react'
 import { api } from '../../api/client'
 
 interface MCPTerminalProps {
@@ -22,6 +22,28 @@ interface MCPTool {
   name: string
   description?: string
   inputSchema?: { properties?: Record<string, any>; required?: string[] }
+}
+
+// Console palette — resolves to a light "paper console" in light theme and
+// GitHub-dark in dark theme (see the --term-* block in index.css).
+const TERM = {
+  bg: 'var(--term-bg)',
+  bgSubtle: 'var(--term-bg-subtle)',
+  border: 'var(--term-border)',
+  text: 'var(--term-text)',
+  textBright: 'var(--term-text-bright)',
+  muted: 'var(--term-muted)',
+  faint: 'var(--term-faint)',
+  green: 'var(--term-green)',
+  red: 'var(--term-red)',
+  yellow: 'var(--term-yellow)',
+  blue: 'var(--term-blue)',
+  blueBg: 'var(--term-blue-bg)',
+  blueBorder: 'var(--term-blue-border)',
+  yellowBg: 'var(--term-yellow-bg)',
+  yellowBorder: 'var(--term-yellow-border)',
+  redBg: 'var(--term-red-bg)',
+  redBorder: 'var(--term-red-border)',
 }
 
 // Smart parser: maps common kubectl commands → MCP tool name + arguments
@@ -128,11 +150,33 @@ const QUICK_COMMANDS = [
   { label: 'Services', cmd: 'get svc -A' },
   { label: 'Namespaces', cmd: 'get namespaces' },
   { label: 'Ingresses', cmd: 'get ingresses -A' },
-  { label: 'ConfigMaps', cmd: 'get configmaps -A', },
+  { label: 'ConfigMaps', cmd: 'get configmaps -A' },
   { label: 'DaemonSets', cmd: 'get daemonsets -A' },
 ]
 
+const EXAMPLE_COMMANDS = ['get pods -A', 'get nodes', 'describe pod my-pod -n default', 'logs my-pod -n default']
+
 let cmdIdCounter = 0
+
+// Per-entry copy button (lives on the dark console surface)
+function CopyOutputButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+      title="Copy output"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+        color: copied ? TERM.green : TERM.faint, fontSize: 10, fontFamily: 'inherit', flexShrink: 0,
+      }}
+      onMouseEnter={e => { if (!copied) e.currentTarget.style.color = TERM.muted }}
+      onMouseLeave={e => { if (!copied) e.currentTarget.style.color = TERM.faint }}
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+    </button>
+  )
+}
 
 export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProps) {
   const [input, setInput] = useState('')
@@ -144,19 +188,10 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
   const [showQuick, setShowQuick] = useState(true)
   const [showTools, setShowTools] = useState(false)
   const [toolsLoading, setToolsLoading] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const outputRef = useRef<HTMLDivElement>(null)
   const cmdHistory = useRef<string[]>([])
-
-  // Check MCP + load tools
-  useEffect(() => {
-    api.get('/api/mcp/status')
-      .then(res => {
-        setMcpAvailable(res.data.available === true)
-        if (res.data.available) loadTools()
-      })
-      .catch(() => setMcpAvailable(false))
-  }, [])
 
   const loadTools = useCallback(async () => {
     setToolsLoading(true)
@@ -168,12 +203,31 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
     finally { setToolsLoading(false) }
   }, [])
 
+  // Check MCP + load tools
+  useEffect(() => {
+    api.get('/api/mcp/status')
+      .then(res => {
+        setMcpAvailable(res.data.available === true)
+        if (res.data.available) loadTools()
+      })
+      .catch(() => setMcpAvailable(false))
+  }, [loadTools])
+
   // Auto-scroll
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
   }, [history])
+
+  // Esc closes the drawer (unless typing mid-command)
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [onClose])
 
   const runCommand = useCallback(async (rawCmd: string) => {
     const cmd = rawCmd.replace(/^kubectl\s+/, '').trim()
@@ -291,87 +345,109 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
     }
   }
 
-  const statusColor = mcpAvailable === null ? '#8b949e' : mcpAvailable ? '#3fb950' : '#d29922'
-  const statusLabel = mcpAvailable === null ? 'checking…' : mcpAvailable ? `MCP · ${mcpTools.length} tools` : 'MCP offline · SSH fallback'
+  const statusColor = mcpAvailable === null ? 'var(--text-muted)' : mcpAvailable ? 'var(--success)' : 'var(--warning)'
+  const statusLabel = mcpAvailable === null ? 'Checking…' : mcpAvailable ? `MCP · ${mcpTools.length} tools` : 'MCP offline · SSH fallback'
+
+  const sectionToggleStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 16px', background: 'none', border: 'none',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+    color: 'var(--text-muted)',
+  }
 
   return (
     <div
       className="fade-in"
       style={{
         position: 'fixed', right: 0, top: 0, bottom: 0,
-        width: 660, zIndex: 1050,
+        width: isMaximized ? 'min(1100px, 100vw)' : 'min(660px, 100vw)',
+        zIndex: 1050,
         background: 'var(--bg-sidebar)', borderLeft: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column',
         boxShadow: 'var(--shadow-lg)',
         fontFamily: 'var(--font-mono)',
+        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* ── Title Bar ── */}
       <div style={{
-        height: 52, padding: '0 16px', display: 'flex', alignItems: 'center',
+        height: 52, padding: '0 12px 0 16px', display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', borderBottom: '1px solid var(--border)',
-        background: 'var(--bg-app)', flexShrink: 0,
+        background: 'var(--bg-app)', flexShrink: 0, gap: 8,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 5 }}>
-            <div style={{ width: 11, height: 11, borderRadius: '50%', background: '#ff5f56' }} />
-            <div style={{ width: 11, height: 11, borderRadius: '50%', background: '#ffbd2e' }} />
-            <div style={{ width: 11, height: 11, borderRadius: '50%', background: '#27c93f' }} />
-          </div>
-          <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-          <Terminal size={13} color="var(--brand-primary)" />
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>kubectl</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <Terminal size={14} color="var(--brand-primary)" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>kubectl</span>
           <span style={{
-            fontSize: 10, color: 'var(--brand-primary)',
-            background: 'var(--brand-glow)', padding: '2px 8px',
-            borderRadius: 0, border: '1px solid var(--brand-primary)20',
-            fontWeight: 800, textTransform: 'uppercase'
+            fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700,
+            background: 'var(--bg-elevated)', padding: '3px 10px',
+            borderRadius: 99, border: '1px solid var(--border)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {clusterName}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
-            <span style={{ fontSize: 10, color: statusColor, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{statusLabel}</span>
+          <div title={mcpAvailable ? 'Commands auto-map to MCP tools' : mcpAvailable === false ? 'MCP sidecar unreachable — commands run over SSH' : undefined}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor }} />
+            <span className="hidden-mobile" style={{ fontSize: 10.5, color: statusColor, fontWeight: 700 }}>{statusLabel}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
           <button
             onClick={() => setHistory([])}
-            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 10, padding: '4px 10px', borderRadius: 0, fontFamily: 'inherit', fontWeight: 700 }}
+            title="Clear output (Ctrl+L)"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 7, borderRadius: 'var(--radius-md)', display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
-            Clear History
+            <Eraser size={15} />
           </button>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 0, display: 'flex' }}>
-            <X size={15} />
+          <button
+            className="hidden-mobile"
+            onClick={() => setIsMaximized(m => !m)}
+            title={isMaximized ? 'Restore width' : 'Expand'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 7, borderRadius: 'var(--radius-md)', display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            {isMaximized ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+          <button
+            onClick={onClose}
+            title="Close (Esc)"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 7, borderRadius: 'var(--radius-md)', display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <X size={16} />
           </button>
         </div>
       </div>
 
       {/* ── Quick Commands ── */}
       <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-app)', flexShrink: 0 }}>
-        <button
-          onClick={() => setShowQuick(q => !q)}
-          style={{ width: '100%', padding: '7px 16px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}
-        >
-          <Cpu size={11} />
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Commands</span>
-          <ChevronDown size={11} style={{ marginLeft: 'auto', transform: showQuick ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+        <button onClick={() => setShowQuick(q => !q)} style={sectionToggleStyle}>
+          <Zap size={11} />
+          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick commands</span>
+          <ChevronDown size={12} style={{ marginLeft: 'auto', transform: showQuick ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
         {showQuick && (
-          <div style={{ padding: '2px 16px 10px', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {QUICK_COMMANDS.map(qc => (
               <button
                 key={qc.cmd}
                 onClick={() => runCommand(qc.cmd)}
                 disabled={loading}
+                title={`kubectl ${qc.cmd}`}
                 style={{
-                  padding: '4px 12px', borderRadius: 0, border: '1px solid var(--border)',
-                  background: 'var(--bg-elevated)', color: 'var(--brand-primary)', fontSize: 10,
-                  fontWeight: 800, textTransform: 'uppercase',
+                  padding: '5px 12px', borderRadius: 99, border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: 11,
+                  fontWeight: 700,
                   cursor: loading ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-mono)', transition: 'all 0.12s',
                   opacity: loading ? 0.5 : 1,
                 }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand-primary)'; e.currentTarget.style.color = 'var(--brand-primary)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
               >
                 {qc.label}
               </button>
@@ -383,47 +459,48 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
       {/* ── MCP Tool Browser ── */}
       {mcpAvailable && (
         <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-app)', flexShrink: 0 }}>
-          <button
-            onClick={() => setShowTools(t => !t)}
-            style={{ width: '100%', padding: '7px 16px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}
-          >
+          <button onClick={() => setShowTools(t => !t)} style={sectionToggleStyle}>
             <Wrench size={11} />
-            <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>MCP Tools ({mcpTools.length})</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>MCP tools ({mcpTools.length})</span>
             {toolsLoading && <Loader2 size={10} className="spin" style={{ marginLeft: 4 }} />}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button
+              <span
+                role="button"
                 onClick={(e) => { e.stopPropagation(); loadTools() }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}
+                style={{ display: 'flex', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}
                 title="Refresh tools"
               >
-                <RefreshCw size={10} />
-              </button>
-              <ChevronDown size={11} style={{ transform: showTools ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                <RefreshCw size={11} />
+              </span>
+              <ChevronDown size={12} style={{ transform: showTools ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </div>
           </button>
           {showTools && (
-            <div style={{ padding: '4px 16px 12px', maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ padding: '0 16px 12px', maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
               {mcpTools.length === 0 && !toolsLoading && (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '8px 0', fontFamily: 'var(--font-mono)' }}>No tools discovered.</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>No tools discovered.</span>
               )}
               {mcpTools.map(tool => (
                 <button
                   key={tool.name}
                   onClick={() => runTool(tool)}
                   disabled={loading}
+                  title={tool.description}
                   style={{
-                    padding: '6px 10px', borderRadius: 0, border: '1px solid var(--border)',
-                    background: 'var(--bg-elevated)40', color: 'var(--text-secondary)',
-                    fontSize: 10, cursor: loading ? 'not-allowed' : 'pointer',
+                    padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1px solid transparent',
+                    background: 'transparent', color: 'var(--text-secondary)',
+                    fontSize: 11, cursor: loading ? 'not-allowed' : 'pointer',
                     fontFamily: 'var(--font-mono)', textAlign: 'left', display: 'flex',
-                    gap: 10, alignItems: 'flex-start', transition: 'all 0.1s',
-                    fontWeight: 600,
+                    gap: 10, alignItems: 'baseline', transition: 'all 0.1s',
+                    fontWeight: 600, minWidth: 0,
                   }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
                 >
-                  <span style={{ color: 'var(--success)', fontSize: 10, flexShrink: 0 }}>{tool.name}</span>
+                  <span style={{ color: 'var(--brand-primary)', flexShrink: 0 }}>{tool.name}</span>
                   {tool.description && (
-                    <span style={{ color: 'var(--text-muted)', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      — {tool.description}
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tool.description}
                     </span>
                   )}
                 </button>
@@ -433,103 +510,125 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
         </div>
       )}
 
-      {/* ── Output Area ── */}
-      <div ref={outputRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-        {history.length === 0 && (
-          <div style={{ color: '#8b949e', fontSize: 11.5, padding: '16px 0', lineHeight: 1.9 }}>
-            <p style={{ color: '#58a6ff', fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-              kubectl — {clusterName}
-            </p>
-            <p>Commands auto-map to MCP tools when available, with SSH fallback.</p>
-            <p style={{ color: '#484f58' }}>Examples: get pods -A · get nodes · describe pod my-pod -n default</p>
-            <p style={{ color: '#484f58', marginTop: 6 }}>↑↓ history · Ctrl+L clear · Enter to run</p>
-          </div>
-        )}
-
-        {history.map(entry => (
-          <div key={entry.id} style={{ marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ color: entry.isError ? '#f85149' : '#3fb950', fontWeight: 700, fontSize: 12 }}>❯</span>
-              <span style={{ fontSize: 12, color: '#e6edf3', flex: 1 }}>kubectl {entry.cmd}</span>
-              <span style={{
-                fontSize: 9, padding: '1px 6px', borderRadius: 4,
-                background: 'rgba(88,166,255,0.12)', color: '#58a6ff',
-                border: '1px solid rgba(88,166,255,0.2)', flexShrink: 0,
-              }}>
-                {entry.toolUsed}
-              </span>
-              <span style={{ fontSize: 10, color: '#484f58', flexShrink: 0 }}>{entry.timestamp}</span>
-              {entry.duration !== undefined && (
-                <span style={{ fontSize: 10, color: '#484f58', flexShrink: 0 }}>{entry.duration}ms</span>
-              )}
-            </div>
-            <pre style={{
-              margin: 0, padding: '10px 14px',
-              background: entry.isError ? 'rgba(248,81,73,0.08)' : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${entry.isError ? 'rgba(248,81,73,0.25)' : '#21262d'}`,
-              borderLeft: `3px solid ${entry.isError ? '#f85149' : '#3fb950'}`,
-              borderRadius: 8,
-              fontSize: 11.5, lineHeight: 1.65,
-              color: entry.isError ? '#f85149' : '#c9d1d9',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-              maxHeight: 360, overflowY: 'auto',
-            }}>
-              {entry.output || '(no output)'}
-            </pre>
-          </div>
-        ))}
-
-        {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8b949e', fontSize: 12, padding: '6px 0' }}>
-            <Loader2 size={13} className="spin" color="#58a6ff" />
-            <span>Executing via {mcpAvailable ? 'MCP' : 'kubectl SSH'}…</span>
-          </div>
-        )}
-      </div>
-
-      {/* ── Input Bar ── */}
-      <div style={{
-        borderTop: '1px solid var(--border)', background: 'var(--bg-app)',
-        padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
-      }}>
-        <span style={{ color: '#3fb950', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>❯</span>
-        <span style={{ color: '#6e7681', fontSize: 12, flexShrink: 0 }}>kubectl</span>
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="get pods -n default"
-          autoFocus
-          disabled={loading}
-          style={{
-            flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            color: 'var(--text-primary)', fontSize: 12.5, fontFamily: 'inherit',
-            caretColor: 'var(--brand-primary)',
-          }}
-        />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-          {mcpAvailable !== null && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              {mcpAvailable
-                ? <CheckCircle2 size={11} color="#3fb950" />
-                : <AlertTriangle size={11} color="#d29922" />}
+      {/* ── Console (dark surface: output + input) ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: TERM.bg }}>
+        <div ref={outputRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+          {history.length === 0 && (
+            <div style={{ color: TERM.muted, fontSize: 12, padding: '12px 4px', lineHeight: 2 }}>
+              <p style={{ color: TERM.textBright, fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                kubectl — {clusterName}
+              </p>
+              <p>Commands auto-map to MCP tools when available, with SSH fallback.</p>
+              <p style={{ color: TERM.faint, marginTop: 10, marginBottom: 4 }}>Try one:</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {EXAMPLE_COMMANDS.map(ex => (
+                  <button
+                    key={ex}
+                    onClick={() => { setInput(ex); inputRef.current?.focus() }}
+                    style={{
+                      padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                      background: TERM.bgSubtle, border: `1px solid ${TERM.border}`,
+                      color: TERM.blue, fontSize: 11, fontFamily: 'inherit',
+                    }}
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+              <p style={{ color: TERM.faint, marginTop: 12 }}>↑↓ history · Ctrl+L clear · Esc close</p>
             </div>
           )}
+
+          {history.map(entry => (
+            <div key={entry.id} style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, minWidth: 0 }}>
+                <span style={{ color: entry.isError ? TERM.red : TERM.green, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>❯</span>
+                <button
+                  onClick={() => { setInput(entry.cmd.startsWith('tool:') ? '' : entry.cmd); inputRef.current?.focus() }}
+                  title="Click to reuse this command"
+                  style={{
+                    fontSize: 12, color: TERM.textBright, background: 'none', border: 'none',
+                    cursor: 'pointer', padding: 0, fontFamily: 'inherit', textAlign: 'left',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
+                  }}
+                >
+                  kubectl {entry.cmd}
+                </button>
+                <span style={{
+                  fontSize: 9.5, padding: '1px 7px', borderRadius: 99, flexShrink: 0, fontWeight: 700,
+                  ...(entry.toolUsed.includes('kubectl')
+                    ? { background: TERM.yellowBg, color: TERM.yellow, border: `1px solid ${TERM.yellowBorder}` }
+                    : { background: TERM.blueBg, color: TERM.blue, border: `1px solid ${TERM.blueBorder}` }),
+                }}>
+                  {entry.toolUsed}
+                </span>
+                <span className="hidden-mobile" style={{ fontSize: 10, color: TERM.faint, flexShrink: 0 }}>{entry.timestamp}</span>
+                {entry.duration !== undefined && (
+                  <span style={{ fontSize: 10, color: TERM.faint, flexShrink: 0 }}>{entry.duration}ms</span>
+                )}
+                <CopyOutputButton text={entry.output} />
+              </div>
+              <pre style={{
+                margin: 0, padding: '10px 14px',
+                background: entry.isError ? TERM.redBg : TERM.bgSubtle,
+                border: `1px solid ${entry.isError ? TERM.redBorder : TERM.border}`,
+                borderLeft: `3px solid ${entry.isError ? TERM.red : TERM.green}`,
+                borderRadius: 8,
+                fontSize: 11.5, lineHeight: 1.65,
+                color: entry.isError ? TERM.red : TERM.text,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                maxHeight: isMaximized ? 560 : 360, overflowY: 'auto',
+              }}>
+                {entry.output || '(no output)'}
+              </pre>
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: TERM.muted, fontSize: 12, padding: '6px 0' }}>
+              <Loader2 size={13} className="spin" color={TERM.blue} />
+              <span>Executing via {mcpAvailable ? 'MCP' : 'kubectl over SSH'}…</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Input Bar ── */}
+        <div style={{
+          borderTop: `1px solid ${TERM.border}`, background: TERM.bgSubtle,
+          padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+        }}>
+          <span style={{ color: TERM.green, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>❯</span>
+          <span style={{ color: TERM.faint, fontSize: 12, flexShrink: 0 }}>kubectl</span>
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="get pods -n default"
+            autoFocus
+            disabled={loading}
+            spellCheck={false}
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              color: TERM.textBright, fontSize: 12.5, fontFamily: 'inherit',
+              caretColor: TERM.blue,
+            }}
+          />
           <button
             onClick={() => runCommand(input)}
             disabled={loading || !input.trim()}
             style={{
-              background: input.trim() && !loading ? 'rgba(88,166,255,0.15)' : 'transparent',
-              border: `1px solid ${input.trim() && !loading ? '#58a6ff' : '#30363d'}`,
-              borderRadius: 6, padding: '4px 12px', cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
-              color: input.trim() && !loading ? '#58a6ff' : '#484f58',
-              display: 'flex', alignItems: 'center', gap: 5, fontSize: 11,
-              fontFamily: 'inherit', transition: 'all 0.15s',
+              background: input.trim() && !loading ? TERM.blue : 'transparent',
+              border: `1px solid ${input.trim() && !loading ? TERM.blue : TERM.border}`,
+              borderRadius: 6, padding: '5px 14px', cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
+              color: input.trim() && !loading ? TERM.bg : TERM.faint,
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
+              fontFamily: 'inherit', transition: 'all 0.15s', flexShrink: 0,
             }}
           >
             {loading ? <Loader2 size={11} className="spin" /> : <Play size={11} />}
             Run
+            {!loading && input.trim() && <CornerDownLeft size={10} style={{ opacity: 0.7 }} />}
           </button>
         </div>
       </div>

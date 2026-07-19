@@ -142,15 +142,17 @@ func GetK8sNetworking(c *gin.Context) {
 	info := K8sNetworkingInfo{PodCIDRs: []string{}, Nodes: []K8sNodeNetworkInfo{}}
 
 	// ── Nodes: pod CIDRs + per-node addresses ──
+	flannelAnnotated := false
 	if nodeList, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{}); err == nil {
 		podCIDRSet := map[string]bool{}
 		for _, n := range nodeList.Items {
 			node := K8sNodeNetworkInfo{Name: n.Name, PodCIDR: n.Spec.PodCIDR, KubeletVer: n.Status.NodeInfo.KubeletVersion}
 			for _, addr := range n.Status.Addresses {
-				if addr.Type == corev1.NodeInternalIP {
-					node.InternalIP = addr.Address
-				} else if addr.Type == corev1.NodeExternalIP {
-					node.ExternalIP = addr.Address
+				switch addr.Type {
+				case corev1.NodeInternalIP:
+					node.InternalIP = preferIPv4(node.InternalIP, addr.Address)
+				case corev1.NodeExternalIP:
+					node.ExternalIP = preferIPv4(node.ExternalIP, addr.Address)
 				}
 			}
 			for _, cond := range n.Status.Conditions {
@@ -161,6 +163,12 @@ func GetK8sNetworking(c *gin.Context) {
 			if n.Spec.PodCIDR != "" {
 				podCIDRSet[n.Spec.PodCIDR] = true
 			}
+			for key := range n.Annotations {
+				if strings.HasPrefix(key, "flannel.alpha.coreos.com/") {
+					flannelAnnotated = true
+					break
+				}
+			}
 			info.Nodes = append(info.Nodes, node)
 		}
 		for cidr := range podCIDRSet {
@@ -170,9 +178,11 @@ func GetK8sNetworking(c *gin.Context) {
 	}
 
 	// ── Service CIDR: derive from the default "kubernetes" service's ClusterIP range hint ──
+	// The API doesn't expose the configured range, so assume the conventional /16
+	// around the apiserver's ClusterIP (e.g. 10.96.0.1 -> 10.96.0.0/16).
 	if kubeSvc, err := clientset.CoreV1().Services("default").Get(ctx, "kubernetes", metav1.GetOptions{}); err == nil {
-		if idx := strings.LastIndex(kubeSvc.Spec.ClusterIP, "."); idx > 0 {
-			info.ServiceCIDR = kubeSvc.Spec.ClusterIP[:idx] + ".0.0/16"
+		if octets := strings.Split(kubeSvc.Spec.ClusterIP, "."); len(octets) == 4 {
+			info.ServiceCIDR = octets[0] + "." + octets[1] + ".0.0/16"
 		}
 	}
 
@@ -315,9 +325,27 @@ func GetK8sNetworking(c *gin.Context) {
 			}
 		}
 	}
+	// k3s/k0s embed flannel in the main process (no DaemonSet to find), but they
+	// stamp flannel.alpha.coreos.com/* annotations on every node.
+	if info.CNI.Provider == "" && flannelAnnotated {
+		info.CNI.Provider = "Flannel (embedded)"
+		info.CNI.Ready = true
+	}
 	if info.CNI.Provider == "" {
 		info.CNI.Provider = "Unknown"
 	}
 
 	c.JSON(http.StatusOK, info)
+}
+
+// preferIPv4 keeps the current address unless the candidate is IPv4 and the
+// current one is empty or IPv6 — dual-stack nodes list both, and the UI wants v4.
+func preferIPv4(current, candidate string) string {
+	if current == "" {
+		return candidate
+	}
+	if strings.Contains(current, ":") && !strings.Contains(candidate, ":") {
+		return candidate
+	}
+	return current
 }

@@ -160,15 +160,15 @@ export function VPN() {
               To add a remote server to this InfraEye instance over {vpnType === 'tailscale' ? 'Tailscale' : vpnType === 'zerotier' ? 'ZeroTier' : 'OpenVPN'}, run the following command on your target server. It will automatically install the VPN and join your network.
             </p>
 
-            <div style={{ position: 'relative', background: '#000', padding: '16px', borderRadius: 6, border: '1px solid #333' }}>
-              <button 
+            <div style={{ position: 'relative', background: 'var(--term-bg-subtle)', padding: '16px', borderRadius: 6, border: '1px solid var(--term-border)' }}>
+              <button
                 onClick={handleCopyCommand}
-                style={{ position: 'absolute', top: 12, right: 12, background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}
+                style={{ position: 'absolute', top: 12, right: 12, background: 'transparent', border: 'none', color: 'var(--term-muted)', cursor: 'pointer', padding: 4 }}
                 title="Copy to clipboard"
               >
                 <Copy size={14} />
               </button>
-              <code style={{ color: '#0f0', fontFamily: 'var(--font-mono)', fontSize: 11, wordBreak: 'break-all', display: 'block', paddingRight: 24, lineHeight: 1.5 }}>
+              <code style={{ color: 'var(--term-green)', fontFamily: 'var(--font-mono)', fontSize: 11, wordBreak: 'break-all', display: 'block', paddingRight: 24, lineHeight: 1.5 }}>
                 {vpnType === 'tailscale' 
                   ? `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --authkey=${authKey ? '***' : 'YOUR_AUTH_KEY'}`
                   : vpnType === 'zerotier'

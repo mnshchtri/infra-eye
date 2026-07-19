@@ -113,6 +113,7 @@ func main() {
 
 		// ── OS accounts on target servers (Cockpit-style) ────────
 		api.GET("/servers/:id/accounts", middleware.RequireRole("admin", "devops"), handlers.ListOSAccounts)
+		api.GET("/servers/:id/k8s-accounts", middleware.RequireRole("admin", "devops"), handlers.GetK8sAccounts)
 		api.POST("/servers/:id/accounts", middleware.RequireRole("admin"), handlers.CreateOSAccount)
 		api.PUT("/servers/:id/accounts/:username", middleware.RequireRole("admin"), handlers.UpdateOSAccount)
 		api.DELETE("/servers/:id/accounts/:username", middleware.RequireRole("admin"), handlers.DeleteOSAccount)

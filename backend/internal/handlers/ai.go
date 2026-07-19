@@ -254,144 +254,339 @@ func ClearChatHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "cleared"})
 }
 
-func buildContext(serverID uint) string {
-	ctx := `You are नेत्र (Netra), an elite DevSecOps, SRE, and Infrastructure Security Engineer embedded in InfraEye.
-You are blunt, professional, and highly technical. You prioritize stability, performance, security, and automation.
+// netraSystemPrompt is the operating doctrine for Netra. Fenced blocks inside
+// it use ~~~ so the surrounding Go raw string can stay untouched; they are
+// rewritten to ``` below.
+const netraSystemPrompt = `You are नेत्र (Netra), the senior DevSecOps / SRE / platform security engineer embedded in InfraEye, an agentless observability platform. You debug production Linux servers and Kubernetes clusters, triage security signals, and design safe remediations. You are direct, technical, and calm under incident pressure.
 
-## YOUR CAPABILITIES
-You have access to a live Kubernetes MCP (Model Context Protocol) server. You can request real-time data from the cluster and ask the user to execute fix commands — all from within this chat.
+## OPERATING DOCTRINE (production first)
+1. **Evidence before diagnosis.** Never guess. If data is missing, request it (MCP tool call for clusters, a bash command for servers) before naming a root cause. Say what you know, what you suspect, and what would confirm it.
+2. **Blast radius before action.** Every suggested change states: what it touches, whether it interrupts traffic, and how to roll it back. Prefer the least invasive fix that resolves the issue.
+3. **One change at a time.** Propose a single change, then verify, then proceed. Never bundle unrelated fixes into one step during an incident.
+4. **Read-only by default.** Mutating operations (delete, exec, scale, apply, restart) require a stated justification and a rollback path. Never propose destructive operations (namespace deletion, volume deletion, force-drain, ` + "`rm -rf`" + `, DROP TABLE) unless the user explicitly asks and you have warned about the consequences.
+5. **Least privilege.** When a fix involves permissions, grant the narrowest role/scope that works. Flag any suggestion that would widen access.
+6. **Secrets stay secret.** Never echo credential values, tokens, or private keys into chat — reference them by name/location. If context data appears to contain a leaked secret, flag it as a finding.
 
-## HOW TO USE MCP TOOLS
-When you need to inspect or fix the cluster, emit a fenced code block with the language tag ` + "`" + `mcp` + "`" + ` containing ONLY a JSON object like this:
+## DEBUGGING METHODOLOGY
+**Triage order:** user impact → what changed recently → resource saturation → errors in logs/events → dependencies (DNS, DB, upstream) → host/kernel.
 
-` + "```mcp" + `
+**Linux hosts (USE method):** for CPU, memory, disk, network — check Utilization, Saturation, Errors:
+- CPU: ` + "`top -bn1`, `ps aux --sort=-%cpu | head`, `mpstat 1 3`" + `; load avg vs core count; steal time on VMs.
+- Memory: ` + "`free -m`, `ps aux --sort=-%mem | head`" + `; OOM killer traces via ` + "`dmesg -T | grep -i oom`" + `; swap thrash.
+- Disk: ` + "`df -h`, `df -i`" + ` (inodes!), ` + "`du -xhd1 / | sort -h`, `iostat -x 1 3`" + `; deleted-but-open files via ` + "`lsof +L1`" + `.
+- Network: ` + "`ss -tunap`, `ip -s link`" + `, conntrack table fill, ephemeral port exhaustion.
+- Services: ` + "`systemctl --failed`, `journalctl -u <svc> -p err -n 50 --no-pager`" + `.
+
+**Kubernetes failure taxonomy — go straight to the right check:**
+- CrashLoopBackOff → ` + "`pods_log`" + ` (add previous container logs), exit code: 137=OOM/SIGKILL, 143=SIGTERM, 1=app error; check probes vs slow startup.
+- OOMKilled → memory limit vs actual usage; recommend right-sized requests/limits, not just "raise the limit".
+- ImagePullBackOff → image tag exists? registry auth (imagePullSecrets)? rate limits?
+- Pending → ` + "`events_list`" + `: insufficient CPU/mem, node selectors/taints, unbound PVC.
+- Service unreachable → endpoints empty (selector mismatch)? NetworkPolicy? kube-dns/CoreDNS health? CNI pod status.
+- Node NotReady → kubelet, disk/memory pressure conditions, CNI, cloud-provider health.
+- Resource knowledge: requests drive scheduling, limits drive throttling/OOM; QoS classes (Guaranteed/Burstable/BestEffort) decide eviction order; CPU throttling shows up as latency with low apparent utilization.
+
+## SECURITY TRIAGE LENS (defensive)
+When logs, events, or manifests pass through you, screen them for:
+- **Access anomalies:** SSH brute force (repeated ` + "`Failed password`" + `, ` + "`Invalid user`" + `), logins at odd hours/IPs, new sudoers or authorized_keys changes.
+- **Kubernetes RBAC:** service accounts bound to cluster-admin, wildcard verbs/resources in roles, default SA with mounted token doing API calls.
+- **Workload hardening:** privileged containers, hostPath/hostNetwork/hostPID, containers running as root, missing resource limits, :latest tags in production.
+- **Exposure:** services unexpectedly of type LoadBalancer/NodePort, 0.0.0.0 binds on the host, resources in the catalog reachable without the gateway.
+- **Secrets hygiene:** credentials in env vars/ConfigMaps/logs, kubeconfigs or tokens in world-readable paths.
+Report findings with severity (critical/high/medium/low), evidence, and a remediation — never exploitation steps.
+
+## LIVE CLUSTER ACCESS (MCP)
+You can request real-time cluster data. Emit a fenced code block with language tag ` + "`mcp`" + ` containing ONLY one JSON object:
+
+~~~mcp
 {"tool": "pods_list", "args": {"namespace": "kube-system"}}
-` + "```" + `
+~~~
 
-The user will see an "▶ Execute" button. After they click it, the output will be sent back to you automatically so you can analyze it and recommend the next step.
+The user sees an Execute button; the output returns to you automatically for analysis.
 
-## AVAILABLE MCP TOOLS
-| Tool | Description | Key Args |
-|---|---|---|
-| ` + "`pods_list`" + ` | List all pods | namespace (opt) |
-| ` + "`pods_log`" + ` | Get pod logs | name, namespace, tail (opt) |
-| ` + "`pods_delete`" + ` | Delete a stuck pod | name, namespace |
-| ` + "`pods_exec`" + ` | Run command in pod | name, namespace, command (array) |
-| ` + "`events_list`" + ` | Get cluster events | namespace (opt) |
-| ` + "`resources_get`" + ` | Get a resource | apiVersion, kind, name, namespace |
-| ` + "`resources_list`" + ` | List resources | apiVersion, kind, namespace (opt) |
-| ` + "`resources_create_or_update`" + ` | Apply YAML fix | resource (YAML string) |
-| ` + "`resources_scale`" + ` | Scale deployment | apiVersion, kind, name, namespace, scale |
-| ` + "`namespaces_list`" + ` | List namespaces | (none) |
+| Tool | Description | Key Args | Type |
+|---|---|---|---|
+| ` + "`pods_list`" + ` | List pods | namespace (opt) | read |
+| ` + "`pods_log`" + ` | Pod logs | name, namespace, tail (opt) | read |
+| ` + "`events_list`" + ` | Cluster events | namespace (opt) | read |
+| ` + "`resources_get`" + ` | Get one resource | apiVersion, kind, name, namespace | read |
+| ` + "`resources_list`" + ` | List resources | apiVersion, kind, namespace (opt) | read |
+| ` + "`namespaces_list`" + ` | List namespaces | (none) | read |
+| ` + "`pods_delete`" + ` | Delete a stuck pod | name, namespace | MUTATING |
+| ` + "`pods_exec`" + ` | Run command in pod | name, namespace, command (array) | MUTATING |
+| ` + "`resources_create_or_update`" + ` | Apply YAML | resource (YAML string) | MUTATING |
+| ` + "`resources_scale`" + ` | Scale workload | apiVersion, kind, name, namespace, scale | MUTATING |
 
-## WORKFLOW FOR FIXING ISSUES
-1. Use ` + "`events_list`" + ` or ` + "`pods_list`" + ` to gather evidence
-2. Use ` + "`pods_log`" + ` to read error logs
-3. Emit a ` + "`resources_create_or_update`" + ` or ` + "`resources_scale`" + ` tool call to fix
-4. Verify with another ` + "`pods_list`" + ` after the fix
+Rules: read tools freely, one per message step. MUTATING tools only after stating why, the blast radius, and the rollback. For plain servers (non-K8s), give commands in ` + "```bash" + ` blocks instead — annotate any command that modifies state.
 
-## RULES
-- For read-only tools (list, get, log), emit them freely.
-- For mutating tools (delete, exec, scale, create/update), always explain WHY before emitting the tool call.
-- Never guess. If you need data, request it with a tool call first.
-- If the issue is on a server (not K8s), use standard bash suggestions in ` + "```bash" + ` blocks instead.
+## RESPONSE FORMAT
+For diagnostic questions, structure the answer as:
+1. **Assessment** — one-line verdict of what is (most likely) happening.
+2. **Evidence** — the specific data points from context/tool output backing it.
+3. **Root cause / hypotheses** — ranked, with what would confirm each.
+4. **Fix** — exact commands or tool calls, least invasive first, rollback noted for anything mutating.
+5. **Verify** — how to prove it worked.
+6. **Prevent** — (when relevant) an alert rule, limit, probe, or hardening step so it doesn't recur. InfraEye supports self-healing alert rules (cpu/mem/disk/log_keyword conditions triggering SSH commands) — suggest one when it fits.
+Keep casual questions casual — no template for a one-line answer. Use tables for comparisons, keep prose tight.
 
 `
 
+func buildContext(serverID uint) string {
+	var b strings.Builder
+	b.WriteString(strings.ReplaceAll(netraSystemPrompt, "~~~", "```"))
+
 	if serverID > 0 {
-		var server models.Server
-		if err := db.DB.First(&server, serverID).Error; err == nil {
-			ctx += fmt.Sprintf("TARGET CONTEXT: SINGLE SERVER\nServer: %s (%s)\nStatus: %s\nTags: %s\n\n", server.Name, server.Host, server.Status, server.Tags)
-		}
-
-		// Last 30 log entries (emphasize analyzing these for threats)
-		var logs []models.LogEntry
-		db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").Limit(30).Find(&logs)
-		if len(logs) > 0 {
-			ctx += "Recent logs (analyze for errors, warnings, and security threats):\n"
-			for _, l := range logs {
-				ctx += fmt.Sprintf("[%s] [%s] %s\n", l.Timestamp.Format("15:04:05"), l.Level, l.Message)
-			}
-			ctx += "\n"
-		}
-
-		// Last metric
-		var metric models.Metric
-		if err := db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").First(&metric).Error; err == nil {
-			ctx += fmt.Sprintf("Latest metrics (analyze for resource exhaustion or anomalies):\n- CPU: %.1f%%\n- Memory: %.1f%% (%.0f/%.0f MB)\n- Disk: %.1f%% (Used: %.1f GB, Total: %.1f GB)\n- Network RX: %.2f MB/s, TX: %.2f MB/s\n- Load avg: %.2f\n- Uptime: %d seconds\n\n",
-				metric.CPUPercent, metric.MemPercent, metric.MemUsedMB, metric.MemTotalMB,
-				metric.DiskPercent, metric.DiskUsedGB, metric.DiskTotalGB,
-				metric.NetRxMBps, metric.NetTxMBps,
-				metric.LoadAvg1, metric.Uptime)
-		}
-
-		// LIVE KUBERNETES CONTEXT (if cluster)
-		if server.KubeConfig != "" {
-			if clientset, err := k8s.GetK8sClient(server.KubeConfig); err == nil {
-				k8sCtx := context.TODO()
-				ctx += "--- LIVE KUBERNETES PULSE ---\n"
-				
-				// Fetch failing pods
-				if pods, err := clientset.CoreV1().Pods("").List(k8sCtx, metav1.ListOptions{}); err == nil {
-					failingPods := 0
-					var summary strings.Builder
-					for _, p := range pods.Items {
-						if p.Status.Phase != "Running" && p.Status.Phase != "Succeeded" {
-							failingPods++
-							if failingPods <= 10 { // Limit to 10 failing pods to avoid context bloat
-								summary.WriteString(fmt.Sprintf("- pod/%s [%s] namespace=%s\n", p.Name, p.Status.Phase, p.Namespace))
-							}
-						}
-					}
-					ctx += fmt.Sprintf("Cluster Status: %d total pods, %d pods NOT running.\n", len(pods.Items), failingPods)
-					if summary.Len() > 0 {
-						ctx += "Failing Pods:\n" + summary.String()
-					}
-				}
-
-				// Fetch last 10 non-Normal events (security relevance)
-				if events, err := clientset.CoreV1().Events("").List(k8sCtx, metav1.ListOptions{
-					Limit: 10,
-				}); err == nil {
-					if len(events.Items) > 0 {
-						ctx += "Recent Cluster Events (check for CrashLoopBackOff, OOMKilled, or RBAC issues):\n"
-						for i, e := range events.Items {
-							if i >= 10 { break }
-							ctx += fmt.Sprintf("- [%s] %s: %s (%s)\n", e.Type, e.Reason, e.Message, e.InvolvedObject.Name)
-						}
-					}
-				}
-				ctx += "----------------------------\n\n"
-			}
-		}
+		appendServerContext(&b, serverID)
 	} else {
-		ctx += "TARGET CONTEXT: INFRASTRUCTURE WIDE\n--- GLOBAL FLEET STATE ---\n"
-		var servers []models.Server
-		if err := db.DB.Find(&servers).Error; err == nil {
-			for _, s := range servers {
-				ctx += fmt.Sprintf("Server: %s (%s) | Status: %s | Tags: %s\n", s.Name, s.Host, s.Status, s.Tags)
-				
-				var metric models.Metric
-				if err := db.DB.Where("server_id = ?", s.ID).Order("timestamp DESC").First(&metric).Error; err == nil {
-					ctx += fmt.Sprintf("  ↳ Metrics: CPU %.1f%%, RAM %.1f%%, DISK %.1f%%\n", metric.CPUPercent, metric.MemPercent, metric.DiskPercent)
-				}
-				
-				// Get recent warning/error/critical/fatal logs for this server
-				var logs []models.LogEntry
-				db.DB.Where("server_id = ? AND level IN ?", s.ID, []string{"warn", "warning", "error", "fatal", "critical"}).Order("timestamp DESC").Limit(3).Find(&logs)
-				if len(logs) > 0 {
-					ctx += "  ↳ Recent Critical/Warning Logs (potential security or stability threats):\n"
-					for _, l := range logs {
-						ctx += fmt.Sprintf("    [%s] %s\n", l.Level, l.Message)
-					}
-				}
-				ctx += "\n"
-			}
-		}
-		ctx += "-----------------------------------\n\n"
+		appendFleetContext(&b)
+	}
+	appendResourceCatalog(&b)
+	appendAlertingContext(&b, serverID)
+
+	return b.String()
+}
+
+func appendServerContext(b *strings.Builder, serverID uint) {
+	var server models.Server
+	if err := db.DB.First(&server, serverID).Error; err != nil {
+		return
+	}
+	kind := "linux server (SSH)"
+	if server.IsK8s {
+		kind = "Kubernetes cluster"
+	}
+	fmt.Fprintf(b, "# TARGET: SINGLE %s\nName: %s | Host: %s | OS: %s | Status: %s | Tags: %s\n", strings.ToUpper(kind), server.Name, server.Host, server.OS, server.Status, server.Tags)
+	if server.Description != "" {
+		fmt.Fprintf(b, "Description: %s\n", server.Description)
+	}
+	b.WriteString("\n")
+
+	// Latest metric snapshot
+	var metric models.Metric
+	if err := db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").First(&metric).Error; err == nil {
+		fmt.Fprintf(b, "## Latest metrics (%s)\nCPU: %.1f%% | Memory: %.1f%% (%.0f/%.0f MB) | Disk: %.1f%% (%.1f/%.1f GB) | Net RX %.2f / TX %.2f MB/s | Load1: %.2f | Uptime: %s\n\n",
+			metric.Timestamp.Format("2006-01-02 15:04:05"),
+			metric.CPUPercent, metric.MemPercent, metric.MemUsedMB, metric.MemTotalMB,
+			metric.DiskPercent, metric.DiskUsedGB, metric.DiskTotalGB,
+			metric.NetRxMBps, metric.NetTxMBps, metric.LoadAvg1,
+			(time.Duration(metric.Uptime) * time.Second).String())
 	}
 
-	return ctx
+	// Recent logs — errors/warnings first, then latest of any level
+	var errLogs []models.LogEntry
+	db.DB.Where("server_id = ? AND level IN ?", serverID, []string{"warn", "warning", "error", "fatal", "critical"}).Order("timestamp DESC").Limit(20).Find(&errLogs)
+	var recentLogs []models.LogEntry
+	db.DB.Where("server_id = ?", serverID).Order("timestamp DESC").Limit(15).Find(&recentLogs)
+	if len(errLogs) > 0 || len(recentLogs) > 0 {
+		b.WriteString("## Recent logs (screen for errors, saturation, and security anomalies)\n")
+		seen := map[uint]bool{}
+		for _, l := range append(errLogs, recentLogs...) {
+			if seen[l.ID] {
+				continue
+			}
+			seen[l.ID] = true
+			fmt.Fprintf(b, "[%s] [%s] [%s] %s\n", l.Timestamp.Format("15:04:05"), l.Level, l.Source, l.Message)
+		}
+		b.WriteString("\n")
+	}
+
+	// Recent healing actions on this server
+	appendHealingHistory(b, serverID)
+
+	// Live Kubernetes pulse
+	if server.IsK8s && server.KubeConfig != "" {
+		appendK8sPulse(b, server.KubeConfig)
+	}
+}
+
+func appendFleetContext(b *strings.Builder) {
+	b.WriteString("# TARGET: INFRASTRUCTURE-WIDE (whole fleet)\n\n## Fleet state\n")
+	var servers []models.Server
+	if err := db.DB.Find(&servers).Error; err == nil {
+		for _, s := range servers {
+			kind := "server"
+			if s.IsK8s {
+				kind = "k8s-cluster"
+			}
+			fmt.Fprintf(b, "- %s [%s] host=%s status=%s tags=%s\n", s.Name, kind, s.Host, s.Status, s.Tags)
+
+			var metric models.Metric
+			if err := db.DB.Where("server_id = ?", s.ID).Order("timestamp DESC").First(&metric).Error; err == nil {
+				fmt.Fprintf(b, "    metrics: CPU %.1f%% | RAM %.1f%% | DISK %.1f%% | load1 %.2f\n", metric.CPUPercent, metric.MemPercent, metric.DiskPercent, metric.LoadAvg1)
+			}
+
+			var logs []models.LogEntry
+			db.DB.Where("server_id = ? AND level IN ?", s.ID, []string{"warn", "warning", "error", "fatal", "critical"}).Order("timestamp DESC").Limit(3).Find(&logs)
+			for _, l := range logs {
+				fmt.Fprintf(b, "    log[%s]: %s\n", l.Level, l.Message)
+			}
+		}
+	}
+	b.WriteString("\n")
+	appendHealingHistory(b, 0)
+}
+
+// appendResourceCatalog gives Netra knowledge of the cataloged external
+// resources (databases, caches, HTTP services…) and their latest probe result,
+// so it can reason about dependencies when debugging.
+func appendResourceCatalog(b *strings.Builder) {
+	var resources []models.Resource
+	if err := db.DB.Limit(30).Find(&resources).Error; err != nil || len(resources) == 0 {
+		return
+	}
+	b.WriteString("## Resource catalog (external dependencies: DBs, caches, services)\n")
+	for _, r := range resources {
+		fmt.Fprintf(b, "- %s [%s/%s] %s:%d status=%s", r.Name, r.ResourceType, r.Protocol, r.Host, r.Port, r.Status)
+		if r.Database != "" {
+			fmt.Fprintf(b, " db=%s", r.Database)
+		}
+		if !r.UseGateway {
+			b.WriteString(" gateway=BYPASSED(direct exposure — security-relevant)")
+		}
+		var probe models.ResourceMetric
+		if err := db.DB.Where("resource_id = ?", r.ID).Order("timestamp DESC").First(&probe).Error; err == nil {
+			fmt.Fprintf(b, " | last probe: %s %.0fms", probe.Status, probe.LatencyMs)
+			if probe.Error != "" {
+				fmt.Fprintf(b, " error=%q", probe.Error)
+			}
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+// appendAlertingContext lists the enabled alert/self-healing rules that apply
+// to the current scope, so Netra can spot coverage gaps and avoid proposing
+// fixes the healing engine already automates.
+func appendAlertingContext(b *strings.Builder, serverID uint) {
+	var rules []models.AlertRule
+	q := db.DB.Where("enabled = ?", true)
+	if serverID > 0 {
+		q = q.Where("server_id IN ?", []uint{0, serverID})
+	}
+	if err := q.Limit(20).Find(&rules).Error; err != nil || len(rules) == 0 {
+		b.WriteString("## Alert rules\nNo enabled alert/self-healing rules in scope — flag monitoring gaps you notice.\n\n")
+		return
+	}
+	b.WriteString("## Enabled alert / self-healing rules\n")
+	for _, r := range rules {
+		scope := "all servers"
+		if r.ServerID > 0 {
+			scope = fmt.Sprintf("server #%d", r.ServerID)
+		}
+		fmt.Fprintf(b, "- %q [%s] when %s %s %s → %s", r.Name, r.Severity, r.ConditionType, r.ConditionOp, r.ConditionValue, r.ActionType)
+		if r.ActionCommand != "" {
+			fmt.Fprintf(b, " (%s)", r.ActionCommand)
+		}
+		fmt.Fprintf(b, " | scope: %s | cooldown %dm\n", scope, r.CooldownMinutes)
+	}
+	b.WriteString("\n")
+}
+
+func appendHealingHistory(b *strings.Builder, serverID uint) {
+	var actions []models.HealingAction
+	q := db.DB.Order("created_at DESC").Limit(5)
+	if serverID > 0 {
+		q = q.Where("server_id = ?", serverID)
+	}
+	if err := q.Find(&actions).Error; err != nil || len(actions) == 0 {
+		return
+	}
+	b.WriteString("## Recent self-healing actions (automated remediations already attempted)\n")
+	for _, a := range actions {
+		out := a.Output
+		if len(out) > 200 {
+			out = out[:200] + "…"
+		}
+		fmt.Fprintf(b, "- [%s] %s | trigger: %s | cmd: %s | output: %s\n", a.CreatedAt.Format("01-02 15:04"), a.Status, a.TriggerInfo, a.Command, out)
+	}
+	b.WriteString("\n")
+}
+
+// appendK8sPulse snapshots live cluster health: node readiness, failing pods,
+// and warning events. Failures degrade silently — the MCP tools are the
+// fallback for on-demand data.
+func appendK8sPulse(b *strings.Builder, kubeconfig string) {
+	clientset, err := k8s.GetK8sClient(kubeconfig)
+	if err != nil {
+		fmt.Fprintf(b, "## Live Kubernetes pulse\nUNAVAILABLE — could not connect to cluster: %s\n\n", err.Error())
+		return
+	}
+	k8sCtx := context.TODO()
+	b.WriteString("## Live Kubernetes pulse\n")
+
+	// Node readiness + pressure conditions
+	if nodes, err := clientset.CoreV1().Nodes().List(k8sCtx, metav1.ListOptions{}); err == nil {
+		ready := 0
+		var problems []string
+		for _, n := range nodes.Items {
+			for _, cond := range n.Status.Conditions {
+				switch cond.Type {
+				case "Ready":
+					if cond.Status == "True" {
+						ready++
+					} else {
+						problems = append(problems, fmt.Sprintf("node/%s NotReady (%s)", n.Name, cond.Reason))
+					}
+				case "MemoryPressure", "DiskPressure", "PIDPressure":
+					if cond.Status == "True" {
+						problems = append(problems, fmt.Sprintf("node/%s %s", n.Name, cond.Type))
+					}
+				}
+			}
+		}
+		fmt.Fprintf(b, "Nodes: %d/%d Ready\n", ready, len(nodes.Items))
+		for _, p := range problems {
+			fmt.Fprintf(b, "- %s\n", p)
+		}
+	}
+
+	// Failing pods with container-level reason (CrashLoopBackOff etc.)
+	if pods, err := clientset.CoreV1().Pods("").List(k8sCtx, metav1.ListOptions{}); err == nil {
+		failing := 0
+		var summary strings.Builder
+		for _, p := range pods.Items {
+			if p.Status.Phase == "Running" || p.Status.Phase == "Succeeded" {
+				// Running pods can still be broken: crashlooping containers
+				healthy := true
+				for _, cs := range p.Status.ContainerStatuses {
+					if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
+						healthy = false
+						if failing < 10 {
+							fmt.Fprintf(&summary, "- pod/%s ns=%s container=%s %s (restarts: %d)\n", p.Name, p.Namespace, cs.Name, cs.State.Waiting.Reason, cs.RestartCount)
+						}
+					}
+				}
+				if !healthy {
+					failing++
+				}
+				continue
+			}
+			failing++
+			if failing <= 10 {
+				fmt.Fprintf(&summary, "- pod/%s ns=%s phase=%s\n", p.Name, p.Namespace, p.Status.Phase)
+			}
+		}
+		fmt.Fprintf(b, "Pods: %d total, %d unhealthy\n", len(pods.Items), failing)
+		b.WriteString(summary.String())
+	}
+
+	// Warning events (fall back to whatever exists if none are Warning)
+	if events, err := clientset.CoreV1().Events("").List(k8sCtx, metav1.ListOptions{Limit: 50}); err == nil {
+		var lines []string
+		for _, e := range events.Items {
+			if e.Type != "Normal" {
+				lines = append(lines, fmt.Sprintf("- [%s] %s: %s (%s/%s)", e.Type, e.Reason, e.Message, e.InvolvedObject.Kind, e.InvolvedObject.Name))
+			}
+		}
+		if len(lines) > 12 {
+			lines = lines[len(lines)-12:]
+		}
+		if len(lines) > 0 {
+			b.WriteString("Warning events:\n" + strings.Join(lines, "\n") + "\n")
+		}
+	}
+	b.WriteString("\n")
 }
 
 func askAI(systemContext, question, imageBase64, imageMime, provider string, user *models.User) string {
