@@ -7,13 +7,59 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/infra-eye/backend/internal/config"
+	"github.com/infra-eye/backend/internal/db"
 )
+
+// Setting keys for UI-configured webhook URLs (override env-var defaults).
+const (
+	SettingGoogleChatWebhook = "google_chat_webhook_url"
+	SettingSlackWebhook      = "slack_webhook_url"
+)
+
+// GoogleChatWebhookURL resolves the active Google Chat webhook: the value
+// saved from the Settings UI wins, otherwise the GOOGLE_CHAT_WEBHOOK_URL env.
+func GoogleChatWebhookURL() string {
+	if v := db.GetSetting(SettingGoogleChatWebhook); v != "" {
+		return v
+	}
+	return config.C.GoogleChatWebhookURL
+}
+
+// SlackWebhookURL resolves the active Slack webhook (UI setting, then env).
+func SlackWebhookURL() string {
+	if v := db.GetSetting(SettingSlackWebhook); v != "" {
+		return v
+	}
+	return config.C.SlackWebhookURL
+}
+
+var webhookClient = &http.Client{Timeout: 15 * time.Second}
+
+// SendTest posts a minimal test message to a webhook URL so admins can verify
+// their configuration from the Settings UI. Works for both Google Chat and
+// Slack — each accepts a simple {"text": ...} payload.
+func SendTest(url, channelLabel string) error {
+	payload := map[string]string{
+		"text": fmt.Sprintf("✅ InfraEye test notification — %s webhook is working. Alert rules will notify this space.", channelLabel),
+	}
+	jsonData, _ := json.Marshal(payload)
+	resp, err := webhookClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 // SendToGoogleChat sends a formatted alert message to a Google Chat webhook
 func SendToGoogleChat(ruleName, serverName, info, severity, status, actionOutput string) {
-	url := config.C.GoogleChatWebhookURL
+	url := GoogleChatWebhookURL()
 	if url == "" {
 		log.Println("⚠️ Google Chat Webhook URL not configured, skipping notification")
 		return
@@ -109,7 +155,7 @@ func SendToGoogleChat(ruleName, serverName, info, severity, status, actionOutput
 		return
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	resp, err := webhookClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Printf("❌ Google Chat Webhook Error: %v", err)
 		return
@@ -125,7 +171,7 @@ func SendToGoogleChat(ruleName, serverName, info, severity, status, actionOutput
 
 // SendToSlack sends a formatted alert message to a Slack webhook
 func SendToSlack(ruleName, serverName, info, severity, status string) {
-	url := config.C.SlackWebhookURL
+	url := SlackWebhookURL()
 	if url == "" {
 		log.Println("⚠️ Slack Webhook URL not configured, skipping notification")
 		return
@@ -208,7 +254,7 @@ func SendToSlack(ruleName, serverName, info, severity, status string) {
 		return
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	resp, err := webhookClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Printf("❌ Slack Webhook Error: %v", err)
 		return

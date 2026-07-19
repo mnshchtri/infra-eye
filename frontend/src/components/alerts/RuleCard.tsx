@@ -1,10 +1,11 @@
-import React, { memo } from 'react'
-import { Zap, Activity, Pencil, Trash2, Cpu, Database, LayoutGrid } from 'lucide-react'
+import { memo } from 'react'
+import { Zap, Pencil, Trash2, Bell, Terminal, Server, Clock } from 'lucide-react'
 
 interface Rule {
   id: number; name: string; server_id: number;
   condition_type: string; condition_op: string; condition_value: string;
   action_type: string; action_command: string; severity: string; enabled: boolean;
+  cooldown_minutes?: number;
 }
 
 interface RuleCardProps {
@@ -19,69 +20,139 @@ interface RuleCardProps {
   setConfirmDelete: (id: number | null) => void;
 }
 
-export const RuleCard = memo(({ 
-  rule, serverName, condColor, canManage, onEdit, onDelete, onToggle, confirmDelete, setConfirmDelete 
+const METRIC_LABELS: Record<string, string> = {
+  cpu: 'CPU', mem: 'Memory', disk: 'Disk', load: 'Load avg',
+  log_keyword: 'Log keyword', pod_status: 'Failing pods',
+}
+
+const OP_SYMBOLS: Record<string, string> = { gt: '>', lt: '<', gte: '≥' }
+
+function conditionText(rule: Rule): string {
+  const metric = METRIC_LABELS[rule.condition_type] || rule.condition_type
+  if (rule.condition_type === 'pod_status') return 'Any pod not Running / Succeeded'
+  const unit = ['cpu', 'mem', 'disk'].includes(rule.condition_type) ? '%' : ''
+  return `${metric} ${OP_SYMBOLS[rule.condition_op] || rule.condition_op} ${rule.condition_value}${unit}`
+}
+
+export const RuleCard = memo(({
+  rule, serverName, condColor, canManage, onEdit, onDelete, onToggle, confirmDelete, setConfirmDelete,
 }: RuleCardProps) => {
+  const isCritical = rule.severity === 'critical'
   return (
-    <div className="card fade-up hover-lift" style={{ padding: 24, borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-card)', position: 'relative' }}>
-      {/* Decorative vertical bar for status */}
-      <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 4, background: rule.enabled ? condColor : 'var(--border)' }} />
-      
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ 
-            width: 40, height: 40, borderRadius: 0, background: 'var(--bg-elevated)', 
-            border: `1px solid var(--border)`, display: 'flex', alignItems: 'center', justifyContent: 'center' 
+    <div className="card fade-up hover-lift" style={{
+      padding: 18, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
+      background: 'var(--bg-card)', position: 'relative', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column', gap: 14,
+      opacity: rule.enabled ? 1 : 0.75,
+    }}>
+      {/* Accent bar keyed to the metric being watched */}
+      <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 3, background: rule.enabled ? condColor : 'var(--border)' }} />
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <Zap size={18} color={condColor} />
+            <Zap size={16} color={condColor} />
           </div>
-          <div>
-            <div style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 13, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>{rule.name}</div>
-            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{serverName}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13.5, lineHeight: 1.3, wordBreak: 'break-word' }}>{rule.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700 }}>
+                <Server size={10} /> {serverName}
+              </span>
+              <span style={{
+                fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
+                padding: '1px 7px', borderRadius: 99,
+                color: isCritical ? 'var(--danger)' : 'var(--warning)',
+                border: `1px solid ${isCritical ? 'var(--danger)' : 'var(--warning)'}`,
+              }}>
+                {rule.severity || 'warning'}
+              </span>
+            </div>
           </div>
         </div>
         {canManage && (
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button className="btn-icon" onClick={() => onEdit(rule)} style={{ borderRadius: 0, width: 32, height: 32 }}><Pencil size={14} /></button>
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            <button className="btn-icon" title="Edit rule" onClick={() => onEdit(rule)} style={{ width: 30, height: 30 }}><Pencil size={13} /></button>
             {confirmDelete === rule.id ? (
-              <div style={{ display: 'flex', gap: 1 }}>
+              <div style={{ display: 'flex', gap: 4 }}>
                 <button
-                  style={{ padding: '4px 10px', borderRadius: 0, fontSize: 9, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900, textTransform: 'uppercase' }}
+                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 10, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 800 }}
                   onClick={() => onDelete(rule.id)}
                 >
-                  Confirm
+                  Delete
                 </button>
                 <button
-                  style={{ padding: '4px 10px', borderRadius: 0, fontSize: 9, background: 'var(--bg-app)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 900, textTransform: 'uppercase' }}
+                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
                   onClick={() => setConfirmDelete(null)}
                 >
-                  No
+                  Keep
                 </button>
               </div>
             ) : (
-              <button className="btn-icon danger" onClick={() => setConfirmDelete(rule.id)} style={{ borderRadius: 0, width: 32, height: 32 }}><Trash2 size={14} /></button>
+              <button className="btn-icon danger" title="Delete rule" onClick={() => setConfirmDelete(rule.id)} style={{ width: 30, height: 30 }}><Trash2 size={13} /></button>
             )}
           </div>
         )}
       </div>
 
-      <div style={{ 
-        display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-app)', 
-        padding: '12px 16px', borderRadius: 0, border: '1px solid var(--border)', marginBottom: 20 
+      {/* Condition → action */}
+      <div style={{
+        background: 'var(--bg-app)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)', padding: '10px 14px',
+        display: 'flex', flexDirection: 'column', gap: 8,
       }}>
-        <Activity size={12} color={condColor} />
-        <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-          {rule.condition_type} {rule.condition_op === 'gt' ? '>' : rule.condition_op === 'lt' ? '<' : '>='} {rule.condition_value}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>If</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+            {conditionText(rule)}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>Then</span>
+          {rule.action_type === 'ssh_command' && rule.action_command ? (
+            <span title={rule.action_command} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
+              fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
+            }}>
+              <Terminal size={11} style={{ flexShrink: 0, color: 'var(--warning)' }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.action_command}</span>
+            </span>
+          ) : (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
+              <Bell size={11} style={{ color: condColor }} /> Notify only
+            </span>
+          )}
+        </div>
       </div>
 
-      <div 
-        onClick={() => onToggle(rule)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-      >
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: rule.enabled ? 'var(--success)' : 'var(--text-muted)', boxShadow: rule.enabled ? '0 0 8px var(--success)' : 'none' }} />
-        <span style={{ fontSize: 9, fontWeight: 900, color: rule.enabled ? 'var(--success)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>
-          {rule.enabled ? 'Remediation Active' : 'Rule Isolated'}
+      {/* Footer: toggle + cooldown */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+        <button
+          onClick={() => onToggle(rule)}
+          title={rule.enabled ? 'Click to pause this rule' : 'Click to activate this rule'}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+        >
+          <span style={{
+            width: 32, height: 18, borderRadius: 99, position: 'relative', flexShrink: 0,
+            background: rule.enabled ? 'var(--success)' : 'var(--border-bright, var(--border))',
+            transition: 'background 0.15s',
+          }}>
+            <span style={{
+              position: 'absolute', top: 2, left: rule.enabled ? 16 : 2,
+              width: 14, height: 14, borderRadius: '50%', background: '#fff',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left 0.15s',
+            }} />
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: rule.enabled ? 'var(--success)' : 'var(--text-muted)' }}>
+            {rule.enabled ? 'Active' : 'Paused'}
+          </span>
+        </button>
+        <span title="Minimum time between firings" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+          <Clock size={10} /> {rule.cooldown_minutes || 5}m cooldown
         </span>
       </div>
     </div>

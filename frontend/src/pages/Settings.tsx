@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight } from 'lucide-react'
+import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight, Bell, Send } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { usePermission } from '../hooks/usePermission'
@@ -18,7 +18,7 @@ export function Settings() {
   const { can } = usePermission()
   const toast = useToastStore()
   
-  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'ai'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'ai' | 'notifications'>('profile')
   const [users, setUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -34,6 +34,15 @@ export function Settings() {
   const [geminiKey, setGeminiKey] = useState((currentUser as any)?.gemini_key || '')
   const [mistralKey, setMistralKey] = useState((currentUser as any)?.mistral_key || '')
 
+  // Notification webhook state (admin only)
+  const [gchatUrl, setGchatUrl] = useState('')
+  const [slackUrl, setSlackUrl] = useState('')
+  const [gchatEnvSet, setGchatEnvSet] = useState(false)
+  const [slackEnvSet, setSlackEnvSet] = useState(false)
+  const [notifLoaded, setNotifLoaded] = useState(false)
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [testingChannel, setTestingChannel] = useState<'google_chat' | 'slack' | null>(null)
+
   // User management form state
   const [showUserForm, setShowUserForm] = useState(false)
   const emptyUserForm = { username: '', password: '', role: 'intern', email: '', is_active: true }
@@ -45,7 +54,52 @@ export function Settings() {
     if (activeTab === 'users' && can('manage-users')) {
       loadUsers()
     }
+    if (activeTab === 'notifications' && can('manage-users') && !notifLoaded) {
+      loadNotificationSettings()
+    }
   }, [activeTab, can])
+
+  async function loadNotificationSettings() {
+    try {
+      const res = await api.get('/api/settings/notifications')
+      setGchatUrl(res.data?.google_chat_webhook_url || '')
+      setSlackUrl(res.data?.slack_webhook_url || '')
+      setGchatEnvSet(res.data?.google_chat_env_set === true)
+      setSlackEnvSet(res.data?.slack_env_set === true)
+      setNotifLoaded(true)
+    } catch (err: any) {
+      toast.error('Load failed', err.response?.data?.error || 'Could not load notification settings.')
+    }
+  }
+
+  async function saveNotificationSettings(e: React.FormEvent) {
+    e.preventDefault()
+    setNotifSaving(true)
+    try {
+      await api.put('/api/settings/notifications', {
+        google_chat_webhook_url: gchatUrl.trim(),
+        slack_webhook_url: slackUrl.trim(),
+      })
+      toast.success('Notifications updated', 'Alert rules will use the new webhook configuration.')
+    } catch (err: any) {
+      toast.error('Save failed', err.response?.data?.error || 'Could not save webhook settings.')
+    } finally {
+      setNotifSaving(false)
+    }
+  }
+
+  async function testWebhook(channel: 'google_chat' | 'slack') {
+    setTestingChannel(channel)
+    try {
+      const url = channel === 'google_chat' ? gchatUrl.trim() : slackUrl.trim()
+      const res = await api.post('/api/settings/notifications/test', { channel, url })
+      toast.success('Test sent', res.data?.message || 'Check the chat space for the test message.')
+    } catch (err: any) {
+      toast.error('Test failed', err.response?.data?.error || 'The webhook did not accept the test message.')
+    } finally {
+      setTestingChannel(null)
+    }
+  }
 
   async function loadUsers() {
     setLoading(true)
@@ -176,6 +230,24 @@ export function Settings() {
 
           {can('manage-users') && (
             <button
+              onClick={() => setActiveTab('notifications')}
+              style={{
+                padding: '12px 24px', fontSize: 10, fontWeight: 900,
+                transition: 'all 0.2s', cursor: 'pointer', border: 'none',
+                background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
+                display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-mono)',
+                position: 'relative',
+                color: activeTab === 'notifications' ? 'var(--brand-primary)' : 'var(--text-muted)'
+              }}
+            >
+              <Bell size={13} /> NOTIFICATIONS
+              {activeTab === 'notifications' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
+            </button>
+          )}
+
+          {can('manage-users') && (
+            <button
               onClick={() => setActiveTab('users')}
               style={{
                 padding: '12px 24px', fontSize: 10, fontWeight: 900,
@@ -285,6 +357,96 @@ export function Settings() {
 
                 <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ width: '100%', maxWidth: 200, height: 44, fontSize: 14, fontWeight: 700 }}>{profileSaving ? 'Saving...' : 'Sync AI Keys'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'notifications' && can('manage-users') && (
+          <div className="fade-up" style={{ maxWidth: 800 }}>
+            <div className="card" style={{ padding: '32px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Bell size={20} color="var(--brand-primary)" /></div>
+                <div>
+                  <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Alert Notifications</h2>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Where alert rules and self-healing events send notifications. Applies platform-wide.</p>
+                </div>
+              </div>
+
+              <form onSubmit={saveNotificationSettings}>
+                <div style={{ display: 'grid', gap: 28 }}>
+                  {/* Google Chat */}
+                  <div className="input-group">
+                    <label className="input-label">Google Chat webhook URL</label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <input
+                        className="input"
+                        style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        value={gchatUrl}
+                        onChange={e => setGchatUrl(e.target.value)}
+                        placeholder="https://chat.googleapis.com/v1/spaces/…/messages?key=…&token=…"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => testWebhook('google_chat')}
+                        disabled={testingChannel !== null || (!gchatUrl.trim() && !gchatEnvSet)}
+                        title="Send a test message to this webhook"
+                        style={{ gap: 6, whiteSpace: 'nowrap' }}
+                      >
+                        <Send size={13} /> {testingChannel === 'google_chat' ? 'Sending…' : 'Test'}
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                      In Google Chat: open the space → space name → <strong>Apps &amp; integrations</strong> → <strong>Webhooks</strong> → add one and paste its URL here. Must be an https URL on <code style={{ fontFamily: 'var(--font-mono)' }}>chat.googleapis.com</code>.
+                    </p>
+                    {gchatEnvSet && !gchatUrl.trim() && (
+                      <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
+                        Currently using the URL from the GOOGLE_CHAT_WEBHOOK_URL environment variable — saving a value here overrides it.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Slack */}
+                  <div className="input-group">
+                    <label className="input-label">Slack webhook URL <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(optional)</span></label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <input
+                        className="input"
+                        style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        value={slackUrl}
+                        onChange={e => setSlackUrl(e.target.value)}
+                        placeholder="https://hooks.slack.com/services/T…/B…/…"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => testWebhook('slack')}
+                        disabled={testingChannel !== null || (!slackUrl.trim() && !slackEnvSet)}
+                        title="Send a test message to this webhook"
+                        style={{ gap: 6, whiteSpace: 'nowrap' }}
+                      >
+                        <Send size={13} /> {testingChannel === 'slack' ? 'Sending…' : 'Test'}
+                      </button>
+                    </div>
+                    {slackEnvSet && !slackUrl.trim() && (
+                      <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
+                        Currently using the URL from the SLACK_WEBHOOK_URL environment variable — saving a value here overrides it.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.5 }}>
+                    Leave a field empty and save to clear it. Webhook URLs are credentials — anyone with the URL can post to the space.
+                  </p>
+                  <button type="submit" className="btn btn-primary" disabled={notifSaving} style={{ minWidth: 160, height: 44, fontSize: 14, fontWeight: 700 }}>
+                    {notifSaving ? 'Saving…' : 'Save webhooks'}
+                  </button>
                 </div>
               </form>
             </div>

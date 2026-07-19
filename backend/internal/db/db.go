@@ -44,6 +44,7 @@ func Connect() {
 		&models.HealingAction{},
 		&models.ChatMessage{},
 		&models.ChatThread{},
+		&models.AppSetting{},
 	); err != nil {
 		log.Fatalf("Auto-migrate failed: %v", err)
 	}
@@ -52,4 +53,23 @@ func Connect() {
 
 	// Ensure all servers with KubeConfig are flagged as IsK8s
 	DB.Model(&models.Server{}).Where("kube_config != ? AND is_k8s = ?", "", false).Update("is_k8s", true)
+}
+
+// GetSetting returns the stored value for a platform setting key, or "" when
+// unset (callers fall back to their env-var default).
+func GetSetting(key string) string {
+	if DB == nil {
+		return ""
+	}
+	var s models.AppSetting
+	if err := DB.First(&s, "key = ?", key).Error; err != nil {
+		return ""
+	}
+	return s.Value
+}
+
+// SetSetting upserts a platform setting. An empty value clears it, restoring
+// the env-var default.
+func SetSetting(key, value string) error {
+	return DB.Save(&models.AppSetting{Key: key, Value: value}).Error
 }

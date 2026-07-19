@@ -189,6 +189,11 @@ func main() {
 		// ── Healing actions ───────────────────────────────────────
 		api.GET("/healing-actions", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListHealingActions)
 		api.DELETE("/healing-actions", middleware.RequireRole("admin"), handlers.ClearHealingHistory)
+
+		// ── Notification settings (webhooks for alert rules) ──────
+		api.GET("/settings/notifications", middleware.RequireRole("admin"), handlers.GetNotificationSettings)
+		api.PUT("/settings/notifications", middleware.RequireRole("admin"), handlers.UpdateNotificationSettings)
+		api.POST("/settings/notifications/test", middleware.RequireRole("admin"), handlers.TestNotificationWebhook)
 	}
 
 	// ── Additional server management endpoints ────────────────

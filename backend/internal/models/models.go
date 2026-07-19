@@ -204,3 +204,12 @@ type ChatThread struct {
 	UserID    uint      `gorm:"index" json:"user_id"`
 	ServerID  uint      `gorm:"index" json:"server_id"`
 }
+
+// AppSetting is a platform-wide key/value setting configured from the UI
+// (e.g. notification webhook URLs). A stored value overrides the matching
+// environment-variable default.
+type AppSetting struct {
+	Key       string    `gorm:"primaryKey" json:"key"`
+	Value     string    `gorm:"type:text" json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
