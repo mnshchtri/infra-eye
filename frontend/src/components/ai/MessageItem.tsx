@@ -142,7 +142,7 @@ const CodeBlock = ({ lang, code, children }: { lang: string; code: string; child
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <div style={{ margin: '14px 0', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+    <div style={{ margin: '14px 0', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', maxWidth: '100%', minWidth: 0 }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '6px 12px', background: 'var(--bg-elevated)',
@@ -218,6 +218,7 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
           borderRadius: msg.role === 'user' ? 'var(--radius-lg)' : 0,
           fontSize: 13, lineHeight: 1.7,
           color: 'var(--text-primary)',
+          maxWidth: '100%', minWidth: 0, overflowWrap: 'break-word',
           ...(msg.role === 'user' && {
             background: 'var(--bg-input)',
             border: '1px solid var(--border)',
@@ -245,6 +246,7 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                       background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4,
                       fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-primary)',
                       fontWeight: 700, border: '1px solid var(--border)',
+                      overflowWrap: 'anywhere',
                     }}>{children}</code>
                   ) : (
                     <code style={{ fontFamily: 'var(--font-mono)' }}>{children}</code>

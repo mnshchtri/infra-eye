@@ -447,8 +447,8 @@ export function AIAssistant() {
         </header>
 
         {/* ── Messages ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 150px' }}>
-          <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '24px 16px 150px' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
             {messages.length <= 1 && (
               <div className="fade-in" style={{ padding: '8px 0 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
