@@ -146,6 +146,7 @@ func main() {
 
 		// ── Networking / Services ────────────────────────────────
 		api.GET("/servers/:id/networking", handlers.GetServerNetworking)
+		api.GET("/servers/:id/k8s-networking", handlers.GetK8sNetworking)
 
 		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)

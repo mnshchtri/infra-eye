@@ -5,9 +5,9 @@ import {
   ScrollText, Terminal as TerminalIcon, RefreshCw, Wifi, Shield,
   Search, Download, Power, Settings as SettingsIcon, Loader2,
   ChevronRight, Gauge, Layers, HelpCircle,
-  Trash2, Maximize2, Minimize2, Network, Users, Plus
+  Trash2, Maximize2, Minimize2, Network, Users, Plus, Globe
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
+import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -54,6 +54,36 @@ interface NetworkingInterface {
 interface NetworkingInfo {
   hostname: string; uptime: string;
   ports: NetworkingPort[]; services: NetworkingService[]; interfaces: NetworkingInterface[];
+}
+interface K8sServicePort {
+  name: string; protocol: string; port: number; target_port: string; node_port?: number;
+}
+interface K8sServiceInfo {
+  name: string; namespace: string; type: string; cluster_ip: string; external_ips: string[]; ports: K8sServicePort[];
+}
+interface K8sIngressInfo {
+  name: string; namespace: string; class: string; hosts: string[]; addresses: string[];
+}
+interface K8sNetworkPolicyInfo {
+  name: string; namespace: string; pod_selector: string; policy_types: string[];
+}
+interface K8sNodeNetworkInfo {
+  name: string; internal_ip: string; external_ip: string; pod_cidr: string; ready: boolean; kubelet_version: string;
+}
+interface K8sDNSInfo {
+  provider: string; deployment_ready: boolean; ready_replicas: number; desired_replicas: number; cluster_ip: string;
+}
+interface K8sCNIInfo {
+  provider: string; ready: boolean; desired: number; scheduled: number;
+}
+interface K8sNetworkingSummary {
+  services: number; cluster_ip_services: number; node_port_services: number; load_balancer_services: number;
+  ingresses: number; network_policies: number; nodes: number;
+}
+interface K8sNetworkingInfo {
+  pod_cidrs: string[]; service_cidr: string; dns: K8sDNSInfo; cni: K8sCNIInfo;
+  nodes: K8sNodeNetworkInfo[]; services: K8sServiceInfo[]; ingresses: K8sIngressInfo[];
+  network_policies: K8sNetworkPolicyInfo[]; summary: K8sNetworkingSummary;
 }
 
 const CHART_COLORS = {
@@ -111,6 +141,204 @@ const LogLine = memo(({ log }: { log: LogEntry }) => (
   </div>
 ))
 
+const SectionCard = ({ icon: Icon, title, count, children }: { icon: any, title: string, count?: number, children: React.ReactNode }) => (
+  <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <Icon size={16} color="var(--brand-primary)" />
+      <span style={{ fontWeight: 800, fontSize: 14 }}>{title}</span>
+      {count !== undefined && <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({count})</span>}
+    </div>
+    {children}
+  </div>
+)
+
+const THead = ({ headers }: { headers: string[] }) => (
+  <thead>
+    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+      {headers.map(h => (
+        <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
+      ))}
+    </tr>
+  </thead>
+)
+
+const EmptyRow = ({ colSpan, label }: { colSpan: number, label: string }) => (
+  <tr>
+    <td colSpan={colSpan} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>{label}</td>
+  </tr>
+)
+
+function K8sNetworkingPanel({ info, loading, onRetry }: { info: K8sNetworkingInfo | null, loading: boolean, onRetry: () => void }) {
+  if (loading && !info) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    )
+  }
+  if (!info) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <Network size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
+        <div style={{ fontSize: 13 }}>Unable to load cluster networking data</div>
+        <button className="btn btn-secondary" onClick={onRetry} style={{ marginTop: 16 }}>Retry</button>
+      </div>
+    )
+  }
+
+  const svcTypeColor = (t: string) => t === 'LoadBalancer' ? 'var(--success)' : t === 'NodePort' ? 'var(--warning)' : t === 'ExternalName' ? 'var(--text-muted)' : 'var(--info)'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Summary Stats */}
+      <div className="grid-stats-4">
+        <StatCard label="SERVICES" value={`${info.summary.services}`} icon={Network} color="var(--info)" />
+        <StatCard label="INGRESSES" value={`${info.summary.ingresses}`} icon={Globe} color="var(--success)" />
+        <StatCard label="NETWORK POLICIES" value={`${info.summary.network_policies}`} icon={Shield} color="var(--brand-primary)" />
+        <StatCard label="NODES" value={`${info.summary.nodes}`} icon={Layers} color="var(--warning)" />
+      </div>
+
+      {/* Cluster network config */}
+      <div className="grid-stats-4">
+        <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>DNS Provider</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: 0, background: info.dns.deployment_ready ? 'var(--success)' : 'var(--danger)' }} />
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14 }}>{info.dns.provider}</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+            {info.dns.ready_replicas}/{info.dns.desired_replicas} ready{info.dns.cluster_ip ? ` · ${info.dns.cluster_ip}` : ''}
+          </div>
+        </div>
+        <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>CNI Plugin</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: 0, background: info.cni.ready ? 'var(--success)' : 'var(--text-muted)' }} />
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14 }}>{info.cni.provider}</span>
+          </div>
+          {info.cni.desired > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>{info.cni.scheduled}/{info.cni.desired} pods ready</div>
+          )}
+        </div>
+        <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Service CIDR</div>
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: 'var(--brand-primary)' }}>{info.service_cidr || '—'}</span>
+        </div>
+        <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Pod CIDR(s)</div>
+          {info.pod_cidrs.length === 0 ? (
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: 'var(--text-muted)' }}>—</span>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {info.pod_cidrs.map(c => (
+                <span key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--brand-primary)' }}>{c}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Services */}
+      <SectionCard icon={Network} title="Services" count={info.services.length}>
+        <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <THead headers={['Name', 'Namespace', 'Type', 'Cluster IP', 'Ports', 'External']} />
+            <tbody>
+              {info.services.length === 0 ? <EmptyRow colSpan={6} label="No services found" /> : info.services.map((s, i) => {
+                const tc = svcTypeColor(s.type)
+                return (
+                  <tr key={`${s.namespace}/${s.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{s.name}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{s.namespace}</td>
+                    <td style={{ padding: '10px 16px' }}>
+                      <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${tc}18`, color: tc, border: `1px solid ${tc}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{s.type}</span>
+                    </td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{s.cluster_ip || '—'}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {s.ports.length === 0 ? '—' : s.ports.map(p => `${p.port}${p.node_port ? `:${p.node_port}` : ''}/${p.protocol}`).join(', ')}
+                    </td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {s.external_ips.length === 0 ? '—' : s.external_ips.join(', ')}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      {/* Ingresses */}
+      <SectionCard icon={Globe} title="Ingresses" count={info.ingresses.length}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <THead headers={['Name', 'Namespace', 'Class', 'Hosts', 'Address']} />
+            <tbody>
+              {info.ingresses.length === 0 ? <EmptyRow colSpan={5} label="No ingresses found" /> : info.ingresses.map((ing, i) => (
+                <tr key={`${ing.namespace}/${ing.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{ing.name}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{ing.namespace}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{ing.class || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{ing.hosts.length === 0 ? '—' : ing.hosts.join(', ')}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{ing.addresses.length === 0 ? '—' : ing.addresses.join(', ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      {/* Network Policies */}
+      <SectionCard icon={Shield} title="Network Policies" count={info.network_policies.length}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <THead headers={['Name', 'Namespace', 'Pod Selector', 'Policy Types']} />
+            <tbody>
+              {info.network_policies.length === 0 ? <EmptyRow colSpan={4} label="No network policies found — traffic between pods is unrestricted" /> : info.network_policies.map((np, i) => (
+                <tr key={`${np.namespace}/${np.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{np.name}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{np.namespace}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{np.pod_selector}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 11 }}>
+                    {np.policy_types.map(t => (
+                      <span key={t} style={{ marginRight: 6, padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{t}</span>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+
+      {/* Nodes */}
+      <SectionCard icon={Layers} title="Node Networking" count={info.nodes.length}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <THead headers={['Node', 'Internal IP', 'External IP', 'Pod CIDR', 'Kubelet']} />
+            <tbody>
+              {info.nodes.length === 0 ? <EmptyRow colSpan={5} label="No nodes found" /> : info.nodes.map((n, i) => (
+                <tr key={`${n.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: 0, background: n.ready ? 'var(--success)' : 'var(--danger)' }} />
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{n.name}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{n.internal_ip || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{n.external_ip || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--brand-primary)' }}>{n.pod_cidr || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{n.kubelet_version || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+    </div>
+  )
+}
+
 export function ServerDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -137,6 +365,7 @@ export function ServerDetail() {
   const [prefSaving, setPrefSaving] = useState(false)
   const [purgingMetrics, setPurgingMetrics] = useState(false)
   const [netInfo, setNetInfo] = useState<NetworkingInfo | null>(null)
+  const [k8sNetInfo, setK8sNetInfo] = useState<K8sNetworkingInfo | null>(null)
   const [netLoading, setNetLoading] = useState(false)
   
   const terminalRef = useRef<HTMLDivElement>(null)
@@ -343,15 +572,31 @@ export function ServerDetail() {
   async function loadNetworking() {
     setNetLoading(true)
     try {
-      const res = await api.get(`/api/servers/${id}/networking`)
-      setNetInfo({
-        ...res.data,
-        ports: res.data?.ports || [],
-        services: res.data?.services || [],
-        interfaces: res.data?.interfaces || [],
-      })
+      if (server?.is_k8s) {
+        const res = await api.get(`/api/servers/${id}/k8s-networking`)
+        setK8sNetInfo({
+          ...res.data,
+          pod_cidrs: res.data?.pod_cidrs || [],
+          nodes: res.data?.nodes || [],
+          services: res.data?.services || [],
+          ingresses: res.data?.ingresses || [],
+          network_policies: res.data?.network_policies || [],
+          dns: res.data?.dns || {},
+          cni: res.data?.cni || {},
+          summary: res.data?.summary || {},
+        })
+      } else {
+        const res = await api.get(`/api/servers/${id}/networking`)
+        setNetInfo({
+          ...res.data,
+          ports: res.data?.ports || [],
+          services: res.data?.services || [],
+          interfaces: res.data?.interfaces || [],
+        })
+      }
     } catch (err: any) {
       setNetInfo(null)
+      setK8sNetInfo(null)
       toast.error('Failed to load networking data', err.response?.data?.error || err.message)
     } finally {
       setNetLoading(false)
@@ -402,10 +647,10 @@ export function ServerDetail() {
 
   // Load networking data when tab becomes active
   useEffect(() => {
-    if (activeTab === 'Networking' && !netInfo && !netLoading) {
+    if (activeTab === 'Networking' && server && !netInfo && !k8sNetInfo && !netLoading) {
       loadNetworking()
     }
-  }, [activeTab])
+  }, [activeTab, server])
 
   async function initTerminal() {
     const { Terminal: XTerm } = await import('@xterm/xterm')
@@ -606,9 +851,10 @@ export function ServerDetail() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0
           }}>
-            {server.os === 'darwin' ? <AppleIcon size={28} color="var(--text-primary)" /> : 
+            {server.is_k8s ? <KubernetesIcon size={30} /> :
+             server.os === 'darwin' ? <AppleIcon size={28} color="var(--text-primary)" /> :
              server.os === 'windows' ? <WindowsIcon size={24} color="var(--text-primary)" /> :
-             server.os === 'linux'  ? <LinuxIcon size={26} color="var(--text-primary)" /> : 
+             server.os === 'linux'  ? <LinuxIcon size={26} color="var(--text-primary)" /> :
              <HelpCircle size={28} color="var(--text-primary)" />}
           </div>
           <div style={{ minWidth: 0 }}>
@@ -819,7 +1065,9 @@ export function ServerDetail() {
 
       {activeTab === 'Networking' && (
         <div className="fade-up">
-          {netLoading && !netInfo ? (
+          {server?.is_k8s ? (
+            <K8sNetworkingPanel info={k8sNetInfo} loading={netLoading} onRetry={loadNetworking} />
+          ) : netLoading && !netInfo ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
               <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
             </div>
