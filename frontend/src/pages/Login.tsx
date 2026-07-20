@@ -17,6 +17,7 @@ export function Login() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showWelcome, setShowWelcome] = useState(false)
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
 
@@ -27,12 +28,27 @@ export function Login() {
     try {
       const res = await api.post('/api/auth/login', { username, password })
       setAuth(res.data.token, res.data.user)
-      navigate('/')
+      setShowWelcome(true)
+      setTimeout(() => navigate('/'), 6500)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid credentials. Please try again.')
-    } finally {
       setLoading(false)
     }
+  }
+
+  if (showWelcome) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999, background: '#000',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <img
+          src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYXhzNjlsbzNodHRrcDdqdXFkd3JxYXRwamkyZTEwajhzb2F1a3k1aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/jTMxfXzAohYnkiTZlg/giphy.gif"
+          alt="Welcome"
+          style={{ width: '100vw', height: '100vh', objectFit: 'cover' }}
+        />
+      </div>
+    )
   }
 
   return (
