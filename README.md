@@ -3,10 +3,7 @@
 <img src="frontend/public/logo.png" alt="InfraEye Logo" width="280" />
 
 # InfraEye
-
-[InfraEye website](https://infraeye.manishkarki7.com.np/)
-
-<img width="1440" height="900" alt="Screenshot 2026-07-19 at 2 23 28 AM" src="https://github.com/user-attachments/assets/00c8b085-fe79-49a3-9a77-2ff459a0f0ea" />
+[website](https://infraeye.manishkarki7.com.np/)
 
 **Observing the Unseen • Healing the Broken**
 
