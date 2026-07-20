@@ -10,6 +10,45 @@ export function LinuxIcon({ size = 24, color = "currentColor" }: any) {
   );
 }
 
+// Maps an /etc/os-release ID (or K8s NodeInfo.OSImage-derived guess) to the
+// matching Devicon class name. Distros without a dedicated Devicon logo, or
+// an unrecognized/undetected id, fall back to the generic penguin.
+const DISTRO_ICON_CLASSES: Record<string, string> = {
+  ubuntu: "devicon-ubuntu-plain",
+  debian: "devicon-debian-plain",
+  centos: "devicon-centos-plain",
+  fedora: "devicon-fedora-plain",
+  rhel: "devicon-redhat-plain",
+  redhat: "devicon-redhat-plain",
+  arch: "devicon-archlinux-plain",
+  archlinux: "devicon-archlinux-plain",
+  alpine: "devicon-alpinelinux-plain",
+  opensuse: "devicon-opensuse-plain",
+  "opensuse-leap": "devicon-opensuse-plain",
+  "opensuse-tumbleweed": "devicon-opensuse-plain",
+  sles: "devicon-opensuse-plain",
+  rocky: "devicon-rockylinux-plain",
+  rockylinux: "devicon-rockylinux-plain",
+  almalinux: "devicon-almalinux-plain",
+  gentoo: "devicon-gentoo-plain",
+  raspbian: "devicon-raspberrypi-plain",
+};
+
+export function DistroIcon({
+  distro,
+  size = 24,
+  color = "currentColor",
+}: {
+  distro?: string;
+  size?: number;
+  color?: string;
+}) {
+  const className =
+    (distro && DISTRO_ICON_CLASSES[distro.toLowerCase()]) ||
+    "devicon-linux-plain";
+  return <i className={className} style={{ fontSize: size, color }} />;
+}
+
 export function AppleIcon({ size = 24, color = "currentColor" }: any) {
   return (
     <i className="devicon-apple-original" style={{ fontSize: size, color }} />

@@ -16,6 +16,7 @@ import (
 	"github.com/infra-eye/backend/internal/metrics"
 	"github.com/infra-eye/backend/internal/models"
 	sshpool "github.com/infra-eye/backend/internal/ssh"
+	"github.com/infra-eye/backend/internal/sysinfo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -356,11 +357,20 @@ func TestServerConnection(c *gin.Context) {
 		}
 
 		osType := "linux"
+		updates := map[string]interface{}{"status": "online"}
 		if len(nodes.Items) > 0 {
-			osType = strings.ToLower(nodes.Items[0].Status.NodeInfo.OperatingSystem)
+			nodeInfo := nodes.Items[0].Status.NodeInfo
+			osType = strings.ToLower(nodeInfo.OperatingSystem)
+			updates["kernel_version"] = nodeInfo.KernelVersion
+			// Kubelet only exposes a free-form OSImage string (e.g. "Ubuntu 22.04.3 LTS"),
+			// not a separate ID/VERSION_ID pair - keep it as the pretty name and best-effort
+			// guess the devicon-compatible distro id from it for icon rendering.
+			updates["distro_pretty_name"] = nodeInfo.OSImage
+			updates["distro"] = sysinfo.GuessDistroID(nodeInfo.OSImage)
 		}
+		updates["os"] = osType
 
-		db.DB.Model(&server).Updates(map[string]interface{}{"status": "online", "os": osType})
+		db.DB.Model(&server).Updates(updates)
 
 		// Start metrics collector
 		go metrics.StartCollector(server)
@@ -389,7 +399,18 @@ func TestServerConnection(c *gin.Context) {
 	}
 	log.Printf("🔍 Detected OS for server %d: %s (Raw: %q)", server.ID, osType, out)
 
-	db.DB.Model(&server).Updates(map[string]interface{}{"status": "online", "os": osType})
+	updates := map[string]interface{}{"status": "online", "os": osType}
+	if sysOut, _, sysErr := client.RunCommand(sysinfo.DetectCommand); sysErr == nil {
+		info := sysinfo.ParseDetectOutput(sysOut)
+		updates["kernel_version"] = info.KernelVersion
+		updates["distro"] = info.Distro
+		updates["distro_version"] = info.DistroVersion
+		updates["distro_pretty_name"] = info.PrettyName
+	} else {
+		log.Printf("⚠️ Distro detection failed for server %d: %v", server.ID, sysErr)
+	}
+
+	db.DB.Model(&server).Updates(updates)
 
 	// Restart the metrics collector so data flows immediately
 	go metrics.StartCollector(server)

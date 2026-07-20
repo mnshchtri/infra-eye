@@ -16,6 +16,7 @@ import (
 	"github.com/infra-eye/backend/internal/logger"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
+	"github.com/infra-eye/backend/internal/sysinfo"
 	"github.com/infra-eye/backend/internal/ws"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -132,7 +133,7 @@ func StartCollector(server models.Server) {
 	collectorsMu.Unlock()
 
 	log.Printf("📊 Metrics collector started for server %d (%s)", server.ID, server.Host)
-	
+
 	// Start with immediate collection so dashboard updates instantly
 	collect(server)
 
@@ -191,12 +192,30 @@ func collect(server models.Server) {
 			if strings.Contains(out, "darwin") {
 				osType = "darwin"
 			}
-			
+
 			if server.OS != osType {
 				server.OS = osType
 				db.DB.Model(&server).Update("os", osType)
 				log.Printf("🔄 Auto-detected/Corrected OS for server %d: %s", server.ID, osType)
 			}
+		}
+	}
+
+	// Detect distro/kernel once; these don't change between collector ticks.
+	if server.OS == "linux" && server.Distro == "" {
+		if sysOut, _, sysErr := client.RunCommand(sysinfo.DetectCommand); sysErr == nil {
+			info := sysinfo.ParseDetectOutput(sysOut)
+			server.KernelVersion = info.KernelVersion
+			server.Distro = info.Distro
+			server.DistroVersion = info.DistroVersion
+			server.DistroPrettyName = info.PrettyName
+			db.DB.Model(&server).Updates(map[string]interface{}{
+				"kernel_version":     info.KernelVersion,
+				"distro":             info.Distro,
+				"distro_version":     info.DistroVersion,
+				"distro_pretty_name": info.PrettyName,
+			})
+			log.Printf("🔄 Detected distro for server %d: %s %s (kernel %s)", server.ID, info.Distro, info.DistroVersion, info.KernelVersion)
 		}
 	}
 
@@ -245,8 +264,12 @@ func collect(server models.Server) {
 		if dur > 0 {
 			netRxMBps = (raw.NetRx - prev.rx) / dur / (1024 * 1024)
 			netTxMBps = (raw.NetTx - prev.tx) / dur / (1024 * 1024)
-			if netRxMBps < 0 { netRxMBps = 0 }
-			if netTxMBps < 0 { netTxMBps = 0 }
+			if netRxMBps < 0 {
+				netRxMBps = 0
+			}
+			if netTxMBps < 0 {
+				netTxMBps = 0
+			}
 			log.Printf("📊 Net Metrics Server %d: RX_Total=%.0f TX_Total=%.0f | RX_Rate=%.4f TX_Rate=%.4f MB/s", server.ID, raw.NetRx, raw.NetTx, netRxMBps, netTxMBps)
 		}
 	} else {
@@ -293,6 +316,18 @@ func collectK8s(server models.Server) {
 		log.Printf("📊 K8s Metrics Fetch Error server %d: %v", server.ID, err)
 		updateStatus(server.ID, "offline")
 		return
+	}
+
+	// Detect distro/kernel once; these don't change between collector ticks.
+	if server.Distro == "" && len(nodes.Items) > 0 {
+		nodeInfo := nodes.Items[0].Status.NodeInfo
+		distro := sysinfo.GuessDistroID(nodeInfo.OSImage)
+		db.DB.Model(&server).Updates(map[string]interface{}{
+			"kernel_version":     nodeInfo.KernelVersion,
+			"distro":             distro,
+			"distro_pretty_name": nodeInfo.OSImage,
+		})
+		log.Printf("🔄 Detected distro for K8s server %d: %s (%s, kernel %s)", server.ID, distro, nodeInfo.OSImage, nodeInfo.KernelVersion)
 	}
 
 	var cpuTotal, memTotal, diskTotal int64
@@ -358,9 +393,15 @@ func collectK8s(server models.Server) {
 	}
 
 	// Sensible defaults for "breathing" clusters
-	if cpuPct < 0.5 && readyNodes > 0 { cpuPct = 1.5 }
-	if memPct < 0.5 && readyNodes > 0 { memPct = 3.0 }
-	if diskPct < 0.1 && readyNodes > 0 { diskPct = 5.0 } // Assume some base disk usage for OS/Kubelet
+	if cpuPct < 0.5 && readyNodes > 0 {
+		cpuPct = 1.5
+	}
+	if memPct < 0.5 && readyNodes > 0 {
+		memPct = 3.0
+	}
+	if diskPct < 0.1 && readyNodes > 0 {
+		diskPct = 5.0
+	} // Assume some base disk usage for OS/Kubelet
 
 	m := models.Metric{
 		ServerID:    server.ID,

@@ -27,25 +27,29 @@ type User struct {
 }
 
 type Server struct {
-	ID           uint           `gorm:"primaryKey" json:"id"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
-	Name         string         `gorm:"not null" json:"name"`
-	Host         string         `json:"host"`
-	Port         int            `gorm:"default:22" json:"port"`
-	SSHUser      string         `json:"ssh_user"`
-	SSHKeyPath   string         `json:"ssh_key_path"`
-	SSHPassword  string         `json:"-"`                               // encrypted
-	AuthType     string         `gorm:"default:'key'" json:"auth_type"`  // key or password
-	Tags         string         `json:"tags"`                            // comma-separated
-	Status       string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
-	Description  string         `json:"description"`
-	KubeConfig   string         `gorm:"type:text" json:"kube_config"`
-	IsK8s        bool           `gorm:"default:false" json:"is_k8s"`
-	K8sConnected bool           `gorm:"default:true" json:"k8s_connected"`
-	OS           string         `json:"os"` // linux, darwin, unknown
-	FolderID     *uint          `gorm:"index" json:"folder_id"`
+	ID               uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
+	Name             string         `gorm:"not null" json:"name"`
+	Host             string         `json:"host"`
+	Port             int            `gorm:"default:22" json:"port"`
+	SSHUser          string         `json:"ssh_user"`
+	SSHKeyPath       string         `json:"ssh_key_path"`
+	SSHPassword      string         `json:"-"`                               // encrypted
+	AuthType         string         `gorm:"default:'key'" json:"auth_type"`  // key or password
+	Tags             string         `json:"tags"`                            // comma-separated
+	Status           string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
+	Description      string         `json:"description"`
+	KubeConfig       string         `gorm:"type:text" json:"kube_config"`
+	IsK8s            bool           `gorm:"default:false" json:"is_k8s"`
+	K8sConnected     bool           `gorm:"default:true" json:"k8s_connected"`
+	OS               string         `json:"os"`                 // linux, darwin, unknown
+	Distro           string         `json:"distro"`             // devicon-compatible id, e.g. ubuntu, debian, fedora
+	DistroVersion    string         `json:"distro_version"`     // e.g. 22.04
+	DistroPrettyName string         `json:"distro_pretty_name"` // e.g. "Ubuntu 22.04.3 LTS"
+	KernelVersion    string         `json:"kernel_version"`     // e.g. 5.15.0-91-generic
+	FolderID         *uint          `gorm:"index" json:"folder_id"`
 }
 
 // Folder is a user-defined grouping (e.g. "dev", "staging", "production")
@@ -124,9 +128,9 @@ type ResourceMetric struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	ResourceID uint      `gorm:"index;not null" json:"resource_id"`
 	Timestamp  time.Time `gorm:"index" json:"timestamp"`
-	Status     string    `json:"status"`     // online | degraded | offline
-	LatencyMs  float64   `json:"latency_ms"` // probe round-trip
-	Error      string    `json:"error"`      // populated when offline/degraded
+	Status     string    `json:"status"`                   // online | degraded | offline
+	LatencyMs  float64   `json:"latency_ms"`               // probe round-trip
+	Error      string    `json:"error"`                    // populated when offline/degraded
 	Metrics    string    `gorm:"type:text" json:"metrics"` // JSON: type-specific gauges
 }
 

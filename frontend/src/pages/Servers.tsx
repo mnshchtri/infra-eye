@@ -3,7 +3,7 @@ import {
   Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, 
   Loader2, X, WifiOff, HelpCircle, Search, Terminal, Settings, Activity 
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
+import { WindowsIcon, AppleIcon, KubernetesIcon, DistroIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
@@ -17,6 +17,7 @@ interface ServerData {
   ssh_user: string; auth_type: string; tags: string;
   description: string; status: string; ssh_key_path: string;
   os: string;
+  distro?: string;
   kube_config?: string;
   folder_id?: number | null;
 }
@@ -459,7 +460,7 @@ export function Servers() {
                             ? <KubernetesIcon size={18} />
                             : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
                             : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />
-                            : s.os === 'linux' ? <LinuxIcon size={14} color="var(--brand-primary)" />
+                            : s.os === 'linux' ? <DistroIcon distro={s.distro} size={14} color="var(--brand-primary)" />
                             : <Server size={14} color="var(--brand-primary)" />}
                         </div>
                         <div style={{ minWidth: 0 }}>

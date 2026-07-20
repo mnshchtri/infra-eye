@@ -7,7 +7,7 @@ import {
   ChevronRight, Gauge, Layers, HelpCircle,
   Trash2, Maximize2, Minimize2, Network, Users, Plus, Globe
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
+import { WindowsIcon, AppleIcon, KubernetesIcon, DistroIcon } from '../components/OSIcons'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -20,6 +20,7 @@ import { useToastStore } from '../store/toastStore'
 interface Server {
   id: number; name: string; host: string; port: number; ssh_user: string;
   status: string; tags: string; description: string; auth_type: string; os: string;
+  distro?: string; distro_version?: string; distro_pretty_name?: string; kernel_version?: string;
   is_k8s?: boolean;
 }
 interface Metric {
@@ -890,7 +891,7 @@ export function ServerDetail() {
             {server.is_k8s ? <KubernetesIcon size={30} /> :
              server.os === 'darwin' ? <AppleIcon size={28} color="var(--text-primary)" /> :
              server.os === 'windows' ? <WindowsIcon size={24} color="var(--text-primary)" /> :
-             server.os === 'linux'  ? <LinuxIcon size={26} color="var(--text-primary)" /> :
+             server.os === 'linux'  ? <DistroIcon distro={server.distro} size={26} color="var(--text-primary)" /> :
              <HelpCircle size={28} color="var(--text-primary)" />}
           </div>
           <div style={{ minWidth: 0 }}>
@@ -1081,6 +1082,10 @@ export function ServerDetail() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px 32px' }}>
               {[
                 { k: 'Operating System', v: server.os === 'darwin' ? 'macOS' : server.os === 'linux' ? 'Linux' : server.os === 'windows' ? 'Windows' : 'Unknown' },
+                ...(server.os === 'linux' && (server.distro_pretty_name || server.distro)
+                  ? [{ k: 'Distribution', v: server.distro_pretty_name || server.distro || '—' }]
+                  : []),
+                ...(server.kernel_version ? [{ k: 'Kernel', v: server.kernel_version }] : []),
                 { k: 'Host', v: server.host ? `${server.host}:${server.port}` : 'Direct Cluster API' },
                 { k: 'SSH User', v: server.ssh_user || '—' },
                 { k: 'Auth Method', v: server.auth_type === 'password' ? 'Password' : 'SSH Key' },
