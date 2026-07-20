@@ -18,6 +18,8 @@
 
 **InfraEye** is an enterprise-grade, agentless observability platform designed for modern DevOps teams. It provides a unified "Command Center" for your entire infrastructure—from bare-metal Linux servers to complex Kubernetes clusters—featuring real-time telemetry, AI-driven diagnostics, and a proactive self-healing engine.
 
+<img width="1440" height="900" alt="Screenshot 2026-07-21 at 1 56 00 AM" src="https://github.com/user-attachments/assets/6686fde7-696f-4f58-aa6c-9f91f1a11e8c" />
+
 [Explore Documentation](documentation.md) • [Report Bug](https://github.com/mnshchtri/infra-eye/issues) • [Request Feature](https://github.com/mnshchtri/infra-eye/issues)
 
 </div>
