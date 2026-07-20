@@ -4,16 +4,17 @@ package sysinfo
 import "strings"
 
 // DetectCommand is run over SSH to gather kernel name, kernel release, and
-// (on Linux) the standardized /etc/os-release fields in one round trip.
-const DetectCommand = `uname -s && uname -r && cat /etc/os-release 2>/dev/null || true`
+// the OS's version metadata in one round trip: /etc/os-release on Linux,
+// falling back to `sw_vers` on macOS (which has no /etc/os-release).
+const DetectCommand = `uname -s && uname -r && (cat /etc/os-release 2>/dev/null || sw_vers 2>/dev/null || true)`
 
 // Info holds the parsed identity of a remote host's operating system.
 type Info struct {
 	OS            string // linux, darwin, unknown
-	KernelVersion string // e.g. 5.15.0-91-generic, 23.1.0
-	Distro        string // devicon-compatible id, e.g. ubuntu, debian, fedora
-	DistroVersion string // e.g. 22.04
-	PrettyName    string // e.g. "Ubuntu 22.04.3 LTS"
+	KernelVersion string // e.g. 5.15.0-91-generic, 23.5.0
+	Distro        string // devicon-compatible id, e.g. ubuntu, debian, fedora (Linux only)
+	DistroVersion string // e.g. 22.04, or macOS product version e.g. 14.5
+	PrettyName    string // e.g. "Ubuntu 22.04.3 LTS" or "macOS 14.5"
 }
 
 // ParseDetectOutput parses the combined output of DetectCommand.
@@ -34,14 +35,29 @@ func ParseDetectOutput(output string) Info {
 		info.KernelVersion = strings.TrimSpace(lines[1])
 	}
 
-	if info.OS != "linux" || len(lines) <= 2 {
+	if len(lines) <= 2 {
 		return info
 	}
 
-	osRelease := parseOSReleaseFields(lines[2:])
-	info.Distro = osRelease["ID"]
-	info.DistroVersion = osRelease["VERSION_ID"]
-	info.PrettyName = osRelease["PRETTY_NAME"]
+	switch info.OS {
+	case "linux":
+		osRelease := parseOSReleaseFields(lines[2:])
+		info.Distro = osRelease["ID"]
+		info.DistroVersion = osRelease["VERSION_ID"]
+		info.PrettyName = osRelease["PRETTY_NAME"]
+	case "darwin":
+		swVers := parseSwVersFields(lines[2:])
+		info.DistroVersion = swVers["ProductVersion"]
+		name := swVers["ProductName"]
+		if name == "" {
+			name = "macOS"
+		}
+		if info.DistroVersion != "" {
+			info.PrettyName = name + " " + info.DistroVersion
+		} else {
+			info.PrettyName = name
+		}
+	}
 	return info
 }
 
@@ -94,6 +110,25 @@ func parseOSReleaseFields(lines []string) map[string]string {
 			continue
 		}
 		value = strings.Trim(value, `"'`)
+		fields[key] = value
+	}
+	return fields
+}
+
+// parseSwVersFields parses macOS `sw_vers` output, e.g.
+// "ProductName:\tmacOS\nProductVersion:\t14.5\nBuildVersion:\t23F79".
+func parseSwVersFields(lines []string) map[string]string {
+	fields := make(map[string]string)
+	for _, line := range lines {
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" {
+			continue
+		}
 		fields[key] = value
 	}
 	return fields

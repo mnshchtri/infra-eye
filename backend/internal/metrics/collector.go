@@ -201,8 +201,8 @@ func collect(server models.Server) {
 		}
 	}
 
-	// Detect distro/kernel once; these don't change between collector ticks.
-	if server.OS == "linux" && server.Distro == "" {
+	// Detect distro/version/kernel once; these don't change between collector ticks.
+	if (server.OS == "linux" || server.OS == "darwin") && server.KernelVersion == "" {
 		if sysOut, _, sysErr := client.RunCommand(sysinfo.DetectCommand); sysErr == nil {
 			info := sysinfo.ParseDetectOutput(sysOut)
 			server.KernelVersion = info.KernelVersion
@@ -215,7 +215,7 @@ func collect(server models.Server) {
 				"distro_version":     info.DistroVersion,
 				"distro_pretty_name": info.PrettyName,
 			})
-			log.Printf("🔄 Detected distro for server %d: %s %s (kernel %s)", server.ID, info.Distro, info.DistroVersion, info.KernelVersion)
+			log.Printf("🔄 Detected OS version for server %d: %s (kernel %s)", server.ID, info.PrettyName, info.KernelVersion)
 		}
 	}
 

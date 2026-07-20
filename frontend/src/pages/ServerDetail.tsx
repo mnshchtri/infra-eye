@@ -1085,6 +1085,9 @@ export function ServerDetail() {
                 ...(server.os === 'linux' && (server.distro_pretty_name || server.distro)
                   ? [{ k: 'Distribution', v: server.distro_pretty_name || server.distro || '—' }]
                   : []),
+                ...(server.os === 'darwin' && (server.distro_pretty_name || server.distro_version)
+                  ? [{ k: 'macOS Version', v: server.distro_pretty_name || server.distro_version || '—' }]
+                  : []),
                 ...(server.kernel_version ? [{ k: 'Kernel', v: server.kernel_version }] : []),
                 { k: 'Host', v: server.host ? `${server.host}:${server.port}` : 'Direct Cluster API' },
                 { k: 'SSH User', v: server.ssh_user || '—' },
