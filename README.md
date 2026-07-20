@@ -1,7 +1,9 @@
 <div align="center">
 
 <img src="frontend/public/logo.png" alt="InfraEye Logo" width="280" />
+
 # InfraEye
+
 [website](https://infraeye.manishkarki7.com.np/)
 
 **Observing the Unseen • Healing the Broken**
