@@ -108,7 +108,7 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
         </div>
 
         <div style={{ padding: 32, flex: 1, overflowY: 'auto', background: 'var(--bg-app)' }}>
-          <form onSubmit={createPortForward} style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 100px 100px auto', gap: 16, marginBottom: 32, background: 'var(--bg-card)', padding: 24, borderRadius: 0, border: '1px solid var(--border-bright)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+          <form onSubmit={createPortForward} className="portforward-form" style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 100px 100px auto', gap: 16, marginBottom: 32, background: 'var(--bg-card)', padding: 24, borderRadius: 0, border: '1px solid var(--border-bright)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Namespace</label>
               <input className="input" placeholder="default" value={form.namespace} onChange={(e) => setForm({ ...form, namespace: e.target.value })} required style={{ height: 42, background: 'var(--bg-input)' }} />
@@ -132,8 +132,8 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
             </div>
           </form>
 
-          <div style={{ borderRadius: 0, border: '1px solid var(--border)', overflow: 'hidden', background: 'var(--bg-card)' }}>
-            <table className="k-table">
+          <div style={{ borderRadius: 0, border: '1px solid var(--border)', overflowX: 'auto', background: 'var(--bg-card)' }}>
+            <table className="k-table" style={{ minWidth: 640 }}>
               <thead style={{ background: 'var(--bg-elevated)' }}>
                 <tr>
                   <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Target Resource</th>

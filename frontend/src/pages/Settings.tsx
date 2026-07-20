@@ -379,10 +379,10 @@ export function Settings() {
                   {/* Google Chat */}
                   <div className="input-group">
                     <label className="input-label">Google Chat webhook URL</label>
-                    <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <input
                         className="input"
-                        style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 12 }}
                         value={gchatUrl}
                         onChange={e => setGchatUrl(e.target.value)}
                         placeholder="https://chat.googleapis.com/v1/spaces/…/messages?key=…&token=…"
@@ -412,10 +412,10 @@ export function Settings() {
                   {/* Slack */}
                   <div className="input-group">
                     <label className="input-label">Slack webhook URL <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(optional)</span></label>
-                    <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <input
                         className="input"
-                        style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 12 }}
                         value={slackUrl}
                         onChange={e => setSlackUrl(e.target.value)}
                         placeholder="https://hooks.slack.com/services/T…/B…/…"

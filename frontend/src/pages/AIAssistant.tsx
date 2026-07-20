@@ -459,7 +459,7 @@ export function AIAssistant() {
                     <Trash2 size={13} /> Clear history
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
                   {SUGGESTION_GROUPS.flatMap(g => g.items.map(text => (
                     <SuggestionCard key={text} group={g} text={text} onClick={askQuestion} />
                   )))}

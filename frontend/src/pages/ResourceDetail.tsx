@@ -403,7 +403,7 @@ export function ResourceDetail() {
           {/* Trends — small multiples built from probe history */}
           {trendDefs.length > 0 ? (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(258px, 1fr))', gap: 16, marginBottom: extras.length ? 16 : 0 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(258px, 100%), 1fr))', gap: 16, marginBottom: extras.length ? 16 : 0 }}>
                 {trendDefs.map(def => (
                   <TrendChart key={def.key} def={def} points={def.rate ? toRate(series[def.key]) : series[def.key]} />
                 ))}

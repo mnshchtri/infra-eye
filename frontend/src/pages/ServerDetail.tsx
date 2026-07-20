@@ -356,7 +356,7 @@ export function ServerDetail() {
   const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
   const [isLogsFullscreen, setIsLogsFullscreen] = useState(false)
   const [logSource, setLogSource] = useState('')
-  const [logSources, setLogSources] = useState<{ id: string; label: string }[]>([])
+  const [logSources, setLogSources] = useState<{ id: string; label: string; group?: string }[]>([])
   
   // Preferences form
   const [prefName, setPrefName] = useState('')
@@ -429,7 +429,9 @@ export function ServerDetail() {
 
   async function loadLogs() {
     try {
-      const res = await api.get(`/api/servers/${id}/logs?limit=100`)
+      // Scope history to the selected source; live-only sources (pod logs) have
+      // no stored history, so the live tail is their whole view.
+      const res = await api.get(`/api/servers/${id}/logs?limit=100${logSource ? `&stream=${encodeURIComponent(logSource)}` : ''}`)
       setLogs(res.data?.data || [])
     } catch { }
   }
@@ -1497,9 +1499,23 @@ export function ServerDetail() {
                       value={logSource}
                       onChange={e => switchLogSource(e.target.value)}
                       title="Log source"
-                      style={{ height: 36, fontSize: 12, fontWeight: 700, width: 200, fontFamily: 'var(--font-mono)' }}
+                      style={{ height: 36, fontSize: 12, fontWeight: 700, width: 240, maxWidth: '100%', fontFamily: 'var(--font-mono)' }}
                     >
-                      {logSources.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                      {(() => {
+                        const flat = logSources.filter(s => !s.group)
+                        const grouped: Record<string, typeof logSources> = {}
+                        logSources.forEach(s => { if (s.group) (grouped[s.group] = grouped[s.group] || []).push(s) })
+                        return (
+                          <>
+                            {flat.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                            {Object.entries(grouped).map(([group, items]) => (
+                              <optgroup key={group} label={group}>
+                                {items.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                              </optgroup>
+                            ))}
+                          </>
+                        )
+                      })()}
                     </select>
                   )}
                   <div className="search-box search-container" style={{ minWidth: 160, maxWidth: 240 }}>
@@ -1527,7 +1543,7 @@ export function ServerDetail() {
             <div className="log-viewer" style={{ border: 'none', borderRadius: 0, height: isLogsFullscreen ? '100%' : 500, background: 'var(--bg-app)', overflowY: 'auto', flex: 1 }}>
               {filteredLogs.length === 0
                 ? <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>No log entries found</div>
-                : filteredLogs.map(log => <LogLine key={log.id} log={log} />)
+                : filteredLogs.map((log, i) => <LogLine key={log.id ? `${log.id}` : `live-${i}-${log.timestamp}`} log={log} />)
               }
             </div>
           </div>

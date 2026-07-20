@@ -280,7 +280,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
                     <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Node Gateway IP</label>
                     <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} placeholder="10.0.0.X" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} />
                  </div>
-                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                 <div className="grid-collapse-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                        <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_User</label>
                        <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.ssh_user} onChange={e => setForm({ ...form, ssh_user: e.target.value })} />

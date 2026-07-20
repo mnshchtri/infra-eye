@@ -244,7 +244,7 @@ export function AlertRules() {
           </button>
         ))}
         {tab === 'rules' && rules.length > 0 && (
-          <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <span className="hidden-mobile" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
             {enabledCount} of {rules.length} active
           </span>
         )}

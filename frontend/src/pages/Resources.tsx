@@ -275,7 +275,7 @@ export function Resources() {
             : <button className="btn btn-primary" style={{ marginTop: 20, height: 34 }} onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}><Plus size={14} /> Add Resource</button>}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 16 }}>
           {filtered.map(r => {
             const meta = protoMeta(r.protocol)
             const Icon = meta.icon

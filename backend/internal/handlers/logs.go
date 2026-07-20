@@ -78,10 +78,12 @@ func ClearLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "logs cleared successfully"})
 }
 
-// LogSource describes one selectable log stream for a given OS.
+// LogSource describes one selectable log stream. Group is used by the UI to
+// render <optgroup> sections (cluster sources can number in the hundreds).
 type LogSource struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
 }
 
 // LogSources — GET /servers/:id/log-sources : the selectable log streams for
@@ -95,13 +97,10 @@ func LogSources(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
 		return
 	}
-	// Direct-API Kubernetes clusters have no SSH host — their "logs" are the
-	// cluster event stream, not OS system logs.
+	// Direct-API Kubernetes clusters have no SSH host — their sources are the
+	// cluster streams: events, node events, and pod logs per workload/service/pod.
 	if server.Host == "" && server.IsK8s {
-		c.JSON(http.StatusOK, gin.H{"os": "kubernetes", "sources": []LogSource{
-			{"events", "Cluster Events (all)"},
-			{"warnings", "Warnings only"},
-		}})
+		c.JSON(http.StatusOK, gin.H{"os": "kubernetes", "sources": buildK8sLogSources(server)})
 		return
 	}
 
@@ -109,25 +108,32 @@ func LogSources(c *gin.Context) {
 	switch server.OS {
 	case "darwin":
 		sources = []LogSource{
-			{"system", "System (unified log)"},
-			{"errors", "Errors & Faults"},
-			{"auth", "Authentication / SSH"},
-			{"install", "Install log"},
+			{ID: "system", Label: "System (unified log)"},
+			{ID: "errors", Label: "Errors & Faults"},
+			{ID: "auth", Label: "Authentication / SSH"},
+			{ID: "install", Label: "Install log"},
 		}
 	case "windows":
 		sources = []LogSource{
-			{"system", "System"},
-			{"application", "Application"},
-			{"security", "Security"},
+			{ID: "system", Label: "System"},
+			{ID: "application", Label: "Application"},
+			{ID: "security", Label: "Security"},
 		}
 	default: // linux
 		sources = []LogSource{
-			{"journal", "Journal (all units)"},
-			{"syslog", "Syslog"},
-			{"auth", "Authentication / SSH"},
-			{"kernel", "Kernel (dmesg)"},
-			{"boot", "Current boot"},
+			{ID: "journal", Label: "Journal (all units)"},
+			{ID: "syslog", Label: "Syslog"},
+			{ID: "auth", Label: "Authentication / SSH"},
+			{ID: "kernel", Label: "Kernel (dmesg)"},
+			{ID: "boot", Label: "Current boot"},
 		}
+	}
+	// SSH-managed clusters get both: host system logs AND the cluster streams.
+	if server.IsK8s && server.KubeConfig != "" {
+		for i := range sources {
+			sources[i].Group = "Host system (SSH)"
+		}
+		sources = append(sources, buildK8sLogSources(server)...)
 	}
 	c.JSON(http.StatusOK, gin.H{"sources": sources, "os": server.OS})
 }
@@ -207,8 +213,11 @@ func StreamLogs(c *gin.Context) {
 
 	// Room is scoped to the selected source so viewers of different sources on
 	// the same server don't cross-contaminate each other's streams.
+	// A cluster source (events/node:/workload:/service:/pod:) streams from the
+	// Kubernetes API; anything else tails the host over SSH.
+	isCluster := server.IsK8s && server.KubeConfig != "" && (isK8sLogSource(source) || (server.Host == "" && source == ""))
 	roomSource := source
-	if server.Host == "" && server.IsK8s {
+	if isCluster {
 		if roomSource == "" {
 			roomSource = "events"
 		}
@@ -222,9 +231,15 @@ func StreamLogs(c *gin.Context) {
 	// disconnects (e.g. the user switches source, which closes the old socket),
 	// stop the tail so it doesn't keep running and leak into the next view.
 	stop := make(chan struct{})
-	if server.Host == "" && server.IsK8s {
-		go streamClusterEvents(server, room, roomSource, stop)
-	} else {
+	switch {
+	case isCluster && (roomSource == "events" || roomSource == "warnings"):
+		go streamClusterEvents(server, room, roomSource, "", stop)
+	case isCluster && strings.HasPrefix(roomSource, "node:"):
+		nodeName := strings.TrimPrefix(roomSource, "node:")
+		go streamClusterEvents(server, room, roomSource, "involvedObject.kind=Node,involvedObject.name="+nodeName, stop)
+	case isCluster:
+		go streamK8sPodLogs(server, room, roomSource, stop)
+	default:
 		go tailLogs(server, room, source, stop)
 	}
 
@@ -233,9 +248,9 @@ func StreamLogs(c *gin.Context) {
 }
 
 // streamClusterEvents polls the cluster's Kubernetes events and emits new ones
-// as log entries. Direct-API clusters have no SSH host to tail, so their "logs"
-// are the event stream (warnings, scheduling, image pulls, restarts, …).
-func streamClusterEvents(server models.Server, room, source string, stop <-chan struct{}) {
+// as log entries (warnings, scheduling, image pulls, restarts, …). A non-empty
+// fieldSelector narrows the stream, e.g. to a single node's events.
+func streamClusterEvents(server models.Server, room, source, fieldSelector string, stop <-chan struct{}) {
 	clientset, err := k8s.GetK8sClient(server.KubeConfig)
 	if err != nil {
 		ws.GlobalHub.Broadcast(room, "error", gin.H{"message": fmt.Sprintf("cluster connection failed: %v", err)})
@@ -248,7 +263,7 @@ func streamClusterEvents(server models.Server, room, source string, stop <-chan 
 	defer ticker.Stop()
 
 	emit := func() {
-		evList, err := clientset.CoreV1().Events("").List(context.TODO(), metav1.ListOptions{Limit: 300})
+		evList, err := clientset.CoreV1().Events("").List(context.TODO(), metav1.ListOptions{Limit: 300, FieldSelector: fieldSelector})
 		if err != nil {
 			ws.GlobalHub.Broadcast(room, "error", gin.H{"message": fmt.Sprintf("event fetch failed: %v", err)})
 			return

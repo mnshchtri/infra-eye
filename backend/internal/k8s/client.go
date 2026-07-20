@@ -168,3 +168,15 @@ func GetNativeYaml(kubeconfig, group, version, resource, namespace, name string)
 	}
 	return string(data), nil
 }
+
+// GetK8sClientForStreaming returns a clientset without the global request
+// timeout — log follow streams must stay open indefinitely, and apiTimeout
+// would kill them after 10s.
+func GetK8sClientForStreaming(kubeconfig string) (*kubernetes.Clientset, error) {
+	config, err := GetRestConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	config.Timeout = 0
+	return kubernetes.NewForConfig(config)
+}

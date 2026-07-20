@@ -2237,3 +2237,37 @@ p {
   --term-red-bg: rgba(248, 81, 73, 0.06);
   --term-red-border: rgba(248, 81, 73, 0.3);
 }
+
+/* ── AI chat message column: full width on mobile, capped on desktop ── */
+.ai-msg-col {
+  max-width: 82%;
+  min-width: 0;
+}
+@media (max-width: 768px) {
+  .ai-msg-col {
+    max-width: calc(100% - 8px);
+  }
+  /* Tighter chat gutters on phones */
+  .ai-chat-header {
+    padding: 10px 12px !important;
+  }
+}
+
+/* Generic: any grid that should stack on phones */
+@media (max-width: 640px) {
+  .grid-collapse-mobile {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Port-forward form: 5 columns → 2 → 1 as space shrinks */
+@media (max-width: 900px) {
+  .portforward-form {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+@media (max-width: 640px) {
+  .portforward-form {
+    grid-template-columns: 1fr !important;
+  }
+}

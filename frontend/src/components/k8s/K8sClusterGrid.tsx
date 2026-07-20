@@ -59,7 +59,7 @@ export const K8sClusterGrid = memo(({
         </button>
       </div>
 
-      <div className="grid-cards" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 24 }}>
+      <div className="grid-cards" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 24 }}>
         {clusters.map((cluster, i) => {
           const isConnected = !!cluster.k8s_connected
           const statusColor = isConnected ? 'var(--success)' : 'var(--danger)'

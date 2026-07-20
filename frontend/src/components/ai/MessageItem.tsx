@@ -196,8 +196,7 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
         )}
       </div>
 
-      <div style={{
-        maxWidth: '82%', minWidth: 0,
+      <div className="ai-msg-col" style={{
         display: 'flex', flexDirection: 'column',
         alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
       }}>

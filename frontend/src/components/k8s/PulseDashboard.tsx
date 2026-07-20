@@ -84,7 +84,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                {stats && (
                   <>
                      {/* Tier 1: Compact Core Metrics */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
                         <PulseStat
                            label="Nodes" main={stats.nodesReady || 0} total={stats.nodes || 0} sub="Ready"
                            icon={Server} color="var(--info)" onClick={() => onJump('nodes')} loading={connecting}
@@ -106,7 +106,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                               <h3 style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Resource Metrics</h3>
                               <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.3 }} />
                            </div>
-                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 16 }}>
                                <CapacityCard
                                  label="CPU Resources"
                                  allocatable={stats.cpuAllocatable}
@@ -139,7 +139,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                      )}
 
                      {/* Tier 3: Workloads */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
                         <PulseStat
                            label="ReplicaSets" main={stats.replicasetsReady || 0} total={stats.replicasets || 0} sub="Nominal"
                            icon={Layers} color="#6366f1" onClick={() => onJump('replicasets')} loading={connecting} small
