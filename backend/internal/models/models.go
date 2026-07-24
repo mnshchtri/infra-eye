@@ -121,6 +121,25 @@ type ResourceAudit struct {
 	PerformedBy string    `json:"performed_by"`
 }
 
+// SecurityScan holds the latest result of one security scan (kernel CVEs,
+// OS/SSH hardening, Kubernetes cluster posture, or resource exposure/TLS)
+// for one target. One row per (TargetType, TargetID, ScanType) — scans are
+// always run live on request; only the most recent outcome is cached here so
+// audit pages can show current posture without forcing a re-scan on load.
+type SecurityScan struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	TargetType   string    `gorm:"uniqueIndex:idx_security_scan_target" json:"target_type"` // server | resource
+	TargetID     uint      `gorm:"uniqueIndex:idx_security_scan_target" json:"target_id"`
+	ScanType     string    `gorm:"uniqueIndex:idx_security_scan_target" json:"scan_type"` // kernel | hardening | cluster | resource
+	FindingCount int       `json:"finding_count"`
+	HighCount    int       `json:"high_count"`
+	ResultJSON   string    `gorm:"type:text" json:"-"`
+	ScannedBy    uint      `json:"scanned_by"`
+	ScannedAt    time.Time `json:"scanned_at"`
+}
+
 // ResourceMetric is a single health/observability probe snapshot for a resource,
 // captured by the background collector (or an on-demand probe). Metrics holds a
 // JSON blob of type-specific numbers (db connections, redis memory, kafka lag…).

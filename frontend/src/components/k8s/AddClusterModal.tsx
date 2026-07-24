@@ -133,7 +133,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
                 Connect Cluster
               </h2>
               <p style={{ 
-                fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', 
+                fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', 
                 fontWeight: 800, letterSpacing: '0.1em', marginTop: 4, fontFamily: 'var(--font-mono)'
               }}>
                 Control Plane Handshake : Protocols Active
@@ -156,7 +156,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
           {/* Cluster Identity */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label style={{ 
-              fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', 
+              fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', 
               textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' 
             }}>
               Cluster Identifier <span style={{ color: 'var(--brand-primary)' }}>*</span>
@@ -174,7 +174,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
           {/* Folder */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label style={{
-              fontSize: 10, fontWeight: 900, color: 'var(--text-muted)',
+              fontSize: 12, fontWeight: 900, color: 'var(--text-muted)',
               textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)'
             }}>
               Folder
@@ -194,7 +194,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <label style={{ 
-                  fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', 
+                  fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', 
                   textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' 
                 }}>
                   KubeConfig Source <span style={{ color: 'var(--brand-primary)' }}>*</span>
@@ -207,7 +207,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
                         onClick={() => { setInputMode(mode); if (mode === 'paste') setUploadedFileName(null); }}
                         style={{
                           padding: '6px 14px', borderRadius: 0, border: 'none', cursor: 'pointer',
-                          fontSize: 10, fontWeight: 900, textTransform: 'uppercase', fontFamily: 'var(--font-mono)',
+                          fontSize: 12, fontWeight: 900, textTransform: 'uppercase', fontFamily: 'var(--font-mono)',
                           background: inputMode === mode ? 'var(--brand-primary)' : 'var(--bg-app)',
                           color: inputMode === mode ? '#fff' : 'var(--text-muted)',
                         }}
@@ -223,7 +223,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
                   className="input"
                   style={{ 
                     height: 180, borderRadius: 0, fontFamily: 'var(--font-mono)', 
-                    fontSize: 11, background: 'var(--bg-app)', border: '1px solid var(--border)',
+                    fontSize: 12, background: 'var(--bg-app)', border: '1px solid var(--border)',
                     lineHeight: 1.6, resize: 'none'
                   }}
                   placeholder="--- YAML PAYLOAD ---"
@@ -243,7 +243,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
                   }}
                 >
                   <CloudUpload size={24} color={uploadedFileName ? 'var(--success)' : 'var(--text-muted)'} />
-                  <p style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', marginTop: 12, fontFamily: 'var(--font-mono)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', marginTop: 12, fontFamily: 'var(--font-mono)' }}>
                     {uploadedFileName || (isDragging ? 'Release to Load' : 'Drag or click to upload config')}
                   </p>
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".yaml,.yml,.conf,config" />
@@ -251,8 +251,8 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
              )}
              
              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--bg-app)50', border: '1px solid var(--border)', borderRadius: 0 }}>
-                <Shield size={12} color="var(--brand-primary)" />
-                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
+                <Shield size={13} color="var(--brand-primary)" />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
                   Encryption active: KubeConfig stored in isolated secure volume via cluster-go.
                 </span>
              </div>
@@ -267,27 +267,27 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Terminal size={14} color={showSSH ? 'var(--brand-primary)' : 'var(--text-muted)'} />
-                <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: showSSH ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  SSH Proxy Layers <span style={{ opacity: 0.5, fontSize: 9 }}>(Optional)</span>
+                <span style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', color: showSSH ? 'var(--text-primary)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  SSH Proxy Layers <span style={{ opacity: 0.5, fontSize: 11 }}>(Optional)</span>
                 </span>
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', transform: showSSH ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', transform: showSSH ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</div>
             </button>
 
             {showSSH && (
               <div style={{ padding: '0 20px 24px', display: 'flex', flexDirection: 'column', gap: 16, borderTop: '1px solid var(--border)' }}>
                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}>
-                    <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Node Gateway IP</label>
-                    <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} placeholder="10.0.0.X" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} />
+                    <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Node Gateway IP</label>
+                    <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13 }} placeholder="10.0.0.X" value={form.host} onChange={e => setForm({ ...form, host: e.target.value })} />
                  </div>
                  <div className="grid-collapse-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                       <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_User</label>
-                       <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} value={form.ssh_user} onChange={e => setForm({ ...form, ssh_user: e.target.value })} />
+                       <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_User</label>
+                       <input className="input" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13 }} value={form.ssh_user} onChange={e => setForm({ ...form, ssh_user: e.target.value })} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                       <label style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_Pass</label>
-                       <input className="input" type="password" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12 }} placeholder="••••••••" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
+                       <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Credential_Pass</label>
+                       <input className="input" type="password" style={{ borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13 }} placeholder="••••••••" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
                     </div>
                  </div>
               </div>
@@ -304,7 +304,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
             }}>
               {testResult.success ? <Zap size={14} color="var(--success)" /> : <XCircle size={14} color="var(--danger)" />}
               <div style={{ 
-                fontSize: 10, color: testResult.success ? 'var(--text-primary)' : 'var(--danger)', 
+                fontSize: 12, color: testResult.success ? 'var(--text-primary)' : 'var(--danger)', 
                 fontFamily: 'var(--font-mono)', lineHeight: 1.6, textTransform: 'uppercase', fontWeight: 800 
               }}>
                 {testResult.msg}
@@ -317,7 +317,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ flex: 1, height: 48, borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 11 }}
+              style={{ flex: 1, height: 48, borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 12 }}
               onClick={testConnection}
               disabled={loading || !hasConfig}
             >
@@ -327,7 +327,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
               className="btn btn-primary"
               type="submit"
               disabled={loading || !hasConfig || !form.name}
-              style={{ flex: 1.5, height: 48, borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 11, letterSpacing: '0.05em' }}
+              style={{ flex: 1.5, height: 48, borderRadius: 0, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 12, letterSpacing: '0.05em' }}
             >
               {loading && testResult ? <Loader2 size={14} className="spin" /> : 'Authorize & Connect'}
             </button>

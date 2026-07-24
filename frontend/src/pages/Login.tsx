@@ -62,7 +62,7 @@ export function Login() {
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           <span style={{
-            display: 'inline-block', fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)',
+            display: 'inline-block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)',
             textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.85)',
             background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
             padding: '5px 12px', marginBottom: 20
@@ -90,7 +90,7 @@ export function Login() {
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,0.55)' }}>
           <ShieldCheck size={14} />
-          <span style={{ fontSize: 12, fontWeight: 400 }}>
+          <span style={{ fontSize: 13, fontWeight: 400 }}>
             JWT-secured sessions, OIDC/SSO, and role-based access control
           </span>
         </div>
@@ -169,7 +169,7 @@ export function Login() {
                 <div style={{
                   padding: '12px 14px', marginBottom: 22, borderRadius: 0,
                   background: 'var(--danger-glow)', border: '1px solid var(--danger)',
-                  color: 'var(--danger)', fontSize: 12.5, display: 'flex', alignItems: 'flex-start', gap: 9,
+                  color: 'var(--danger)', fontSize: 13.5, display: 'flex', alignItems: 'flex-start', gap: 9,
                   fontWeight: 500
                 }}>
                   <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
@@ -192,12 +192,12 @@ export function Login() {
             </form>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              <ShieldCheck size={13} style={{ flexShrink: 0 }} />
-              <span style={{ fontSize: 11.5 }}>Protected by JWT authentication and role-based access control</span>
+              <ShieldCheck size={14} style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: 12.5 }}>Protected by JWT authentication and role-based access control</span>
             </div>
           </div>
 
-          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>© {new Date().getFullYear()} InfraEye. All rights reserved.</span>
             <span style={{ opacity: 0.5 }}>·</span>
             <a

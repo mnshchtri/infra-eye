@@ -263,13 +263,13 @@ export function Resources() {
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 80 }}>
           <Loader2 size={24} className="spin" color="var(--brand-primary)" />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading resources…</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading resources…</span>
         </div>
       ) : filtered.length === 0 ? (
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)', padding: 60 }}>
           <Layers size={44} style={{ marginBottom: 16, opacity: 0.25 }} />
           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-secondary)' }}>No resources yet</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>Add a database, cache, or service to start monitoring it.</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Add a database, cache, or service to start monitoring it.</div>
           {searchQuery
             ? <button className="btn btn-secondary" style={{ marginTop: 20, height: 34 }} onClick={() => setSearchQuery('')}>Clear search</button>
             : <button className="btn btn-primary" style={{ marginTop: 20, height: 34 }} onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}><Plus size={14} /> Add Resource</button>}
@@ -291,21 +291,21 @@ export function Resources() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{meta.label} · {r.resource_type}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{meta.label} · {r.resource_type}</div>
                   </div>
                   <span className={`badge ${st.badge}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                    <CircleDot size={9} /> {st.label}
+                    <CircleDot size={11} /> {st.label}
                   </span>
                 </div>
 
                 <div style={{ padding: '0 18px 14px' }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <span style={{ opacity: 0.55 }}>{r.protocol}://</span>{r.host}:{r.port}
                   </div>
                   {r.tags && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
                       {r.tags.split(',').filter(Boolean).slice(0, 4).map(t => (
-                        <span key={t} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '2px 7px' }}>{t.trim()}</span>
+                        <span key={t} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '2px 7px' }}>{t.trim()}</span>
                       ))}
                     </div>
                   )}
@@ -313,8 +313,8 @@ export function Resources() {
 
                 <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px 8px 18px', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: r.use_gateway ? 'var(--brand-primary)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                      <Server size={11} /> {r.use_gateway ? 'Gateway' : 'Direct'}
+                    <span style={{ fontSize: 12, fontWeight: 700, color: r.use_gateway ? 'var(--brand-primary)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                      <Server size={12} /> {r.use_gateway ? 'Gateway' : 'Direct'}
                     </span>
                     <FolderTag
                       folders={folders}
@@ -325,11 +325,11 @@ export function Resources() {
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                     <button className="btn-icon-sm" title="Test connection" onClick={() => testResource(r.id)} disabled={testingId === r.id}>
-                      {testingId === r.id ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
+                      {testingId === r.id ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
                     </button>
-                    <button className="btn-icon-sm" title="Edit" onClick={() => openEdit(r)}><Pencil size={13} /></button>
-                    <button className="btn-icon-sm danger" title="Delete" onClick={() => deleteResource(r.id)}><Trash2 size={13} /></button>
-                    <button className="btn-icon-sm primary" title="Open" onClick={() => navigate(`/resources/${r.id}`)}><ArrowRight size={13} /></button>
+                    <button className="btn-icon-sm" title="Edit" onClick={() => openEdit(r)}><Pencil size={14} /></button>
+                    <button className="btn-icon-sm danger" title="Delete" onClick={() => deleteResource(r.id)}><Trash2 size={14} /></button>
+                    <button className="btn-icon-sm primary" title="Open" onClick={() => navigate(`/resources/${r.id}`)}><ArrowRight size={14} /></button>
                   </div>
                 </div>
               </div>
@@ -358,7 +358,7 @@ function SummaryPill({ label, value, color, dot }: { label: string; value: numbe
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />}
       <span style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-mono)' }}>{value}</span>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
     </div>
   )
 }
@@ -375,7 +375,7 @@ function ResourceForm({ form, setForm, editId, saving, folders, onProtocolChange
             </div>
             <div>
               <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>{editId ? 'Edit resource' : 'Add resource'}</h2>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{editId ? 'Update the connection settings.' : 'Connect a database, cache, or service to monitor.'}</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{editId ? 'Update the connection settings.' : 'Connect a database, cache, or service to monitor.'}</p>
             </div>
           </div>
           <button className="btn-icon-sm" onClick={onClose}><X size={14} /></button>

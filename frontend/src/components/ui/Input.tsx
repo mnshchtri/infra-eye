@@ -59,7 +59,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
         {error && (
           <div className="input-error-text">
-            <AlertCircle size={12} />
+            <AlertCircle size={13} />
             <span>{error}</span>
           </div>
         )}
@@ -118,7 +118,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 
         {error && (
           <div className="input-error-text">
-            <AlertCircle size={12} />
+            <AlertCircle size={13} />
             <span>{error}</span>
           </div>
         )}
@@ -182,7 +182,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
         {error && (
           <div className="input-error-text">
-            <AlertCircle size={12} />
+            <AlertCircle size={13} />
             <span>{error}</span>
           </div>
         )}

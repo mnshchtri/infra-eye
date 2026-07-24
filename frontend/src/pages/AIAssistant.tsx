@@ -84,7 +84,7 @@ const SuggestionCard = memo(({ group, text, onClick }: { group: SuggestionGroup;
         display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left',
         padding: '14px 16px', borderRadius: 'var(--radius-lg)',
         background: 'var(--bg-card)', border: '1px solid var(--border)',
-        color: 'var(--text-secondary)', fontSize: 12.5, lineHeight: 1.5,
+        color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.5,
         cursor: 'pointer', transition: 'all 0.15s', fontWeight: 500,
       }}
       onMouseEnter={e => {
@@ -98,8 +98,8 @@ const SuggestionCard = memo(({ group, text, onClick }: { group: SuggestionGroup;
         e.currentTarget.style.boxShadow = 'none'
       }}
     >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: group.color }}>
-        <Icon size={12} /> {group.label}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: group.color }}>
+        <Icon size={13} /> {group.label}
       </span>
       <span style={{ color: 'var(--text-primary)' }}>{text}</span>
     </button>
@@ -355,7 +355,7 @@ export function AIAssistant() {
   const selectStyle: React.CSSProperties = {
     height: 34, padding: '0 26px 0 10px', borderRadius: 'var(--radius-md)',
     background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-    color: 'var(--text-primary)', fontSize: 12, fontWeight: 700,
+    color: 'var(--text-primary)', fontSize: 13, fontWeight: 700,
     cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none',
   }
 
@@ -406,7 +406,7 @@ export function AIAssistant() {
               <h1 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
                 नेत्र <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Netra</span>
               </h1>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
                 DevSecOps copilot · <span style={{ color: 'var(--text-secondary)' }}>{scopeLabel}</span>
               </div>
             </div>
@@ -421,7 +421,7 @@ export function AIAssistant() {
                 <option value="deepseek">DeepSeek</option>
                 <option value="openrouter">OpenRouter</option>
               </select>
-              <ChevronDown size={12} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
+              <ChevronDown size={13} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
             </div>
 
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -429,7 +429,7 @@ export function AIAssistant() {
                 <option value="">All infrastructure</option>
                 {servers.map(s => <option key={s.id} value={s.id}>{s.is_k8s ? '☸ ' : ''}{s.name}</option>)}
               </select>
-              <ChevronDown size={12} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
+              <ChevronDown size={13} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
             </div>
 
             <div className="hidden-mobile" title={mcpAvailable ? 'Live cluster access is available — Netra can run Kubernetes queries from chat' : 'MCP sidecar unreachable — cluster tool execution disabled'} style={{
@@ -438,8 +438,8 @@ export function AIAssistant() {
               background: mcpAvailable ? 'var(--brand-glow)' : 'var(--bg-elevated)',
               border: `1px solid ${mcpAvailable ? 'var(--brand-primary)' : 'var(--border)'}`,
             }}>
-              <Zap size={11} color={mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)'} />
-              <span style={{ fontSize: 10, fontWeight: 800, color: mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <Zap size={12} color={mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)'} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {mcpAvailable ? 'MCP Live' : 'MCP Offline'}
               </span>
             </div>
@@ -452,11 +452,11 @@ export function AIAssistant() {
             {messages.length <= 1 && (
               <div className="fade-in" style={{ padding: '8px 0 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <h2 style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <h2 style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     Where do you want to start?
                   </h2>
-                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
-                    <Trash2 size={13} /> Clear history
+                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
+                    <Trash2 size={14} /> Clear history
                   </button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
@@ -475,7 +475,7 @@ export function AIAssistant() {
                   <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Analyzing</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600 }}>Analyzing</span>
                   <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s infinite' }} />
                   <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s 0.2s infinite' }} />
                   <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s 0.4s infinite' }} />
@@ -492,8 +492,8 @@ export function AIAssistant() {
             {selectedImage && (
               <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '12px 12px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
                 <img src={selectedImage} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Image attached</div>
-                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={12} /></button>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Image attached</div>
+                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={13} /></button>
               </div>
             )}
 
@@ -522,7 +522,7 @@ export function AIAssistant() {
                 <Send size={16} color={question.trim() || selectedImage ? 'var(--text-inverse)' : 'var(--text-muted)'} />
               </button>
             </div>
-            <div className="hidden-mobile" style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 8, fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+            <div className="hidden-mobile" style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
               <span>Enter to send · Shift+Enter for a new line</span>
               {mcpAvailable && <span>· Cluster queries run only after you approve them</span>}
             </div>

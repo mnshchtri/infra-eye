@@ -7,6 +7,12 @@ interface KTableProps {
   selectedIndex: number;
   loading: boolean;
   onNameClick?: (item: any) => void;
+  /** Row-selection checkboxes (bulk actions). Omit to keep the table as-is. */
+  selectable?: boolean;
+  isRowChecked?: (item: any) => boolean;
+  onToggleRow?: (item: any) => void;
+  allChecked?: boolean;
+  onToggleAll?: () => void;
 }
 
 const getVal = (item: any, col: string) => {
@@ -15,7 +21,7 @@ const getVal = (item: any, col: string) => {
     case 'namespace': return item.metadata.namespace;
     case 'status': {
       const val = item.status?.phase || (item.status?.conditions?.find((c: any) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
-      return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`} style={{ borderRadius: 0, textTransform: 'uppercase', fontSize: 9, minWidth: 80 }}>{val}</span>;
+      return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`} style={{ borderRadius: 0, textTransform: 'uppercase', fontSize: 11, minWidth: 80 }}>{val}</span>;
     }
     case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
     case 'role': return <span style={{ color: 'var(--brand-primary)', fontWeight: 800 }}>{item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'CTRL-PLANE' : 'WORKER')}</span>;
@@ -68,15 +74,20 @@ const getVal = (item: any, col: string) => {
   }
 }
 
-const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode; onNameClick?: (item: any) => void }) => {
+const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, checked, onToggleChecked }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode; onNameClick?: (item: any) => void; checked?: boolean; onToggleChecked?: (item: any) => void }) => {
   return (
     <tr className={isSelected ? 'k-row-selected' : ''}>
+      {onToggleChecked && (
+        <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', width: 36 }}>
+          <input type="checkbox" checked={!!checked} onChange={() => onToggleChecked(item)} style={{ cursor: 'pointer' }} />
+        </td>
+      )}
       {columns.map((c: string) => (
         <td 
           key={c} 
           style={{
             ...(c === 'Name' ? { fontWeight: 900, color: 'var(--text-primary)', cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
-            fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase',
+            fontFamily: 'var(--font-mono)', fontSize: 12, textTransform: 'uppercase',
             padding: '10px 16px', borderBottom: '1px solid var(--border)'
           }}
           onClick={() => { if (c === 'Name' && onNameClick) onNameClick(item) }}
@@ -97,8 +108,8 @@ const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick }: { i
 
 KTableRow.displayName = 'KTableRow';
 
-export const KTable = memo(({ columns, data, actions, selectedIndex, loading, onNameClick }: KTableProps) => {
-  const colCount = columns.length + (actions ? 1 : 0)
+export const KTable = memo(({ columns, data, actions, selectedIndex, loading, onNameClick, selectable, isRowChecked, onToggleRow, allChecked, onToggleAll }: KTableProps) => {
+  const colCount = columns.length + (actions ? 1 : 0) + (selectable ? 1 : 0)
 
   // Dynamic width helper
   const getColWidth = (col: string) => {
@@ -131,16 +142,22 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
     <div className="table-container fade-up" style={{ borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-card)', marginBottom: 20 }}>
        <table className="k-table" style={{ width: '100%', minWidth: 800 }}>
           <colgroup>
+            {selectable && <col style={{ width: 36 }} />}
             {columns.map(c => <col key={c} style={{ width: getColWidth(c) }} />)}
             {actions && <col style={{ width: '120px' }} />}
           </colgroup>
           <thead>
              <tr style={{ background: 'var(--bg-elevated)' }}>
-                {columns.map((c: string) => <th key={c} style={{ 
+                {selectable && (
+                  <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                    <input type="checkbox" checked={!!allChecked} onChange={onToggleAll} style={{ cursor: 'pointer' }} />
+                  </th>
+                )}
+                {columns.map((c: string) => <th key={c} style={{
                   ...(c === 'Status' ? { textAlign: 'center' } : {}),
-                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 10, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.1em'
+                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.1em'
                 }}>{c}</th>)}
-                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 10, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.1em' }}>ACTIONS</th>}
+                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.1em' }}>ACTIONS</th>}
              </tr>
           </thead>
           <tbody>
@@ -163,9 +180,11 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
                   key={item.metadata?.uid || `${item.metadata?.name}-${i}`} 
                   item={item} 
                   columns={columns} 
-                  isSelected={selectedIndex === i} 
-                  actions={actions} 
+                  isSelected={selectedIndex === i}
+                  actions={actions}
                   onNameClick={onNameClick}
+                  checked={selectable ? isRowChecked?.(item) : undefined}
+                  onToggleChecked={selectable ? onToggleRow : undefined}
                 />
              ))}
           </tbody>

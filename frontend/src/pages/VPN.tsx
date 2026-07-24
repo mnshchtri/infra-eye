@@ -57,7 +57,7 @@ export function VPN() {
               </div>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Global VPN Settings</h2>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Select and configure your VPN provider</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Select and configure your VPN provider</p>
               </div>
             </div>
             
@@ -70,7 +70,7 @@ export function VPN() {
                     type="button"
                     onClick={() => setVpnType(type)}
                     style={{
-                      flex: 1, padding: '12px', fontSize: 10, fontWeight: 900,
+                      flex: 1, padding: '12px', fontSize: 12, fontWeight: 900,
                       border: '1px solid var(--border)', transition: 'all 0.2s', cursor: 'pointer',
                       fontFamily: 'var(--font-mono)', textTransform: 'uppercase', borderRadius: 4,
                       ...(vpnType === type
@@ -90,9 +90,9 @@ export function VPN() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <label className="input-label" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Key size={12} /> OpenVPN Configuration (.ovpn)
+                      <Key size={13} /> OpenVPN Configuration (.ovpn)
                     </label>
-                    <label style={{ fontSize: 10, color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600, background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
+                    <label style={{ fontSize: 12, color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600, background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
                       Upload .ovpn File
                       <input type="file" accept=".ovpn" style={{ display: 'none' }} onChange={e => {
                         const file = e.target.files?.[0];
@@ -109,16 +109,16 @@ export function VPN() {
                     value={authKey} 
                     onChange={e => setAuthKey(e.target.value)} 
                     placeholder="client\ndev tun\nproto udp\nremote your-server.com 1194\n..." 
-                    style={{ height: 120, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 10, whiteSpace: 'pre' }} 
+                    style={{ height: 120, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre' }} 
                   />
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
                     Paste your .ovpn configuration here or upload the file. This config will be used to securely connect this node to your OpenVPN network.
                   </p>
                 </>
               ) : (
                 <>
                   <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Key size={12} /> 
+                    <Key size={13} /> 
                     {vpnType === 'tailscale' ? 'Auth Key' : 'Network ID'}
                   </label>
                   <input 
@@ -130,7 +130,7 @@ export function VPN() {
                       vpnType === 'tailscale' ? 'tskey-auth-...' : '16-character Network ID'
                     }
                   />
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
                     This key will be used by the InfraEye backend to join the VPN, and will be securely provided to new servers you provision.
                   </p>
                 </>
@@ -152,7 +152,7 @@ export function VPN() {
               </div>
               <div>
                 <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Provisioning Target Servers</h2>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Connect remote servers to the VPN</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Connect remote servers to the VPN</p>
               </div>
             </div>
             
@@ -168,7 +168,7 @@ export function VPN() {
               >
                 <Copy size={14} />
               </button>
-              <code style={{ color: 'var(--term-green)', fontFamily: 'var(--font-mono)', fontSize: 11, wordBreak: 'break-all', display: 'block', paddingRight: 24, lineHeight: 1.5 }}>
+              <code style={{ color: 'var(--term-green)', fontFamily: 'var(--font-mono)', fontSize: 12, wordBreak: 'break-all', display: 'block', paddingRight: 24, lineHeight: 1.5 }}>
                 {vpnType === 'tailscale' 
                   ? `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --authkey=${authKey ? '***' : 'YOUR_AUTH_KEY'}`
                   : vpnType === 'zerotier'
@@ -182,7 +182,7 @@ export function VPN() {
               <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Terminal size={14} /> Next Steps
               </h3>
-              <ol style={{ fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, lineHeight: 1.5 }}>
+              <ol style={{ fontSize: 13, color: 'var(--text-secondary)', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 10, lineHeight: 1.5 }}>
                 <li>Run the command above on your target servers.</li>
                 <li>Wait for the server to appear in your VPN admin console or verify connection status.</li>
                 <li>Get the new VPN IP address (e.g. 100.x.x.x for Tailscale, 10.8.x.x for OpenVPN).</li>

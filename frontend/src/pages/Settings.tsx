@@ -199,7 +199,7 @@ export function Settings() {
           <button
             onClick={() => setActiveTab('profile')}
             style={{
-              padding: '12px 24px', fontSize: 10, fontWeight: 900,
+              padding: '12px 24px', fontSize: 12, fontWeight: 900,
               transition: 'all 0.2s', cursor: 'pointer', border: 'none',
               background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
               display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
@@ -208,14 +208,14 @@ export function Settings() {
               color: activeTab === 'profile' ? 'var(--brand-primary)' : 'var(--text-muted)'
             }}
           >
-            <User size={13} /> MY ACCOUNT
+            <User size={14} /> MY ACCOUNT
             {activeTab === 'profile' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
           </button>
 
           <button
             onClick={() => setActiveTab('ai')}
             style={{
-              padding: '12px 24px', fontSize: 10, fontWeight: 900,
+              padding: '12px 24px', fontSize: 12, fontWeight: 900,
               transition: 'all 0.2s', cursor: 'pointer', border: 'none',
               background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
               display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
@@ -224,7 +224,7 @@ export function Settings() {
               color: activeTab === 'ai' ? 'var(--brand-primary)' : 'var(--text-muted)'
             }}
           >
-            <Lock size={13} /> AI_CREDENTIALS
+            <Lock size={14} /> AI_CREDENTIALS
             {activeTab === 'ai' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
           </button>
 
@@ -232,7 +232,7 @@ export function Settings() {
             <button
               onClick={() => setActiveTab('notifications')}
               style={{
-                padding: '12px 24px', fontSize: 10, fontWeight: 900,
+                padding: '12px 24px', fontSize: 12, fontWeight: 900,
                 transition: 'all 0.2s', cursor: 'pointer', border: 'none',
                 background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
                 display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
@@ -241,7 +241,7 @@ export function Settings() {
                 color: activeTab === 'notifications' ? 'var(--brand-primary)' : 'var(--text-muted)'
               }}
             >
-              <Bell size={13} /> NOTIFICATIONS
+              <Bell size={14} /> NOTIFICATIONS
               {activeTab === 'notifications' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
             </button>
           )}
@@ -250,7 +250,7 @@ export function Settings() {
             <button
               onClick={() => setActiveTab('users')}
               style={{
-                padding: '12px 24px', fontSize: 10, fontWeight: 900,
+                padding: '12px 24px', fontSize: 12, fontWeight: 900,
                 transition: 'all 0.2s', cursor: 'pointer', border: 'none',
                 background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
                 display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
@@ -259,7 +259,7 @@ export function Settings() {
                 color: activeTab === 'users' ? 'var(--brand-primary)' : 'var(--text-muted)'
               }}
             >
-              <Shield size={13} /> USER MANAGEMENT
+              <Shield size={14} /> USER MANAGEMENT
               {activeTab === 'users' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
             </button>
           )}
@@ -279,15 +279,15 @@ export function Settings() {
                  {currentUser?.username.charAt(0)}
                </div>
                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{currentUser?.username}</h2>
-               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>Tier {currentUser?.id} Platform Member</p>
+               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Tier {currentUser?.id} Platform Member</p>
                <div style={{ width: '100%', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Security Role</span>
-                     <span className="badge" style={{ background: `${roleColors[currentUser?.role || 'intern']}15`, color: roleColors[currentUser?.role || 'intern'], border: `1px solid ${roleColors[currentUser?.role || 'intern']}25`, padding: '4px 8px', fontSize: 10 }}>{currentUser?.role.toUpperCase()}</span>
+                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Security Role</span>
+                     <span className="badge" style={{ background: `${roleColors[currentUser?.role || 'intern']}15`, color: roleColors[currentUser?.role || 'intern'], border: `1px solid ${roleColors[currentUser?.role || 'intern']}25`, padding: '4px 8px', fontSize: 12 }}>{currentUser?.role.toUpperCase()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px var(--success)' }} /> Authorized
                       </span>
                   </div>
@@ -297,7 +297,7 @@ export function Settings() {
             <div className="card" style={{ padding: '32px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><User size={20} color="var(--brand-primary)" /></div>
-                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2><p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Update contact email and security credentials</p></div>
+                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Update contact email and security credentials</p></div>
               </div>
               <form onSubmit={updateProfile}>
                 <div className="grid-2-col" style={{ gap: 20, marginBottom: 32 }}>
@@ -306,7 +306,7 @@ export function Settings() {
                 </div>
                 <div className="danger-zone" style={{ marginTop: 0, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}><Lock size={18} color="var(--text-muted)" /><h3 style={{ fontSize: 14, fontWeight: 700 }}>Security Rotation</h3></div>
-                   <div className="input-group"><label className="input-label">New Password</label><div style={{ position: 'relative' }}><Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} /><input className="input" type="password" style={{ paddingLeft: 42 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="Keep current or enter new" minLength={6} /></div><p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>Rotate password regularly to ensure platform safety.</p></div>
+                   <div className="input-group"><label className="input-label">New Password</label><div style={{ position: 'relative' }}><Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} /><input className="input" type="password" style={{ paddingLeft: 42 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="Keep current or enter new" minLength={6} /></div><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Rotate password regularly to ensure platform safety.</p></div>
                 </div>
                 <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
                   <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ width: '100%', maxWidth: 200, height: 44, fontSize: 14, fontWeight: 700 }}>{profileSaving ? 'Saving...' : 'Save Settings'}</button>
@@ -321,7 +321,7 @@ export function Settings() {
              <div className="card" style={{ padding: '32px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Lock size={20} color="var(--brand-primary)" /></div>
-                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal AI Infrastructure</h2><p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Configure individual API keys to power your Netra AI interactions.</p></div>
+                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal AI Infrastructure</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Configure individual API keys to power your Netra AI interactions.</p></div>
               </div>
 
               <form onSubmit={updateProfile}>
@@ -329,7 +329,7 @@ export function Settings() {
                   <div className="input-group">
                     <label className="input-label">OpenRouter API Key</label>
                     <input className="input" type="password" value={openRouterKey} onChange={e => setOpenRouterKey(e.target.value)} placeholder="sk-or-v1-..." />
-                    <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Used as primary fallback for most models.</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Used as primary fallback for most models.</p>
                   </div>
 
                   <div className="grid-2-col" style={{ gap: 20 }}>
@@ -370,7 +370,7 @@ export function Settings() {
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Bell size={20} color="var(--brand-primary)" /></div>
                 <div>
                   <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Alert Notifications</h2>
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Where alert rules and self-healing events send notifications. Applies platform-wide.</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Where alert rules and self-healing events send notifications. Applies platform-wide.</p>
                 </div>
               </div>
 
@@ -382,7 +382,7 @@ export function Settings() {
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <input
                         className="input"
-                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 13 }}
                         value={gchatUrl}
                         onChange={e => setGchatUrl(e.target.value)}
                         placeholder="https://chat.googleapis.com/v1/spaces/…/messages?key=…&token=…"
@@ -396,14 +396,14 @@ export function Settings() {
                         title="Send a test message to this webhook"
                         style={{ gap: 6, whiteSpace: 'nowrap' }}
                       >
-                        <Send size={13} /> {testingChannel === 'google_chat' ? 'Sending…' : 'Test'}
+                        <Send size={14} /> {testingChannel === 'google_chat' ? 'Sending…' : 'Test'}
                       </button>
                     </div>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
                       In Google Chat: open the space → space name → <strong>Apps &amp; integrations</strong> → <strong>Webhooks</strong> → add one and paste its URL here. Must be an https URL on <code style={{ fontFamily: 'var(--font-mono)' }}>chat.googleapis.com</code>.
                     </p>
                     {gchatEnvSet && !gchatUrl.trim() && (
-                      <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
+                      <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
                         Currently using the URL from the GOOGLE_CHAT_WEBHOOK_URL environment variable — saving a value here overrides it.
                       </p>
                     )}
@@ -415,7 +415,7 @@ export function Settings() {
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <input
                         className="input"
-                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 13 }}
                         value={slackUrl}
                         onChange={e => setSlackUrl(e.target.value)}
                         placeholder="https://hooks.slack.com/services/T…/B…/…"
@@ -429,11 +429,11 @@ export function Settings() {
                         title="Send a test message to this webhook"
                         style={{ gap: 6, whiteSpace: 'nowrap' }}
                       >
-                        <Send size={13} /> {testingChannel === 'slack' ? 'Sending…' : 'Test'}
+                        <Send size={14} /> {testingChannel === 'slack' ? 'Sending…' : 'Test'}
                       </button>
                     </div>
                     {slackEnvSet && !slackUrl.trim() && (
-                      <p style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
+                      <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
                         Currently using the URL from the SLACK_WEBHOOK_URL environment variable — saving a value here overrides it.
                       </p>
                     )}
@@ -441,7 +441,7 @@ export function Settings() {
                 </div>
 
                 <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.5 }}>
                     Leave a field empty and save to clear it. Webhook URLs are credentials — anyone with the URL can post to the space.
                   </p>
                   <button type="submit" className="btn btn-primary" disabled={notifSaving} style={{ minWidth: 160, height: 44, fontSize: 14, fontWeight: 700 }}>
@@ -459,7 +459,7 @@ export function Settings() {
               <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Shield size={22} color="var(--brand-primary)" /></div>
-                  <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Access Control</h2><p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Manage administrative users</p></div>
+                  <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Access Control</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Manage administrative users</p></div>
                 </div>
                 <button className="btn btn-primary btn-sm" onClick={() => { setShowUserForm(true); setEditUserId(null); setUserForm(emptyUserForm) }}><Plus size={16} /> <span className="hidden-mobile">Add User</span><span className="show-mobile-only">Add</span></button>
               </div>
@@ -479,10 +479,10 @@ export function Settings() {
                       <tr key={u.id}>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={{ width: 28, height: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: 'var(--brand-primary)', fontSize: 10 }}>{u.username.charAt(0).toUpperCase()}</div>
+                            <div style={{ width: 28, height: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: 'var(--brand-primary)', fontSize: 12 }}>{u.username.charAt(0).toUpperCase()}</div>
                             <div>
-                              <div style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 12, textTransform: 'uppercase' }}>{u.username}</div>
-                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{u.email || 'SYSTEM@INFRAEYE.LOCAL'}</div>
+                              <div style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 13, textTransform: 'uppercase' }}>{u.username}</div>
+                              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{u.email || 'SYSTEM@INFRAEYE.LOCAL'}</div>
                             </div>
                           </div>
                         </td>
@@ -490,8 +490,8 @@ export function Settings() {
                         <td>{u.is_active ? <span className="badge badge-online">ACTIVE</span> : <span className="badge badge-offline">INACTIVE</span>}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn-icon-sm" onClick={() => editUser(u)}><Pencil size={12} /></button>
-                            {currentUser?.id !== u.id && (<button className="btn-icon-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteUser(u.id, u.username)}><Trash2 size={12} /></button>)}
+                            <button className="btn-icon-sm" onClick={() => editUser(u)}><Pencil size={13} /></button>
+                            {currentUser?.id !== u.id && (<button className="btn-icon-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteUser(u.id, u.username)}><Trash2 size={13} /></button>)}
                           </div>
                         </td>
                       </tr>

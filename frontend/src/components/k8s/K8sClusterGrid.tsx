@@ -44,7 +44,7 @@ export const K8sClusterGrid = memo(({
             Infrastructure Clusters
           </h1>
           <p className="page-subtitle" style={{ 
-            fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', 
+            fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', 
             textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginTop: 2 
           }}>
             Managed Kubernetes Control Planes : Active Systems
@@ -101,7 +101,7 @@ export const K8sClusterGrid = memo(({
                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                           <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
                           <span style={{ 
-                            fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', 
+                            fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', 
                             textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' 
                           }}>
                             {isConnected ? 'STREAM_ACTIVE' : 'LINK_OFFLINE'}
@@ -111,22 +111,22 @@ export const K8sClusterGrid = memo(({
                  </div>
                  
                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>NODE_IP</div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{cluster.host || 'DIRECT_API'}</div>
+                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>NODE_IP</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{cluster.host || 'DIRECT_API'}</div>
                  </div>
               </div>
 
               <div style={{ display: 'flex', gap: 32, marginBottom: 28, alignItems: 'flex-start' }}>
                  <div>
-                    <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Protocol</div>
-                    <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>KUBERNETES_API</div>
+                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Protocol</div>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>KUBERNETES_API</div>
                  </div>
                  <div>
-                    <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Infrastructure</div>
-                    <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>PRODUCTION_CORE</div>
+                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Infrastructure</div>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>PRODUCTION_CORE</div>
                  </div>
                  <div onClick={e => e.stopPropagation()}>
-                    <div style={{ fontSize: 8, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Folder</div>
+                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Folder</div>
                     <FolderTag
                       folders={folders}
                       value={cluster.folder_id ?? null}
@@ -142,8 +142,8 @@ export const K8sClusterGrid = memo(({
                     {isConnected ? (
                        confirmDisconnect === cluster.id ? (
                           <div style={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
-                             <button className="btn btn-warning" onClick={() => onDisconnect(cluster.id)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 10, fontWeight: 900 }}>OFFLINE</button>
-                             <button className="btn btn-secondary" onClick={() => setConfirmDisconnect(null)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 10, fontWeight: 900 }}>BACK</button>
+                             <button className="btn btn-warning" onClick={() => onDisconnect(cluster.id)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>OFFLINE</button>
+                             <button className="btn btn-secondary" onClick={() => setConfirmDisconnect(null)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>BACK</button>
                           </div>
                        ) : (
                           <button className="btn-icon" onClick={(e) => { e.stopPropagation(); setConfirmDisconnect(cluster.id) }} style={{ width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-app)' }} title="Deauthorize"><Unlink size={14} /></button>
@@ -154,8 +154,8 @@ export const K8sClusterGrid = memo(({
 
                     {confirmDelete === cluster.id ? (
                        <div style={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
-                          <button className="btn btn-danger" onClick={() => onDelete(cluster.id)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 10, fontWeight: 900 }}>DELETE</button>
-                          <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 10, fontWeight: 900 }}>BACK</button>
+                          <button className="btn btn-danger" onClick={() => onDelete(cluster.id)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>DELETE</button>
+                          <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>BACK</button>
                        </div>
                     ) : (
                        <button className="btn-icon danger" onClick={(e) => { e.stopPropagation(); setConfirmDelete(cluster.id) }} style={{ width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-app)' }} title="Destroy"><Trash2 size={14} /></button>
@@ -163,8 +163,8 @@ export const K8sClusterGrid = memo(({
                  </div>
 
                  {isConnected && (
-                    <button className="btn btn-primary" style={{ padding: '0 16px', height: 32, borderRadius: 0, fontSize: 10, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                       MANAGE_CLUSTER <ChevronRight size={12} style={{ marginLeft: 4 }} />
+                    <button className="btn btn-primary" style={{ padding: '0 16px', height: 32, borderRadius: 0, fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
+                       MANAGE_CLUSTER <ChevronRight size={13} style={{ marginLeft: 4 }} />
                     </button>
                  )}
               </div>
@@ -182,7 +182,7 @@ export const K8sClusterGrid = memo(({
               <Database size={28} color="var(--brand-primary)" />
             </div>
             <h2 style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 20, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>No Clusters Discovered</h2>
-            <p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginTop: 16, maxWidth: 420, lineHeight: 1.8 }}>
+            <p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', marginTop: 16, maxWidth: 420, lineHeight: 1.8 }}>
               Initialize your first infrastructure control plane by providing a KubeConfig identity file.
             </p>
             <button className="btn btn-primary" style={{ marginTop: 40, padding: '16px 48px', borderRadius: 0, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }} onClick={onAdd}>

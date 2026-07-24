@@ -184,7 +184,7 @@ export function AlertRules() {
   const needsThreshold = form.condition_type !== 'pod_status'
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)',
+    fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)',
   }
   const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
 
@@ -194,7 +194,7 @@ export function AlertRules() {
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
           <h1 className="page-title">Alert Rules</h1>
-          <p className="page-subtitle" style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 4 }}>
+          <p className="page-subtitle" style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 4 }}>
             Self-healing automation — notify or run an SSH remediation when a condition fires. Checked every 60s.
           </p>
         </div>
@@ -220,7 +220,7 @@ export function AlertRules() {
             key={t.key}
             onClick={() => { if (t.key === 'xml') generateXml(); setTab(t.key) }}
             style={{
-              padding: '8px 16px', borderRadius: 'var(--radius-md)', fontSize: 12.5, fontWeight: 700,
+              padding: '8px 16px', borderRadius: 'var(--radius-md)', fontSize: 13.5, fontWeight: 700,
               transition: 'all 0.15s', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
               background: tab === t.key ? 'var(--brand-primary)' : 'var(--bg-card)',
@@ -233,7 +233,7 @@ export function AlertRules() {
             {t.label}
             {t.count !== null && (
               <span style={{
-                fontSize: 10, fontWeight: 800, fontFamily: 'var(--font-mono)',
+                fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)',
                 padding: '1px 7px', borderRadius: 99,
                 background: tab === t.key ? 'rgba(255,255,255,0.2)' : 'var(--bg-elevated)',
                 color: tab === t.key ? 'var(--text-inverse)' : 'var(--text-muted)',
@@ -244,7 +244,7 @@ export function AlertRules() {
           </button>
         ))}
         {tab === 'rules' && rules.length > 0 && (
-          <span className="hidden-mobile" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <span className="hidden-mobile" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
             {enabledCount} of {rules.length} active
           </span>
         )}
@@ -269,7 +269,7 @@ export function AlertRules() {
                 </div>
                 <div>
                   <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>{editId ? 'Edit rule' : 'New alert rule'}</h2>
-                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>When a condition fires, notify or remediate automatically</p>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>When a condition fires, notify or remediate automatically</p>
                 </div>
               </div>
               <button onClick={() => setShowForm(false)} className="btn-icon"><X size={15} /></button>
@@ -300,7 +300,7 @@ export function AlertRules() {
 
               {/* Trigger */}
               <div style={{ padding: 16, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Trigger</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Trigger</div>
                 <div className="alert-form-grid" style={{ display: 'grid', gridTemplateColumns: needsThreshold ? '1.4fr 1fr 0.8fr' : '1fr', gap: 12 }}>
                   <div style={fieldStyle}>
                     <label style={labelStyle}>Metric</label>
@@ -324,8 +324,8 @@ export function AlertRules() {
                   )}
                 </div>
                 {selectedMetric && (
-                  <p style={{ fontSize: 11.5, color: selectedMetric.value === 'log_keyword' ? 'var(--warning)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {selectedMetric.value === 'log_keyword' && <AlertTriangle size={12} />}
+                  <p style={{ fontSize: 12.5, color: selectedMetric.value === 'log_keyword' ? 'var(--warning)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {selectedMetric.value === 'log_keyword' && <AlertTriangle size={13} />}
                     {selectedMetric.hint}
                   </p>
                 )}
@@ -333,7 +333,7 @@ export function AlertRules() {
 
               {/* Response */}
               <div style={{ padding: 16, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response</div>
                 <div className="alert-form-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
                   <div style={fieldStyle}>
                     <label style={labelStyle}>Action</label>
@@ -352,13 +352,13 @@ export function AlertRules() {
                     <label style={labelStyle}>Command</label>
                     <textarea
                       className="input" rows={3}
-                      style={{ fontFamily: 'var(--font-mono)', fontSize: 12, resize: 'vertical' }}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 13, resize: 'vertical' }}
                       value={form.action_command}
                       onChange={e => setForm({ ...form, action_command: e.target.value })}
                       placeholder="systemctl restart nginx"
                     />
-                    <p style={{ fontSize: 11.5, color: 'var(--warning)', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.5 }}>
-                      <ShieldAlert size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <p style={{ fontSize: 12.5, color: 'var(--warning)', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.5 }}>
+                      <ShieldAlert size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                       Runs automatically over SSH with the connection user's privileges every time the rule fires (rate-limited by the cooldown). Prefer idempotent, non-destructive commands.
                     </p>
                   </div>
@@ -383,7 +383,7 @@ export function AlertRules() {
                 <FileCode size={16} color="var(--brand-primary)" />
                 <div>
                   <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Rules as XML</h2>
-                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Export the current rules, edit them, and apply to bulk-import.</p>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Export the current rules, edit them, and apply to bulk-import.</p>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -395,7 +395,7 @@ export function AlertRules() {
               className="input"
               value={xmlContent}
               onChange={e => setXmlContent(e.target.value)}
-              style={{ width: '100%', height: 480, border: 'none', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 20, background: 'var(--term-bg-subtle)', color: 'var(--term-text)', lineHeight: 1.6, resize: 'none' }}
+              style={{ width: '100%', height: 480, border: 'none', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13, padding: 20, background: 'var(--term-bg-subtle)', color: 'var(--term-text)', lineHeight: 1.6, resize: 'none' }}
               spellCheck={false}
             />
           </div>
@@ -415,7 +415,7 @@ export function AlertRules() {
                 <Bell size={28} color="var(--brand-primary)" />
               </div>
               <h2 style={{ fontWeight: 800, fontSize: 17, color: 'var(--text-primary)' }}>No alert rules yet</h2>
-              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 10, maxWidth: 420, lineHeight: 1.6, margin: '10px auto 0' }}>
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 10, maxWidth: 420, lineHeight: 1.6, margin: '10px auto 0' }}>
                 Rules watch your servers' metrics every minute and react automatically — send a notification, or run an SSH command to self-heal before anyone is paged.
               </p>
               {can('manage-alerts') && (
@@ -443,11 +443,11 @@ export function AlertRules() {
               placeholder="Search history — server, trigger, output…"
               value={searchHistory}
               onChange={e => setSearchHistory(e.target.value)}
-              style={{ flex: 1, height: '100%', background: 'none', border: 'none', outline: 'none', fontSize: 12.5, color: 'var(--text-primary)' }}
+              style={{ flex: 1, height: '100%', background: 'none', border: 'none', outline: 'none', fontSize: 13.5, color: 'var(--text-primary)' }}
             />
             {searchHistory && (
               <button onClick={() => setSearchHistory('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}>
-                <X size={13} />
+                <X size={14} />
               </button>
             )}
           </div>
@@ -456,7 +456,7 @@ export function AlertRules() {
             {filteredHistory.length === 0 ? (
               <div className="empty-state" style={{ padding: '90px 0', textAlign: 'center' }}>
                 <History size={32} color="var(--text-muted)" style={{ opacity: 0.4 }} />
-                <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', marginTop: 16 }}>
+                <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-muted)', marginTop: 16 }}>
                   {history.length === 0 ? 'No remediations have fired yet — that\'s a good sign.' : 'Nothing matches the search.'}
                 </p>
               </div>
@@ -466,7 +466,7 @@ export function AlertRules() {
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elevated)' }}>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
                       {['Time', 'Server', 'Trigger', 'Status', 'Output'].map(h => (
-                        <th key={h} style={{ padding: '12px 20px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ padding: '12px 20px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>

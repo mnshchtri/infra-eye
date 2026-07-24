@@ -17,7 +17,7 @@ export function FolderTag({
       disabled={disabled}
       title={disabled ? undefined : 'Move to folder'}
       style={{
-        fontSize: 9.5, fontWeight: 800, padding: '3px 8px', border: '1px solid var(--border)',
+        fontSize: 11.5, fontWeight: 800, padding: '3px 8px', border: '1px solid var(--border)',
         background: folder ? `${folder.color}1a` : 'var(--bg-elevated)',
         color: folder ? folder.color : 'var(--text-muted)',
         cursor: disabled ? 'default' : 'pointer',

@@ -38,7 +38,7 @@ export const NavCategory = memo(({ label, icon: Icon, children, isOpen, onToggle
           </div>
           <span>{label}</span>
         </div>
-        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
       </div>
       {isOpen && (
         <div className="nav-cat-body">

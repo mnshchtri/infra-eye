@@ -2,7 +2,8 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
-  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X
+  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
+  ShieldAlert, Lock, Network, KeyRound
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -40,6 +41,15 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Operations',
     items: [
       { to: '/ai',         icon: Bot,             label: 'AI Assistant', action: 'use-ai' },
+    ]
+  },
+  {
+    label: 'Audit',
+    items: [
+      { to: '/audit/kernel',    icon: ShieldAlert, label: 'Kernel Scanner',    action: 'view-audit' },
+      { to: '/audit/hardening', icon: Lock,        label: 'Server Hardening', action: 'view-audit' },
+      { to: '/audit/cluster',   icon: Network,     label: 'Cluster Security', action: 'view-audit' },
+      { to: '/audit/resources', icon: KeyRound,    label: 'Resource Security', action: 'view-audit' },
     ]
   },
   {
@@ -145,7 +155,7 @@ export function Sidebar() {
           <div key={group.label} className="nav-group-container" style={{ marginBottom: 28 }}>
             {!sidebarCollapsed && (
               <div className="nav-group-label" style={{
-                fontSize: 10, fontWeight: 900, color: 'var(--text-muted)',
+                fontSize: 12, fontWeight: 900, color: 'var(--text-muted)',
                 textTransform: 'uppercase', letterSpacing: '0.15em',
                 padding: '0 14px', marginBottom: 12,
                 fontFamily: 'var(--font-mono)'
@@ -165,16 +175,16 @@ export function Sidebar() {
                   <div className="sidebar-link-icon">
                     <Icon size={16} strokeWidth={2.5} />
                   </div>
-                  {!sidebarCollapsed && <span style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>}
+                  {!sidebarCollapsed && <span style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>}
                  {label === 'Servers' && !sidebarCollapsed && (
                   <div 
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setServersExpanded(!serversExpanded); }} 
                     style={{ padding: '4px', cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
                   >
-                    {serversExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    {serversExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                   </div>
                  )}
-                 {label !== 'Servers' && !sidebarCollapsed && <ChevronRight size={10} className="sidebar-link-arrow" style={{ opacity: 0.3 }} />}
+                 {label !== 'Servers' && !sidebarCollapsed && <ChevronRight size={12} className="sidebar-link-arrow" style={{ opacity: 0.3 }} />}
                 </NavLink>
                 
                 {/* Nested list for Servers (Scrollable) */}
@@ -190,7 +200,7 @@ export function Sidebar() {
                         to={`/servers/${s.id}`} 
                         className="nav-sublink" 
                         style={({ isActive }) => ({
-                          fontSize: 11, 
+                          fontSize: 12, 
                           fontFamily: 'var(--font-mono)',
                           color: isActive ? 'var(--brand-primary)' : 'var(--text-secondary)', 
                           textDecoration: 'none', 
@@ -220,14 +230,14 @@ export function Sidebar() {
       {/* Theme Toggle & User Footer */}
       <div className="sidebar-footer" style={{ padding: sidebarCollapsed ? '16px 8px' : '20px 16px', borderTop: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', marginBottom: 16, padding: sidebarCollapsed ? 0 : '0 8px' }}>
-          {!sidebarCollapsed && <span style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>System Theme</span>}
+          {!sidebarCollapsed && <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>System Theme</span>}
           <button
             className="btn-icon"
             onClick={toggleDarkMode}
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             style={{ width: 28, height: 28, borderRadius: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
-            {darkMode ? <Sun size={12} color="var(--warning)" /> : <Moon size={12} color="var(--brand-primary)" />}
+            {darkMode ? <Sun size={13} color="var(--warning)" /> : <Moon size={13} color="var(--brand-primary)" />}
           </button>
         </div>
 
@@ -237,13 +247,13 @@ export function Sidebar() {
             ? { flexDirection: 'column', alignItems: 'center', gap: 10 }
             : { background: 'var(--bg-elevated)40', padding: '12px', border: '1px solid var(--border)40', gap: 10 }}
         >
-          <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined} style={{ width: 28, height: 28, fontSize: 11, borderRadius: 0, background: 'var(--brand-primary)', color: 'var(--text-inverse)' }}>
+          <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined} style={{ width: 28, height: 28, fontSize: 12, borderRadius: 0, background: 'var(--brand-primary)', color: 'var(--text-inverse)' }}>
             {user?.username?.[0]?.toUpperCase() ?? 'A'}
           </div>
           {!sidebarCollapsed && (
             <div className="sidebar-user-info" style={{ gap: 1 }}>
-              <span className="sidebar-user-name" style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-primary)' }}>{user?.username ?? 'Admin'}</span>
-              <span className="sidebar-user-role" style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800 }}>{user?.role ?? 'operator'}</span>
+              <span className="sidebar-user-name" style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)' }}>{user?.username ?? 'Admin'}</span>
+              <span className="sidebar-user-role" style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800 }}>{user?.role ?? 'operator'}</span>
             </div>
           )}
           <button

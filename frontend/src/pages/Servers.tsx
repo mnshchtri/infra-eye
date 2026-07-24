@@ -230,7 +230,7 @@ export function Servers() {
                   <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
                     {editId ? 'UPDATE_SERVER_CREDENTIALS' : 'PROVISION_CONTROL_NODE'}
                   </h2>
-                  <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {editId ? 'Modify infrastructure access parameters' : 'Establish secure handshake with new infrastructure'}
                   </p>
                 </div>
@@ -273,7 +273,7 @@ export function Servers() {
                     type="button"
                     onClick={() => setForm({ ...form, auth_type: t })}
                     style={{
-                      flex: 1, padding: '12px', fontSize: 10, fontWeight: 900,
+                      flex: 1, padding: '12px', fontSize: 12, fontWeight: 900,
                       border: '1px solid var(--border)', transition: 'all 0.2s', cursor: 'pointer',
                       fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
                       ...(form.auth_type === t
@@ -292,7 +292,7 @@ export function Servers() {
               <div className="input-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <label className="input-label" style={{ marginBottom: 0 }}>SSH Private Key</label>
-                  <label style={{ fontSize: 10, color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600, background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: 12, color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600, background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
                     Upload Key File
                     <input type="file" style={{ display: 'none' }} onChange={e => {
                       const file = e.target.files?.[0];
@@ -309,7 +309,7 @@ export function Servers() {
                   value={form.ssh_key_path} 
                   onChange={e => setForm({ ...form, ssh_key_path: e.target.value })} 
                   placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----" 
-                  style={{ height: 120, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 10, whiteSpace: 'pre' }} 
+                  style={{ height: 120, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre' }} 
                 />
               </div>
             ) : (
@@ -422,10 +422,10 @@ export function Servers() {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)' }}>
                           <Search size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
                           <div style={{ fontWeight: 600, fontSize: 14 }}>No matching servers found</div>
-                          <div style={{ fontSize: 12, marginTop: 4 }}>Try adjusting your search or clear it to see all servers.</div>
+                          <div style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your search or clear it to see all servers.</div>
                           <button 
                             className="btn btn-secondary" 
-                            style={{ marginTop: 16, height: 32, padding: '0 12px', fontSize: 11 }}
+                            style={{ marginTop: 16, height: 32, padding: '0 12px', fontSize: 12 }}
                             onClick={() => setSearchQuery('')}
                           >
                             Clear Search
@@ -470,19 +470,19 @@ export function Servers() {
                           >
                             {s.name}
                           </div>
-                          {s.description && <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800 }}>{s.description.toUpperCase()}</div>}
+                          {s.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800 }}>{s.description.toUpperCase()}</div>}
                         </div>
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                         <span style={{ fontSize: 11, fontWeight: 800 }}>{s.os?.toUpperCase() || 'HOST'}</span>
+                         <span style={{ fontSize: 12, fontWeight: 800 }}>{s.os?.toUpperCase() || 'HOST'}</span>
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {s.host
-                        ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}</span>
-                        : <span className="badge badge-online" style={{ fontSize: 9 }}>DIRECT API</span>
+                        ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}</span>
+                        : <span className="badge badge-online" style={{ fontSize: 11 }}>DIRECT API</span>
                       }
                     </td>
                     <td style={{ padding: '12px 16px' }}>
@@ -493,7 +493,7 @@ export function Servers() {
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {s.tags?.split(',').filter(Boolean).map(t => (
-                          <span key={t} className="server-tag" style={{ fontSize: 9 }}>{t.trim().toUpperCase()}</span>
+                          <span key={t} className="server-tag" style={{ fontSize: 11 }}>{t.trim().toUpperCase()}</span>
                         ))}
                       </div>
                     </td>
@@ -511,7 +511,7 @@ export function Servers() {
                           {testResults[s.id].ok ? 'CONNECTED' : 'FAILED'}
                         </span>
                       ) : (
-                        <span className={`badge badge-${s.status}`} style={{ fontSize: 9 }}>{s.status.toUpperCase()}</span>
+                        <span className={`badge badge-${s.status}`} style={{ fontSize: 11 }}>{s.status.toUpperCase()}</span>
                       )}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
@@ -521,7 +521,7 @@ export function Servers() {
                             <button
                               title="Disconnect"
                               style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 600,
                                 background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
                                 color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
                                 display: 'flex', alignItems: 'center',
@@ -531,14 +531,14 @@ export function Servers() {
                               onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
                             >
                               {disconnecting === s.id
-                                ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                                : <WifiOff size={13} />}
+                                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                : <WifiOff size={14} />}
                             </button>
                           ) : (
                             <button
                               title="Connect"
                               style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 600,
                                 background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
                                 color: 'var(--success)', cursor: 'pointer', transition: 'all 0.15s',
                                 display: 'flex', alignItems: 'center',
@@ -548,8 +548,8 @@ export function Servers() {
                               onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
                             >
                               {testing === s.id
-                                ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                                : <Wifi size={13} />}
+                                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                : <Wifi size={14} />}
                             </button>
                           )
                         )}
@@ -557,7 +557,7 @@ export function Servers() {
                           <button
                             title="Edit"
                             style={{
-                              padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                              padding: '7px 10px', borderRadius: 8, fontSize: 13,
                               background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                               color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
                               display: 'flex', alignItems: 'center',
@@ -566,7 +566,7 @@ export function Servers() {
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
                           >
-                            <Pencil size={13} />
+                            <Pencil size={14} />
                           </button>
                         )}
                         {can('delete-server') && (
@@ -574,7 +574,7 @@ export function Servers() {
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button
                                 style={{
-                                  padding: '7px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                                  padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                                   background: 'var(--danger)', border: 'none',
                                   color: '#fff', cursor: 'pointer',
                                 }}
@@ -584,7 +584,7 @@ export function Servers() {
                               </button>
                               <button
                                 style={{
-                                  padding: '7px 10px', borderRadius: 8, fontSize: 11,
+                                  padding: '7px 10px', borderRadius: 8, fontSize: 12,
                                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                                   color: 'var(--text-muted)', cursor: 'pointer',
                                 }}
@@ -597,7 +597,7 @@ export function Servers() {
                             <button
                               title="Delete"
                               style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                                padding: '7px 10px', borderRadius: 8, fontSize: 13,
                                 background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
                                 color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
                                 display: 'flex', alignItems: 'center',
@@ -606,7 +606,7 @@ export function Servers() {
                               onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
                               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={14} />
                             </button>
                           )
                         )}

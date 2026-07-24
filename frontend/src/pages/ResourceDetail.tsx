@@ -304,7 +304,7 @@ export function ResourceDetail() {
     return (
       <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <Loader2 size={32} className="spin" color="var(--brand-primary)" />
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>Loading resource…</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>Loading resource…</span>
       </div>
     )
   }
@@ -329,8 +329,8 @@ export function ResourceDetail() {
             <h1 className="page-title">{resource?.name || 'Resource'}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
               <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>{resource?.resource_type}</span>
-              <span className={`badge ${st.badge}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CircleDot size={9} /> {st.label}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{resource?.protocol}://{resource?.host}:{resource?.port}</span>
+              <span className={`badge ${st.badge}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CircleDot size={11} /> {st.label}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>{resource?.protocol}://{resource?.host}:{resource?.port}</span>
             </div>
           </div>
         </div>
@@ -368,11 +368,11 @@ export function ResourceDetail() {
               {live?.metrics?.banner && <HeroStat label="Banner" value={String(live.metrics.banner)} />}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} /> Auto-refresh
               </label>
               <button className="btn btn-secondary btn-sm" onClick={() => probe(true)} disabled={probing} style={{ height: 34 }}>
-                {probing ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
+                {probing ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
                 <span style={{ marginLeft: 6 }}>Refresh</span>
               </button>
             </div>
@@ -381,7 +381,7 @@ export function ResourceDetail() {
           {live?.error && (
             <div className="card" style={{ borderColor: 'var(--danger)', background: 'var(--danger-glow)', display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20, padding: 16 }}>
               <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 12.5, color: 'var(--danger)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>{live.error}</span>
+              <span style={{ fontSize: 13.5, color: 'var(--danger)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>{live.error}</span>
             </div>
           )}
 
@@ -389,8 +389,8 @@ export function ResourceDetail() {
           {connUtil && (
             <div className="card" style={{ padding: '18px 22px', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>Connection pool</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>Connection pool</span>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                   <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{connUtil.used}</span> / {connUtil.max} · {connUtil.pct}%
                 </span>
               </div>
@@ -410,11 +410,11 @@ export function ResourceDetail() {
               </div>
               {extras.length > 0 && (
                 <div className="card" style={{ padding: '16px 20px', marginBottom: bucketNames.length ? 16 : 0 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 12 }}>Current snapshot</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 12 }}>Current snapshot</div>
                   <div style={{ display: 'flex', gap: 30, flexWrap: 'wrap' }}>
                     {extras.map(([label, value]) => (
                       <span key={label} style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>
-                        <span style={{ fontSize: 9.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{label}</span>
+                        <span style={{ fontSize: 11.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{label}</span>
                         <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{value}</span>
                       </span>
                     ))}
@@ -423,10 +423,10 @@ export function ResourceDetail() {
               )}
               {bucketNames.length > 0 && (
                 <div className="card" style={{ padding: '16px 20px' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 12 }}>Buckets ({bucketNames.length})</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 12 }}>Buckets ({bucketNames.length})</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {bucketNames.map(name => (
-                      <span key={name} className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 11.5 }}>{name}</span>
+                      <span key={name} className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>{name}</span>
                     ))}
                   </div>
                 </div>
@@ -436,7 +436,7 @@ export function ResourceDetail() {
             <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
               <Gauge size={36} style={{ opacity: 0.25, marginBottom: 12 }} />
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{st.label === 'Offline' ? 'Resource is unreachable' : 'Collecting metrics…'}</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>{st.label === 'Offline' ? 'Check host, port, and credentials — the error is shown above.' : 'Trend charts fill in as the collector samples every 60s.'}</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>{st.label === 'Offline' ? 'Check host, port, and credentials — the error is shown above.' : 'Trend charts fill in as the collector samples every 60s.'}</div>
             </div>
           ) : null}
         </div>
@@ -467,7 +467,7 @@ export function ResourceDetail() {
               </div>
               <div style={{ marginTop: 20 }}>
                 <div className="input-label" style={{ marginBottom: 8 }}>Description</div>
-                <div style={{ padding: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                <div style={{ padding: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: 13.5, color: 'var(--text-secondary)' }}>
                   {resource?.description || 'No description provided.'}
                 </div>
               </div>
@@ -480,8 +480,8 @@ export function ResourceDetail() {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {resource?.tags ? resource.tags.split(',').filter(Boolean).map(tag => (
-                    <span key={tag} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>{tag.trim()}</span>
-                  )) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>No tags.</span>}
+                    <span key={tag} style={{ padding: '4px 10px', fontSize: 12, fontWeight: 600, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>{tag.trim()}</span>
+                  )) : <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No tags.</span>}
                 </div>
               </div>
               <div className="card">
@@ -492,11 +492,11 @@ export function ResourceDetail() {
                 <div style={{ display: 'grid', gap: 12 }}>
                   <div>
                     <div className="input-label">Created</div>
-                    <div style={{ fontWeight: 600, fontSize: 12.5 }}>{resource?.created_at ? format(new Date(resource.created_at), 'PPP p') : '—'}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{resource?.created_at ? format(new Date(resource.created_at), 'PPP p') : '—'}</div>
                   </div>
                   <div>
                     <div className="input-label">Last updated</div>
-                    <div style={{ fontWeight: 600, fontSize: 12.5 }}>{resource?.updated_at ? format(new Date(resource.updated_at), 'PPP p') : '—'}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{resource?.updated_at ? format(new Date(resource.updated_at), 'PPP p') : '—'}</div>
                   </div>
                 </div>
               </div>
@@ -513,15 +513,15 @@ export function ResourceDetail() {
               <Code size={16} color="var(--brand-primary)" />
               <div>
                 <h3 style={{ fontSize: 13, fontWeight: 700 }}>SQL Console</h3>
-                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Run ad-hoc queries. Every query is recorded in the audit log.</p>
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Run ad-hoc queries. Every query is recorded in the audit log.</p>
               </div>
             </div>
             <button className="btn btn-primary btn-sm" onClick={runQuery} disabled={runningQuery} style={{ height: 34 }}>
-              {runningQuery ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
+              {runningQuery ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
               <span style={{ marginLeft: 6 }}>{runningQuery ? 'Running…' : 'Run'}</span>
             </button>
           </div>
-          <textarea className="input" style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, minHeight: 150, background: 'var(--bg-app)', border: '1px solid var(--border)', padding: 14 }}
+          <textarea className="input" style={{ fontFamily: 'var(--font-mono)', fontSize: 13.5, minHeight: 150, background: 'var(--bg-app)', border: '1px solid var(--border)', padding: 14 }}
             value={sql} onChange={(e) => setSql(e.target.value)} placeholder="SELECT * FROM table LIMIT 10;" />
 
           {queryResult && (
@@ -529,7 +529,7 @@ export function ResourceDetail() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Table size={14} color="var(--brand-primary)" />
-                  <span style={{ fontSize: 12, fontWeight: 700 }}>Result</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>Result</span>
                 </div>
                 <span className="badge badge-neutral">
                   {queryResult.type === 'select' ? `${queryResult.rows?.length || 0} rows` : `${queryResult.rows_affected || 0} rows affected`}
@@ -541,9 +541,9 @@ export function ResourceDetail() {
                     <thead><tr>{queryResult.columns?.map((c: string) => <th key={c}>{c}</th>)}</tr></thead>
                     <tbody>
                       {queryResult.rows?.length === 0 ? (
-                        <tr><td colSpan={queryResult.columns?.length} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No rows returned</td></tr>
+                        <tr><td colSpan={queryResult.columns?.length} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No rows returned</td></tr>
                       ) : queryResult.rows?.map((row: any, i: number) => (
-                        <tr key={i}>{queryResult.columns?.map((c: string) => <td key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5 }}>{String(row[c])}</td>)}</tr>
+                        <tr key={i}>{queryResult.columns?.map((c: string) => <td key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>{String(row[c])}</td>)}</tr>
                       ))}
                     </tbody>
                   </table>
@@ -552,7 +552,7 @@ export function ResourceDetail() {
                 <div style={{ padding: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', textAlign: 'center' }}>
                   <CheckCircle2 size={28} style={{ color: 'var(--success)', margin: '0 auto 10px' }} />
                   <div style={{ fontWeight: 700, fontSize: 14 }}>Success</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{queryResult.rows_affected} rows modified</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{queryResult.rows_affected} rows modified</div>
                 </div>
               )}
             </div>
@@ -567,7 +567,7 @@ export function ResourceDetail() {
             <Lock size={16} color="var(--brand-primary)" />
             <div>
               <h3 style={{ fontSize: 13, fontWeight: 700 }}>Access control</h3>
-              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Grant users read, write, or admin access to this resource.</p>
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Grant users read, write, or admin access to this resource.</p>
             </div>
           </div>
 
@@ -589,7 +589,7 @@ export function ResourceDetail() {
                 </select>
               </div>
               <button className="btn btn-primary" onClick={assignAccess} disabled={savingAccess} style={{ height: 40 }}>
-                {savingAccess ? <Loader2 size={13} className="spin" /> : <Plus size={13} />}
+                {savingAccess ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
                 <span style={{ marginLeft: 6 }}>Grant</span>
               </button>
             </div>
@@ -602,20 +602,20 @@ export function ResourceDetail() {
               </tr></thead>
               <tbody>
                 {accessRecords.length === 0 ? (
-                  <tr><td colSpan={canManage ? 5 : 4} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No users have access yet.</td></tr>
+                  <tr><td colSpan={canManage ? 5 : 4} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No users have access yet.</td></tr>
                 ) : accessRecords.map(entry => (
                   <tr key={entry.id}>
                     <td>
                       <div style={{ fontWeight: 600 }}>{entry.user?.username || 'unknown'}</div>
-                      {entry.user?.email && <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{entry.user.email}</div>}
+                      {entry.user?.email && <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{entry.user.email}</div>}
                     </td>
                     <td><span className="badge badge-neutral">{entry.user?.role || '—'}</span></td>
                     <td><span className={`badge ${entry.access_level === 'admin' ? 'badge-info' : entry.access_level === 'write' ? 'badge-warning' : 'badge-neutral'}`}>{entry.access_level}</span></td>
-                    <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{entry.created_at ? format(new Date(entry.created_at), 'PP') : '—'}</td>
+                    <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{entry.created_at ? format(new Date(entry.created_at), 'PP') : '—'}</td>
                     {canManage && (
                       <td style={{ textAlign: 'right' }}>
                         <button className="btn-icon-sm danger" title="Revoke" onClick={() => revokeAccess(entry.id)} disabled={revokingId === entry.id}>
-                          {revokingId === entry.id ? <Loader2 size={13} className="spin" /> : <Trash2 size={13} />}
+                          {revokingId === entry.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
                         </button>
                       </td>
                     )}
@@ -635,17 +635,17 @@ export function ResourceDetail() {
               <History size={16} color="var(--brand-primary)" />
               <div>
                 <h3 style={{ fontSize: 13, fontWeight: 700 }}>Audit log</h3>
-                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>Every access change and query on this resource.</p>
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Every access change and query on this resource.</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                Since <input type="date" className="input" style={{ height: 32, fontSize: 11, width: 130, padding: '0 8px' }} value={auditSince} onChange={(e) => setAuditSince(e.target.value)} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                Since <input type="date" className="input" style={{ height: 32, fontSize: 12, width: 130, padding: '0 8px' }} value={auditSince} onChange={(e) => setAuditSince(e.target.value)} />
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                Until <input type="date" className="input" style={{ height: 32, fontSize: 11, width: 130, padding: '0 8px' }} value={auditUntil} onChange={(e) => setAuditUntil(e.target.value)} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                Until <input type="date" className="input" style={{ height: 32, fontSize: 12, width: 130, padding: '0 8px' }} value={auditUntil} onChange={(e) => setAuditUntil(e.target.value)} />
               </label>
-              <select className="input" style={{ height: 32, fontSize: 11, width: 80, padding: '0 8px' }} value={auditLimit} onChange={(e) => setAuditLimit(Number(e.target.value))}>
+              <select className="input" style={{ height: 32, fontSize: 12, width: 80, padding: '0 8px' }} value={auditLimit} onChange={(e) => setAuditLimit(Number(e.target.value))}>
                 <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
               </select>
               <button className="btn-icon-sm" onClick={() => loadAudit()} disabled={loadingAudit} title="Refresh">
@@ -660,13 +660,13 @@ export function ResourceDetail() {
                 {loadingAudit && audits.length === 0 ? (
                   <tr><td colSpan={4} style={{ padding: 48, textAlign: 'center' }}><Loader2 size={22} className="spin" style={{ margin: '0 auto' }} /></td></tr>
                 ) : audits.length === 0 ? (
-                  <tr><td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No audit records.</td></tr>
+                  <tr><td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No audit records.</td></tr>
                 ) : audits.map(entry => (
                   <tr key={entry.id}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, whiteSpace: 'nowrap' }}>{format(new Date(entry.created_at), 'MM/dd HH:mm:ss')}</td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, whiteSpace: 'nowrap' }}>{format(new Date(entry.created_at), 'MM/dd HH:mm:ss')}</td>
                     <td style={{ fontWeight: 600 }}>{entry.performed_by || 'system'}</td>
                     <td><span className="badge badge-neutral">{entry.action.replace(/_/g, ' ')}</span></td>
-                    <td style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderAuditDetails(entry.details)}</td>
+                    <td style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderAuditDetails(entry.details)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -688,7 +688,7 @@ export function ResourceDetail() {
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 9.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 11.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</span>
       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
     </span>
   )
@@ -709,7 +709,7 @@ function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: nu
   const id = `tg_${def.key}`
   return (
     <div className="card" style={{ padding: 16 }}>
-      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{def.label}</div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{def.label}</div>
       <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', margin: '6px 0 10px' }}>{trendFmt(def, cur)}</div>
       <div style={{ height: 64 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -723,7 +723,7 @@ function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: nu
             <YAxis hide domain={domain} allowDataOverflow />
             <XAxis dataKey="t" hide />
             <Tooltip labelFormatter={(t: any) => format(new Date(t), 'HH:mm:ss')} formatter={(v: any) => [trendFmt(def, Number(v)), def.label]}
-              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 11, fontFamily: 'var(--font-mono)' }} />
+              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
             <Area type="monotone" dataKey="v" stroke={def.color} strokeWidth={2} fill={`url(#${id})`} isAnimationActive={false} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
@@ -747,7 +747,7 @@ function MiniStat({ icon: Icon, label, value, mono }: { icon: any; label: string
 function InfoBlock({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
     <div className="info-block">
-      <strong style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</strong>
+      <strong style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</strong>
       <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, fontFamily: mono ? 'var(--font-mono)' : undefined }}>{value || '—'}</span>
     </div>
   )

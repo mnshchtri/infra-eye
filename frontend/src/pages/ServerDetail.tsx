@@ -113,9 +113,9 @@ const StatCard = memo(({ label, value, icon: Icon, color, unit }: any) => (
           lineHeight: 1.1 
         }}>
           {value}
-          {unit && <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>{unit}</span>}
+          {unit && <span style={{ fontSize: 12, marginLeft: 4, opacity: 0.7 }}>{unit}</span>}
         </div>
-        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
       </div>
     </div>
     <div style={{ height: 2, background: 'var(--bg-elevated)', borderRadius: 0, overflow: 'hidden' }}>
@@ -131,14 +131,14 @@ const StatCard = memo(({ label, value, icon: Icon, color, unit }: any) => (
 
 const LogLine = memo(({ log }: { log: LogEntry }) => (
   <div className="log-line" style={{ borderBottom: '1px solid var(--border)', padding: '10px 24px', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-    <span className="log-ts" style={{ color: 'var(--text-muted)', fontSize: 11, minWidth: 85, fontFamily: 'var(--font-mono)' }}>{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
+    <span className="log-ts" style={{ color: 'var(--text-muted)', fontSize: 12, minWidth: 85, fontFamily: 'var(--font-mono)' }}>{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
     <span className="log-badge" style={{ 
-      borderRadius: 0, width: 50, textAlign: 'center', flexShrink: 0, padding: '2px 0', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+      borderRadius: 0, width: 50, textAlign: 'center', flexShrink: 0, padding: '2px 0', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)',
       background: log.level === 'error' ? 'var(--danger)' : log.level === 'warn' ? 'var(--warning)' : 'var(--bg-elevated)',
       color: log.level === 'error' || log.level === 'warn' ? 'var(--text-inverse)' : 'var(--text-primary)',
       border: '1px solid var(--border)'
     }}>{log.level.toUpperCase()}</span>
-    <span className="log-msg" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{log.message}</span>
+    <span className="log-msg" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{log.message}</span>
   </div>
 ))
 
@@ -147,7 +147,7 @@ const SectionCard = ({ icon: Icon, title, count, children }: { icon: any, title:
     <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
       <Icon size={16} color="var(--brand-primary)" />
       <span style={{ fontWeight: 800, fontSize: 14 }}>{title}</span>
-      {count !== undefined && <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({count})</span>}
+      {count !== undefined && <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({count})</span>}
     </div>
     {children}
   </div>
@@ -157,7 +157,7 @@ const THead = ({ headers }: { headers: string[] }) => (
   <thead>
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
       {headers.map(h => (
-        <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
+        <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
       ))}
     </tr>
   </thead>
@@ -202,37 +202,37 @@ function K8sNetworkingPanel({ info, loading, onRetry }: { info: K8sNetworkingInf
       {/* Cluster network config */}
       <div className="grid-stats-4">
         <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>DNS Provider</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>DNS Provider</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 6, height: 6, borderRadius: 0, background: info.dns.deployment_ready ? 'var(--success)' : 'var(--danger)' }} />
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14 }}>{info.dns.provider}</span>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
             {info.dns.ready_replicas}/{info.dns.desired_replicas} ready{info.dns.cluster_ip ? ` · ${info.dns.cluster_ip}` : ''}
           </div>
         </div>
         <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>CNI Plugin</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>CNI Plugin</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 6, height: 6, borderRadius: 0, background: info.cni.ready ? 'var(--success)' : 'var(--text-muted)' }} />
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14 }}>{info.cni.provider}</span>
           </div>
           {info.cni.desired > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>{info.cni.scheduled}/{info.cni.desired} pods ready</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>{info.cni.scheduled}/{info.cni.desired} pods ready</div>
           )}
         </div>
         <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Service CIDR</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Service CIDR</div>
           <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: 'var(--brand-primary)' }}>{info.service_cidr || '—'}</span>
         </div>
         <div className="card" style={{ padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Pod CIDR(s)</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Pod CIDR(s)</div>
           {info.pod_cidrs.length === 0 ? (
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: 'var(--text-muted)' }}>—</span>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {info.pod_cidrs.map(c => (
-                <span key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--brand-primary)' }}>{c}</span>
+                <span key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)' }}>{c}</span>
               ))}
             </div>
           )}
@@ -249,16 +249,16 @@ function K8sNetworkingPanel({ info, loading, onRetry }: { info: K8sNetworkingInf
                 const tc = svcTypeColor(s.type)
                 return (
                   <tr key={`${s.namespace}/${s.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{s.name}</td>
-                    <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{s.namespace}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{s.name}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{s.namespace}</td>
                     <td style={{ padding: '10px 16px' }}>
-                      <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${tc}18`, color: tc, border: `1px solid ${tc}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{s.type}</span>
+                      <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, background: `${tc}18`, color: tc, border: `1px solid ${tc}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{s.type}</span>
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{s.cluster_ip || '—'}</td>
-                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13 }}>{s.cluster_ip || '—'}</td>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
                       {s.ports.length === 0 ? '—' : s.ports.map(p => `${p.port}${p.node_port ? `:${p.node_port}` : ''}/${p.protocol}`).join(', ')}
                     </td>
-                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
                       {s.external_ips.length === 0 ? '—' : s.external_ips.join(', ')}
                     </td>
                   </tr>
@@ -277,11 +277,11 @@ function K8sNetworkingPanel({ info, loading, onRetry }: { info: K8sNetworkingInf
             <tbody>
               {info.ingresses.length === 0 ? <EmptyRow colSpan={5} label="No ingresses found" /> : info.ingresses.map((ing, i) => (
                 <tr key={`${ing.namespace}/${ing.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{ing.name}</td>
-                  <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{ing.namespace}</td>
-                  <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{ing.class || '—'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{ing.hosts.length === 0 ? '—' : ing.hosts.join(', ')}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{ing.addresses.length === 0 ? '—' : ing.addresses.join(', ')}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{ing.name}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{ing.namespace}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{ing.class || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{ing.hosts.length === 0 ? '—' : ing.hosts.join(', ')}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{ing.addresses.length === 0 ? '—' : ing.addresses.join(', ')}</td>
                 </tr>
               ))}
             </tbody>
@@ -297,12 +297,12 @@ function K8sNetworkingPanel({ info, loading, onRetry }: { info: K8sNetworkingInf
             <tbody>
               {info.network_policies.length === 0 ? <EmptyRow colSpan={4} label="No network policies found — traffic between pods is unrestricted" /> : info.network_policies.map((np, i) => (
                 <tr key={`${np.namespace}/${np.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{np.name}</td>
-                  <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{np.namespace}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{np.pod_selector}</td>
-                  <td style={{ padding: '10px 16px', fontSize: 11 }}>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{np.name}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{np.namespace}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{np.pod_selector}</td>
+                  <td style={{ padding: '10px 16px', fontSize: 12 }}>
                     {np.policy_types.map(t => (
-                      <span key={t} style={{ marginRight: 6, padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{t}</span>
+                      <span key={t} style={{ marginRight: 6, padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{t}</span>
                     ))}
                   </td>
                 </tr>
@@ -323,13 +323,13 @@ function K8sNetworkingPanel({ info, loading, onRetry }: { info: K8sNetworkingInf
                   <td style={{ padding: '10px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 6, height: 6, borderRadius: 0, background: n.ready ? 'var(--success)' : 'var(--danger)' }} />
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{n.name}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{n.name}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{n.internal_ip || '—'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{n.external_ip || '—'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--brand-primary)' }}>{n.pod_cidr || '—'}</td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{n.kubelet_version || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13 }}>{n.internal_ip || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13 }}>{n.external_ip || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--brand-primary)' }}>{n.pod_cidr || '—'}</td>
+                  <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>{n.kubelet_version || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -900,7 +900,7 @@ export function ServerDetail() {
               <span className={`badge badge-${server.status}`} style={{ padding: '3px 12px', borderRadius: 0 }}>
                 {server.status.toUpperCase()}
               </span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
                 {server.host ? `${server.ssh_user}@${server.host}` : 'Direct Cluster API'}
               </span>
             </div>
@@ -949,7 +949,7 @@ export function ServerDetail() {
             onClick={() => setActiveTab(tab)}
             style={{
               padding: '16px 24px',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 800,
               transition: 'all 0.2s',
               cursor: 'pointer',
@@ -1022,11 +1022,11 @@ export function ServerDetail() {
                 </div>
                 <div>
                   <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Performance Analytics</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Real-time resource utilization</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Real-time resource utilization</p>
                 </div>
               </div>
-              <button className="btn btn-secondary" onClick={loadMetrics} style={{ fontSize: 12, padding: '8px 16px' }}>
-                <RefreshCw size={13} style={{ marginRight: 6 }} /> Sync Data
+              <button className="btn btn-secondary" onClick={loadMetrics} style={{ fontSize: 13, padding: '8px 16px' }}>
+                <RefreshCw size={14} style={{ marginRight: 6 }} /> Sync Data
               </button>
             </div>
             {chartData.length === 0 ? (
@@ -1038,12 +1038,12 @@ export function ServerDetail() {
               <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
+                  <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                   <Tooltip
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 12, fontFamily: 'var(--font-mono)' }}
                   />
-                  <Legend iconType="square" wrapperStyle={{ paddingTop: 24, fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />
+                  <Legend iconType="square" wrapperStyle={{ paddingTop: 24, fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />
                   <Line type="monotone" dataKey="CPU"    stroke={CHART_COLORS.cpu.stroke}  dot={false} strokeWidth={2} />
                   <Line type="monotone" dataKey="Memory" stroke={CHART_COLORS.mem.stroke}  dot={false} strokeWidth={2} />
                   <Line type="monotone" dataKey="Disk"   stroke={CHART_COLORS.disk.stroke} dot={false} strokeWidth={2} />
@@ -1057,18 +1057,18 @@ export function ServerDetail() {
             <div className="card" style={{ marginBottom: 28 }}>
               <div style={{ marginBottom: 20, padding: '4px 8px' }}>
                 <h3 style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>Network Throughput</h3>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Receive / transmit — MB/s</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Receive / transmit — MB/s</p>
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={netChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     formatter={(v: any) => `${v} MB/s`}
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 12, fontFamily: 'var(--font-mono)' }}
                   />
-                  <Legend iconType="plainline" wrapperStyle={{ paddingTop: 16, fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />
+                  <Legend iconType="plainline" wrapperStyle={{ paddingTop: 16, fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />
                   <Line type="monotone" dataKey="RX" stroke="var(--info)" dot={false} strokeWidth={2} activeDot={{ r: 4 }} />
                   <Line type="monotone" dataKey="TX" stroke="var(--success)" dot={false} strokeWidth={2} activeDot={{ r: 4 }} />
                 </LineChart>
@@ -1098,8 +1098,8 @@ export function ServerDetail() {
                 { k: 'Description', v: server.description || '—' },
               ].map(({ k, v }) => (
                 <div key={k} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                  <div style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{k}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</div>
+                  <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</div>
                 </div>
               ))}
             </div>
@@ -1130,7 +1130,7 @@ export function ServerDetail() {
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Network size={16} color="var(--brand-primary)" />
                   <span style={{ fontWeight: 800, fontSize: 14 }}>Listening Ports</span>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({netInfo.ports.length})</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({netInfo.ports.length})</span>
                 </div>
                 {netInfo.ports.length === 0 ? (
                   <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No listening ports detected</div>
@@ -1140,7 +1140,7 @@ export function ServerDetail() {
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
                           {['Proto', 'State', 'Local Address', 'Program'].map(h => (
-                            <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
+                            <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1154,16 +1154,16 @@ export function ServerDetail() {
                           return (
                             <tr key={`${p.local}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '10px 16px' }}>
-                                <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${protoColor}18`, color: protoColor, border: `1px solid ${protoColor}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{p.protocol}</span>
+                                <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, background: `${protoColor}18`, color: protoColor, border: `1px solid ${protoColor}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{p.protocol}</span>
                               </td>
                               <td style={{ padding: '10px 16px' }}>
-                                <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${stateColor}18`, color: stateColor, border: `1px solid ${stateColor}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{p.state}</span>
+                                <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, background: `${stateColor}18`, color: stateColor, border: `1px solid ${stateColor}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{p.state}</span>
                               </td>
-                              <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{localAddr}</span>
+                              <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{localAddr}</span>
                                 <span style={{ fontWeight: 800, color: 'var(--brand-primary)' }}>:{localPort}</span>
                               </td>
-                              <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                              <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
                                 {p.program || '—'}
                               </td>
                             </tr>
@@ -1186,7 +1186,7 @@ export function ServerDetail() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         {['Name', 'Active', 'Sub', 'Description'].map(h => (
-                          <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)', position: 'sticky', top: 0 }}>{h}</th>
+                          <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)', position: 'sticky', top: 0 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1195,17 +1195,17 @@ export function ServerDetail() {
                         const ac = s.active === 'active' ? 'var(--success)' : 'var(--danger)'
                         return (
                           <tr key={s.name} style={{ borderBottom: '1px solid var(--border)' }}>
-                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <div style={{ width: 6, height: 6, borderRadius: 0, background: ac }} />
                                 {s.name}
                               </div>
                             </td>
                             <td style={{ padding: '10px 16px' }}>
-                              <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, background: `${ac}18`, color: ac, border: `1px solid ${ac}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{s.active}</span>
+                              <span style={{ padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, background: `${ac}18`, color: ac, border: `1px solid ${ac}30`, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{s.active}</span>
                             </td>
-                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{s.sub}</td>
-                            <td style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{s.sub}</td>
+                            <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</td>
                           </tr>
                         )
                       })}
@@ -1225,7 +1225,7 @@ export function ServerDetail() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         {['Interface', 'IP Address', 'MTU', 'Traffic'].map(h => (
-                          <th key={h} style={{ padding: '10px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
+                          <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1238,12 +1238,12 @@ export function ServerDetail() {
                             <td style={{ padding: '10px 16px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <div style={{ width: 6, height: 6, borderRadius: 0, background: sc }} />
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{iface.name}</span>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{iface.name}</span>
                               </div>
                             </td>
-                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700 }}>{iface.ipv4 || '—'}</td>
-                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{iface.mtu}</td>
-                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{iface.ipv4 || '—'}</td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>{iface.mtu}</td>
+                            <td style={{ padding: '10px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                               <span style={{ color: 'var(--success)' }}>RX {fmtBytes(iface.rx_bytes)}</span>
                               <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>/</span>
                               <span style={{ color: 'var(--info)' }}>TX {fmtBytes(iface.tx_bytes)}</span>
@@ -1273,15 +1273,15 @@ export function ServerDetail() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Users size={16} color="var(--brand-primary)" />
                 <span style={{ fontWeight: 800, fontSize: 14 }}>OS Accounts</span>
-                {osAccounts && <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({osAccounts.length})</span>}
+                {osAccounts && <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({osAccounts.length})</span>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn btn-secondary btn-sm" onClick={loadOsAccounts} disabled={osAccountsLoading}>
-                  <RefreshCw size={13} style={osAccountsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+                  <RefreshCw size={14} style={osAccountsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
                 </button>
                 {canManageUsers && (
                   <button className="btn btn-primary btn-sm" onClick={() => setShowCreateAccount(v => !v)} style={{ gap: 6 }}>
-                    <Plus size={13} /> Create User
+                    <Plus size={14} /> Create User
                   </button>
                 )}
               </div>
@@ -1298,7 +1298,7 @@ export function ServerDetail() {
                     <label className="input-label">Password</label>
                     <input className="input" type="password" placeholder="min 6 characters" value={newAcc.password} onChange={e => setNewAcc(a => ({ ...a, password: e.target.value }))} />
                     {newAcc.password.length > 0 && newAcc.password.length < 6 && (
-                      <span style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700 }}>Password must be at least 6 characters</span>
+                      <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 700 }}>Password must be at least 6 characters</span>
                     )}
                   </div>
                   <div style={{ flex: '1 1 170px' }}>
@@ -1319,7 +1319,7 @@ export function ServerDetail() {
                     {accBusy ? 'Creating…' : 'Create on Server'}
                   </button>
                 </div>
-                <p style={{ fontSize: 11, color: newAcc.privilege === 'admin' ? 'var(--warning)' : 'var(--text-muted)', marginTop: 12 }}>
+                <p style={{ fontSize: 12, color: newAcc.privilege === 'admin' ? 'var(--warning)' : 'var(--text-muted)', marginTop: 12 }}>
                   {newAcc.privilege === 'admin' && '⚠ '}
                   {PRIVILEGES.find(p => p.value === newAcc.privilege)?.hint}
                 </p>
@@ -1333,7 +1333,7 @@ export function ServerDetail() {
             ) : osAccountsError ? (
               <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Users size={28} style={{ marginBottom: 10, opacity: 0.3 }} />
-                <div style={{ fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{osAccountsError}</div>
+                <div style={{ fontSize: 13, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{osAccountsError}</div>
                 <button className="btn btn-secondary btn-sm" style={{ marginTop: 14 }} onClick={loadOsAccounts}>Retry</button>
               </div>
             ) : (
@@ -1357,14 +1357,14 @@ export function ServerDetail() {
                         <tr key={acc.username}>
                           <td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                             {acc.username}
-                            {isConnUser && <span style={{ marginLeft: 8, fontSize: 8, fontWeight: 900, color: 'var(--brand-primary)', border: '1px solid var(--brand-primary)40', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>CONNECTION</span>}
+                            {isConnUser && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 900, color: 'var(--brand-primary)', border: '1px solid var(--brand-primary)40', padding: '1px 6px', fontFamily: 'var(--font-mono)' }}>CONNECTION</span>}
                           </td>
                           <td style={{ fontFamily: 'var(--font-mono)' }}>{acc.uid}</td>
                           <td>
                             {canManageUsers && !isRoot && !(isConnUser) ? (
                               <select
                                 className="input"
-                                style={{ height: 30, width: 150, fontSize: 11, fontWeight: 700 }}
+                                style={{ height: 30, width: 150, fontSize: 12, fontWeight: 700 }}
                                 value={acc.privilege}
                                 onChange={e => setOsPrivilege(acc, e.target.value)}
                               >
@@ -1375,13 +1375,13 @@ export function ServerDetail() {
                                 ))}
                               </select>
                             ) : (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 900, color: acc.is_admin ? 'var(--warning)' : 'var(--text-muted)' }}>
-                                {acc.is_admin && <Shield size={11} />} {privLabel(acc.privilege).toUpperCase()}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 900, color: acc.is_admin ? 'var(--warning)' : 'var(--text-muted)' }}>
+                                {acc.is_admin && <Shield size={12} />} {privLabel(acc.privilege).toUpperCase()}
                               </span>
                             )}
                           </td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{acc.shell || '—'}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{acc.home || '—'}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{acc.shell || '—'}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{acc.home || '—'}</td>
                           {canManageUsers && (
                             <td style={{ textAlign: 'right' }}>
                               <div style={{ display: 'inline-flex', gap: 8 }}>
@@ -1408,19 +1408,19 @@ export function ServerDetail() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <KubernetesIcon size={16} />
                   <span style={{ fontWeight: 800, fontSize: 14 }}>Kubernetes Service Accounts</span>
-                  {k8sAccounts && <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({k8sAccounts.length})</span>}
+                  {k8sAccounts && <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({k8sAccounts.length})</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   {k8sAccounts && k8sAccounts.length > 0 && (
                     <div className="search-box search-container" style={{ minWidth: 160, maxWidth: 220 }}>
-                      <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       <input className="input" placeholder="Filter…" value={k8sAccountsSearch}
                         onChange={e => setK8sAccountsSearch(e.target.value)}
-                        style={{ paddingLeft: 32, height: 32, fontSize: 12 }} />
+                        style={{ paddingLeft: 32, height: 32, fontSize: 13 }} />
                     </div>
                   )}
                   <button className="btn btn-secondary btn-sm" onClick={loadK8sAccounts} disabled={k8sAccountsLoading}>
-                    <RefreshCw size={13} style={k8sAccountsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+                    <RefreshCw size={14} style={k8sAccountsLoading ? { animation: 'spin 1s linear infinite' } : {}} />
                   </button>
                 </div>
               </div>
@@ -1432,7 +1432,7 @@ export function ServerDetail() {
               ) : k8sAccountsError ? (
                 <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
                   <Users size={28} style={{ marginBottom: 10, opacity: 0.3 }} />
-                  <div style={{ fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{k8sAccountsError}</div>
+                  <div style={{ fontSize: 13, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{k8sAccountsError}</div>
                   <button className="btn btn-secondary btn-sm" style={{ marginTop: 14 }} onClick={loadK8sAccounts}>Retry</button>
                 </div>
               ) : (
@@ -1449,22 +1449,22 @@ export function ServerDetail() {
                     <tbody>
                       {filteredK8sAccounts.length === 0 ? (
                         <tr>
-                          <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                          <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
                             {k8sAccountsSearch ? 'No service accounts match the filter' : 'No service accounts found'}
                           </td>
                         </tr>
                       ) : filteredK8sAccounts.map(acc => (
                         <tr key={`${acc.namespace}/${acc.name}`}>
                           <td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{acc.name}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>{acc.namespace}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{acc.namespace}</td>
                           <td>
                             {acc.roles.length === 0 ? (
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>
                             ) : (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                                 {acc.roles.map(role => (
                                   <span key={role} style={{
-                                    fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)',
+                                    fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)',
                                     color: role.startsWith('ClusterRole/') ? 'var(--warning)' : 'var(--text-secondary)',
                                     border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 4,
                                   }}>
@@ -1474,7 +1474,7 @@ export function ServerDetail() {
                               </div>
                             )}
                           </td>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{acc.created_at}</td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{acc.created_at}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1507,7 +1507,7 @@ export function ServerDetail() {
                       value={logSource}
                       onChange={e => switchLogSource(e.target.value)}
                       title="Log source"
-                      style={{ height: 36, fontSize: 12, fontWeight: 700, width: 240, maxWidth: '100%', fontFamily: 'var(--font-mono)' }}
+                      style={{ height: 36, fontSize: 13, fontWeight: 700, width: 240, maxWidth: '100%', fontFamily: 'var(--font-mono)' }}
                     >
                       {(() => {
                         const flat = logSources.filter(s => !s.group)
@@ -1562,12 +1562,12 @@ export function ServerDetail() {
         <div className={`fade-in ${isTerminalFullscreen ? 'terminal-fullscreen' : ''}`} style={isTerminalFullscreen ? { position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0c12' } : {}}>
           <div className="card" style={{ padding: 0, overflow: 'hidden', height: isTerminalFullscreen ? '100%' : 'auto', borderRadius: isTerminalFullscreen ? 0 : 'var(--radius-lg)', background: '#0a0c12', border: '1px solid #1e293b' }}>
             <div style={{ padding: '8px 20px', background: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e293b' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 12, fontWeight: 700 }}>
-                 <TerminalIcon size={12} />
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13, fontWeight: 700 }}>
+                 <TerminalIcon size={13} />
                  SSH TERMINAL — {server.ssh_user}@{server.host}
                </div>
                <div style={{ display: 'flex', gap: 12 }}>
-                 <button onClick={toggleTerminalFullscreen} style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }}>
+                 <button onClick={toggleTerminalFullscreen} style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }}>
                    {isTerminalFullscreen ? 'MINIMIZE (SPACE / ESC)' : 'MAXIMIZE (SPACE)'}
                  </button>
                </div>
@@ -1585,7 +1585,7 @@ export function ServerDetail() {
                  <Shield size={16} color="var(--brand-primary)" />
                  <h3 style={{ fontWeight: 800, fontSize: 16 }}>Access Control</h3>
                </div>
-               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
+               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
                  Grant trainee/intern users visibility of this {server.is_k8s ? 'cluster' : 'server'}. Admin and DevOps roles always have access. Users without a grant cannot see it anywhere in the app.
                </p>
 
@@ -1606,7 +1606,7 @@ export function ServerDetail() {
                </div>
 
                {accessList.length === 0 ? (
-                 <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', borderTop: '1px solid var(--border)' }}>
+                 <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', borderTop: '1px solid var(--border)' }}>
                    No per-user grants yet — only Admin and DevOps can see this {server.is_k8s ? 'cluster' : 'server'}.
                  </div>
                ) : (
@@ -1626,7 +1626,7 @@ export function ServerDetail() {
                            <td style={{ fontWeight: 700 }}>{a.user?.username || `user #${a.user_id}`}</td>
                            <td style={{ textTransform: 'capitalize' }}>{a.user?.role || '—'}</td>
                            <td>
-                             <select className="input" style={{ height: 32, width: 120, fontSize: 12 }} value={a.access_level} onChange={e => changeAccessLevel(a.id, e.target.value)}>
+                             <select className="input" style={{ height: 32, width: 120, fontSize: 13 }} value={a.access_level} onChange={e => changeAccessLevel(a.id, e.target.value)}>
                                <option value="read">Read</option>
                                <option value="operate">Operate</option>
                              </select>

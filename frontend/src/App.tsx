@@ -13,6 +13,10 @@ import { Kubernetes } from './pages/Kubernetes'
 import { DevTools } from './pages/DevTools'
 import { VPN } from './pages/VPN'
 import { Networking } from './pages/Networking'
+import { Audit } from './pages/Audit'
+import { AuditHardening } from './pages/AuditHardening'
+import { AuditCluster } from './pages/AuditCluster'
+import { AuditResources } from './pages/AuditResources'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -42,6 +46,10 @@ export default function App() {
           <Route path="kubernetes" element={<Kubernetes />} />
           <Route path="devtools" element={<DevTools />} />
           <Route path="vpn" element={<VPN />} />
+          <Route path="audit/kernel" element={<Audit />} />
+          <Route path="audit/hardening" element={<AuditHardening />} />
+          <Route path="audit/cluster" element={<AuditCluster />} />
+          <Route path="audit/resources" element={<AuditResources />} />
         </Route>
       </Routes>
     </BrowserRouter>

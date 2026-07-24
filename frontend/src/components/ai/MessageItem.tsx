@@ -53,7 +53,7 @@ const MCPToolCard = memo(({ raw, onExecute }: {
 
   if (!parsed || !parsed.tool) {
     return (
-      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--danger)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--danger)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {raw}
       </pre>
     )
@@ -80,11 +80,11 @@ const MCPToolCard = memo(({ raw, onExecute }: {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {isMutating ? <ShieldAlert size={14} color={accent} /> : <Terminal size={14} color={accent} />}
-          <code style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+          <code style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
             {parsed.tool}
           </code>
           <span style={{
-            fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+            fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
             color: accent, border: `1px solid ${accent}`, padding: '1px 7px', borderRadius: 99,
           }}>
             {isMutating ? 'Mutating' : 'Read-only'}
@@ -99,13 +99,13 @@ const MCPToolCard = memo(({ raw, onExecute }: {
             border: `1px solid ${accent}`,
             background: runState === 'idle' ? accent : 'transparent',
             color: runState === 'idle' ? 'var(--text-inverse)' : accent,
-            fontSize: 11, fontWeight: 800, cursor: runState === 'idle' ? 'pointer' : 'default',
+            fontSize: 12, fontWeight: 800, cursor: runState === 'idle' ? 'pointer' : 'default',
           }}
         >
-          {runState === 'idle' && <><Play size={12} /> Execute</>}
-          {runState === 'running' && <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Running</>}
-          {runState === 'done' && <><CheckCircle size={12} /> Done</>}
-          {runState === 'error' && <><AlertCircle size={12} /> Failed</>}
+          {runState === 'idle' && <><Play size={13} /> Execute</>}
+          {runState === 'running' && <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Running</>}
+          {runState === 'done' && <><CheckCircle size={13} /> Done</>}
+          {runState === 'error' && <><AlertCircle size={13} /> Failed</>}
         </button>
       </div>
 
@@ -113,7 +113,7 @@ const MCPToolCard = memo(({ raw, onExecute }: {
       {parsed.args && Object.keys(parsed.args).length > 0 && (
         <div style={{ padding: '10px 14px' }}>
           {Object.entries(parsed.args).map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', gap: 10, marginBottom: 4, fontSize: 11.5, fontFamily: 'var(--font-mono)' }}>
+            <div key={k} style={{ display: 'flex', gap: 10, marginBottom: 4, fontSize: 12.5, fontFamily: 'var(--font-mono)' }}>
               <span style={{ color: 'var(--text-muted)', fontWeight: 700, minWidth: 90 }}>{k}</span>
               <span style={{ color: 'var(--text-primary)', wordBreak: 'break-word' }}>
                 {typeof v === 'object' ? JSON.stringify(v) : String(v)}
@@ -123,7 +123,7 @@ const MCPToolCard = memo(({ raw, onExecute }: {
         </div>
       )}
       {isMutating && runState === 'idle' && (
-        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--warning)', fontWeight: 600 }}>
+        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--warning)', fontWeight: 600 }}>
           This action changes cluster state — review the arguments before executing.
         </div>
       )}
@@ -148,21 +148,21 @@ const CodeBlock = ({ lang, code, children }: { lang: string; code: string; child
         padding: '6px 12px', background: 'var(--bg-elevated)',
         borderBottom: '1px solid var(--border)',
       }}>
-        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+        <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
           {lang}
         </span>
         <button
           onClick={handleCopy}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 700, color: copied ? 'var(--success)' : 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: copied ? 'var(--success)' : 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
           onMouseEnter={e => !copied && (e.currentTarget.style.color = 'var(--text-primary)')}
           onMouseLeave={e => !copied && (e.currentTarget.style.color = 'var(--text-muted)')}
         >
-          {copied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+          {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
         </button>
       </div>
       <pre style={{
         background: 'var(--bg-input)', padding: '12px 14px',
-        fontSize: 11.5, overflowX: 'auto', margin: 0,
+        fontSize: 12.5, overflowX: 'auto', margin: 0,
         fontFamily: 'var(--font-mono)', color: 'var(--text-primary)',
         whiteSpace: 'pre', wordBreak: 'normal', lineHeight: 1.6,
         maxHeight: 400, overflowY: 'auto',
@@ -201,11 +201,11 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
         alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
       }}>
         <div style={{
-          fontSize: 11, color: 'var(--text-muted)', fontWeight: 700,
+          fontSize: 12, color: 'var(--text-muted)', fontWeight: 700,
           marginBottom: 6, display: 'flex', gap: 8, alignItems: 'baseline',
         }}>
           <span>{msg.role === 'assistant' ? 'Netra' : 'You'}</span>
-          <span style={{ fontSize: 10, fontWeight: 500 }}>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>
             {msg.timestamp instanceof Date && !isNaN(msg.timestamp.getTime())
               ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : ''}
@@ -243,7 +243,7 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   return isInline ? (
                     <code style={{
                       background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4,
-                      fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-primary)',
                       fontWeight: 700, border: '1px solid var(--border)',
                       overflowWrap: 'anywhere',
                     }}>{children}</code>
@@ -275,7 +275,7 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   </div>
                 ),
                 th: ({ children }) => (
-                  <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid var(--border)', fontSize: 11, textTransform: 'uppercase', color: 'var(--text-muted)', background: 'rgba(248, 250, 252, 0.05)', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid var(--border)', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', background: 'rgba(248, 250, 252, 0.05)', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
                     {children}
                   </th>
                 ),

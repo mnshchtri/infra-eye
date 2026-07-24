@@ -168,12 +168,12 @@ function CopyOutputButton({ text }: { text: string }) {
       style={{
         display: 'flex', alignItems: 'center', gap: 4,
         background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
-        color: copied ? TERM.green : TERM.faint, fontSize: 10, fontFamily: 'inherit', flexShrink: 0,
+        color: copied ? TERM.green : TERM.faint, fontSize: 12, fontFamily: 'inherit', flexShrink: 0,
       }}
       onMouseEnter={e => { if (!copied) e.currentTarget.style.color = TERM.muted }}
       onMouseLeave={e => { if (!copied) e.currentTarget.style.color = TERM.faint }}
     >
-      {copied ? <Check size={11} /> : <Copy size={11} />}
+      {copied ? <Check size={12} /> : <Copy size={12} />}
     </button>
   )
 }
@@ -378,7 +378,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
           <Terminal size={14} color="var(--brand-primary)" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>kubectl</span>
           <span style={{
-            fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700,
+            fontSize: 12, color: 'var(--text-secondary)', fontWeight: 700,
             background: 'var(--bg-elevated)', padding: '3px 10px',
             borderRadius: 99, border: '1px solid var(--border)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -388,7 +388,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
           <div title={mcpAvailable ? 'Commands auto-map to MCP tools' : mcpAvailable === false ? 'MCP sidecar unreachable — commands run over SSH' : undefined}
             style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor }} />
-            <span className="hidden-mobile" style={{ fontSize: 10.5, color: statusColor, fontWeight: 700 }}>{statusLabel}</span>
+            <span className="hidden-mobile" style={{ fontSize: 12.5, color: statusColor, fontWeight: 700 }}>{statusLabel}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
@@ -426,9 +426,9 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
       {/* ── Quick Commands ── */}
       <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-app)', flexShrink: 0 }}>
         <button onClick={() => setShowQuick(q => !q)} style={sectionToggleStyle}>
-          <Zap size={11} />
-          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick commands</span>
-          <ChevronDown size={12} style={{ marginLeft: 'auto', transform: showQuick ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          <Zap size={12} />
+          <span style={{ fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick commands</span>
+          <ChevronDown size={13} style={{ marginLeft: 'auto', transform: showQuick ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
         {showQuick && (
           <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -440,7 +440,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                 title={`kubectl ${qc.cmd}`}
                 style={{
                   padding: '5px 12px', borderRadius: 99, border: '1px solid var(--border)',
-                  background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: 11,
+                  background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: 12,
                   fontWeight: 700,
                   cursor: loading ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-mono)', transition: 'all 0.12s',
@@ -460,9 +460,9 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
       {mcpAvailable && (
         <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-app)', flexShrink: 0 }}>
           <button onClick={() => setShowTools(t => !t)} style={sectionToggleStyle}>
-            <Wrench size={11} />
-            <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>MCP tools ({mcpTools.length})</span>
-            {toolsLoading && <Loader2 size={10} className="spin" style={{ marginLeft: 4 }} />}
+            <Wrench size={12} />
+            <span style={{ fontSize: 12.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>MCP tools ({mcpTools.length})</span>
+            {toolsLoading && <Loader2 size={12} className="spin" style={{ marginLeft: 4 }} />}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
               <span
                 role="button"
@@ -470,15 +470,15 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                 style={{ display: 'flex', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}
                 title="Refresh tools"
               >
-                <RefreshCw size={11} />
+                <RefreshCw size={12} />
               </span>
-              <ChevronDown size={12} style={{ transform: showTools ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              <ChevronDown size={13} style={{ transform: showTools ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </div>
           </button>
           {showTools && (
             <div style={{ padding: '0 16px 12px', maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
               {mcpTools.length === 0 && !toolsLoading && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>No tools discovered.</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>No tools discovered.</span>
               )}
               {mcpTools.map(tool => (
                 <button
@@ -489,7 +489,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                   style={{
                     padding: '7px 10px', borderRadius: 'var(--radius-md)', border: '1px solid transparent',
                     background: 'transparent', color: 'var(--text-secondary)',
-                    fontSize: 11, cursor: loading ? 'not-allowed' : 'pointer',
+                    fontSize: 12, cursor: loading ? 'not-allowed' : 'pointer',
                     fontFamily: 'var(--font-mono)', textAlign: 'left', display: 'flex',
                     gap: 10, alignItems: 'baseline', transition: 'all 0.1s',
                     fontWeight: 600, minWidth: 0,
@@ -499,7 +499,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                 >
                   <span style={{ color: 'var(--brand-primary)', flexShrink: 0 }}>{tool.name}</span>
                   {tool.description && (
-                    <span style={{ color: 'var(--text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tool.description}
                     </span>
                   )}
@@ -514,7 +514,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: TERM.bg }}>
         <div ref={outputRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
           {history.length === 0 && (
-            <div style={{ color: TERM.muted, fontSize: 12, padding: '12px 4px', lineHeight: 2 }}>
+            <div style={{ color: TERM.muted, fontSize: 13, padding: '12px 4px', lineHeight: 2 }}>
               <p style={{ color: TERM.textBright, fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
                 kubectl — {clusterName}
               </p>
@@ -528,7 +528,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                     style={{
                       padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
                       background: TERM.bgSubtle, border: `1px solid ${TERM.border}`,
-                      color: TERM.blue, fontSize: 11, fontFamily: 'inherit',
+                      color: TERM.blue, fontSize: 12, fontFamily: 'inherit',
                     }}
                   >
                     {ex}
@@ -542,12 +542,12 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
           {history.map(entry => (
             <div key={entry.id} style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, minWidth: 0 }}>
-                <span style={{ color: entry.isError ? TERM.red : TERM.green, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>❯</span>
+                <span style={{ color: entry.isError ? TERM.red : TERM.green, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>❯</span>
                 <button
                   onClick={() => { setInput(entry.cmd.startsWith('tool:') ? '' : entry.cmd); inputRef.current?.focus() }}
                   title="Click to reuse this command"
                   style={{
-                    fontSize: 12, color: TERM.textBright, background: 'none', border: 'none',
+                    fontSize: 13, color: TERM.textBright, background: 'none', border: 'none',
                     cursor: 'pointer', padding: 0, fontFamily: 'inherit', textAlign: 'left',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
                   }}
@@ -555,16 +555,16 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                   kubectl {entry.cmd}
                 </button>
                 <span style={{
-                  fontSize: 9.5, padding: '1px 7px', borderRadius: 99, flexShrink: 0, fontWeight: 700,
+                  fontSize: 11.5, padding: '1px 7px', borderRadius: 99, flexShrink: 0, fontWeight: 700,
                   ...(entry.toolUsed.includes('kubectl')
                     ? { background: TERM.yellowBg, color: TERM.yellow, border: `1px solid ${TERM.yellowBorder}` }
                     : { background: TERM.blueBg, color: TERM.blue, border: `1px solid ${TERM.blueBorder}` }),
                 }}>
                   {entry.toolUsed}
                 </span>
-                <span className="hidden-mobile" style={{ fontSize: 10, color: TERM.faint, flexShrink: 0 }}>{entry.timestamp}</span>
+                <span className="hidden-mobile" style={{ fontSize: 12, color: TERM.faint, flexShrink: 0 }}>{entry.timestamp}</span>
                 {entry.duration !== undefined && (
-                  <span style={{ fontSize: 10, color: TERM.faint, flexShrink: 0 }}>{entry.duration}ms</span>
+                  <span style={{ fontSize: 12, color: TERM.faint, flexShrink: 0 }}>{entry.duration}ms</span>
                 )}
                 <CopyOutputButton text={entry.output} />
               </div>
@@ -574,7 +574,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
                 border: `1px solid ${entry.isError ? TERM.redBorder : TERM.border}`,
                 borderLeft: `3px solid ${entry.isError ? TERM.red : TERM.green}`,
                 borderRadius: 8,
-                fontSize: 11.5, lineHeight: 1.65,
+                fontSize: 12.5, lineHeight: 1.65,
                 color: entry.isError ? TERM.red : TERM.text,
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                 maxHeight: isMaximized ? 560 : 360, overflowY: 'auto',
@@ -585,8 +585,8 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
           ))}
 
           {loading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: TERM.muted, fontSize: 12, padding: '6px 0' }}>
-              <Loader2 size={13} className="spin" color={TERM.blue} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: TERM.muted, fontSize: 13, padding: '6px 0' }}>
+              <Loader2 size={14} className="spin" color={TERM.blue} />
               <span>Executing via {mcpAvailable ? 'MCP' : 'kubectl over SSH'}…</span>
             </div>
           )}
@@ -598,7 +598,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
           padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
         }}>
           <span style={{ color: TERM.green, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>❯</span>
-          <span style={{ color: TERM.faint, fontSize: 12, flexShrink: 0 }}>kubectl</span>
+          <span style={{ color: TERM.faint, fontSize: 13, flexShrink: 0 }}>kubectl</span>
           <input
             ref={inputRef}
             value={input}
@@ -610,7 +610,7 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
             spellCheck={false}
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              color: TERM.textBright, fontSize: 12.5, fontFamily: 'inherit',
+              color: TERM.textBright, fontSize: 13.5, fontFamily: 'inherit',
               caretColor: TERM.blue,
             }}
           />
@@ -622,13 +622,13 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
               border: `1px solid ${input.trim() && !loading ? TERM.blue : TERM.border}`,
               borderRadius: 6, padding: '5px 14px', cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
               color: input.trim() && !loading ? TERM.bg : TERM.faint,
-              display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700,
               fontFamily: 'inherit', transition: 'all 0.15s', flexShrink: 0,
             }}
           >
-            {loading ? <Loader2 size={11} className="spin" /> : <Play size={11} />}
+            {loading ? <Loader2 size={12} className="spin" /> : <Play size={12} />}
             Run
-            {!loading && input.trim() && <CornerDownLeft size={10} style={{ opacity: 0.7 }} />}
+            {!loading && input.trim() && <CornerDownLeft size={12} style={{ opacity: 0.7 }} />}
           </button>
         </div>
       </div>

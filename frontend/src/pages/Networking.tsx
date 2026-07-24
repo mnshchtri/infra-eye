@@ -66,7 +66,7 @@ const StatCard = memo(({ label, value, icon: Icon, color }: { label: string; val
       </div>
       <div>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{value}</div>
-        <div style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{label}</div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{label}</div>
       </div>
     </div>
   </div>
@@ -81,39 +81,39 @@ function PortRow({ port }: { port: ListeningPort }) {
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.15s' }}>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800 }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800 }}>
         <span style={{
-          padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900,
+          padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900,
           background: `${protoColor}18`, color: protoColor,
           border: `1px solid ${protoColor}30`, textTransform: 'uppercase', letterSpacing: '0.05em'
         }}>
           {port.protocol}
         </span>
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800 }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800 }}>
         <span style={{
-          padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900,
+          padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900,
           background: `${stateColor}18`, color: stateColor,
           border: `1px solid ${stateColor}30`, textTransform: 'uppercase', letterSpacing: '0.05em'
         }}>
           {port.state}
         </span>
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)' }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-primary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 600, fontSize: 10, color: 'var(--text-muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{localAddr}</span>
+          <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{localAddr}</span>
           <span style={{ fontWeight: 800, color: 'var(--brand-primary)' }}>:{localPort}</span>
         </div>
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {port.remote && port.remote !== '*' && port.remote !== '0.0.0.0:*' && port.remote !== '[::]:*' && port.remote !== '*:*' ? port.remote : '—'}
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
         {port.program ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Server size={11} color="var(--text-muted)" />
+            <Server size={12} color="var(--text-muted)" />
             <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{port.program}</span>
-            {port.pid && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>PID {port.pid}</span>}
+            {port.pid && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>PID {port.pid}</span>}
           </div>
         ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </td>
@@ -127,7 +127,7 @@ function ServiceRow({ svc }: { svc: SystemService }) {
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.15s' }}>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 6, height: 6, borderRadius: 0, background: activeColor, flexShrink: 0 }} />
           {svc.name}
@@ -135,7 +135,7 @@ function ServiceRow({ svc }: { svc: SystemService }) {
       </td>
       <td style={{ padding: '12px 16px' }}>
         <span style={{
-          padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+          padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)',
           background: `${activeColor}18`, color: activeColor,
           border: `1px solid ${activeColor}30`, textTransform: 'uppercase', letterSpacing: '0.05em'
         }}>
@@ -144,14 +144,14 @@ function ServiceRow({ svc }: { svc: SystemService }) {
       </td>
       <td style={{ padding: '12px 16px' }}>
         <span style={{
-          padding: '3px 8px', borderRadius: 0, fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+          padding: '3px 8px', borderRadius: 0, fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)',
           background: `${subColor}18`, color: subColor,
           border: `1px solid ${subColor}30`, textTransform: 'uppercase', letterSpacing: '0.05em'
         }}>
           {svc.sub}
         </span>
       </td>
-      <td style={{ padding: '12px 16px', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {svc.description}
       </td>
     </tr>
@@ -167,9 +167,9 @@ function InterfaceRow({ iface }: { iface: NetworkInterface }) {
       <td style={{ padding: '12px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 6, height: 6, borderRadius: 0, background: stateColor, flexShrink: 0 }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{iface.name}</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{iface.name}</span>
           <span style={{
-            padding: '2px 6px', borderRadius: 0, fontSize: 8, fontWeight: 900, fontFamily: 'var(--font-mono)',
+            padding: '2px 6px', borderRadius: 0, fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)',
             background: `${stateColor}18`, color: stateColor,
             border: `1px solid ${stateColor}30`, textTransform: 'uppercase'
           }}>
@@ -177,22 +177,22 @@ function InterfaceRow({ iface }: { iface: NetworkInterface }) {
           </span>
         </div>
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ fontWeight: 700, color: isUp ? 'var(--text-primary)' : 'var(--text-muted)' }}>{iface.ipv4 || '—'}</span>
-          {iface.ipv6 && iface.ipv6 !== '—' && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{iface.ipv6}</span>}
+          {iface.ipv6 && iface.ipv6 !== '—' && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{iface.ipv6}</span>}
         </div>
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>
         {iface.mtu}
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ color: 'var(--success)', fontWeight: 600 }}>RX {formatBytes(iface.rx_bytes)}</span>
           <span style={{ color: 'var(--info)', fontWeight: 600 }}>TX {formatBytes(iface.tx_bytes)}</span>
         </div>
       </td>
-      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ color: 'var(--text-muted)' }}>RX {iface.rx_packets}</span>
           <span style={{ color: 'var(--text-muted)' }}>TX {iface.tx_packets}</span>
@@ -334,7 +334,7 @@ export function Networking() {
                 {server.status.toUpperCase()}
               </span>
               {info && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
                   {info.uptime}
                 </span>
               )}
@@ -379,7 +379,7 @@ export function Networking() {
               key={key}
               onClick={() => { setActiveTab(key); setSearch(''); }}
               style={{
-                padding: '8px 16px', fontSize: 10, fontWeight: 800, fontFamily: 'var(--font-mono)',
+                padding: '8px 16px', fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)',
                 textTransform: 'uppercase', letterSpacing: '0.08em',
                 background: activeTab === key ? 'var(--brand-primary)' : 'transparent',
                 color: activeTab === key ? 'var(--text-inverse)' : 'var(--text-muted)',
@@ -387,7 +387,7 @@ export function Networking() {
                 transition: 'all 0.15s'
               }}
             >
-              <Icon size={12} /> {label}
+              <Icon size={13} /> {label}
               {key === 'services' && failedCount > 0 && (
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%', background: 'var(--danger)',
@@ -408,7 +408,7 @@ export function Networking() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Network size={16} color="var(--brand-primary)" />
                 <span style={{ fontWeight: 800, fontSize: 14 }}>Listening Ports</span>
-                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({filteredPorts.length})</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({filteredPorts.length})</span>
               </div>
               <button onClick={() => setPortsExpanded(!portsExpanded)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                 {portsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -426,7 +426,7 @@ export function Networking() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         {['Protocol', 'State', 'Local Address', 'Remote Address', 'Program'].map(h => (
-                          <th key={h} style={{ padding: '12px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
+                          <th key={h} style={{ padding: '12px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
                             {h}
                           </th>
                         ))}
@@ -449,7 +449,7 @@ export function Networking() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Activity size={16} color="var(--brand-primary)" />
                 <span style={{ fontWeight: 800, fontSize: 14 }}>System Services</span>
-                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({filteredServices.length})</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({filteredServices.length})</span>
               </div>
               <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 0, overflow: 'hidden' }}>
                 {(['all', 'active', 'failed'] as const).map(f => (
@@ -457,7 +457,7 @@ export function Networking() {
                     key={f}
                     onClick={() => setServiceFilter(f)}
                     style={{
-                      padding: '4px 12px', fontSize: 9, fontWeight: 800, fontFamily: 'var(--font-mono)',
+                      padding: '4px 12px', fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)',
                       textTransform: 'uppercase',
                       background: serviceFilter === f ? 'var(--brand-primary)' : 'transparent',
                       color: serviceFilter === f ? 'var(--text-inverse)' : 'var(--text-muted)',
@@ -480,7 +480,7 @@ export function Networking() {
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
                       {['Name', 'Active', 'Sub', 'Description'].map(h => (
-                        <th key={h} style={{ padding: '12px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
+                        <th key={h} style={{ padding: '12px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
                           {h}
                         </th>
                       ))}
@@ -501,7 +501,7 @@ export function Networking() {
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
               <Wifi size={16} color="var(--brand-primary)" />
               <span style={{ fontWeight: 800, fontSize: 14 }}>Network Interfaces</span>
-              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({filteredInterfaces.length})</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({filteredInterfaces.length})</span>
             </div>
             {filteredInterfaces.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -514,7 +514,7 @@ export function Networking() {
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
                       {['Interface', 'IP Address', 'MTU', 'Traffic', 'Packets'].map(h => (
-                        <th key={h} style={{ padding: '12px 16px', fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
+                        <th key={h} style={{ padding: '12px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
                           {h}
                         </th>
                       ))}

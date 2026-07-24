@@ -75,11 +75,11 @@ export function TerminalPortal({ serverID, pod, namespace, container, mode, onCl
        <div style={{ height: 46, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#f8fafc' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
              <Terminal size={14} color="var(--brand-primary)" />
-             <span style={{ fontSize: 12, fontWeight: 700 }}>POD {mode.toUpperCase()} • {namespace}/{pod}</span>
-             <span className="badge badge-online" style={{ fontSize: 10 }}>LIVE</span>
+             <span style={{ fontSize: 13, fontWeight: 700 }}>POD {mode.toUpperCase()} • {namespace}/{pod}</span>
+             <span className="badge badge-online" style={{ fontSize: 12 }}>LIVE</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Esc to close</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Esc to close</span>
             <button onClick={onClose}><X size={16} color="var(--text-muted)" /></button>
           </div>
        </div>

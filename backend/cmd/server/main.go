@@ -140,6 +140,7 @@ func main() {
 		api.GET("/resources/:id/audit", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListResourceAudit)
 		api.POST("/resources/:id/query", middleware.RequireRole("admin", "devops"), handlers.QueryResource)
 		api.PATCH("/resources/:id/folder", middleware.RequireRole("admin", "devops"), handlers.MoveResourceFolder)
+		api.GET("/resources/:id/audit/security", middleware.RequireRole("admin", "devops", "trainee"), handlers.ScanResourceSecurity)
 
 		// ── Metrics ───────────────────────────────────────────────
 		api.GET("/servers/:id/metrics", handlers.GetMetrics)
@@ -148,6 +149,12 @@ func main() {
 		// ── Networking / Services ────────────────────────────────
 		api.GET("/servers/:id/networking", handlers.GetServerNetworking)
 		api.GET("/servers/:id/k8s-networking", handlers.GetK8sNetworking)
+
+		// ── Audit ─────────────────────────────────────────────────
+		api.GET("/servers/:id/audit/kernel", handlers.ScanServerKernel)
+		api.GET("/servers/:id/audit/hardening", handlers.ScanServerHardening)
+		api.GET("/servers/:id/audit/cluster", handlers.ScanCluster)
+		api.GET("/audit/summary", middleware.RequireRole("admin", "devops", "trainee"), handlers.GetSecurityScanSummary)
 
 		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)

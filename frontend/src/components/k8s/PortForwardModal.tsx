@@ -98,9 +98,9 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
             <div>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Port Forward Manager</h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>Network Tunnel Protocol</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>Network Tunnel Protocol</span>
                 <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 10, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>{sessions.length} Active Tunnels</span>
+                <span style={{ fontSize: 12, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>{sessions.length} Active Tunnels</span>
               </div>
             </div>
           </div>
@@ -110,23 +110,23 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
         <div style={{ padding: 32, flex: 1, overflowY: 'auto', background: 'var(--bg-app)' }}>
           <form onSubmit={createPortForward} className="portforward-form" style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 100px 100px auto', gap: 16, marginBottom: 32, background: 'var(--bg-card)', padding: 24, borderRadius: 0, border: '1px solid var(--border-bright)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Namespace</label>
+              <label style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Namespace</label>
               <input className="input" placeholder="default" value={form.namespace} onChange={(e) => setForm({ ...form, namespace: e.target.value })} required style={{ height: 42, background: 'var(--bg-input)' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Target Resource</label>
+              <label style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Target Resource</label>
               <input className="input" placeholder="svc/name or pod/name" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required style={{ height: 42, background: 'var(--bg-input)' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Local Port</label>
+              <label style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Local Port</label>
               <input className="input" placeholder="8080" value={form.local_port} onChange={(e) => setForm({ ...form, local_port: e.target.value })} required style={{ height: 42, background: 'var(--bg-input)', fontFamily: 'var(--font-mono)' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Remote Port</label>
+              <label style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Remote Port</label>
               <input className="input" placeholder="80" value={form.remote_port} onChange={(e) => setForm({ ...form, remote_port: e.target.value })} required style={{ height: 42, background: 'var(--bg-input)', fontFamily: 'var(--font-mono)' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button className="btn btn-primary" style={{ height: 42, padding: '0 24px', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }} disabled={busy}>
+              <button className="btn btn-primary" style={{ height: 42, padding: '0 24px', fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }} disabled={busy}>
                 {busy ? 'Establishing...' : 'Start Tunnel'}
               </button>
             </div>
@@ -136,12 +136,12 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
             <table className="k-table" style={{ minWidth: 640 }}>
               <thead style={{ background: 'var(--bg-elevated)' }}>
                 <tr>
-                  <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Target Resource</th>
-                  <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Namespace</th>
-                  <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Tunnel Mapping</th>
-                  <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Process</th>
-                  <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Status</th>
-                  <th style={{ padding: '16px 20px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Actions</th>
+                  <th style={{ padding: '16px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Target Resource</th>
+                  <th style={{ padding: '16px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Namespace</th>
+                  <th style={{ padding: '16px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Tunnel Mapping</th>
+                  <th style={{ padding: '16px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Process</th>
+                  <th style={{ padding: '16px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Status</th>
+                  <th style={{ padding: '16px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Actions</th>
                 </tr>
               </thead>
               <tbody style={{ fontSize: 13 }}>
@@ -151,7 +151,7 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
                       <Globe size={40} strokeWidth={1} opacity={0.3} />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>No active port forwards</span>
-                        <span style={{ fontSize: 11, fontWeight: 500 }}>Create a new tunnel using the form above or the dashboard actions</span>
+                        <span style={{ fontSize: 12, fontWeight: 500 }}>Create a new tunnel using the form above or the dashboard actions</span>
                       </div>
                     </div>
                   </td></tr>
@@ -167,20 +167,20 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
                     <td style={{ padding: '16px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-mono)', fontSize: 13 }}>
                         <span style={{ color: 'var(--brand-primary)', fontWeight: 900 }}>{s.local_port}</span>
-                        <ArrowRight size={12} color="var(--text-muted)" />
+                        <ArrowRight size={13} color="var(--text-muted)" />
                         <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{s.remote_port}</span>
                       </div>
                     </td>
                     <td style={{ padding: '16px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 4, width: 'fit-content' }}>
-                        <ShieldCheck size={12} color="var(--text-muted)" />
-                        <code style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 800 }}>{s.pid}</code>
+                        <ShieldCheck size={13} color="var(--text-muted)" />
+                        <code style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 800 }}>{s.pid}</code>
                       </div>
                     </td>
                     <td style={{ padding: '16px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16, 185, 129, 0.1)', padding: '6px 12px', borderRadius: 20, width: 'fit-content', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
-                        <span style={{ fontSize: 10, fontWeight: 900, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active</span>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active</span>
                       </div>
                     </td>
                     <td style={{ padding: '16px 20px' }}>
@@ -213,7 +213,7 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
         </div>
 
         <div style={{ padding: '20px 32px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-secondary" onClick={onClose} style={{ padding: '0 32px', height: 42, fontWeight: 900, fontSize: 12, textTransform: 'uppercase' }}>Close Manager</button>
+          <button className="btn btn-secondary" onClick={onClose} style={{ padding: '0 32px', height: 42, fontWeight: 900, fontSize: 13, textTransform: 'uppercase' }}>Close Manager</button>
         </div>
       </div>
     </div>

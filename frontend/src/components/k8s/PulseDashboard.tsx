@@ -37,9 +37,9 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                     padding: '3px 8px', borderRadius: 0 
                   }}>
                     <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--success)' }} />
-                    <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Online</span>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Online</span>
                   </div>
-                  <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
                     STREAM: OK
                   </span>
                </div>
@@ -51,7 +51,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                  {cluster.name}
                </h1>
                
-               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>HOST: <span style={{ color: 'var(--text-secondary)' }}>{cluster.host || 'AUTO'}</span></span>
                   <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
                   <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>ENGINE: <span style={{ color: 'var(--brand-primary)' }}>NATIVE_K8S</span></span>
@@ -63,7 +63,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                     </>
                   )}
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                     <Clock size={10} color="var(--text-muted)" />
+                     <Clock size={12} color="var(--text-muted)" />
                      <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>99.9% UPTIME</span>
                   </div>
                </div>
@@ -74,10 +74,10 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
             <div className="card" style={{ padding: '60px 40px', textAlign: 'center', border: '1px solid var(--danger)30', borderRadius: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-card)' }}>
                <Zap size={24} color="var(--danger)" style={{ marginBottom: 20 }} />
                <h2 style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Link Fault Detect</h2>
-               <div style={{ marginTop: 20, padding: '16px', background: 'var(--bg-app)', border: '1px solid var(--border)', fontSize: 10, color: 'var(--danger)', fontFamily: 'var(--font-mono)', width: '100%', maxWidth: 600, textAlign: 'left' }}>
+               <div style={{ marginTop: 20, padding: '16px', background: 'var(--bg-app)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)', width: '100%', maxWidth: 600, textAlign: 'left' }}>
                   {error}
                </div>
-               <button className="btn btn-primary" onClick={onResync} style={{ marginTop: 24, padding: '10px 24px', borderRadius: 0, fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)' }}>REINITIALIZE</button>
+               <button className="btn btn-primary" onClick={onResync} style={{ marginTop: 24, padding: '10px 24px', borderRadius: 0, fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)' }}>REINITIALIZE</button>
             </div>
          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -103,7 +103,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                      {(stats.cpuTotal > 0 || stats.memTotal > 0) && (
                         <div>
                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                              <h3 style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Resource Metrics</h3>
+                              <h3 style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Resource Metrics</h3>
                               <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.3 }} />
                            </div>
                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 16 }}>
@@ -157,7 +157,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                      {/* Tier 4: Compact Inventory */}
                      <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                           <h3 style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Inventory Dash</h3>
+                           <h3 style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Inventory Dash</h3>
                            <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.3 }} />
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
@@ -208,14 +208,14 @@ const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon
       <div className="card" style={{ padding: 16, border: '1px solid var(--border)', background: 'var(--bg-card)', borderRadius: 0 }}>
          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-               <Icon size={12} color={color} />
-               <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>{label}</span>
+               <Icon size={13} color={color} />
+               <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>{label}</span>
             </div>
             <div style={{ fontSize: 14, fontWeight: 900, color, fontFamily: 'var(--font-mono)' }}>{pct.toFixed(0)}%</div>
          </div>
          
          <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginBottom: 12 }}>
-            {formatValue(displayUsage, unit)} <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>/ {formatValue(total, unit)}</span>
+            {formatValue(displayUsage, unit)} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/ {formatValue(total, unit)}</span>
          </div>
          
          <div style={{ height: 4, background: 'var(--bg-elevated)', borderRadius: 0, overflow: 'hidden', marginBottom: 12 }}>
@@ -227,7 +227,7 @@ const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon
             }} />
          </div>
 
-         <div style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>
+         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>
             {usage && usage > 0 ? "STREAM_ACTIVE" : "ESTIMATED_VAL"} • AVAIL: {formatValue(allocatable, unit)}
          </div>
       </div>
@@ -253,8 +253,8 @@ const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, l
                <Icon size={14} strokeWidth={2.5} />
             </div>
             <div style={{ textAlign: 'right' }}>
-               <div style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>{label}</div>
-               <div style={{ fontSize: 8, fontWeight: 900, color: statusColor, textTransform: 'uppercase' }}>
+               <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>{label}</div>
+               <div style={{ fontSize: 11, fontWeight: 900, color: statusColor, textTransform: 'uppercase' }}>
                   {isWarning ? 'ALERT' : 'OK'}
                </div>
             </div>
@@ -264,10 +264,10 @@ const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, l
             <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
                {loading ? '—' : (main || 0)}
             </div>
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                / {loading ? '—' : (total || 0)}
             </div>
-            <div style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
                {sub}
             </div>
          </div>
@@ -285,9 +285,9 @@ const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: any) => (
       border: color ? `1px solid ${color}` : '1px solid var(--border)', borderRadius: 0, background: 'var(--bg-card)'
    }} onClick={onClick}>
       <div style={{ color: color || 'var(--brand-primary)', opacity: 0.8 }}>
-         <Icon size={12} />
+         <Icon size={13} />
       </div>
-      <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', fontFamily: 'var(--font-mono)' }}>{label}</div>
+      <div style={{ flex: 1, fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', fontFamily: 'var(--font-mono)' }}>{label}</div>
       <div style={{ fontSize: 13, fontWeight: 900, color: color || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count || 0}</div>
    </div>
 ))

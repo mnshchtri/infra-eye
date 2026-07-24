@@ -124,7 +124,7 @@ export const ThreadSidebar = memo(({
                 style={{
                   flex: 1, height: 40, borderRadius: 'var(--radius-md)',
                   background: 'var(--brand-primary)', border: 'none',
-                  color: 'var(--text-inverse)', fontSize: 12.5, fontWeight: 800,
+                  color: 'var(--text-inverse)', fontSize: 13.5, fontWeight: 800,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   transition: 'filter 0.1s',
                   padding: '0 14px',
@@ -177,7 +177,7 @@ export const ThreadSidebar = memo(({
         )}
 
         {!isCollapsed && threads.length > 0 && (
-          <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '0 4px' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '0 4px' }}>
             Conversations
           </div>
         )}
@@ -190,7 +190,7 @@ export const ThreadSidebar = memo(({
         {!isCollapsed && threads.length === 0 && (
           <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
             <MessageSquare size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
-            <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.5 }}>No conversations yet — ask Netra something to start one.</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>No conversations yet — ask Netra something to start one.</div>
           </div>
         )}
         {threads.map(t => (
@@ -217,13 +217,13 @@ export const ThreadSidebar = memo(({
               <>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{
-                    fontSize: 12.5, color: activeThreadId === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontSize: 13.5, color: activeThreadId === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
                     fontWeight: activeThreadId === t.id ? 700 : 600,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     {t.title}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginTop: 2 }}>
                     {timeAgo(t.updated_at)}
                   </div>
                 </div>
@@ -238,7 +238,7 @@ export const ThreadSidebar = memo(({
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={14} />
                 </button>
               </>
             ) : (

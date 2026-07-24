@@ -60,11 +60,11 @@ export const RuleCard = memo(({
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13.5, lineHeight: 1.3, wordBreak: 'break-word' }}>{rule.name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700 }}>
-                <Server size={10} /> {serverName}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 700 }}>
+                <Server size={12} /> {serverName}
               </span>
               <span style={{
-                fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
+                fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
                 padding: '1px 7px', borderRadius: 99,
                 color: isCritical ? 'var(--danger)' : 'var(--warning)',
                 border: `1px solid ${isCritical ? 'var(--danger)' : 'var(--warning)'}`,
@@ -76,24 +76,24 @@ export const RuleCard = memo(({
         </div>
         {canManage && (
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-            <button className="btn-icon" title="Edit rule" onClick={() => onEdit(rule)} style={{ width: 30, height: 30 }}><Pencil size={13} /></button>
+            <button className="btn-icon" title="Edit rule" onClick={() => onEdit(rule)} style={{ width: 30, height: 30 }}><Pencil size={14} /></button>
             {confirmDelete === rule.id ? (
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
-                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 10, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 800 }}
+                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 12, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 800 }}
                   onClick={() => onDelete(rule.id)}
                 >
                   Delete
                 </button>
                 <button
-                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
+                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
                   onClick={() => setConfirmDelete(null)}
                 >
                   Keep
                 </button>
               </div>
             ) : (
-              <button className="btn-icon danger" title="Delete rule" onClick={() => setConfirmDelete(rule.id)} style={{ width: 30, height: 30 }}><Trash2 size={13} /></button>
+              <button className="btn-icon danger" title="Delete rule" onClick={() => setConfirmDelete(rule.id)} style={{ width: 30, height: 30 }}><Trash2 size={14} /></button>
             )}
           </div>
         )}
@@ -106,24 +106,24 @@ export const RuleCard = memo(({
         display: 'flex', flexDirection: 'column', gap: 8,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>If</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>If</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
             {conditionText(rule)}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <span style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>Then</span>
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>Then</span>
           {rule.action_type === 'ssh_command' && rule.action_command ? (
             <span title={rule.action_command} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
-              fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
+              fontSize: 12.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
             }}>
-              <Terminal size={11} style={{ flexShrink: 0, color: 'var(--warning)' }} />
+              <Terminal size={12} style={{ flexShrink: 0, color: 'var(--warning)' }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.action_command}</span>
             </span>
           ) : (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
-              <Bell size={11} style={{ color: condColor }} /> Notify only
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
+              <Bell size={12} style={{ color: condColor }} /> Notify only
             </span>
           )}
         </div>
@@ -147,12 +147,12 @@ export const RuleCard = memo(({
               boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left 0.15s',
             }} />
           </span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: rule.enabled ? 'var(--success)' : 'var(--text-muted)' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: rule.enabled ? 'var(--success)' : 'var(--text-muted)' }}>
             {rule.enabled ? 'Active' : 'Paused'}
           </span>
         </button>
-        <span title="Minimum time between firings" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600 }}>
-          <Clock size={10} /> {rule.cooldown_minutes || 5}m cooldown
+        <span title="Minimum time between firings" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+          <Clock size={12} /> {rule.cooldown_minutes || 5}m cooldown
         </span>
       </div>
     </div>

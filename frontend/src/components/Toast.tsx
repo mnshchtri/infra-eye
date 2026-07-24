@@ -96,7 +96,7 @@ function ToastItem({ toast }: { toast: Toast }) {
         {toast.message && (
           <div
             style={{
-              fontSize: 12,
+              fontSize: 13,
               color: 'var(--text-secondary)',
               marginTop: 3,
               lineHeight: 1.4,
@@ -130,7 +130,7 @@ function ToastItem({ toast }: { toast: Toast }) {
           (e.currentTarget.style.background = 'transparent')
         }
       >
-        <X size={12} />
+        <X size={13} />
       </button>
 
       {/* Progress bar */}

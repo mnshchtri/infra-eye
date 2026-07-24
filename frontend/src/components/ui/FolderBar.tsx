@@ -57,7 +57,7 @@ export function FolderBar({
               onChange={e => setName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setCreating(false) }}
               placeholder="Folder name"
-              style={{ height: 26, fontSize: 11, padding: '0 8px', width: 130 }}
+              style={{ height: 26, fontSize: 12, padding: '0 8px', width: 130 }}
             />
             <div style={{ display: 'flex', gap: 3 }}>
               {PALETTE.map(c => (
@@ -72,20 +72,20 @@ export function FolderBar({
                 />
               ))}
             </div>
-            <button type="button" onClick={submit} className="btn-icon-sm" title="Create"><Plus size={12} /></button>
-            <button type="button" onClick={() => setCreating(false)} className="btn-icon-sm" title="Cancel"><X size={12} /></button>
+            <button type="button" onClick={submit} className="btn-icon-sm" title="Create"><Plus size={13} /></button>
+            <button type="button" onClick={() => setCreating(false)} className="btn-icon-sm" title="Cancel"><X size={13} /></button>
           </div>
         ) : (
           <button
             type="button"
             onClick={() => setCreating(true)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700,
               padding: '6px 12px', border: '1px dashed var(--border)', background: 'transparent',
               color: 'var(--text-muted)', cursor: 'pointer',
             }}
           >
-            <Plus size={12} /> New folder
+            <Plus size={13} /> New folder
           </button>
         )
       )}
@@ -108,7 +108,7 @@ function Chip({
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-        padding: '6px 10px 6px 12px', fontSize: 11, fontWeight: 700,
+        padding: '6px 10px 6px 12px', fontSize: 12, fontWeight: 700,
         border: `1px solid ${active ? (color || 'var(--brand-primary)') : 'var(--border)'}`,
         background: active ? (color ? `${color}1a` : 'var(--brand-glow)') : 'transparent',
         color: active ? (color || 'var(--brand-primary)') : 'var(--text-secondary)',
@@ -117,7 +117,7 @@ function Chip({
     >
       {color && <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />}
       <span>{label}</span>
-      <span style={{ opacity: 0.6, fontSize: 10 }}>{count}</span>
+      <span style={{ opacity: 0.6, fontSize: 12 }}>{count}</span>
       {onDelete && (
         <span
           onClick={e => {
@@ -128,7 +128,7 @@ function Chip({
           onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
           onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
         >
-          <X size={11} />
+          <X size={12} />
         </span>
       )}
     </div>

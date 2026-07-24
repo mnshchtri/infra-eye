@@ -12,6 +12,7 @@ export type PermissionAction =
   | 'manage-users'
   | 'view-alerts'
   | 'view-settings'
+  | 'view-audit'
 
 export function usePermission() {
   const { user } = useAuthStore()
@@ -41,6 +42,8 @@ export function usePermission() {
         return ['admin'].includes(role)
       case 'view-settings':
         return true
+      case 'view-audit':
+        return ['admin', 'devops', 'trainee'].includes(role)
       default:
         return false
     }

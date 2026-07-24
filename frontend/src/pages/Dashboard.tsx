@@ -57,7 +57,7 @@ const RangeSelector = memo(({ value, onChange, ranges }: { value: number; onChan
         key={r.minutes}
         onClick={() => onChange(r.minutes)}
         style={{
-          padding: '5px 12px', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
+          padding: '5px 12px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
           background: value === r.minutes ? 'var(--brand-primary)' : 'transparent',
           color: value === r.minutes ? 'var(--text-inverse)' : 'var(--text-muted)',
           border: 'none', cursor: 'pointer', transition: 'all 0.15s'
@@ -100,13 +100,13 @@ const StatCard = memo(({
         <Icon size={14} color={color} />
       </div>
       <div className="stat-val-group" style={{ flex: 1 }}>
-        <div className="stat-label" style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+        <div className="stat-label" style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <div className="stat-value" style={{ fontSize: 20, fontWeight: 900 }}>{value}</div>
           {delta && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <TrendingUp size={10} color={color} />
-              <span style={{ fontSize: 9, color, fontWeight: 900 }}>{delta}</span>
+              <TrendingUp size={12} color={color} />
+              <span style={{ fontSize: 11, color, fontWeight: 900 }}>{delta}</span>
             </div>
           )}
         </div>
@@ -149,9 +149,9 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <h3 style={{ fontSize: 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h3>
-              <span className={`badge badge-${server.status}`} style={{ fontSize: 8, padding: '1px 6px', fontWeight: 900 }}>{server.status}</span>
+              <span className={`badge badge-${server.status}`} style={{ fontSize: 11, padding: '1px 6px', fontWeight: 900 }}>{server.status}</span>
             </div>
-            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 800 }}>{server.host || 'DIRECT API'}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800 }}>{server.host || 'DIRECT API'}</div>
           </div>
         </div>
       </div>
@@ -164,9 +164,9 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
             { label: 'DSK', value: metric.disk_percent },
           ].map(({ label, value }) => (
             <div key={label} className="metric-row" style={{ gap: 8 }}>
-              <div className="metric-label" style={{ width: 28, fontSize: 8 }}>{label}</div>
+              <div className="metric-label" style={{ width: 28, fontSize: 11 }}>{label}</div>
               <MetricBar value={value} danger={90} warn={75} />
-              <span style={{ width: 24, textAlign: 'right', fontSize: 9, fontWeight: 900, color: 'var(--text-secondary)' }}>
+              <span style={{ width: 24, textAlign: 'right', fontSize: 11, fontWeight: 900, color: 'var(--text-secondary)' }}>
                 {value.toFixed(0)}%
               </span>
             </div>
@@ -185,9 +185,9 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
         <div className="server-tag-group" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           {server.tags && typeof server.tags === 'string'
             ? server.tags.split(',').slice(0, 2).map(t => (
-                <span key={t} className="server-tag" style={{ fontSize: 10, padding: '2px 6px' }}>{t.trim()}</span>
+                <span key={t} className="server-tag" style={{ fontSize: 12, padding: '2px 6px' }}>{t.trim()}</span>
               ))
-            : <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>No tags</span>
+            : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tags</span>
           }
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -514,7 +514,7 @@ export function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Utilization</h3>
-                <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per-node {fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last {RANGES.find(r => r.minutes === fleetRange)?.label}, live</p>
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per-node {fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last {RANGES.find(r => r.minutes === fleetRange)?.label}, live</p>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
@@ -523,7 +523,7 @@ export function Dashboard() {
                       key={key}
                       onClick={() => setFleetMetric(key)}
                       style={{
-                        padding: '5px 14px', fontSize: 9, fontWeight: 900, fontFamily: 'var(--font-mono)',
+                        padding: '5px 14px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)',
                         letterSpacing: '0.08em',
                         background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
                         color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
@@ -541,14 +541,14 @@ export function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timelineData} margin={{ top: 6, right: 76, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
+                  <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                   <Tooltip
                     labelFormatter={(t: any) => fmtClock(t)}
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                   />
                   {seriesServers.length > 1 && (
-                    <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                    <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                   )}
                   {seriesServers.map((s, i) => (
                     <Line
@@ -581,7 +581,7 @@ export function Dashboard() {
               {healingActions.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: 10, padding: '24px 0' }}>
                   <Zap size={22} style={{ opacity: 0.3 }} />
-                  <span style={{ fontSize: 11 }}>No self-healing actions fired yet</span>
+                  <span style={{ fontSize: 12 }}>No self-healing actions fired yet</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflowY: 'auto', maxHeight: 260 }}>
@@ -591,17 +591,17 @@ export function Dashboard() {
                     return (
                       <div key={a.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', alignItems: 'flex-start' }}>
                         {ok
-                          ? <CheckCircle size={13} color="var(--success)" style={{ flexShrink: 0, marginTop: 2 }} />
-                          : <XCircle size={13} color="var(--danger)" style={{ flexShrink: 0, marginTop: 2 }} />}
+                          ? <CheckCircle size={14} color="var(--success)" style={{ flexShrink: 0, marginTop: 2 }} />
+                          : <XCircle size={14} color="var(--danger)" style={{ flexShrink: 0, marginTop: 2 }} />}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {a.trigger_info || 'Alert rule triggered'}
                           </div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
                             {srv?.name ? `${srv.name} • ` : ''}{a.command || '—'}
                           </div>
                         </div>
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0, marginTop: 2 }}>{timeAgo(a.created_at)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0, marginTop: 2 }}>{timeAgo(a.created_at)}</span>
                       </div>
                     )
                   })}
@@ -620,7 +620,7 @@ export function Dashboard() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
-                  <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
                 </div>
                 <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
               </div>
@@ -628,14 +628,14 @@ export function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={networkData} margin={{ top: 6, right: 46, left: -16, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                    <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                    <YAxis stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                    <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                     <Tooltip
                       labelFormatter={(t: any) => fmtClock(t)}
                       formatter={(v: any) => `${v} MB/s`}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
-                    <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                    <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                     <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('RX', networkData.length)} />
                     <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('TX', networkData.length)} />
                   </LineChart>
@@ -648,7 +648,7 @@ export function Dashboard() {
             <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
               <div style={{ marginBottom: 16 }}>
                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Disk Usage by Server</h3>
-                <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {diskUsageData.length} node{diskUsageData.length === 1 ? '' : 's'} reporting
                 </p>
               </div>
@@ -672,21 +672,21 @@ export function Dashboard() {
                     </Pie>
                     <Tooltip
                       formatter={(v: any, n: any) => [`${v}%`, n]}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                   <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{avgDisk}%</span>
-                  <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fleet Avg</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fleet Avg</span>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 150 }}>
                 {diskUsageData.map((d, i) => (
                   <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: seriesColors[i % seriesColors.length], flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
-                    <span style={{ width: 34, textAlign: 'right', fontSize: 10, fontWeight: 900, color: d.value >= 90 ? 'var(--danger)' : d.value >= 75 ? 'var(--warning)' : 'var(--text-primary)' }}>{d.value}%</span>
+                    <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                    <span style={{ width: 34, textAlign: 'right', fontSize: 12, fontWeight: 900, color: d.value >= 90 ? 'var(--danger)' : d.value >= 75 ? 'var(--warning)' : 'var(--text-primary)' }}>{d.value}%</span>
                   </div>
                 ))}
               </div>
@@ -700,7 +700,7 @@ export function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 22 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Resource Inventory</h3>
-              <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>Click any resource to manage user access and audit logs.</p>
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>Click any resource to manage user access and audit logs.</p>
             </div>
             <button className="btn btn-secondary btn-sm" onClick={() => navigate('/resources')}><span className="hidden-mobile">View full resources</span><span className="show-mobile-only">Resources</span></button>
           </div>
@@ -743,20 +743,20 @@ export function Dashboard() {
             </div>
             <div>
               <h3 style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Performance Analytics</h3>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resource utilization across connected nodes</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resource utilization across connected nodes</p>
             </div>
           </div>
           <div style={{ height: 450, marginTop: 32 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="name" stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
+                <XAxis dataKey="name" stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip
                   cursor={{ fill: 'var(--bg-elevated)' }}
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '10px', fontFamily: 'var(--font-mono)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                 />
-                <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                 <Bar dataKey="CPU" fill="#3b82f6" radius={0} maxBarSize={30} />
                 <Bar dataKey="Memory" fill="#10b981" radius={0} maxBarSize={30} />
                 <Bar dataKey="Disk" fill="#f59e0b" radius={0} maxBarSize={30} />

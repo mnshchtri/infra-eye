@@ -45,6 +45,7 @@ func Connect() {
 		&models.ChatMessage{},
 		&models.ChatThread{},
 		&models.AppSetting{},
+		&models.SecurityScan{},
 	); err != nil {
 		log.Fatalf("Auto-migrate failed: %v", err)
 	}

@@ -64,7 +64,7 @@ export function DevTools() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search tools..."
-                style={{ height: 32, fontSize: 12, paddingLeft: 30 }}
+                style={{ height: 32, fontSize: 13, paddingLeft: 30 }}
               />
             </div>
           </div>
@@ -72,7 +72,7 @@ export function DevTools() {
           <div className="dev-tools-groups" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', overflowX: 'auto', flex: 1, paddingBottom: 4 }}>
             {filteredGroups.map(({ group, items }) => (
               <div className="dev-tools-group" key={group}>
-                <div className="hidden-mobile" style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', padding: '0 12px 6px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{group}</div>
+                <div className="hidden-mobile" style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', padding: '0 12px 6px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{group}</div>
                 <div className="dev-tools-group-items" style={{ display: 'flex', flexDirection: 'inherit', gap: 4 }}>
                   {items.map(tool => (
                     <ToolNavButton key={tool.id} tool={tool} active={activeTab === tool.id} onClick={() => setActiveTab(tool.id)} />
@@ -81,7 +81,7 @@ export function DevTools() {
               </div>
             ))}
             {filteredGroups.length === 0 && (
-              <div className="hidden-mobile" style={{ padding: '24px 12px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+              <div className="hidden-mobile" style={{ padding: '24px 12px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
                 No tools match &ldquo;{query}&rdquo;
               </div>
             )}
@@ -161,11 +161,11 @@ function ToolNavButton({ tool, active, onClick }: { tool: ToolMeta, active: bool
       </span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
         <span style={{
-          fontSize: 11, fontWeight: 800, letterSpacing: '0.02em', textTransform: 'uppercase',
+          fontSize: 12, fontWeight: 800, letterSpacing: '0.02em', textTransform: 'uppercase',
           fontFamily: 'var(--font-mono)', color: active ? tool.color : 'var(--text-secondary)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
         }}>{tool.label}</span>
-        <span className="hidden-mobile" style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tool.shortDesc}</span>
+        <span className="hidden-mobile" style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tool.shortDesc}</span>
       </span>
     </button>
   )
@@ -184,7 +184,7 @@ function ToolHeader({ tool }: { tool: ToolMeta }) {
       </span>
       <div style={{ minWidth: 0 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{tool.label}</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0', maxWidth: 560 }}>{tool.longDesc}</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0', maxWidth: 560 }}>{tool.longDesc}</p>
       </div>
     </div>
   )
@@ -193,7 +193,7 @@ function ToolHeader({ tool }: { tool: ToolMeta }) {
 function StatBadge({ children }: { children: React.ReactNode }) {
   return (
     <span style={{
-      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '2px 8px',
+      fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, padding: '2px 8px',
       borderRadius: 'var(--radius-full)', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
       color: 'var(--text-muted)', whiteSpace: 'nowrap'
     }}>{children}</span>
@@ -207,7 +207,7 @@ function EmptyOutput({ icon: Icon, label }: { icon: LucideIcon, label: string })
       gap: 8, border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', background: 'var(--bg-app)'
     }}>
       <Icon size={20} />
-      <span style={{ fontSize: 12 }}>{label}</span>
+      <span style={{ fontSize: 13 }}>{label}</span>
     </div>
   )
 }
@@ -263,10 +263,10 @@ function JsonFormatterTool() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 16, overflowY: 'auto' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT</label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {input && <StatBadge>{input.length} chars &middot; {lines} lines</StatBadge>}
-            <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={13} /></button>
+            <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
           </div>
         </div>
         <textarea
@@ -276,7 +276,7 @@ function JsonFormatterTool() {
           onKeyDown={onKeyDown}
           placeholder='Paste JSON here... e.g. {"name": "infra-eye"}  ·  Ctrl/Cmd + Enter to format'
           spellCheck={false}
-          style={{ height: 180, fontFamily: 'var(--font-mono)', fontSize: 12, padding: 16, resize: 'vertical' }}
+          style={{ height: 180, fontFamily: 'var(--font-mono)', fontSize: 13, padding: 16, resize: 'vertical' }}
         />
       </div>
 
@@ -293,10 +293,10 @@ function JsonFormatterTool() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 160 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>OUTPUT</label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>OUTPUT</label>
           {output && (
             <button className="btn btn-secondary btn-sm" onClick={copy}>
-              {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+              {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
               <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           )}
@@ -306,7 +306,7 @@ function JsonFormatterTool() {
             className="input"
             value={output}
             readOnly
-            style={{ flex: 1, minHeight: 160, background: 'var(--bg-app)', fontFamily: 'var(--font-mono)', fontSize: 12, padding: 16, resize: 'vertical' }}
+            style={{ flex: 1, minHeight: 160, background: 'var(--bg-app)', fontFamily: 'var(--font-mono)', fontSize: 13, padding: 16, resize: 'vertical' }}
           />
         ) : (
           <EmptyOutput icon={FileJson} label="Formatted JSON will appear here" />
@@ -359,10 +359,10 @@ function Base64Tool() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 16, overflowY: 'auto' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT</label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {input && <StatBadge>{input.length} chars</StatBadge>}
-            <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={13} /></button>
+            <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
           </div>
         </div>
         <textarea
@@ -383,10 +383,10 @@ function Base64Tool() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 140 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>OUTPUT</label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>OUTPUT</label>
           {output && (
             <button className="btn btn-secondary btn-sm" onClick={copy}>
-              {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+              {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
               <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           )}
@@ -434,7 +434,7 @@ function EpochConverterTool() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 24, overflowY: 'auto' }}>
       <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>ENTER TIMESTAMP</label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>ENTER TIMESTAMP</label>
           <StatBadge>{isSeconds ? 'seconds' : 'milliseconds'}</StatBadge>
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -451,7 +451,7 @@ function EpochConverterTool() {
 
       {isValid ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Click a result to copy it</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Click a result to copy it</span>
           <div className="grid-2-col" style={{ gap: 16 }}>
             <ResultBox label="Local Time" value={dateObj.toLocaleString()} />
             <ResultBox label="UTC Time" value={dateObj.toUTCString()} />
@@ -480,8 +480,8 @@ function ResultBox({ label, value }: { label: string, value: string }) {
       style={{ padding: '12px 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', textAlign: 'left', cursor: 'pointer', width: '100%' }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 9, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
-        {copied ? <Check size={12} color="var(--success)" /> : <Copy size={12} color="var(--text-muted)" />}
+        <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
+        {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} color="var(--text-muted)" />}
       </div>
       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>{value}</div>
     </button>
@@ -529,8 +529,8 @@ function JwtDecoderTool() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 16, overflowY: 'auto' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>TOKEN STRING</label>
-          {jwt && <button className="btn btn-secondary btn-sm" onClick={() => setJwt('')} title="Clear"><Trash2 size={13} /></button>}
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>TOKEN STRING</label>
+          {jwt && <button className="btn btn-secondary btn-sm" onClick={() => setJwt('')} title="Clear"><Trash2 size={14} /></button>}
         </div>
         <textarea
           className="input"
@@ -550,19 +550,19 @@ function JwtDecoderTool() {
         <div className="grid-2-col" style={{ gap: 16, flex: 1, minHeight: 160 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--warning)' }}>HEADER</label>
-              <button className="btn btn-secondary btn-sm" onClick={() => copyBlock(header)} title="Copy header"><Copy size={12} /></button>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--warning)' }}>HEADER</label>
+              <button className="btn btn-secondary btn-sm" onClick={() => copyBlock(header)} title="Copy header"><Copy size={13} /></button>
             </div>
-            <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--warning)', whiteSpace: 'pre-wrap', flex: 1, fontFamily: 'var(--font-mono)' }}>
+            <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--warning)', whiteSpace: 'pre-wrap', flex: 1, fontFamily: 'var(--font-mono)' }}>
               {header}
             </pre>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-primary)' }}>PAYLOAD</label>
-              <button className="btn btn-secondary btn-sm" onClick={() => copyBlock(payload)} title="Copy payload"><Copy size={12} /></button>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)' }}>PAYLOAD</label>
+              <button className="btn btn-secondary btn-sm" onClick={() => copyBlock(payload)} title="Copy payload"><Copy size={13} /></button>
             </div>
-            <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--brand-primary)', overflowX: 'auto', flex: 1, fontFamily: 'var(--font-mono)' }}>
+            <pre style={{ margin: 0, padding: 16, background: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', fontSize: 13, color: 'var(--brand-primary)', overflowX: 'auto', flex: 1, fontFamily: 'var(--font-mono)' }}>
               {payload}
             </pre>
           </div>
@@ -621,13 +621,13 @@ function K8sManifestCleanerTool() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 24, gap: 16, overflowY: 'auto' }}>
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Always stripped</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Always stripped</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {ALWAYS_STRIPPED_FIELDS.map(field => (
             <span
               key={field}
               style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-full)',
+                fontFamily: 'var(--font-mono)', fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-full)',
                 background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)'
               }}
             >
@@ -638,7 +638,7 @@ function K8sManifestCleanerTool() {
       </div>
 
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={options.stripLastApplied}
@@ -646,7 +646,7 @@ function K8sManifestCleanerTool() {
           />
           Strip <code>kubectl.kubernetes.io/last-applied-configuration</code> annotation
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={options.stripNamespace}
@@ -658,7 +658,7 @@ function K8sManifestCleanerTool() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT MANIFEST</label>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>INPUT MANIFEST</label>
           {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
         </div>
         <textarea
@@ -686,11 +686,11 @@ function K8sManifestCleanerTool() {
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
                 CLEANED OUTPUT <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({documentCount} document{documentCount === 1 ? '' : 's'})</span>
               </label>
               <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
                 <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy Output'}</span>
               </button>
             </div>
@@ -704,7 +704,7 @@ function K8sManifestCleanerTool() {
 
           {removedFields.length > 0 && (
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 8 }}>
                 FIELDS REMOVED
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -712,7 +712,7 @@ function K8sManifestCleanerTool() {
                   <span
                     key={field}
                     style={{
-                      fontFamily: 'var(--font-mono)', fontSize: 11, padding: '4px 8px', borderRadius: 6,
+                      fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 8px', borderRadius: 6,
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)'
                     }}
                   >
