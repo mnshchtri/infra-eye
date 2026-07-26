@@ -6,5 +6,12 @@
   "frontend:build": "",
   "author": {
     "name": "InfraEye"
+  },
+  "info": {
+    "companyName": "InfraEye",
+    "productName": "InfraEye",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2026 InfraEye",
+    "comments": "Agentless observability platform"
   }
 }
