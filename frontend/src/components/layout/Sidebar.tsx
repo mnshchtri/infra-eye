@@ -241,9 +241,13 @@ export function Sidebar() {
           </button>
         </div>
 
-        <div style={{ textAlign: sidebarCollapsed ? 'center' : 'left', padding: sidebarCollapsed ? 0 : '0 8px', marginBottom: 16 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>v{__APP_VERSION__}</span>
-        </div>
+        {!sidebarCollapsed && (
+          <div style={{ padding: '0 8px', marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              v{__APP_VERSION__}
+            </span>
+          </div>
+        )}
 
         <div
           className="sidebar-user"
