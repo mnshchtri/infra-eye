@@ -62,6 +62,13 @@ When monitoring remote servers from cloud environments (like Azure or AWS), stan
 - **OpenVPN Integration**: Allows you to upload or paste a `.ovpn` configuration file directly into the UI. InfraEye can generate a base64-encoded shell script to auto-provision and connect remote Linux servers to your OpenVPN network instantly.
 - **Gateway-backed resource access**: Resources like databases and internal services can be reached via the configured gateway URL and token, preventing direct exposure of SSH or service ports on your internal network.
 
+### 6. Desktop App
+A fully self-contained native build for macOS, Windows, and Linux, built with [Wails](https://wails.io) — no Docker, no Postgres, no Redis.
+- **Same codebase, embedded**: The identical Go backend and React frontend run inside a native window as a single local process, rather than a client-server deployment.
+- **SQLite instead of Postgres**: A single database file replaces the Postgres dependency; Redis isn't needed either since it was never a real internal dependency (only an optional probe target for a user-added Redis *resource*).
+- **Single-user, local-only by default**: The backend binds to `127.0.0.1` only. OIDC/SSO can still be enabled for power users who register a loopback redirect URI with their own identity provider.
+- **Kubernetes features are optional**: The MCP sidecar (`kubernetes-mcp-server`) is spawned automatically if found on `PATH`; if it isn't, Kubernetes cluster management is disabled gracefully while Linux-server (SSH) monitoring keeps working.
+
 ---
 
 ## 🚀 Deployment Guide
@@ -82,6 +89,34 @@ If you prefer a pure Docker setup, this isolates the stack and manages the rever
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh | bash
 ```
+
+<a id="desktop-app"></a>
+### Option C: Desktop App (macOS / Windows / Linux)
+A fully self-contained native app — no Docker, no Postgres, no Redis. Everything (backend, embedded SQLite database, UI) runs as a single local process. Intended for single-user local use rather than the multi-user server deployments above.
+
+**Download**: prebuilt binaries are published on the [GitHub Releases page](https://github.com/mnshchtri/infra-eye/releases) — `InfraEye-macOS.zip` (universal), `InfraEye-Windows.zip`, `InfraEye-Linux.tar.gz`. Each is built natively on its own CI runner ([`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml)); Wails' native webview layer (WebKit/WebView2/WebKitGTK) can't be cross-compiled from a single machine.
+
+**Build from source**:
+```bash
+# Requires Go 1.25+, Node.js 20+, and the Wails v2 CLI
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+git clone https://github.com/mnshchtri/infra-eye && cd infra-eye
+make desktop-build
+```
+This builds the frontend with `VITE_API_URL` pointed at the desktop backend's fixed local port (`127.0.0.1:8073`), copies the build output into `backend/cmd/desktop/frontenddist`, and runs `wails build`. The output lands in `backend/cmd/desktop/build/bin/`. Linux builds additionally need `libgtk-3-dev` and `libwebkit2gtk-4.1-dev` (or `4.0-dev` on older distros).
+
+**First launch**: no setup wizard — the app creates its own SQLite database and a random JWT secret on first run, seeded with the same default credentials as the server install (`admin` / `infra123` — see "First-Time Setup & Default Credentials" below). Kubernetes features require `kubernetes-mcp-server` on your `PATH`; if it's missing, cluster management is disabled gracefully while Linux-server (SSH) monitoring is unaffected.
+
+**App-data locations**:
+
+| OS | Directory |
+| :--- | :--- |
+| macOS | `~/Library/Application Support/InfraEye` |
+| Windows | `%AppData%\InfraEye` |
+| Linux | `~/.config/InfraEye` (or `$XDG_CONFIG_HOME/InfraEye`) |
+
+This directory holds `infraeye.db` (SQLite, WAL mode), a generated `jwt.secret` (created once, persisted across restarts), and an `mcp/kubeconfig` used only when the MCP sidecar is running.
 
 ### Hot Reloading & Environment Updates
 When changes are pushed to GitHub or if you've modified your `.env` file credentials/configurations post-installation, use the provided reload utility. 
