@@ -39,7 +39,7 @@ In an era of microservices and ephemeral infrastructure, observability shouldn't
 | **OIDC/SSO Authentication**  | Keycloak, Auth0, Okta, Azure AD integration for enterprise single sign-on.            | `Production`   |
 | **MCP Sidecar**              | Model Context Protocol integration for AI-driven cluster troubleshooting.              | `Experimental` |
 | **SSH Terminal**             | Full browser-based `xterm.js` terminal over secure SSH tunnels.                      | `Production`   |
-| **Desktop App**              | Native macOS/Windows/Linux app (Wails) — SQLite-backed, single binary, no Docker required. | `Beta`   |
+| **Desktop App**              | Native macOS (Apple Silicon)/Linux app (Wails) — SQLite-backed, single binary, no Docker required. | `Beta`   |
 
 ---
 
@@ -82,11 +82,18 @@ If you prefer a pure Docker setup, this isolates the stack and manages the rever
 curl -fsSL https://raw.githubusercontent.com/mnshchtri/infra-eye/main/install.sh | bash
 ```
 
-### Option C: Desktop App (macOS / Windows / Linux)
+### Option C: Desktop App (macOS / Linux)
 
-A fully self-contained native app — no Docker, no Postgres, no Redis. The same backend and frontend run embedded inside a [Wails](https://wails.io) shell, backed by a local SQLite database. Intended for single-user local use.
+A fully self-contained native app — no Docker, no Postgres, no Redis. The same backend and frontend run embedded inside a [Wails](https://wails.io) shell, backed by a local SQLite database. Intended for single-user local use. Currently built for **macOS (Apple Silicon)** and **Linux (amd64)**.
 
-Download a prebuilt binary from the [GitHub Releases page](https://github.com/mnshchtri/infra-eye/releases), or build it yourself:
+**macOS, via Homebrew:**
+
+```bash
+brew tap mnshchtri/infra-eye
+brew install --cask infra-eye
+```
+
+**Or download directly** from the [GitHub Releases page](https://github.com/mnshchtri/infra-eye/releases) — `InfraEye-macOS-arm64.dmg` or `InfraEye-Linux.deb` — or build it yourself:
 
 ```bash
 # Requires Go 1.25+, Node.js 20+, and the Wails v2 CLI
@@ -96,9 +103,9 @@ git clone https://github.com/mnshchtri/infra-eye && cd infra-eye
 make desktop-build
 ```
 
-This builds the frontend, embeds it into the Go binary, and packages a native `.app` / `.exe` / binary via Wails, landing in `backend/cmd/desktop/build/bin/`. On Linux, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev` (or `4.0-dev` on older distros) must be installed first.
+This builds the frontend, embeds it into the Go binary, and packages a native `.dmg`/`.deb` via Wails, landing in `backend/cmd/desktop/build/bin/`. On Linux, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev` (or `4.0-dev` on older distros) must be installed first.
 
-The app creates its own SQLite database and a random JWT secret on first launch, stored under your OS's standard app-data directory (`~/Library/Application Support/InfraEye` on macOS, `%AppData%\InfraEye` on Windows, `~/.config/InfraEye` on Linux). Kubernetes cluster management works if `kubernetes-mcp-server` is installed and on your `PATH`; Linux-server (SSH) monitoring works regardless. See [documentation.md](documentation.md#desktop-app) for details.
+The app creates its own SQLite database and a random JWT secret on first launch, stored under your OS's standard app-data directory (`~/Library/Application Support/InfraEye` on macOS, `~/.config/InfraEye` on Linux). Kubernetes cluster management works if `kubernetes-mcp-server` is installed and on your `PATH`; Linux-server (SSH) monitoring works regardless. See [documentation.md](documentation.md#desktop-app) for details.
 
 ### Hot Reloading (Updates & Configurations)
 
@@ -150,7 +157,7 @@ make frontend
 We are constantly evolving. Here's what's currently in the pipeline:
 
 - [x] **OIDC / SSO Integration**: Support for Keycloak, Google, GitHub, Okta, and Azure AD authentication. See [OIDC Integration Guide](docs/OIDC_INTEGRATION.md).
-- [x] **Desktop App**: Native macOS/Windows/Linux build via Wails — SQLite-backed, single binary, no Docker required.
+- [x] **Desktop App**: Native macOS (Apple Silicon)/Linux build via Wails — SQLite-backed, single binary, no Docker required.
 - [ ] **Infrastructure-as-Code Sync**: Sync your server list and alert rules directly from a Git repo.
 - [ ] **Terraform Bridge**: Visualize and drift-detect Terraform-managed resources.
 - [ ] **Metric Persistence**: Long-term data retention using Prometheus/VictoriaMetrics.
