@@ -17,15 +17,15 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            platform: darwin/universal
-            artifact_name: InfraEye-macOS
+            artifact_name: InfraEye-macOS-arm64
+            bin_glob: build/bin/InfraEye.app
+          - os: macos-13
+            artifact_name: InfraEye-macOS-intel
             bin_glob: build/bin/InfraEye.app
           - os: windows-latest
-            platform: windows/amd64
             artifact_name: InfraEye-Windows
             bin_glob: build/bin/infraeye-desktop.exe
           - os: ubuntu-latest
-            platform: linux/amd64
             artifact_name: InfraEye-Linux
             bin_glob: build/bin/infraeye-desktop
 
@@ -69,15 +69,26 @@ jobs:
           mkdir -p backend/cmd/desktop/frontenddist
           cp -R frontend/dist/. backend/cmd/desktop/frontenddist/
 
-      - name: wails build (macOS/Windows)
-        if: runner.os != 'Linux'
+      # NOTE: passing an explicit -platform flag (even one matching the
+      # runner's own native arch) crashes Wails' bindings-generation step on
+      # macOS with a go-m1cpu link error. Letting `wails build` use its own
+      # native-platform default avoids that bug entirely, and since every
+      # job here already runs on a runner matching the platform it targets,
+      # no cross-compilation is actually needed.
+      - name: wails build (macOS)
+        if: runner.os == 'macOS'
         working-directory: backend/cmd/desktop
-        run: wails build -platform ${{ matrix.platform }}
+        run: wails build
+
+      - name: wails build (Windows)
+        if: runner.os == 'Windows'
+        working-directory: backend/cmd/desktop
+        run: wails build -platform windows/amd64
 
       - name: wails build (Linux, webkit2gtk 4.1)
         if: runner.os == 'Linux'
         working-directory: backend/cmd/desktop
-        run: wails build -platform ${{ matrix.platform }} -tags webkit2_41
+        run: wails build -platform linux/amd64 -tags webkit2_41
 
       - name: Package artifact (macOS .app -> zip)
         if: runner.os == 'macOS'
@@ -119,6 +130,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/InfraEye-macOS/InfraEye-macOS.zip
+            dist/InfraEye-macOS-arm64/InfraEye-macOS-arm64.zip
+            dist/InfraEye-macOS-intel/InfraEye-macOS-intel.zip
             dist/InfraEye-Windows/InfraEye-Windows.zip
             dist/InfraEye-Linux/InfraEye-Linux.tar.gz
