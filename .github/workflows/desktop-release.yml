@@ -78,6 +78,11 @@ jobs:
       - name: wails build (macOS)
         if: runner.os == 'macOS'
         working-directory: backend/cmd/desktop
+        env:
+          # GitHub's macOS runners default to Xcode's newer linker, which
+          # rejects some Go-produced object files ("unknown file type") —
+          # force the classic linker to avoid it.
+          CGO_LDFLAGS: -Wl,-ld_classic
         run: wails build
 
       - name: wails build (Windows)
