@@ -127,6 +127,18 @@ This directory holds `infraeye.db` (SQLite, WAL mode), a generated `jwt.secret` 
 > [!NOTE]
 > Windows and Intel Mac builds aren't published at this time — the CI workflow currently only targets macOS (Apple Silicon) and Linux (amd64). Contributions extending `.github/workflows/desktop-release.yml` to cover them are welcome.
 
+**Troubleshooting: Kubernetes cluster shows "offline" / no data**
+
+The Kubernetes Explorer connects to each cluster **directly via `client-go`**, using that server's stored kubeconfig — it does not go through the MCP sidecar at all. So when a cluster shows no data, it's almost always a genuine network path problem between your machine and that cluster's API server, not an InfraEye bug:
+
+1. Check the server's `status`/`k8s_connected` fields (`GET /api/servers`) — if `status` is `offline`, the backend already tried and failed to reach the API server.
+2. Test raw reachability yourself: `curl -sk https://<api-server-host>:6443/version` or `nc -zv <host> 6443`. A TLS/auth error means the network path is fine (a real InfraEye/kubeconfig issue); a timeout or "Host is down" means the network path itself is broken.
+3. **If the cluster runs in a local VM** (OrbStack, Docker Desktop, Multipass, etc.), the VM's private network can go stale after sleep/wake, Wi-Fi changes, or a VPN toggle — even while the VM and cluster are themselves perfectly healthy. Restarting the VM (or just the virtualization app) usually restores routing without needing any InfraEye-side fix.
+
+**Troubleshooting: `kubernetes-mcp-server` and `/api/mcp/status`**
+
+The MCP sidecar is separate from the Explorer above — it only powers the AI assistant's Kubernetes tool-calling. On desktop, it's auto-spawned only if `kubernetes-mcp-server` is found on `PATH`; if it isn't, `mcp_sidecar.go` logs a warning and skips it, and no `mcp-server.log` is created under the app-data directory. `GET /api/mcp/status` reporting `available: true` is **not sufficient proof it's running** — it just checks whether *something* answers on `127.0.0.1:8090`, and an unrelated local process can occupy that port and produce a false positive. To confirm for real, check `ps aux | grep kubernetes-mcp-server` or look for `mcp-server.log` in the app-data directory.
+
 ### Hot Reloading & Environment Updates
 When changes are pushed to GitHub or if you've modified your `.env` file credentials/configurations post-installation, use the provided reload utility. 
 
