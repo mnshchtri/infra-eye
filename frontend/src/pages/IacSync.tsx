@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
-import { GitBranch, RefreshCw, Send, History } from 'lucide-react'
+import {
+  GitBranch, RefreshCw, Send, History, Power, PowerOff, Eye, EyeOff,
+  ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertTriangle, Clock, User as UserIcon,
+} from 'lucide-react'
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
+import { Badge } from '../components/ui/Badge'
 
 interface GitSyncRun {
   id: number
@@ -19,11 +23,44 @@ interface GitSyncRun {
   rules_deleted: number
 }
 
-const statusColor: Record<string, string> = {
-  success: 'var(--success)',
-  partial: 'var(--warning)',
-  failed: 'var(--danger)',
-  running: 'var(--text-muted)',
+const statusMeta: Record<string, { variant: 'success' | 'warning' | 'danger' | 'neutral'; icon: any; label: string; color: string }> = {
+  success: { variant: 'success', icon: CheckCircle2, label: 'Success', color: 'var(--success)' },
+  partial: { variant: 'warning', icon: AlertTriangle, label: 'Partial', color: 'var(--warning)' },
+  failed: { variant: 'danger', icon: XCircle, label: 'Failed', color: 'var(--danger)' },
+  running: { variant: 'neutral', icon: RefreshCw, label: 'Running', color: 'var(--text-muted)' },
+}
+
+const triggerMeta: Record<string, { icon: any; label: string }> = {
+  scheduled: { icon: Clock, label: 'Scheduled' },
+  manual: { icon: UserIcon, label: 'Manual' },
+}
+
+function fmtAgo(iso: string) {
+  if (!iso) return '—'
+  const ms = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+function StatTile({ label, value, sub, icon: Icon, color }: { label: string; value: string; sub?: string; icon: any; color: string }) {
+  return (
+    <div className="card stat-card fade-up">
+      <div className="stat-icon-wrapper" style={{ color }}>
+        <Icon size={16} color={color} />
+      </div>
+      <div className="stat-val-group">
+        <div className="stat-label">{label}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div className="stat-value">{value}</div>
+          {sub && <span style={{ fontSize: 12, color, fontWeight: 700 }}>{sub}</span>}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function IacSync() {
@@ -37,6 +74,7 @@ export function IacSync() {
   const [intervalMinutes, setIntervalMinutes] = useState('15')
   const [pat, setPat] = useState('')
   const [patSet, setPatSet] = useState(false)
+  const [showPat, setShowPat] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -44,6 +82,7 @@ export function IacSync() {
   const [syncing, setSyncing] = useState(false)
 
   const [runs, setRuns] = useState<GitSyncRun[]>([])
+  const [expandedRuns, setExpandedRuns] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     loadSettings()
@@ -88,6 +127,7 @@ export function IacSync() {
       if (pat.trim()) body.pat = pat.trim()
       await api.put('/api/gitsync/settings', body)
       setPat('')
+      setShowPat(false)
       setPatSet(patSet || !!body.pat)
       toast.success('Settings saved', 'Git-sync configuration updated.')
     } catch (err: any) {
@@ -142,9 +182,29 @@ export function IacSync() {
     }
   }
 
-  if (!loaded) {
-    return <div className="page" style={{ padding: 40 }}><p style={{ color: 'var(--text-muted)' }}>Loading…</p></div>
+  function toggleExpand(id: number) {
+    setExpandedRuns(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
+
+  if (!loaded) {
+    return (
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  const lastRun = runs[0]
+  const lastRunMeta = lastRun ? statusMeta[lastRun.status] || statusMeta.running : null
+  const lastRunTotal = lastRun
+    ? lastRun.servers_created + lastRun.servers_updated + lastRun.servers_deleted + lastRun.rules_created + lastRun.rules_updated + lastRun.rules_deleted
+    : 0
 
   return (
     <div className="page">
@@ -153,6 +213,39 @@ export function IacSync() {
           <h1 className="page-title">Infrastructure-as-Code Sync</h1>
           <p className="page-subtitle hidden-mobile">Sync server lists and alert rules from a Git repository</p>
         </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={syncNow}
+          disabled={syncing || !repoUrl.trim()}
+          style={{ gap: 8 }}
+        >
+          <RefreshCw size={15} className={syncing ? 'loader-spin' : ''} /> {syncing ? 'Syncing…' : 'Sync Now'}
+        </button>
+      </div>
+
+      <div className="grid-stats-4" style={{ marginBottom: 28 }}>
+        <StatTile
+          label="Schedule"
+          value={enabled ? 'Enabled' : 'Disabled'}
+          sub={enabled ? `every ${intervalMinutes}m` : undefined}
+          icon={enabled ? Power : PowerOff}
+          color={enabled ? 'var(--success)' : 'var(--text-muted)'}
+        />
+        <StatTile
+          label="Last Sync"
+          value={lastRunMeta ? lastRunMeta.label : 'Never run'}
+          sub={lastRun ? fmtAgo(lastRun.started_at) : undefined}
+          icon={lastRunMeta ? lastRunMeta.icon : History}
+          color={lastRunMeta ? lastRunMeta.color : 'var(--text-muted)'}
+        />
+        <StatTile
+          label="Last Sync Changes"
+          value={lastRun ? String(lastRunTotal) : '—'}
+          sub={lastRun ? `+${lastRun.servers_created + lastRun.rules_created} ~${lastRun.servers_updated + lastRun.rules_updated} -${lastRun.servers_deleted + lastRun.rules_deleted}` : undefined}
+          icon={GitBranch}
+          color="var(--brand-primary)"
+        />
       </div>
 
       <div className="card" style={{ padding: '32px 24px', maxWidth: 800, marginBottom: 32 }}>
@@ -198,14 +291,26 @@ export function IacSync() {
 
             <div className="input-group">
               <label className="input-label">Personal Access Token <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(private repos only)</span></label>
-              <input
-                className="input"
-                type="password"
-                value={pat}
-                onChange={e => setPat(e.target.value)}
-                placeholder={patSet ? '••••••••  (leave blank to keep current)' : 'ghp_… / glpat-…'}
-                spellCheck={false}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="input"
+                  style={{ paddingRight: 42 }}
+                  type={showPat ? 'text' : 'password'}
+                  value={pat}
+                  onChange={e => setPat(e.target.value)}
+                  placeholder={patSet ? '••••••••  (leave blank to keep current)' : 'ghp_… / glpat-…'}
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPat(v => !v)}
+                  tabIndex={-1}
+                  title={showPat ? 'Hide token' : 'Show token'}
+                  style={{ position: 'absolute', right: 10, top: 0, bottom: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+                >
+                  {showPat ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
               {patSet && !pat.trim() && (
                 <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6 }}>
                   A token is already configured (hidden) — entering a new one replaces it.
@@ -213,12 +318,15 @@ export function IacSync() {
               )}
             </div>
 
-            <div className="grid-2-col" style={{ gap: 20, alignItems: 'end' }}>
+            <div className="grid-2-col" style={{ gap: 20, alignItems: 'start' }}>
               <div className="input-group" style={{ marginBottom: 0 }}>
                 <label className="input-label">Sync interval (minutes)</label>
                 <input className="input" type="number" min={1} value={intervalMinutes} onChange={e => setIntervalMinutes(e.target.value)} />
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Applies on next backend restart — use “Sync Now” to run immediately.
+                </p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                 <input type="checkbox" id="gitsync-enabled" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
                 <label htmlFor="gitsync-enabled" style={{ fontSize: 13, fontWeight: 700, marginBottom: 0 }}>Enable scheduled sync</label>
               </div>
@@ -226,13 +334,19 @@ export function IacSync() {
           </div>
 
           {testResult && !testResult.success && (
-            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--danger)40', borderRadius: 'var(--radius-md)' }}>
-              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger)', textTransform: 'uppercase', marginBottom: 4 }}>Connection test failed</p>
-              <pre style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', margin: 0 }}>{testResult.error}</pre>
+            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--danger)40', borderRadius: 'var(--radius-md)', display: 'flex', gap: 10 }}>
+              <XCircle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger)', textTransform: 'uppercase', marginBottom: 4 }}>Connection test failed</p>
+                <pre style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', margin: 0 }}>{testResult.error}</pre>
+              </div>
             </div>
           )}
           {testResult && testResult.success && (
-            <p style={{ marginTop: 16, fontSize: 12, color: 'var(--success)', fontWeight: 700 }}>Connection OK — repository and branch are reachable.</p>
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={15} color="var(--success)" />
+              <p style={{ fontSize: 12, color: 'var(--success)', fontWeight: 700 }}>Connection OK — repository and branch are reachable.</p>
+            </div>
           )}
 
           <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -248,15 +362,6 @@ export function IacSync() {
             >
               <Send size={14} /> {testing ? 'Testing…' : 'Test Connection'}
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={syncNow}
-              disabled={syncing || !repoUrl.trim()}
-              style={{ gap: 6 }}
-            >
-              <RefreshCw size={14} className={syncing ? 'loader-spin' : ''} /> {syncing ? 'Syncing…' : 'Sync Now'}
-            </button>
           </div>
         </form>
       </div>
@@ -267,58 +372,82 @@ export function IacSync() {
           <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sync History</h2>
         </div>
 
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {runs.length === 0 ? (
-            <div className="empty-state" style={{ padding: '60px 0', textAlign: 'center' }}>
-              <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-muted)' }}>No sync runs yet.</p>
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 760 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Started', 'Trigger', 'Status', 'Servers Δ', 'Rules Δ', 'Details'].map(h => (
-                      <th key={h} style={{ padding: '12px 20px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.map(run => {
-                    const conflicts: string[] = (() => {
-                      try {
-                        const parsed = JSON.parse(run.conflicts_json || '[]')
-                        return Array.isArray(parsed) ? parsed : []
-                      } catch { return [] }
-                    })()
-                    return (
-                      <tr key={run.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{new Date(run.started_at).toLocaleString()}</td>
-                        <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--text-secondary)' }}>{run.trigger}</td>
-                        <td style={{ padding: '12px 20px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: statusColor[run.status] || 'var(--text-muted)' }}>{run.status}</span>
+        {runs.length === 0 ? (
+          <div className="card empty-state">
+            <p>No sync runs yet.</p>
+            <span>Run “Sync Now” above, or enable the schedule to sync automatically.</span>
+          </div>
+        ) : (
+          <div className="table-container">
+            <table className="k-table">
+              <thead>
+                <tr>
+                  {['Status', 'Started', 'Trigger', 'Servers Δ', 'Rules Δ', ''].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map(run => {
+                  const meta = statusMeta[run.status] || statusMeta.running
+                  const StatusIcon = meta.icon
+                  const trig = triggerMeta[run.trigger] || { icon: Clock, label: run.trigger }
+                  const TrigIcon = trig.icon
+                  const conflicts: string[] = (() => {
+                    try {
+                      const parsed = JSON.parse(run.conflicts_json || '[]')
+                      return Array.isArray(parsed) ? parsed : []
+                    } catch { return [] }
+                  })()
+                  const hasDetail = !!run.error_text || conflicts.length > 0
+                  const isExpanded = expandedRuns.has(run.id)
+                  return (
+                    <>
+                      <tr key={run.id} onClick={() => hasDetail && toggleExpand(run.id)} style={{ cursor: hasDetail ? 'pointer' : 'default' }}>
+                        <td>
+                          <Badge variant={meta.variant} style={{ gap: 5 }}>
+                            <StatusIcon size={11} className={run.status === 'running' ? 'loader-spin' : ''} /> {meta.label}
+                          </Badge>
                         </td>
-                        <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        <td style={{ whiteSpace: 'nowrap' }} title={new Date(run.started_at).toLocaleString()}>
+                          {fmtAgo(run.started_at)}
+                        </td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
+                            <TrigIcon size={12} /> {trig.label}
+                          </span>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
                           +{run.servers_created} / ~{run.servers_updated} / -{run.servers_deleted}
                         </td>
-                        <td style={{ padding: '12px 20px', fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
                           +{run.rules_created} / ~{run.rules_updated} / -{run.rules_deleted}
                         </td>
-                        <td style={{ padding: '12px 20px', maxWidth: 340 }}>
-                          {run.error_text && (
-                            <pre style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--danger)', whiteSpace: 'pre-wrap', margin: 0 }}>{run.error_text}</pre>
+                        <td style={{ textAlign: 'right' }}>
+                          {hasDetail && (
+                            isExpanded ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />
                           )}
-                          {conflicts.map((line, i) => (
-                            <p key={i} style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--warning)', margin: '2px 0' }}>{line}</p>
-                          ))}
                         </td>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                      {hasDetail && isExpanded && (
+                        <tr key={`${run.id}-detail`} style={{ cursor: 'default' }}>
+                          <td colSpan={6} style={{ background: 'var(--bg-elevated)', padding: '14px 20px' }}>
+                            {run.error_text && (
+                              <pre style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--danger)', whiteSpace: 'pre-wrap', margin: conflicts.length ? '0 0 8px' : 0 }}>{run.error_text}</pre>
+                            )}
+                            {conflicts.map((line, i) => (
+                              <p key={i} style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--warning)', margin: '2px 0' }}>{line}</p>
+                            ))}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <style>{`
