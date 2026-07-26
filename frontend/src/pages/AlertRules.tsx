@@ -13,6 +13,7 @@ interface Rule {
   condition_type: string; condition_op: string; condition_value: string;
   action_type: string; action_command: string; severity: string; enabled: boolean;
   cooldown_minutes?: number;
+  git_managed?: boolean;
 }
 interface HistoryAction {
   id: number; created_at: string; server_id: number; trigger_info: string;
@@ -274,6 +275,12 @@ export function AlertRules() {
               </div>
               <button onClick={() => setShowForm(false)} className="btn-icon"><X size={15} /></button>
             </div>
+
+            {editId && (form as Rule).git_managed && (
+              <p style={{ margin: '14px 24px 0', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
+                This rule was created by Git sync — saving changes here will stop future syncs from managing it.
+              </p>
+            )}
 
             <form style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }} onSubmit={e => { e.preventDefault(); saveRule() }}>
               <div style={fieldStyle}>

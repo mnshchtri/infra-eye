@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/gitsync"
 	"github.com/infra-eye/backend/internal/handlers"
 	"github.com/infra-eye/backend/internal/healing"
 	"github.com/infra-eye/backend/internal/httpapi"
@@ -49,6 +50,9 @@ func main() {
 
 	// Start resource observability collector (polls DBs/caches/brokers)
 	resources.StartCollector()
+
+	// Start Infrastructure-as-Code Git-sync engine
+	gitsync.StartEngine()
 
 	// Setup Gin
 	if config.C.Env == "production" {

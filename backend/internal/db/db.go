@@ -50,6 +50,7 @@ func Connect() {
 		&models.LogEntry{},
 		&models.AlertRule{},
 		&models.HealingAction{},
+		&models.GitSyncRun{},
 		&models.ChatMessage{},
 		&models.ChatThread{},
 		&models.AppSetting{},

@@ -17,6 +17,7 @@ import { Audit } from './pages/Audit'
 import { AuditHardening } from './pages/AuditHardening'
 import { AuditCluster } from './pages/AuditCluster'
 import { AuditResources } from './pages/AuditResources'
+import { IacSync } from './pages/IacSync'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="kubernetes" element={<Kubernetes />} />
           <Route path="devtools" element={<DevTools />} />
+          <Route path="iac-sync" element={<IacSync />} />
           <Route path="vpn" element={<VPN />} />
           <Route path="audit/kernel" element={<Audit />} />
           <Route path="audit/hardening" element={<AuditHardening />} />

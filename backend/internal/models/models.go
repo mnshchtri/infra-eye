@@ -50,6 +50,8 @@ type Server struct {
 	DistroPrettyName string         `json:"distro_pretty_name"` // e.g. "Ubuntu 22.04.3 LTS"
 	KernelVersion    string         `json:"kernel_version"`     // e.g. 5.15.0-91-generic
 	FolderID         *uint          `gorm:"index" json:"folder_id"`
+	GitManaged       bool           `gorm:"default:false" json:"git_managed"` // created/updated by Git-sync; cleared on manual edit
+	GitKey           string         `gorm:"index" json:"git_key,omitempty"`   // Name at last sync (reserved for future rename detection)
 }
 
 // Folder is a user-defined grouping (e.g. "dev", "staging", "production")
@@ -196,6 +198,8 @@ type AlertRule struct {
 	CooldownMinutes int            `gorm:"default:5" json:"cooldown_minutes"`
 	Enabled         bool           `gorm:"default:true" json:"enabled"`
 	Description     string         `json:"description"`
+	GitManaged      bool           `gorm:"default:false" json:"git_managed"` // created/updated by Git-sync; cleared on manual edit
+	GitKey          string         `gorm:"index" json:"git_key,omitempty"`   // Name at last sync (reserved for future rename detection)
 }
 
 type HealingAction struct {
@@ -207,6 +211,26 @@ type HealingAction struct {
 	Command     string    `gorm:"type:text" json:"command"`
 	Output      string    `gorm:"type:text" json:"output"`
 	Status      string    `json:"status"` // success, failed
+}
+
+// GitSyncRun is the audit log for one Infrastructure-as-Code sync attempt
+// (scheduled or manually triggered). Errors are stored verbatim (raw git
+// stderr / YAML parse errors), never abstracted, per InfraEye's "honest
+// error messages" design principle.
+type GitSyncRun struct {
+	ID             uint      `gorm:"primaryKey" json:"id"`
+	StartedAt      time.Time `json:"started_at"`
+	FinishedAt     time.Time `json:"finished_at"`
+	Trigger        string    `json:"trigger"` // scheduled, manual
+	Status         string    `json:"status"`  // running, success, partial, failed
+	ErrorText      string    `gorm:"type:text" json:"error_text"`
+	ConflictsJSON  string    `gorm:"type:text" json:"conflicts_json"` // []string of skip/conflict lines
+	ServersCreated int       `json:"servers_created"`
+	ServersUpdated int       `json:"servers_updated"`
+	ServersDeleted int       `json:"servers_deleted"`
+	RulesCreated   int       `json:"rules_created"`
+	RulesUpdated   int       `json:"rules_updated"`
+	RulesDeleted   int       `json:"rules_deleted"`
 }
 
 type ChatMessage struct {

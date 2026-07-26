@@ -6,6 +6,7 @@ interface Rule {
   condition_type: string; condition_op: string; condition_value: string;
   action_type: string; action_command: string; severity: string; enabled: boolean;
   cooldown_minutes?: number;
+  git_managed?: boolean;
 }
 
 interface RuleCardProps {
@@ -71,6 +72,18 @@ export const RuleCard = memo(({
               }}>
                 {rule.severity || 'warning'}
               </span>
+              {rule.git_managed && (
+                <span
+                  title="Created/updated by Git sync — editing this rule will stop future syncs from managing it"
+                  style={{
+                    fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
+                    padding: '1px 7px', borderRadius: 99,
+                    color: 'var(--text-muted)', border: '1px solid var(--border)',
+                  }}
+                >
+                  Git
+                </span>
+              )}
             </div>
           </div>
         </div>

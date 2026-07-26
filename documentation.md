@@ -49,7 +49,7 @@ The most powerful feature of InfraEye. It allows you to define "If-Then" logic f
     </Rule>
   </AlertRules>
   ```
-- **Sync Bridge**: You can sync these rules via the UI or by providing a remote XML configuration URL for Infrastructure-as-Code (IaC) workflows.
+- **Sync Bridge**: paste/export rules as XML via the UI's Import/Export tab, or drive both alert rules and the server list declaratively from a real Git repository — see [Infrastructure-as-Code Sync](#gitsync) below.
 
 ### 4. Netra AI (Troubleshooting Assistant)
 Powered by OpenAI GPT-4o or Google Gemini.
@@ -68,6 +68,68 @@ A fully self-contained native build for macOS (Apple Silicon) and Linux, built w
 - **SQLite instead of Postgres**: A single database file replaces the Postgres dependency; Redis isn't needed either since it was never a real internal dependency (only an optional probe target for a user-added Redis *resource*).
 - **Single-user, local-only by default**: The backend binds to `127.0.0.1` only. OIDC/SSO can still be enabled for power users who register a loopback redirect URI with their own identity provider.
 - **Kubernetes features are optional**: The MCP sidecar (`kubernetes-mcp-server`) is spawned automatically if found on `PATH`; if it isn't, Kubernetes cluster management is disabled gracefully while Linux-server (SSH) monitoring keeps working.
+
+<a id="gitsync"></a>
+### 7. Infrastructure-as-Code (Git) Sync
+Point InfraEye at a Git repository containing `servers.yaml` and/or `alert-rules.yaml`, and it periodically (or on demand) creates, updates, and removes the server list and alert rules to match — without ever touching anything created manually in the UI.
+
+**Enabling it**: go to **IaC Sync** in the sidebar (under Engineering). Set a repository URL (HTTPS only — a Personal Access Token field covers private repos), branch, and optional subdirectory, then use **Test Connection** and **Sync Now**. A run-history table shows exactly what changed, or the raw error verbatim if something's wrong — errors are never abstracted into a vague status.
+
+**File layout** — both files are independently optional, and live at the repo root by default (or under a configured subdirectory):
+```
+your-repo/
+├── servers.yaml
+└── alert-rules.yaml
+```
+
+**`servers.yaml`**:
+```yaml
+servers:
+  - name: web-01              # required — unique matching key
+    host: 10.0.1.11
+    port: 22                  # optional, default 22
+    ssh_user: deploy
+    auth_type: key             # optional, "key" or "password", default "key"
+    tags: prod,web             # optional, comma-separated
+    description: "Primary web node"
+    folder: production         # optional — auto-created if missing
+    os: linux                  # optional, descriptive only
+    is_k8s: false               # optional, default false
+
+  - name: cluster-a
+    is_k8s: true                # marks this as a Kubernetes cluster in the UI
+```
+
+> [!WARNING]
+> There is deliberately no `ssh_key_path`, `ssh_password`, or `kube_config` field. Credentials are never expected to live in a Git repo — a synced server appears as inventory metadata only, and someone still has to open it in InfraEye and add its SSH key/password (or kubeconfig) by hand.
+
+**`alert-rules.yaml`**:
+```yaml
+alert_rules:
+  - name: high-cpu-web         # required, unique key
+    server: web-01              # optional server name; omit for "all servers"
+    condition_type: cpu         # required — cpu | mem | disk | load | log_keyword | pod_status
+    condition_op: gt            # required — gt | lt | gte | contains
+    condition_value: "85"       # required
+    severity: warning           # optional, default "warning"
+    action_type: notify         # required — notify | ssh_command
+    action_command: ""          # only used when action_type is ssh_command
+    cooldown_minutes: 10        # optional, default 5
+    enabled: true               # optional, default false
+    description: "Fires when CPU sustains above 85%"
+
+  - name: all-servers-disk
+    condition_type: disk
+    condition_op: gt
+    condition_value: "90"
+    action_type: notify
+    enabled: true               # no "server:" field — applies to every server
+```
+
+**How sync behaves**:
+- **Name is the identity.** Each sync matches entries by `name`: new names are created, existing Git-managed names are updated in place, and names no longer in the file are removed (soft-deleted, same as the existing delete endpoints).
+- **It only ever touches what it created.** If a manually-added server or rule already has that name, sync skips it and reports a conflict in the run history — it never silently adopts or overwrites something made by hand.
+- **Editing a synced item in the UI unmanages it.** That row becomes a normal manual entry from then on, so a support engineer's emergency fix in the UI is never silently reverted by the next scheduled sync.
 
 ---
 

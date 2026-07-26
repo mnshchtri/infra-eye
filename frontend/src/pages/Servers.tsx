@@ -20,6 +20,7 @@ interface ServerData {
   distro?: string;
   kube_config?: string;
   folder_id?: number | null;
+  git_managed?: boolean;
 }
 
 const emptyForm = {
@@ -45,6 +46,7 @@ export function Servers() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState<number | null>(null)
+  const [editingGitManaged, setEditingGitManaged] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState<number | null>(null)
   const [disconnecting, setDisconnecting] = useState<number | null>(null)
@@ -95,6 +97,7 @@ export function Servers() {
       folder_id: s.folder_id ?? null,
     })
     setEditId(s.id)
+    setEditingGitManaged(!!s.git_managed)
     setShowForm(true)
   }
 
@@ -191,7 +194,7 @@ export function Servers() {
           {can('manage-servers') && (
             <button
               className="btn btn-primary"
-              onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}
+              onClick={() => { setShowForm(true); setEditId(null); setEditingGitManaged(false); setForm(emptyForm) }}
               style={{ height: 40 }}
             >
               <Plus size={14} /> 
@@ -242,6 +245,12 @@ export function Servers() {
                 <X size={14} />
               </button>
             </div>
+
+            {editId && editingGitManaged && (
+              <p style={{ margin: '-16px 0 20px', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
+                This server was created by Git sync — saving changes here will stop future syncs from managing it.
+              </p>
+            )}
 
             <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
               {[
@@ -464,11 +473,25 @@ export function Servers() {
                             : <Server size={14} color="var(--brand-primary)" />}
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{ fontWeight: 900, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
-                            onClick={() => navigate(`/servers/${s.id}`)}
-                          >
-                            {s.name}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div
+                              style={{ fontWeight: 900, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                              onClick={() => navigate(`/servers/${s.id}`)}
+                            >
+                              {s.name}
+                            </div>
+                            {s.git_managed && (
+                              <span
+                                title="Created/updated by Git sync — editing this server will stop future syncs from managing it"
+                                style={{
+                                  fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
+                                  padding: '1px 6px', borderRadius: 99, flexShrink: 0,
+                                  color: 'var(--text-muted)', border: '1px solid var(--border)',
+                                }}
+                              >
+                                Git
+                              </span>
+                            )}
                           </div>
                           {s.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800 }}>{s.description.toUpperCase()}</div>}
                         </div>

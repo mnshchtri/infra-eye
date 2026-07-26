@@ -103,6 +103,7 @@ func UpdateAlertRule(c *gin.Context) {
 	rule.CooldownMinutes = req.CooldownMinutes
 	rule.Enabled = req.Enabled
 	rule.Description = req.Description
+	rule.GitManaged = false // manual edit takes this rule out of Git-sync's management
 
 	db.DB.Save(&rule)
 	c.JSON(http.StatusOK, rule)

@@ -151,6 +151,13 @@ func RegisterRoutes(r *gin.Engine) {
 		api.GET("/settings/notifications", middleware.RequireRole("admin"), handlers.GetNotificationSettings)
 		api.PUT("/settings/notifications", middleware.RequireRole("admin"), handlers.UpdateNotificationSettings)
 		api.POST("/settings/notifications/test", middleware.RequireRole("admin"), handlers.TestNotificationWebhook)
+
+		// ── Infrastructure-as-Code (Git) sync ──────────────────────
+		api.GET("/gitsync/settings", middleware.RequireRole("admin", "devops"), handlers.GetGitSyncSettings)
+		api.PUT("/gitsync/settings", middleware.RequireRole("admin"), handlers.UpdateGitSyncSettings)
+		api.POST("/gitsync/test", middleware.RequireRole("admin", "devops"), handlers.TestGitSyncConnection)
+		api.POST("/gitsync/sync", middleware.RequireRole("admin", "devops"), handlers.TriggerGitSync)
+		api.GET("/gitsync/runs", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListGitSyncRuns)
 	}
 
 	// ── Additional server management endpoints ────────────────

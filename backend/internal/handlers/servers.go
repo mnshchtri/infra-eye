@@ -264,6 +264,7 @@ func UpdateServer(c *gin.Context) {
 	server.KubeConfig = req.KubeConfig
 	server.IsK8s = req.KubeConfig != ""
 	server.FolderID = req.FolderID
+	server.GitManaged = false // manual edit takes this server out of Git-sync's management
 
 	// Remove stale SSH connection
 	sshpool.Remove(uint(id))

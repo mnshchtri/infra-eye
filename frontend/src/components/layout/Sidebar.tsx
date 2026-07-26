@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound
+  ShieldAlert, Lock, Network, KeyRound, GitBranch
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -56,6 +56,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Engineering',
     items: [
       { to: '/devtools',   icon: Code2,           label: 'Developer Hub', action: 'manage-users' },
+      { to: '/iac-sync',   icon: GitBranch,       label: 'IaC Sync',      action: 'manage-gitsync' },
       { to: '/settings',   icon: Settings,        label: 'System Settings' },
     ]
   },

@@ -40,6 +40,7 @@ In an era of microservices and ephemeral infrastructure, observability shouldn't
 | **MCP Sidecar**              | Model Context Protocol integration for AI-driven cluster troubleshooting.              | `Experimental` |
 | **SSH Terminal**             | Full browser-based `xterm.js` terminal over secure SSH tunnels.                      | `Production`   |
 | **Desktop App**              | Native macOS (Apple Silicon)/Linux app (Wails) — SQLite-backed, single binary, no Docker required. | `Beta`   |
+| **Infrastructure-as-Code Sync** | Sync server lists and alert rules from a Git repo — non-destructive, credentials never read from Git. | `Beta`   |
 
 ---
 
@@ -158,7 +159,7 @@ We are constantly evolving. Here's what's currently in the pipeline:
 
 - [x] **OIDC / SSO Integration**: Support for Keycloak, Google, GitHub, Okta, and Azure AD authentication. See [OIDC Integration Guide](docs/OIDC_INTEGRATION.md).
 - [x] **Desktop App**: Native macOS (Apple Silicon)/Linux build via Wails — SQLite-backed, single binary, no Docker required.
-- [ ] **Infrastructure-as-Code Sync**: Sync your server list and alert rules directly from a Git repo.
+- [x] **Infrastructure-as-Code Sync**: Sync your server list and alert rules directly from a Git repo — non-destructive (never touches manually-created entries), credentials never read from Git. See [documentation.md](documentation.md#gitsync).
 - [ ] **Terraform Bridge**: Visualize and drift-detect Terraform-managed resources.
 - [ ] **Metric Persistence**: Long-term data retention using Prometheus/VictoriaMetrics.
 - [ ] **Mobile Command Center**: A dedicated PWA optimized for "on-call" emergency status checks.

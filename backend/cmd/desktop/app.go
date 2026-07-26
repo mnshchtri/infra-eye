@@ -16,6 +16,7 @@ import (
 	"github.com/infra-eye/backend/internal/appdata"
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/gitsync"
 	"github.com/infra-eye/backend/internal/handlers"
 	"github.com/infra-eye/backend/internal/healing"
 	"github.com/infra-eye/backend/internal/httpapi"
@@ -84,6 +85,9 @@ func (a *App) OnStartup(ctx context.Context) {
 	healing.StartEngine()
 	resources.StartCollector()
 
+	gitsync.SetWorkDir(filepath.Join(appDir, "gitsync", "repo"))
+	gitsync.StartEngine()
+
 	a.mcpCmd = startMCPSidecar(kubeconfigPath, appDir)
 
 	if config.C.Env == "production" {
@@ -117,6 +121,7 @@ func (a *App) OnShutdown(ctx context.Context) {
 	healing.StopEngine()
 	resources.StopCollector()
 	metrics.StopAll()
+	gitsync.StopEngine()
 
 	if a.httpServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
