@@ -39,6 +39,7 @@ In an era of microservices and ephemeral infrastructure, observability shouldn't
 | **OIDC/SSO Authentication**  | Keycloak, Auth0, Okta, Azure AD integration for enterprise single sign-on.            | `Production`   |
 | **MCP Sidecar**              | Model Context Protocol integration for AI-driven cluster troubleshooting.              | `Experimental` |
 | **SSH Terminal**             | Full browser-based `xterm.js` terminal over secure SSH tunnels.                      | `Production`   |
+| **Desktop App**              | Native macOS/Windows/Linux app (Wails) — SQLite-backed, single binary, no Docker required. | `Beta`   |
 
 ---
 

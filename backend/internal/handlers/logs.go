@@ -52,7 +52,11 @@ func GetLogs(c *gin.Context) {
 		query = query.Where("level = ?", level)
 	}
 	if search != "" {
-		query = query.Where("message ILIKE ?", "%"+search+"%")
+		if db.DB.Name() == "postgres" {
+			query = query.Where("message ILIKE ?", "%"+search+"%")
+		} else {
+			query = query.Where("LOWER(message) LIKE LOWER(?)", "%"+search+"%")
+		}
 	}
 
 	var total int64

@@ -15,10 +15,14 @@ const (
 	retentionDays = 7
 )
 
+var collectorCancel context.CancelFunc
+
 // StartCollector launches a background loop that probes every resource on an
 // interval, updates its live status, and appends a ResourceMetric history row.
 // Mirrors the metrics/healing engines: one goroutine, ticker-driven, best-effort.
 func StartCollector() {
+	ctx, cancel := context.WithCancel(context.Background())
+	collectorCancel = cancel
 	go func() {
 		// Prime once shortly after boot so the UI isn't empty on first load.
 		time.Sleep(5 * time.Second)
@@ -31,6 +35,8 @@ func StartCollector() {
 
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-ticker.C:
 				collectAll()
 			case <-cleanup.C:
@@ -39,6 +45,15 @@ func StartCollector() {
 		}
 	}()
 	log.Println("✅ Resource observability collector started")
+}
+
+// StopCollector cancels the running resource-observability loop, if any. Used
+// on desktop-app shutdown so the goroutine doesn't keep firing after the DB closes.
+func StopCollector() {
+	if collectorCancel != nil {
+		collectorCancel()
+		collectorCancel = nil
+	}
 }
 
 func collectAll() {

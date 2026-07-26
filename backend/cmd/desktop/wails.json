@@ -1,0 +1,10 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "InfraEye",
+  "outputfilename": "infraeye-desktop",
+  "frontend:install": "",
+  "frontend:build": "",
+  "author": {
+    "name": "InfraEye"
+  }
+}

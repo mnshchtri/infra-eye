@@ -1,0 +1,124 @@
+name: Desktop App Build
+
+# Builds the standalone Wails desktop app for macOS, Windows, and Linux.
+# Each OS builds natively on its own runner — Wails' native webview chrome
+# (WebKit/WebView2/WebKitGTK) cannot be cross-compiled from a single host,
+# so this can't be done from a single machine the way the Docker image can.
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin/universal
+            artifact_name: InfraEye-macOS
+            bin_glob: build/bin/InfraEye.app
+          - os: windows-latest
+            platform: windows/amd64
+            artifact_name: InfraEye-Windows
+            bin_glob: build/bin/infraeye-desktop.exe
+          - os: ubuntu-latest
+            platform: linux/amd64
+            artifact_name: InfraEye-Linux
+            bin_glob: build/bin/infraeye-desktop
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Linux system dependencies (GTK/WebKitGTK)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build frontend (desktop variant)
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://127.0.0.1:8073
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy frontend build into embeddable location
+        shell: bash
+        run: |
+          rm -rf backend/cmd/desktop/frontenddist
+          mkdir -p backend/cmd/desktop/frontenddist
+          cp -R frontend/dist/. backend/cmd/desktop/frontenddist/
+
+      - name: wails build (macOS/Windows)
+        if: runner.os != 'Linux'
+        working-directory: backend/cmd/desktop
+        run: wails build -platform ${{ matrix.platform }}
+
+      - name: wails build (Linux, webkit2gtk 4.1)
+        if: runner.os == 'Linux'
+        working-directory: backend/cmd/desktop
+        run: wails build -platform ${{ matrix.platform }} -tags webkit2_41
+
+      - name: Package artifact (macOS .app -> zip)
+        if: runner.os == 'macOS'
+        working-directory: backend/cmd/desktop/build/bin
+        run: ditto -c -k --sequesterRsrc --keepParent InfraEye.app ${{ matrix.artifact_name }}.zip
+
+      - name: Package artifact (Windows .exe -> zip)
+        if: runner.os == 'Windows'
+        working-directory: backend/cmd/desktop/build/bin
+        run: Compress-Archive -Path infraeye-desktop.exe -DestinationPath ${{ matrix.artifact_name }}.zip
+
+      - name: Package artifact (Linux binary -> tar.gz)
+        if: runner.os == 'Linux'
+        working-directory: backend/cmd/desktop/build/bin
+        run: tar -czf ${{ matrix.artifact_name }}.tar.gz infraeye-desktop
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.zip
+            backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.tar.gz
+          if-no-files-found: ignore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release with desktop binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/InfraEye-macOS/InfraEye-macOS.zip
+            dist/InfraEye-Windows/InfraEye-Windows.zip
+            dist/InfraEye-Linux/InfraEye-Linux.tar.gz

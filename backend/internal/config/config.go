@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Port                  string
 	Env                   string
+	DBDriver              string
 	DBDSN                 string
 	RedisAddr             string
 	JWTSecret             string
@@ -47,6 +48,7 @@ func Load() {
 	C = Config{
 		Port:            getEnv("PORT", "8080"),
 		Env:             getEnv("ENV", "development"),
+		DBDriver:        getEnv("DB_DRIVER", "postgres"),
 		DBDSN:           getEnv("DB_DSN", "postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable"),
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
 		JWTSecret:       getEnv("JWT_SECRET", "dev-secret-change-in-production"),

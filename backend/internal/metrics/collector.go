@@ -162,6 +162,28 @@ func StopCollector(serverID uint) {
 	}
 }
 
+// StopAll cancels every running metrics collector. Used on desktop-app
+// shutdown so background goroutines don't keep writing after the DB closes.
+func StopAll() {
+	collectorsMu.Lock()
+	defer collectorsMu.Unlock()
+	for id, cancel := range collectors {
+		cancel()
+		delete(collectors, id)
+	}
+}
+
+// StartAllExisting starts a metrics collector for every server currently in
+// the database. Shared by cmd/server and cmd/desktop startup sequences.
+func StartAllExisting() {
+	var servers []models.Server
+	db.DB.Find(&servers)
+	for _, srv := range servers {
+		go StartCollector(srv)
+	}
+	log.Printf("✅ Started metrics collection for %d existing servers", len(servers))
+}
+
 func collect(server models.Server) {
 	// Refresh server data to get latest OS/Status
 	if err := db.DB.First(&server, server.ID).Error; err != nil {

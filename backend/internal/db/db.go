@@ -3,6 +3,7 @@ package db
 import (
 	"log"
 
+	"github.com/glebarez/sqlite"
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/models"
 	"gorm.io/driver/postgres"
@@ -19,7 +20,14 @@ func Connect() {
 		logLevel = logger.Info
 	}
 
-	DB, err = gorm.Open(postgres.Open(config.C.DBDSN), &gorm.Config{
+	var dialector gorm.Dialector
+	if config.C.DBDriver == "sqlite" {
+		dialector = sqlite.Open(config.C.DBDSN)
+	} else {
+		dialector = postgres.Open(config.C.DBDSN)
+	}
+
+	DB, err = gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
 	})
 	if err != nil {

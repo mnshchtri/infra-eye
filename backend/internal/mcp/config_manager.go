@@ -62,6 +62,15 @@ func init() {
 	log.Printf("🔧 MCP config: runningInDocker=%v  path=%s", runningInDocker, MasterConfigPath)
 }
 
+// SetMasterConfigPath overrides MasterConfigPath at runtime. Needed by
+// cmd/desktop: this package's init() (which resolves MCP_SHARED_PATH) runs
+// before any caller's main()/OnStartup code, so setting that env var at
+// runtime has no effect — callers that need a custom path must call this
+// explicitly before SyncMasterKubeconfig().
+func SetMasterConfigPath(path string) {
+	MasterConfigPath = path
+}
+
 // SyncMasterKubeconfig merges all Kubernetes server configs from the database
 // into a single master kubeconfig file for the MCP server.
 func SyncMasterKubeconfig() error {

@@ -1,4 +1,4 @@
-.PHONY: dev infra backend frontend migrate build clean
+.PHONY: dev infra backend frontend migrate build clean desktop-build
 
 # Start core infrastructure in Docker (DB, Redis)
 # This uses official pre-built images, avoiding DNS/build issues
@@ -43,6 +43,14 @@ backend-install:
 build:
 	cd backend && go build -o ./bin/server ./cmd/server/main.go
 	cd frontend && npm run build
+
+# Build the standalone desktop app (Wails). Requires `wails` CLI on PATH.
+desktop-build:
+	cd frontend && VITE_API_URL=http://127.0.0.1:8073 npm run build
+	rm -rf backend/cmd/desktop/frontenddist
+	mkdir -p backend/cmd/desktop/frontenddist
+	cp -R frontend/dist/. backend/cmd/desktop/frontenddist/
+	cd backend/cmd/desktop && wails build
 
 # Clean build artifacts
 clean:

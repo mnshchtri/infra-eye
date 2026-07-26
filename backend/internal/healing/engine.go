@@ -20,15 +20,33 @@ import (
 
 var lastFired = map[uint]time.Time{}
 
+var engineCancel context.CancelFunc
+
 func StartEngine() {
+	ctx, cancel := context.WithCancel(context.Background())
+	engineCancel = cancel
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			evaluate()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				evaluate()
+			}
 		}
 	}()
 	log.Println("✅ Self-healing engine started")
+}
+
+// StopEngine cancels the running self-healing ticker, if any. Used on
+// desktop-app shutdown so the goroutine doesn't keep firing after the DB closes.
+func StopEngine() {
+	if engineCancel != nil {
+		engineCancel()
+		engineCancel = nil
+	}
 }
 
 func evaluate() {
