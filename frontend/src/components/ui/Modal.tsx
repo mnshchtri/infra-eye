@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 export interface ModalProps {
   isOpen: boolean
   onClose: () => void
   title?: string
+  icon?: LucideIcon
+  subtitle?: string
   children: ReactNode
   footer?: ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
@@ -15,6 +18,8 @@ export function Modal({
   isOpen,
   onClose,
   title,
+  icon: Icon,
+  subtitle,
   children,
   footer,
   size = 'md',
@@ -45,10 +50,10 @@ export function Modal({
   if (!isOpen) return null
 
   const sizeClasses = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
+    sm: 'modal-sm',
+    md: 'modal-md',
+    lg: 'modal-lg',
+    xl: 'modal-xl',
   }
 
   return (
@@ -59,7 +64,17 @@ export function Modal({
       >
         {title && (
           <div className="modal-header">
-            <h2 className="modal-title">{title}</h2>
+            <div className="modal-header-heading">
+              {Icon && (
+                <div className="modal-icon-box">
+                  <Icon size={18} />
+                </div>
+              )}
+              <div>
+                <h2 className="modal-title">{title}</h2>
+                {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+              </div>
+            </div>
             <button
               className="modal-close"
               onClick={onClose}

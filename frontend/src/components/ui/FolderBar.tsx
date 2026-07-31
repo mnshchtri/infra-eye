@@ -4,7 +4,10 @@ import type { FolderItem } from '../../hooks/useFolders'
 
 export type FolderSelection = number | 'all' | 'unassigned'
 
-const PALETTE = ['#2b9af3', '#3e8635', '#f0ab00', '#c9190b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+// Mirrors --info/--success/--warning/--danger plus the --accent-* hues (index.css).
+// Kept as literal hex (not var() refs) because callers hex-alpha-suffix these
+// values directly (e.g. `${folder.color}1a`) when rendering tinted backgrounds.
+const FOLDER_COLORS = ['#2b9af3', '#3e8635', '#f0ab00', '#c9190b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
 
 export function FolderBar({
   folders, counts, unassignedCount, totalCount, selected, onSelect, onCreate, onDelete, canManage,
@@ -21,18 +24,18 @@ export function FolderBar({
 }) {
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
-  const [color, setColor] = useState(PALETTE[0])
+  const [color, setColor] = useState(FOLDER_COLORS[0])
 
   function submit() {
     if (!name.trim()) return
     onCreate(name.trim(), color)
     setName('')
-    setColor(PALETTE[0])
+    setColor(FOLDER_COLORS[0])
     setCreating(false)
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+    <div className="folder-bar">
       <Chip active={selected === 'all'} label="All" count={totalCount} onClick={() => onSelect('all')} />
       {folders.map(f => (
         <Chip
@@ -49,26 +52,23 @@ export function FolderBar({
 
       {canManage && (
         creating ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 6px' }}>
+          <div className="folder-create-form">
             <input
               autoFocus
-              className="input"
+              className="input folder-create-input"
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setCreating(false) }}
               placeholder="Folder name"
-              style={{ height: 26, fontSize: 12, padding: '0 8px', width: 130 }}
             />
             <div style={{ display: 'flex', gap: 3 }}>
-              {PALETTE.map(c => (
+              {FOLDER_COLORS.map(c => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  style={{
-                    width: 14, height: 14, borderRadius: '50%', background: c, cursor: 'pointer', padding: 0,
-                    border: color === c ? '2px solid var(--text-primary)' : '1px solid transparent',
-                  }}
+                  className={`folder-color-swatch${color === c ? ' selected' : ''}`}
+                  style={{ '--folder-color': c } as React.CSSProperties}
                 />
               ))}
             </div>
@@ -76,15 +76,7 @@ export function FolderBar({
             <button type="button" onClick={() => setCreating(false)} className="btn-icon-sm" title="Cancel"><X size={13} /></button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700,
-              padding: '6px 12px', border: '1px dashed var(--border)', background: 'transparent',
-              color: 'var(--text-muted)', cursor: 'pointer',
-            }}
-          >
+          <button type="button" onClick={() => setCreating(true)} className="folder-create-btn">
             <Plus size={13} /> New folder
           </button>
         )
@@ -103,30 +95,22 @@ function Chip({
   onClick: () => void
   onDelete?: () => void
 }) {
+  const cssVars = color
+    ? ({ '--folder-color': color, '--folder-chip-bg': `${color}1a` } as React.CSSProperties)
+    : undefined
+
   return (
-    <div
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-        padding: '6px 10px 6px 12px', fontSize: 12, fontWeight: 700,
-        border: `1px solid ${active ? (color || 'var(--brand-primary)') : 'var(--border)'}`,
-        background: active ? (color ? `${color}1a` : 'var(--brand-glow)') : 'transparent',
-        color: active ? (color || 'var(--brand-primary)') : 'var(--text-secondary)',
-        transition: 'all 0.15s',
-      }}
-    >
-      {color && <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />}
+    <div onClick={onClick} className={`folder-chip${active ? ' active' : ''}`} style={cssVars}>
+      {color && <span className="folder-chip-dot" />}
       <span>{label}</span>
-      <span style={{ opacity: 0.6, fontSize: 12 }}>{count}</span>
+      <span className="folder-chip-count">{count}</span>
       {onDelete && (
         <span
+          className="folder-chip-delete"
           onClick={e => {
             e.stopPropagation()
             if (window.confirm(`Delete folder "${label}"? Items inside become unassigned.`)) onDelete()
           }}
-          style={{ display: 'flex', marginLeft: 2, opacity: 0.5 }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
         >
           <X size={12} />
         </span>

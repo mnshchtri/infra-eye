@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import { format } from 'date-fns'
 import { CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Badge } from '../ui'
 
 interface HistoryAction {
   id: number; created_at: string; server_id: number; trigger_info: string;
@@ -10,7 +11,6 @@ interface HistoryAction {
 interface HistoryRowProps {
   history: HistoryAction;
   serverName: string;
-  isLast: boolean;
 }
 
 const STATUS_STYLES: Record<string, { color: string; Icon: typeof CheckCircle2; label: string }> = {
@@ -19,7 +19,7 @@ const STATUS_STYLES: Record<string, { color: string; Icon: typeof CheckCircle2; 
   pending: { color: 'var(--text-muted)', Icon: Clock, label: 'Pending' },
 }
 
-export const HistoryRow = memo(({ history, serverName, isLast }: HistoryRowProps) => {
+export const HistoryRow = memo(({ history, serverName }: HistoryRowProps) => {
   const [expanded, setExpanded] = useState(false)
   const status = STATUS_STYLES[history.status] || STATUS_STYLES.pending
   const StatusIcon = status.Icon
@@ -27,29 +27,28 @@ export const HistoryRow = memo(({ history, serverName, isLast }: HistoryRowProps
   const isLong = output.length > 120 || output.includes('\n')
 
   return (
-    <tr style={{ borderBottom: !isLast ? '1px solid var(--border)' : 'none', transition: 'background 0.15s', verticalAlign: 'top' }} className="table-row-hover">
-      <td style={{ padding: '14px 20px', fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+    <tr style={{ verticalAlign: 'top' }}>
+      <td style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
         {format(new Date(history.created_at), 'MMM d, HH:mm:ss')}
       </td>
-      <td style={{ padding: '14px 20px', fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+      <td style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
         {serverName}
       </td>
-      <td style={{ padding: '14px 20px' }}>
-        <span style={{
-          fontSize: 12, fontWeight: 700, color: 'var(--warning)',
-          background: 'var(--bg-app)', border: '1px solid var(--border)',
-          padding: '3px 10px', borderRadius: 99, fontFamily: 'var(--font-mono)',
-          display: 'inline-block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }} title={history.trigger_info}>
+      <td>
+        <Badge
+          variant="warning"
+          title={history.trigger_info}
+          style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}
+        >
           {history.trigger_info}
-        </span>
+        </Badge>
       </td>
-      <td style={{ padding: '14px 20px', whiteSpace: 'nowrap' }}>
+      <td style={{ whiteSpace: 'nowrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: status.color }}>
           <StatusIcon size={14} /> {status.label}
         </span>
       </td>
-      <td style={{ padding: '14px 20px' }}>
+      <td>
         {history.command && (
           <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={history.command}>
             $ {history.command}

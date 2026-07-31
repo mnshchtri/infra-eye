@@ -53,8 +53,8 @@ export function LoadingOverlay({ message = 'Loading...' }: LoadingOverlayProps) 
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(4px)',
+        background: 'var(--overlay-scrim)',
+        backdropFilter: 'var(--blur-sm)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

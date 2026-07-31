@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { Zap, Pencil, Trash2, Bell, Terminal, Server, Clock } from 'lucide-react'
+import { Badge } from '../ui'
 
 interface Rule {
   id: number; name: string; server_id: number;
@@ -64,25 +65,11 @@ export const RuleCard = memo(({
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 700 }}>
                 <Server size={12} /> {serverName}
               </span>
-              <span style={{
-                fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
-                padding: '1px 7px', borderRadius: 99,
-                color: isCritical ? 'var(--danger)' : 'var(--warning)',
-                border: `1px solid ${isCritical ? 'var(--danger)' : 'var(--warning)'}`,
-              }}>
-                {rule.severity || 'warning'}
-              </span>
+              <Badge variant={isCritical ? 'danger' : 'warning'}>{rule.severity || 'warning'}</Badge>
               {rule.git_managed && (
-                <span
-                  title="Created/updated by Git sync — editing this rule will stop future syncs from managing it"
-                  style={{
-                    fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
-                    padding: '1px 7px', borderRadius: 99,
-                    color: 'var(--text-muted)', border: '1px solid var(--border)',
-                  }}
-                >
+                <Badge variant="neutral" title="Created/updated by Git sync — editing this rule will stop future syncs from managing it">
                   Git
-                </span>
+                </Badge>
               )}
             </div>
           </div>

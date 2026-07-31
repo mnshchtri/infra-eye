@@ -3,13 +3,13 @@ import { useUIStore } from '../../store/uiStore'
 import logo from '../../assets/logo.png'
 
 export function MobileNav() {
-  const { mobileNavOpen, toggleMobileNav } = useUIStore()
+  const { mobileNavOpen, toggleMobileNav, darkMode } = useUIStore()
 
   return (
     <nav className="mobile-nav">
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon" style={{ width: 32, height: 32 }}>
-          <img src={logo} alt="L" />
+          <img src={logo} alt="L" style={{ filter: darkMode ? 'brightness(0) invert(1)' : 'none' }} />
         </div>
         <span className="sidebar-logo-text" style={{ fontSize: 18 }}>InfraEye</span>
       </div>
