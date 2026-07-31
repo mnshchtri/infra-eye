@@ -7,6 +7,7 @@ import { ToastContainer } from '../Toast'
 import { useToastStore } from '../../store/toastStore'
 import { buildWsUrl } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
+import { useThemeSync } from '../../hooks/useThemeSync'
 
 /** Connects to the global alerts WebSocket room and fires toasts when rules trigger */
 function useAlertNotifications() {
@@ -52,17 +53,10 @@ function useAlertNotifications() {
 }
 
 export function Layout() {
-  const { sidebarCollapsed, darkMode, mobileNavOpen, setMobileNavOpen } = useUIStore()
+  const { sidebarCollapsed, mobileNavOpen, setMobileNavOpen } = useUIStore()
   const location = useLocation()
   useAlertNotifications()
-  
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [darkMode])
+  useThemeSync()
 
   // Close mobile nav when location changes
   useEffect(() => {

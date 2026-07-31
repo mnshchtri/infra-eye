@@ -87,49 +87,23 @@ export function Sidebar() {
   return (
     <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileNavOpen ? 'mobile-open' : ''}`}>
       {/* Header / Logo */}
-      <div className="sidebar-header" style={{
-        height: 'var(--header-h)',
-        padding: sidebarCollapsed ? '0 12px' : '0 16px',
-        display: 'flex', 
-        alignItems: 'center', 
-        borderBottom: '1px solid var(--border)', 
-        background: 'var(--bg-sidebar)',
-        flexShrink: 0
-      }}>
-        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src={logo} alt="L" style={{ height: 32, width: 'auto', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }} />
-          {!sidebarCollapsed && (
-            <span className="sidebar-logo-text" style={{ 
-              fontSize: 15, fontWeight: 900, color: 'var(--text-primary)', 
-              letterSpacing: '-0.02em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' 
-            }}>
-              InfraEye
-            </span>
-          )}
+      <div className="sidebar-header">
+        <div className="sidebar-logo">
+          <img
+            src={logo}
+            alt="L"
+            style={{ height: 32, width: 'auto', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }}
+          />
+          {!sidebarCollapsed && <span className="sidebar-logo-text">InfraEye</span>}
         </div>
-        
+
         {!sidebarCollapsed && (
-          <button 
-            className="sidebar-toggle-btn" 
-            onClick={toggleSidebar}
-            title="Collapse Sidebar"
-            style={{ opacity: 0.5 }}
-          >
+          <button className="sidebar-toggle-btn" onClick={toggleSidebar} title="Collapse Sidebar">
             <ChevronLeft size={14} />
           </button>
         )}
         {mobileNavOpen && (
-          <button
-            className="sidebar-close-btn"
-            onClick={toggleMobileNav}
-            title="Close menu"
-            style={{
-              marginLeft: 'auto', width: 28, height: 28, borderRadius: 0,
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-              display: 'none', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0
-            }}
-          >
+          <button className="sidebar-close-btn" onClick={toggleMobileNav} title="Close menu">
             <X size={14} />
           </button>
         )}
@@ -138,84 +112,58 @@ export function Sidebar() {
       {/* Nav Groups */}
       <nav className="sidebar-nav">
         {sidebarCollapsed && (
-             <button 
-             className="sidebar-toggle-btn" 
-             onClick={toggleSidebar}
-             title="Expand Sidebar"
-             style={{ margin: '0 auto 32px' }}
-           >
-             <Menu size={18} />
-           </button>
+          <button
+            className="sidebar-toggle-btn sidebar-toggle-btn-collapsed"
+            onClick={toggleSidebar}
+            title="Expand Sidebar"
+          >
+            <Menu size={18} />
+          </button>
         )}
 
         {navGroups.map(group => {
           const visibleItems = group.items.filter(item => !item.action || can(item.action))
           if (visibleItems.length === 0) return null
-          
+
           return (
-          <div key={group.label} className="nav-group-container" style={{ marginBottom: 28 }}>
+          <div key={group.label} className="sidebar-nav-group">
             {!sidebarCollapsed && (
-              <div className="nav-group-label" style={{
-                fontSize: 12, fontWeight: 900, color: 'var(--text-muted)',
-                textTransform: 'uppercase', letterSpacing: '0.15em',
-                padding: '0 14px', marginBottom: 12,
-                fontFamily: 'var(--font-mono)'
-              }}>
-                {group.label}
-              </div>
+              <div className="sidebar-nav-group-label">{group.label}</div>
             )}
-            {group.items.filter(item => !item.action || can(item.action)).map(({ to, icon: Icon, label }) => (
+            {visibleItems.map(({ to, icon: Icon, label }) => (
               <Fragment key={to}>
                 <NavLink
                   to={to}
                   end={to === '/'}
                   className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                   title={sidebarCollapsed ? label : undefined}
-                  style={{ borderRadius: 0, padding: '10px 14px', margin: '0 8px' }}
                 >
                   <div className="sidebar-link-icon">
                     <Icon size={16} strokeWidth={2.5} />
                   </div>
-                  {!sidebarCollapsed && <span style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>}
+                  {!sidebarCollapsed && <span className="sidebar-link-text">{label}</span>}
                  {label === 'Servers' && !sidebarCollapsed && (
-                  <div 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setServersExpanded(!serversExpanded); }} 
-                    style={{ padding: '4px', cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
+                  <div
+                    className="sidebar-nested-toggle"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setServersExpanded(!serversExpanded); }}
                   >
                     {serversExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                   </div>
                  )}
-                 {label !== 'Servers' && !sidebarCollapsed && <ChevronRight size={12} className="sidebar-link-arrow" style={{ opacity: 0.3 }} />}
+                 {label !== 'Servers' && !sidebarCollapsed && <ChevronRight size={12} className="sidebar-link-arrow" />}
                 </NavLink>
-                
+
                 {/* Nested list for Servers (Scrollable) */}
                 {label === 'Servers' && !sidebarCollapsed && serversExpanded && servers.length > 0 && (
-                  <div style={{ 
-                    paddingLeft: 44, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2, 
-                    borderLeft: '1px solid var(--border)', margin: '4px 0 8px 18px',
-                    maxHeight: '320px', overflowY: 'auto'
-                  }}>
+                  <div className="sidebar-sublist">
                     {servers.map(s => (
-                      <NavLink 
-                        key={s.id} 
-                        to={`/servers/${s.id}`} 
-                        className="nav-sublink" 
-                        style={({ isActive }) => ({
-                          fontSize: 12, 
-                          fontFamily: 'var(--font-mono)',
-                          color: isActive ? 'var(--brand-primary)' : 'var(--text-secondary)', 
-                          textDecoration: 'none', 
-                          padding: '8px 0',
-                          fontWeight: isActive ? 800 : 500,
-                          textTransform: 'uppercase',
-                          transition: 'all 0.2s',
-                          flexShrink: 0
-                        })}
+                      <NavLink
+                        key={s.id}
+                        to={`/servers/${s.id}`}
+                        className={({ isActive }) => `nav-sublink ${isActive ? 'active' : ''}`}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 3, height: 3, background: s.status === 'online' ? '#22c55e' : '#52525b' }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                        </div>
+                        <span className={`nav-sublink-dot ${s.status === 'online' ? 'online' : ''}`} />
+                        <span className="nav-sublink-name">{s.name}</span>
                       </NavLink>
                     ))}
                   </div>
@@ -229,48 +177,33 @@ export function Sidebar() {
 
 
       {/* Theme Toggle & User Footer */}
-      <div className="sidebar-footer" style={{ padding: sidebarCollapsed ? '16px 8px' : '20px 16px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', marginBottom: 16, padding: sidebarCollapsed ? 0 : '0 8px' }}>
-          {!sidebarCollapsed && <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>System Theme</span>}
+      <div className="sidebar-footer">
+        <div className="sidebar-theme-row">
+          {!sidebarCollapsed && <span className="sidebar-theme-label">System Theme</span>}
           <button
-            className="btn-icon"
+            className="sidebar-toggle-btn"
             onClick={toggleDarkMode}
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{ width: 28, height: 28, borderRadius: 0, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             {darkMode ? <Sun size={13} color="var(--warning)" /> : <Moon size={13} color="var(--brand-primary)" />}
           </button>
         </div>
 
         {!sidebarCollapsed && (
-          <div style={{ padding: '0 8px', marginBottom: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              v{__APP_VERSION__}
-            </span>
-          </div>
+          <div className="sidebar-version">v{__APP_VERSION__}</div>
         )}
 
-        <div
-          className="sidebar-user"
-          style={sidebarCollapsed
-            ? { flexDirection: 'column', alignItems: 'center', gap: 10 }
-            : { background: 'var(--bg-elevated)40', padding: '12px', border: '1px solid var(--border)40', gap: 10 }}
-        >
-          <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined} style={{ width: 28, height: 28, fontSize: 12, borderRadius: 0, background: 'var(--brand-primary)', color: 'var(--text-inverse)' }}>
+        <div className="sidebar-user">
+          <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined}>
             {user?.username?.[0]?.toUpperCase() ?? 'A'}
           </div>
           {!sidebarCollapsed && (
-            <div className="sidebar-user-info" style={{ gap: 1 }}>
-              <span className="sidebar-user-name" style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)' }}>{user?.username ?? 'Admin'}</span>
-              <span className="sidebar-user-role" style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800 }}>{user?.role ?? 'operator'}</span>
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name">{user?.username ?? 'Admin'}</span>
+              <span className="sidebar-user-role">{user?.role ?? 'operator'}</span>
             </div>
           )}
-          <button
-            className="sidebar-logout"
-            onClick={handleLogout}
-            title="Sign out"
-            style={sidebarCollapsed ? { opacity: 0.5 } : { marginLeft: 'auto', opacity: 0.5 }}
-          >
+          <button className="sidebar-logout" onClick={handleLogout} title="Sign out">
             <LogOut size={sidebarCollapsed ? 14 : 12} />
           </button>
         </div>

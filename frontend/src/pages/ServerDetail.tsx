@@ -895,12 +895,12 @@ export function ServerDetail() {
              <HelpCircle size={28} color="var(--text-primary)" />}
           </div>
           <div style={{ minWidth: 0 }}>
-            <h1 className="page-title" style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{server.name}</h1>
+            <h1 className="page-title" style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span className={`badge badge-${server.status}`} style={{ padding: '3px 12px', borderRadius: 0 }}>
+              <span className={`badge badge-${server.status}`} style={{ padding: '3px 12px', borderRadius: 'var(--radius-sm)' }}>
                 {server.status.toUpperCase()}
               </span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {server.host ? `${server.ssh_user}@${server.host}` : 'Direct Cluster API'}
               </span>
             </div>

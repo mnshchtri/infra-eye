@@ -52,7 +52,7 @@ export function AuditResources() {
             <KeyRound size={22} color="var(--brand-primary)" />
           </div>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 4 }}>
+            <h1 className="page-title" style={{ fontSize: 22, marginBottom: 4 }}>
               Resource Security
             </h1>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>

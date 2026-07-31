@@ -19,7 +19,7 @@ export const useUIStore = create<UIStore>()(
       sidebarCollapsed: false,
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
-      darkMode: false,
+      darkMode: true,
       toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
       setDarkMode: (v) => set({ darkMode: v }),
       mobileNavOpen: false,

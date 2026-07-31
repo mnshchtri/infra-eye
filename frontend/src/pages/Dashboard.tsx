@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
-  Boxes, Search, X, Terminal, Settings, Database, Zap, CheckCircle, XCircle
+  Boxes, Search, Terminal, Settings, Database, Zap, CheckCircle, XCircle
 } from 'lucide-react'
 import { useUIStore } from '../store/uiStore'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { api, buildWsUrl } from '../api/client'
+import { StatCard, SectionHeader, SearchInput } from '../components/ui'
 
 import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
 
@@ -85,36 +86,6 @@ const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; dang
   )
 })
 
-const StatCard = memo(({
-  label, value, icon: Icon, color, delta
-}: {
-  label: string; value: string | number; icon: any;
-  color: string; delta?: string
-}) => {
-  return (
-    <div className="card stat-card fade-up" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-      <div
-        className="stat-icon-wrapper"
-        style={{ border: `1px solid var(--border)`, width: 32, height: 32, flexShrink: 0 }}
-      >
-        <Icon size={14} color={color} />
-      </div>
-      <div className="stat-val-group" style={{ flex: 1 }}>
-        <div className="stat-label" style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div className="stat-value" style={{ fontSize: 20, fontWeight: 900 }}>{value}</div>
-          {delta && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <TrendingUp size={12} color={color} />
-              <span style={{ fontSize: 11, color, fontWeight: 900 }}>{delta}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-})
-
 const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: MetricData }) => {
   const navigate = useNavigate()
 
@@ -135,7 +106,7 @@ const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: Metr
       <div className="server-card-header" style={{ marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 0,
+            width: 32, height: 32, borderRadius: 'var(--radius-sm)',
             background: 'var(--bg-elevated)', border: `1px solid var(--border)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
@@ -460,33 +431,7 @@ export function Dashboard() {
           </p>
         </div>
         <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
-          <div className="search-container">
-            <Search 
-              size={14} 
-              color="var(--text-muted)" 
-              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 38, height: 40 }}
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                style={{ 
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center'
-                }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          <SearchInput value={searchQuery} onChange={setSearchQuery} />
           <button className="btn btn-secondary" onClick={loadData} disabled={loading} style={{ height: 40 }}>
             <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
             <span className="hidden-mobile">Refresh</span>
@@ -511,32 +456,31 @@ export function Dashboard() {
       {!loading && seriesServers.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
           <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Utilization</h3>
-                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per-node {fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last {RANGES.find(r => r.minutes === fleetRange)?.label}, live</p>
-              </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                  {([['cpu', 'CPU'], ['mem', 'MEM'], ['disk', 'DISK']] as const).map(([key, label]) => (
-                    <button
-                      key={key}
-                      onClick={() => setFleetMetric(key)}
-                      style={{
-                        padding: '5px 14px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)',
-                        letterSpacing: '0.08em',
-                        background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
-                        color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
-                        border: 'none', cursor: 'pointer', transition: 'all 0.15s'
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
-              </div>
-            </div>
+            <SectionHeader
+              title="Fleet Utilization"
+              subtitle={`Per-node ${fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last ${RANGES.find(r => r.minutes === fleetRange)?.label}, live`}
+              action={
+                <>
+                  <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    {([['cpu', 'CPU'], ['mem', 'MEM'], ['disk', 'DISK']] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setFleetMetric(key)}
+                        style={{
+                          padding: '5px 14px', fontSize: 11, fontWeight: 700,
+                          background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
+                          color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
+                          border: 'none', cursor: 'pointer', transition: 'all 0.15s'
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
+                </>
+              }
+            />
             <div style={{ flex: 1, minHeight: 200 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timelineData} margin={{ top: 6, right: 76, left: -16, bottom: 0 }}>
@@ -545,7 +489,7 @@ export function Dashboard() {
                   <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                   <Tooltip
                     labelFormatter={(t: any) => fmtClock(t)}
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                   />
                   {seriesServers.length > 1 && (
                     <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
@@ -561,7 +505,7 @@ export function Dashboard() {
                       activeDot={{ r: 4 }}
                       connectNulls
                       isAnimationActive={false}
-                      label={endLabel(s.name, timelineData.length)}
+                      label={seriesServers.length === 1 ? endLabel(s.name, timelineData.length) : undefined}
                     />
                   ))}
                 </LineChart>
@@ -571,13 +515,12 @@ export function Dashboard() {
 
           {healingActions !== null && (
             <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Zap size={14} color="var(--warning)" />
-                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Automation Activity</h3>
-                </div>
-                <button className="btn btn-secondary btn-sm" onClick={() => navigate('/alerts')}>Rules</button>
-              </div>
+              <SectionHeader
+                icon={Zap}
+                iconColor="var(--warning)"
+                title="Automation Activity"
+                action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/alerts')}>Rules</button>}
+              />
               {healingActions.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: 10, padding: '24px 0' }}>
                   <Zap size={22} style={{ opacity: 0.3 }} />
@@ -617,13 +560,11 @@ export function Dashboard() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
           {networkData.length > 1 && (
             <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Fleet Network I/O</h3>
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aggregate receive / transmit across all nodes — MB/s</p>
-                </div>
-                <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
-              </div>
+              <SectionHeader
+                title="Fleet Network I/O"
+                subtitle="Aggregate receive / transmit across all nodes — MB/s"
+                action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />}
+              />
               <div style={{ flex: 1, minHeight: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={networkData} margin={{ top: 6, right: 46, left: -16, bottom: 0 }}>
@@ -633,11 +574,11 @@ export function Dashboard() {
                     <Tooltip
                       labelFormatter={(t: any) => fmtClock(t)}
                       formatter={(v: any) => `${v} MB/s`}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
                     <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
-                    <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('RX', networkData.length)} />
-                    <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} label={endLabel('TX', networkData.length)} />
+                    <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+                    <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -646,12 +587,10 @@ export function Dashboard() {
 
           {diskUsageData.length > 0 && (
             <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ marginBottom: 16 }}>
-                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Disk Usage by Server</h3>
-                <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {diskUsageData.length} node{diskUsageData.length === 1 ? '' : 's'} reporting
-                </p>
-              </div>
+              <SectionHeader
+                title="Disk Usage by Server"
+                subtitle={`${diskUsageData.length} node${diskUsageData.length === 1 ? '' : 's'} reporting`}
+              />
               <div style={{ width: 168, height: 168, position: 'relative', flexShrink: 0, margin: '0 auto 16px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -672,7 +611,7 @@ export function Dashboard() {
                     </Pie>
                     <Tooltip
                       formatter={(v: any, n: any) => [`${v}%`, n]}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -697,13 +636,11 @@ export function Dashboard() {
 
       {!loading && resources.length > 0 && (
         <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 22 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Resource Inventory</h3>
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>Click any resource to manage user access and audit logs.</p>
-            </div>
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/resources')}><span className="hidden-mobile">View full resources</span><span className="show-mobile-only">Resources</span></button>
-          </div>
+          <SectionHeader
+            title="Resource Inventory"
+            subtitle="Click any resource to manage user access and audit logs."
+            action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/resources')}><span className="hidden-mobile">View full resources</span><span className="show-mobile-only">Resources</span></button>}
+          />
           <div style={{ overflowX: 'auto' }}>
             <table className="k-table" style={{ minWidth: 680 }}>
               <thead>
@@ -737,16 +674,12 @@ export function Dashboard() {
 
       {!loading && servers.length > 0 && (
         <div className="card fade-up" style={{ marginBottom: 32, padding: '32px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 0, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-bright)' }}>
-              <Activity size={20} color="var(--brand-primary)" />
-            </div>
-            <div>
-              <h3 style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>Performance Analytics</h3>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resource utilization across connected nodes</p>
-            </div>
-          </div>
-          <div style={{ height: 450, marginTop: 32 }}>
+          <SectionHeader
+            icon={Activity}
+            title="Performance Analytics"
+            subtitle="Resource utilization across connected nodes"
+          />
+          <div style={{ height: 450, marginTop: 16 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
@@ -754,7 +687,7 @@ export function Dashboard() {
                 <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                 <Tooltip
                   cursor={{ fill: 'var(--bg-elevated)' }}
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                 />
                 <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                 <Bar dataKey="CPU" fill="#3b82f6" radius={0} maxBarSize={30} />
@@ -789,15 +722,11 @@ export function Dashboard() {
           {/* Managed Clusters Section */}
           {filteredServers.filter(s => s.is_k8s).length > 0 && (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(79, 70, 229, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' }}>
-                  <KubernetesIcon size={18} />
-                </div>
-                <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Managed Clusters</h2>
-                <div className="badge hidden-mobile" style={{ marginLeft: 'auto', background: 'var(--brand-glow)', color: 'var(--brand-primary)', border: '1px solid var(--brand-primary)20' }}>
-                  {filteredServers.filter(s => s.is_k8s).length} ACTIVE
-                </div>
-              </div>
+              <SectionHeader
+                icon={KubernetesIcon as any}
+                title="Managed Clusters"
+                action={<span className="badge badge-primary hidden-mobile">{filteredServers.filter(s => s.is_k8s).length} Active</span>}
+              />
               <div className="grid-cards">
                 {filteredServers.filter(s => s.is_k8s).map((s) => (
                   <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
@@ -809,15 +738,11 @@ export function Dashboard() {
           {/* Infrastructure Fleet Section */}
           {filteredServers.filter(s => !s.is_k8s).length > 0 && (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(79, 70, 229, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--brand-glow)' }}>
-                  <Server size={18} color="var(--brand-primary)" />
-                </div>
-                <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Resource Fleet</h2>
-                <div className="badge hidden-mobile" style={{ marginLeft: 'auto', background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                  {filteredServers.filter(s => !s.is_k8s).length} NODES
-                </div>
-              </div>
+              <SectionHeader
+                icon={Server}
+                title="Resource Fleet"
+                action={<span className="badge badge-neutral hidden-mobile">{filteredServers.filter(s => !s.is_k8s).length} Nodes</span>}
+              />
               <div className="grid-cards">
                 {filteredServers.filter(s => !s.is_k8s).map((s) => (
                   <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
