@@ -126,16 +126,18 @@ export function Servers() {
     setTesting(id)
     try {
       const res = await api.post(`/api/servers/${id}/test`)
-      setTestResults(prev => ({ ...prev, [id]: { ok: res.data.status === 'online', msg: res.data.output || '' } }))
-      if (res.data.status === 'online') {
+      const ok = res.data.status === 'online'
+      setTestResults(prev => ({ ...prev, [id]: { ok, msg: ok ? (res.data.output || '') : (res.data.error || '') } }))
+      if (ok) {
         setServers(prev => prev.map(s => s.id === id ? { ...s, status: 'online', os: res.data.os } : s))
         toast.success('Connected', `Server is online (${res.data.os || 'linux'})`)
       } else {
-        toast.error('Connection failed', 'Could not reach the server.')
+        toast.error('Connection failed', res.data.error || 'Could not reach the server.')
       }
-    } catch {
-      setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Connection failed' } }))
-      toast.error('Connection failed', 'Could not reach the server.')
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Could not reach the server.'
+      setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: errorMsg } }))
+      toast.error('Connection failed', errorMsg)
     } finally {
       setTesting(null)
     }
@@ -530,7 +532,10 @@ export function Servers() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {testResults[s.id] !== undefined ? (
-                        <span className={`badge ${testResults[s.id].ok ? 'badge-online' : 'badge-offline'}`}>
+                        <span
+                          className={`badge ${testResults[s.id].ok ? 'badge-online' : 'badge-offline'}`}
+                          title={testResults[s.id].ok ? undefined : testResults[s.id].msg}
+                        >
                           {testResults[s.id].ok ? 'CONNECTED' : 'FAILED'}
                         </span>
                       ) : (
