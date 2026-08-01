@@ -73,6 +73,72 @@ func GetLogs(c *gin.Context) {
 	})
 }
 
+// LogStatsBucket is one fixed-width time bucket of fleet-wide log volume by level.
+type LogStatsBucket struct {
+	T     int64 `json:"t"` // bucket start, unix ms
+	Info  int   `json:"info"`
+	Warn  int   `json:"warn"`
+	Error int   `json:"error"`
+}
+
+// GetLogStats aggregates log volume by level over fixed time buckets, across
+// every server the caller can see — for the Dashboard's fleet-wide log/error
+// trend chart. Bucketed in Go rather than SQL (date_trunc etc.) so this stays
+// portable between the Postgres and SQLite (desktop app) backends.
+func GetLogStats(c *gin.Context) {
+	minutes, _ := strconv.Atoi(c.DefaultQuery("minutes", "60"))
+	if minutes <= 0 || minutes > 1440 {
+		minutes = 60
+	}
+	since := time.Now().Add(-time.Duration(minutes) * time.Minute)
+
+	role := c.GetString("role")
+	userID := c.GetUint("user_id")
+
+	query := db.DB.Model(&models.LogEntry{}).Where("timestamp >= ?", since)
+	if role != "admin" && role != "devops" {
+		query = query.Where("server_id IN (SELECT server_id FROM server_accesses WHERE user_id = ? AND deleted_at IS NULL)", userID)
+	}
+
+	var entries []models.LogEntry
+	if err := query.Select("timestamp", "level").Find(&entries).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	const numBuckets = 24
+	bucketDur := time.Duration(minutes) * time.Minute / numBuckets
+
+	buckets := make([]LogStatsBucket, numBuckets)
+	for i := range buckets {
+		buckets[i].T = since.Add(time.Duration(i) * bucketDur).UnixMilli()
+	}
+
+	totals := LogStatsBucket{}
+	for _, e := range entries {
+		idx := int(e.Timestamp.Sub(since) / bucketDur)
+		if idx < 0 {
+			idx = 0
+		}
+		if idx >= numBuckets {
+			idx = numBuckets - 1
+		}
+		switch e.Level {
+		case "error":
+			buckets[idx].Error++
+			totals.Error++
+		case "warn":
+			buckets[idx].Warn++
+			totals.Warn++
+		default:
+			buckets[idx].Info++
+			totals.Info++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"buckets": buckets, "totals": totals})
+}
+
 func ClearLogs(c *gin.Context) {
 	id := c.Param("id")
 	if err := db.DB.Where("server_id = ?", id).Delete(&models.LogEntry{}).Error; err != nil {

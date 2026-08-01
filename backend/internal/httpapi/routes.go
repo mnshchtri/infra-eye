@@ -110,6 +110,7 @@ func RegisterRoutes(r *gin.Engine) {
 		api.GET("/servers/:id/logs", handlers.GetLogs)
 		api.GET("/servers/:id/log-sources", handlers.LogSources)
 		api.DELETE("/servers/:id/logs", middleware.RequireRole("admin", "devops"), handlers.ClearLogs)
+		api.GET("/logs/stats", handlers.GetLogStats)
 
 		// ── Kubectl ───────────────────────────────────────────────
 		api.POST("/servers/:id/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectl)

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Cpu, MemoryStick, HardDrive, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
-  Boxes, Search, Terminal, Settings, Database, Zap, CheckCircle, XCircle
+  Boxes, Search, Terminal, Settings, Database, Zap, CheckCircle, XCircle,
+  Gauge, ShieldCheck, ScrollText
 } from 'lucide-react'
 import { useUIStore } from '../store/uiStore'
 import {
@@ -30,11 +31,18 @@ interface ResourceData {
   port: number; resource_type: string; use_gateway: boolean;
 }
 interface HistPoint {
-  t: number; cpu: number; mem: number; disk: number; rx: number; tx: number;
+  t: number; cpu: number; mem: number; disk: number; rx: number; tx: number; load: number;
 }
 interface HealingAction {
   id: number; created_at: string; server_id: number;
   trigger_info: string; command: string; status: string;
+}
+interface SecurityScanSummary {
+  target_type: string; target_id: number; scan_type: string;
+  finding_count: number; high_count: number; scanned_at: string;
+}
+interface LogStatsBucket {
+  t: number; info: number; warn: number; error: number;
 }
 
 // Categorical series palette (validated CVD-safe, adjacent pairs, light+dark).
@@ -189,6 +197,8 @@ export function Dashboard() {
   const [fleetMetric, setFleetMetric] = useState<'cpu' | 'mem' | 'disk'>('cpu')
   const [fleetRange, setFleetRange] = useState(60) // minutes
   const [healingActions, setHealingActions] = useState<HealingAction[] | null>(null)
+  const [securityScans, setSecurityScans] = useState<SecurityScanSummary[] | null>(null)
+  const [logStats, setLogStats] = useState<{ buckets: LogStatsBucket[]; totals: { info: number; warn: number; error: number } } | null>(null)
 
   const RANGES: { minutes: number; label: string }[] = [
     { minutes: 15, label: '15m' },
@@ -206,16 +216,26 @@ export function Dashboard() {
         const pts: HistPoint[] = (Array.isArray(h.data) ? h.data : []).map((m: any) => ({
           t: new Date(m.timestamp).getTime(),
           cpu: m.cpu_percent, mem: m.mem_percent, disk: m.disk_percent,
-          rx: m.net_rx_mbps, tx: m.net_tx_mbps,
+          rx: m.net_rx_mbps, tx: m.net_tx_mbps, load: m.load_avg_1,
         }))
         setHistory(prev => ({ ...prev, [s.id]: pts }))
       } catch { /* no history yet */ }
     })
   }
 
-  // Refetch history when the user widens/narrows the time range
+  // Fleet-wide log volume/error-rate — 403s for roles without any log
+  // access hide the panel rather than showing an empty chart.
+  async function loadLogStats(minutes: number) {
+    try {
+      const res = await api.get(`/api/logs/stats?minutes=${minutes}`)
+      setLogStats(res.data)
+    } catch { setLogStats(null) }
+  }
+
+  // Refetch history + log stats when the user widens/narrows the time range
   useEffect(() => {
     if (servers.length > 0) loadHistory(servers, fleetRange)
+    loadLogStats(fleetRange)
   }, [fleetRange])
 
   async function loadData() {
@@ -247,6 +267,12 @@ export function Dashboard() {
         const ha = await api.get('/api/healing-actions')
         setHealingActions(Array.isArray(ha.data) ? ha.data.slice(0, 8) : [])
       } catch { setHealingActions(null) }
+
+      // Security posture (403 for roles without access — hide the panel)
+      try {
+        const sec = await api.get('/api/audit/summary')
+        setSecurityScans(Array.isArray(sec.data) ? sec.data : [])
+      } catch { setSecurityScans(null) }
     } catch (err) {
       console.error('Failed to load dashboard data', err)
       setLoading(false)
@@ -289,7 +315,7 @@ export function Dashboard() {
             const pt: HistPoint = {
               t: Date.now(),
               cpu: payload.cpu_percent, mem: payload.mem_percent, disk: payload.disk_percent,
-              rx: payload.net_rx_mbps, tx: payload.net_tx_mbps,
+              rx: payload.net_rx_mbps, tx: payload.net_tx_mbps, load: payload.load_avg_1,
             }
             // Keep enough points for a 24h window at 30s cadence (~2880) + margin
             return { ...prev, [payload.server_id]: [...arr, pt].slice(-3200) }
@@ -398,6 +424,57 @@ export function Dashboard() {
       .map(r => ({ ...r, RX: parseFloat(r.RX.toFixed(2)), TX: parseFloat(r.TX.toFixed(2)) }))
       .sort((a, b) => a.t - b.t)
   }, [history, seriesServers, fleetRange])
+
+  // Fleet-wide average 1-min load average per bucket — unlike CPU/mem/disk
+  // this isn't a percentage (can exceed 1 per core), so it gets its own
+  // auto-scaled axis rather than the shared 0-100% one.
+  const loadAvgData = useMemo(() => {
+    const cutoff = windowStart()
+    const rows = new Map<number, { t: number; sum: number; count: number }>()
+    seriesServers.forEach(s => {
+      (history[s.id] || []).forEach(p => {
+        if (p.t < cutoff || p.load == null) return
+        const t = Math.round(p.t / bucketMs) * bucketMs
+        const row = rows.get(t) || { t, sum: 0, count: 0 }
+        row.sum += p.load
+        row.count += 1
+        rows.set(t, row)
+      })
+    })
+    return [...rows.values()]
+      .map(r => ({ t: r.t, Load: parseFloat((r.sum / r.count).toFixed(2)) }))
+      .sort((a, b) => a.t - b.t)
+  }, [history, seriesServers, fleetRange])
+
+  // Fleet security posture — findings summed by scan type (kernel / hardening
+  // / cluster / resource), since that's the only breakdown the backend stores
+  // (no medium/low severity split, only total + high-severity counts).
+  const securityByType = useMemo(() => {
+    if (!securityScans) return []
+    const byType = new Map<string, { findings: number; high: number }>()
+    securityScans.forEach(s => {
+      const row = byType.get(s.scan_type) || { findings: 0, high: 0 }
+      row.findings += s.finding_count
+      row.high += s.high_count
+      byType.set(s.scan_type, row)
+    })
+    return [...byType.entries()]
+      .map(([name, v]) => ({ name, value: v.findings, high: v.high }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [securityScans])
+
+  const securityTotals = useMemo(() => {
+    if (!securityScans) return null
+    return securityScans.reduce((acc, s) => ({
+      findings: acc.findings + s.finding_count,
+      high: acc.high + s.high_count,
+    }), { findings: 0, high: 0 })
+  }, [securityScans])
+
+  const SCAN_TYPE_LABEL: Record<string, string> = {
+    kernel: 'Kernel CVEs', hardening: 'OS Hardening', cluster: 'Cluster Posture', resource: 'Resource Exposure',
+  }
 
   // On short ranges show HH:MM; on 24h include the day so the axis reads clearly
   const fmtClock = (t: number) => fleetRange >= 1440
@@ -634,6 +711,102 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Fleet load average trend + security posture, side by side */}
+      {!loading && (loadAvgData.length > 1 || securityScans !== null) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
+          {loadAvgData.length > 1 && (
+            <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+              <SectionHeader
+                icon={Gauge}
+                iconColor="var(--brand-primary)"
+                title="Fleet Load Average"
+                subtitle={`Average 1-min load across all nodes — last ${RANGES.find(r => r.minutes === fleetRange)?.label}`}
+                action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />}
+              />
+              <div style={{ flex: 1, minHeight: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={loadAvgData} margin={{ top: 6, right: 16, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                    <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                    <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      labelFormatter={(t: any) => fmtClock(t)}
+                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                    />
+                    <Line type="monotone" dataKey="Load" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {securityScans !== null && (
+            <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+              <SectionHeader
+                icon={ShieldCheck}
+                iconColor={securityTotals && securityTotals.high > 0 ? 'var(--danger)' : 'var(--success)'}
+                title="Security Posture"
+                subtitle={`${securityScans.length} scan${securityScans.length === 1 ? '' : 's'} across kernel, hardening, cluster & resource checks`}
+                action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/audit/kernel')}>Review</button>}
+              />
+              {!securityTotals || securityTotals.findings === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: 10, padding: '24px 0' }}>
+                  <ShieldCheck size={22} style={{ opacity: 0.3 }} />
+                  <span style={{ fontSize: 12 }}>{securityScans.length === 0 ? 'No security scans run yet' : 'No findings — clean bill of health'}</span>
+                </div>
+              ) : (
+                <>
+                  <div style={{ width: 168, height: 168, position: 'relative', flexShrink: 0, margin: '0 auto 16px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={securityByType}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={48}
+                          outerRadius={80}
+                          paddingAngle={securityByType.length > 1 ? 2 : 0}
+                          stroke="var(--bg-card)"
+                          strokeWidth={2}
+                          isAnimationActive={false}
+                        >
+                          {securityByType.map((d, i) => (
+                            <Cell key={d.name} fill={seriesColors[i % seriesColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v: any, n: any) => [`${v} finding${v === 1 ? '' : 's'}`, SCAN_TYPE_LABEL[n] || n]}
+                          contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{securityTotals.findings}</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Findings</span>
+                    </div>
+                  </div>
+                  {securityTotals.high > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', marginBottom: 12, background: 'rgba(201, 25, 11, 0.08)', border: '1px solid rgba(201, 25, 11, 0.2)', borderRadius: 'var(--radius-md)' }}>
+                      <AlertTriangle size={14} color="var(--danger)" style={{ flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)' }}>{securityTotals.high} high-severity finding{securityTotals.high === 1 ? '' : 's'}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 150 }}>
+                    {securityByType.map((d, i) => (
+                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: seriesColors[i % seriesColors.length], flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{SCAN_TYPE_LABEL[d.name] || d.name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: d.high > 0 ? 'var(--danger)' : 'var(--text-primary)' }}>{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {!loading && resources.length > 0 && (
         <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
           <SectionHeader
@@ -693,6 +866,39 @@ export function Dashboard() {
                 <Bar dataKey="CPU" fill="#3b82f6" radius={0} maxBarSize={30} />
                 <Bar dataKey="Memory" fill="#10b981" radius={0} maxBarSize={30} />
                 <Bar dataKey="Disk" fill="#f59e0b" radius={0} maxBarSize={30} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {!loading && logStats !== null && (
+        <div className="card fade-up" style={{ marginBottom: 32, padding: '32px 24px' }}>
+          <SectionHeader
+            icon={ScrollText}
+            title="Log Volume & Error Rate"
+            subtitle={
+              logStats.totals.error + logStats.totals.warn + logStats.totals.info === 0
+                ? `No log activity in the last ${RANGES.find(r => r.minutes === fleetRange)?.label}`
+                : `${logStats.totals.error} error · ${logStats.totals.warn} warn · ${logStats.totals.info} info — last ${RANGES.find(r => r.minutes === fleetRange)?.label}, fleet-wide`
+            }
+            action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />}
+          />
+          <div style={{ height: 260, marginTop: 16 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={logStats.buckets} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
+                <YAxis allowDecimals={false} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  labelFormatter={(t: any) => fmtClock(t)}
+                  cursor={{ fill: 'var(--bg-elevated)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+                />
+                <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
+                <Bar dataKey="info" name="Info" stackId="logs" fill="var(--text-muted)" radius={0} maxBarSize={30} />
+                <Bar dataKey="warn" name="Warn" stackId="logs" fill="var(--warning)" radius={0} maxBarSize={30} />
+                <Bar dataKey="error" name="Error" stackId="logs" fill="var(--danger)" radius={0} maxBarSize={30} />
               </BarChart>
             </ResponsiveContainer>
           </div>
