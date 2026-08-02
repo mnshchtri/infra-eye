@@ -1746,6 +1746,33 @@ p {
   font-family: var(--font-mono);
 }
 
+.sidebar-update-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - var(--space-2) * 2);
+  margin: 0 var(--space-2) var(--space-2);
+  padding: 6px var(--space-2);
+  font-size: 11px;
+  font-weight: var(--font-semibold);
+  font-family: var(--font-mono);
+  color: white;
+  background: var(--brand-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sidebar-update-btn:hover:not(:disabled) {
+  background: var(--brand-600);
+}
+
+.sidebar-update-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .sidebar-overlay {
   display: none;
   position: fixed;

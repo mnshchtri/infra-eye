@@ -3,10 +3,11 @@ import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound, GitBranch
+  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
+import { useToastStore } from '../../store/toastStore'
 import { usePermission, type PermissionAction } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
 import { KubernetesIcon } from '../OSIcons'
@@ -67,6 +68,7 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode, mobileNavOpen, toggleMobileNav } = useUIStore()
   const { can } = usePermission()
   const navigate = useNavigate()
+  const toast = useToastStore()
 
   const [servers, setServers] = useState<any[]>([])
   const [serversExpanded, setServersExpanded] = useState(true)
@@ -78,6 +80,39 @@ export function Sidebar() {
       })
       .catch(() => setServers([]))
   }, [])
+
+  // Desktop-only: the server/Docker deployment has no concept of
+  // self-updating its own running binary — that's what redeploys are for.
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; downloadUrl: string } | null>(null)
+  const [updating, setUpdating] = useState(false)
+  useEffect(() => {
+    if (!__IS_DESKTOP__) return
+    api.get('/api/desktop/update/check')
+      .then(res => {
+        if (res.data?.available && res.data.download_url) {
+          setUpdateInfo({ version: res.data.latest_version, downloadUrl: res.data.download_url })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  async function applyUpdate() {
+    if (!updateInfo || updating) return
+    if (!window.confirm(`Update InfraEye to v${updateInfo.version}? The app will close and reopen automatically.`)) return
+    setUpdating(true)
+    try {
+      const res = await api.post('/api/desktop/update/apply', { download_url: updateInfo.downloadUrl })
+      if (res.data?.success) {
+        toast.info('Updating…', 'InfraEye will restart shortly.')
+      } else {
+        toast.error('Update failed', res.data?.error || 'Unknown error')
+        setUpdating(false)
+      }
+    } catch (e: any) {
+      toast.error('Update failed', e.response?.data?.error || e.message)
+      setUpdating(false)
+    }
+  }
 
   function handleLogout() {
     logout()
@@ -190,7 +225,19 @@ export function Sidebar() {
         </div>
 
         {!sidebarCollapsed && (
-          <div className="sidebar-version">v{__APP_VERSION__}</div>
+          updateInfo ? (
+            <button
+              className="sidebar-update-btn"
+              onClick={applyUpdate}
+              disabled={updating}
+              title={`Update available: v${updateInfo.version}`}
+            >
+              <Download size={12} />
+              {updating ? 'Updating…' : `Update to v${updateInfo.version}`}
+            </button>
+          ) : (
+            <div className="sidebar-version">v{__APP_VERSION__}</div>
+          )
         )}
 
         <div className="sidebar-user">

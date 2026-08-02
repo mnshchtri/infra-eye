@@ -12,6 +12,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __IS_DESKTOP__: process.env.VITE_DESKTOP === 'true',
   },
   server: {
     proxy: {
