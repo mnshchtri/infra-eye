@@ -57,10 +57,10 @@ export function Login() {
             Agentless Infrastructure Platform
           </span>
           <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 14px', lineHeight: 1.25 }}>
-            See everything running. Install nothing new.
+            One login for every server and cluster you manage.
           </h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, margin: '0 0 36px', maxWidth: 440, fontWeight: 400 }}>
-            SSH into Linux servers, kubeconfig into Kubernetes clusters — live metrics, log streaming, and remote terminals from a single console.
+            Point it at an SSH key or a kubeconfig and it's connected — metrics, logs, and terminals show up without installing anything on the other end.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -78,7 +78,7 @@ export function Login() {
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,0.55)' }}>
           <ShieldCheck size={14} />
           <span style={{ fontSize: 13, fontWeight: 400 }}>
-            JWT sessions, OIDC/SSO, and role-based access — built in from day one
+            JWT sessions, OIDC/SSO, and role-based access control
           </span>
         </div>
       </div>
@@ -183,7 +183,7 @@ export function Login() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                   <ShieldCheck size={14} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 12.5 }}>Encrypted sessions with full audit logging</span>
+                  <span style={{ fontSize: 12.5 }}>JWT-based sessions that expire after 24 hours</span>
                 </div>
               </>
             )}
