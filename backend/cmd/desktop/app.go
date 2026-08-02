@@ -24,6 +24,7 @@ import (
 	"github.com/infra-eye/backend/internal/metrics"
 	"github.com/infra-eye/backend/internal/resources"
 	"github.com/infra-eye/backend/internal/seed"
+	sshclient "github.com/infra-eye/backend/internal/ssh"
 )
 
 // backendPort is fixed for v1 (baked into the frontend build via VITE_API_URL
@@ -52,6 +53,11 @@ func (a *App) OnStartup(ctx context.Context) {
 	if err != nil {
 		log.Fatalf("failed to resolve app-data directory: %v", err)
 	}
+
+	// internal/ssh's default known_hosts path guess (Docker vs. repo
+	// checkout) doesn't apply to a packaged app with an unpredictable
+	// working directory — point it at the same per-OS app-data dir as the DB.
+	sshclient.SetKnownHostsPath(filepath.Join(appDir, "ssh_known_hosts"))
 
 	// These must be set before config.Load() reads them.
 	os.Setenv("DB_DRIVER", "sqlite")
@@ -104,6 +110,7 @@ func (a *App) OnStartup(ctx context.Context) {
 	}))
 
 	httpapi.RegisterRoutes(r)
+	a.registerUpdateRoutes(r)
 	registerStaticAssets(r)
 
 	a.httpServer = &http.Server{Addr: "127.0.0.1:" + backendPort, Handler: r}
