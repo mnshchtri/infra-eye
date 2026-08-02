@@ -228,7 +228,14 @@ export function Dashboard() {
   async function loadLogStats(minutes: number) {
     try {
       const res = await api.get(`/api/logs/stats?minutes=${minutes}`)
-      setLogStats(res.data)
+      // A misconfigured/stale proxy can 200 with an HTML fallback page
+      // instead of a 404 — guard against treating that as real data.
+      const data = res.data
+      if (data && Array.isArray(data.buckets) && data.totals) {
+        setLogStats(data)
+      } else {
+        setLogStats(null)
+      }
     } catch { setLogStats(null) }
   }
 
