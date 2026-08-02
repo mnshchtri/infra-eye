@@ -8,6 +8,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const devJWTSecret = "dev-secret-change-in-production"
+
 type Config struct {
 	Port                  string
 	Env                   string
@@ -51,7 +53,7 @@ func Load() {
 		DBDriver:        getEnv("DB_DRIVER", "postgres"),
 		DBDSN:           getEnv("DB_DSN", "postgresql://infraeye:infraeye123@localhost:5432/infraeye?sslmode=disable"),
 		RedisAddr:       getEnv("REDIS_ADDR", "localhost:6379"),
-		JWTSecret:       getEnv("JWT_SECRET", "dev-secret-change-in-production"),
+		JWTSecret:       getEnv("JWT_SECRET", devJWTSecret),
 		OpenAIKey:       getEnv("OPENAI_API_KEY", ""),
 		GeminiKey:       getEnv("GEMINI_API_KEY", ""),
 		DeepSeekKey:     getEnv("DEEPSEEK_API_KEY", ""),
@@ -72,6 +74,12 @@ func Load() {
 		OIDCClientSecret: getEnv("OIDC_CLIENT_SECRET", ""),
 		OIDCRedirectURL:  getEnv("OIDC_REDIRECT_URL", "http://localhost:8080/api/auth/oidc/callback"),
 		OIDCScopes:       getEnv("OIDC_SCOPES", "openid profile email"),
+	}
+
+	// A guessable JWT secret lets anyone forge a valid admin session. The dev
+	// fallback is fine for local work but must never reach a production deploy.
+	if C.Env == "production" && C.JWTSecret == devJWTSecret {
+		log.Fatal("JWT_SECRET must be set to a unique value when ENV=production (refusing to start with the default dev secret)")
 	}
 }
 

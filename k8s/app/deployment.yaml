@@ -24,6 +24,13 @@ spec:
           hostnames:
             - "host.docker.internal"
 
+      volumes:
+        # SSH known_hosts store (trust-on-first-use state, backend/internal/ssh) —
+        # PVC so it survives pod restarts/redeploys instead of resetting trust.
+        - name: ssh-known-hosts
+          persistentVolumeClaim:
+            claimName: infra-eye-data
+
       containers:
         # ── Main application ────────────────────────────────────────────────
         - name: app
@@ -37,6 +44,9 @@ spec:
                 name: infra-eye-config
             - secretRef:
                 name: infra-eye-secrets
+          volumeMounts:
+            - name: ssh-known-hosts
+              mountPath: /data
           readinessProbe:
             httpGet:
               path: /api/health
