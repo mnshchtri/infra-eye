@@ -164,6 +164,74 @@ jobs:
           dpkg-deb --build --root-owner-group "$PKGROOT" "build/bin/${{ matrix.artifact_name }}.deb"
           rm -rf "$PKGROOT"
 
+      # Arch has no apt/dpkg equivalent — pacman only installs its own
+      # .pkg.tar.zst format, built via makepkg from a PKGBUILD. makepkg
+      # refuses to run as root, so this builds inside an archlinux container
+      # under a throwaway non-root user rather than needing an Arch runner.
+      # Reuses the same binary the .deb above already packaged — no
+      # recompile, since the ELF binary itself is distro-agnostic as long as
+      # the runtime libs (gtk3, webkit2gtk) are present, which pacman's
+      # depends= handles at install time.
+      - name: Package artifact (Arch pkg.tar.zst)
+        if: runner.os == 'Linux'
+        working-directory: backend/cmd/desktop
+        run: |
+          set -e
+          PKGDIR="$PWD/build/arch"
+          rm -rf "$PKGDIR"
+          mkdir -p "$PKGDIR"
+          cp build/bin/infraeye-desktop "$PKGDIR/infraeye-desktop"
+          cp build/appicon.png "$PKGDIR/appicon.png"
+
+          printf '%s\n' \
+            '[Desktop Entry]' \
+            'Name=InfraEye' \
+            'Comment=Agentless observability platform' \
+            'Exec=/usr/bin/infraeye-desktop' \
+            'Icon=infraeye' \
+            'Terminal=false' \
+            'Type=Application' \
+            'Categories=Utility;Development;' \
+            > "$PKGDIR/infraeye.desktop"
+
+          printf '%s\n' \
+            'pkgname=infra-eye' \
+            "pkgver=${APP_VERSION}" \
+            'pkgrel=1' \
+            'pkgdesc="Agentless observability platform — desktop app"' \
+            "arch=('x86_64')" \
+            'url="https://github.com/mnshchtri/infra-eye"' \
+            "license=('MIT')" \
+            "depends=('gtk3' 'webkit2gtk-4.1')" \
+            "options=('!debug')" \
+            "source=('infraeye-desktop' 'appicon.png' 'infraeye.desktop')" \
+            "sha256sums=('SKIP' 'SKIP' 'SKIP')" \
+            '' \
+            'package() {' \
+            '  install -Dm755 "$srcdir/infraeye-desktop" "$pkgdir/usr/bin/infraeye-desktop"' \
+            '  install -Dm644 "$srcdir/appicon.png" "$pkgdir/usr/share/icons/hicolor/1024x1024/apps/infraeye.png"' \
+            '  install -Dm644 "$srcdir/infraeye.desktop" "$pkgdir/usr/share/applications/infraeye.desktop"' \
+            '}' \
+            > "$PKGDIR/PKGBUILD"
+
+          docker run --rm -v "$PKGDIR:/pkgbuild" archlinux:base-devel bash -c '
+            set -e
+            # Modern pacman sandboxes downloads via seccomp (DisableSandboxSyscalls,
+            # off by default) which fails inside some container setups with
+            # "error restricting syscalls via seccomp" — disable it rather than
+            # depend on the host allowing that seccomp filter.
+            sed -i "s/^#DisableSandboxSyscalls/DisableSandboxSyscalls/" /etc/pacman.conf
+            pacman -Sy --noconfirm archlinux-keyring
+            pacman -Syu --noconfirm --needed gtk3 webkit2gtk-4.1
+            useradd -m builder
+            chown -R builder /pkgbuild
+            cd /pkgbuild
+            su builder -c "makepkg -f --nosign"
+          '
+
+          BUILT=$(ls "$PKGDIR"/infra-eye-*.pkg.tar.zst | head -1)
+          cp "$BUILT" "build/bin/${{ matrix.artifact_name }}.pkg.tar.zst"
+
       # The NSIS output filename isn't pinned by us (it's derived from
       # wails.json's productName), so find it by suffix instead of hardcoding
       # the exact name.
@@ -183,6 +251,7 @@ jobs:
           path: |
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.dmg
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.deb
+            backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.pkg.tar.zst
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.exe
           if-no-files-found: ignore
 
@@ -204,4 +273,5 @@ jobs:
           files: |
             dist/InfraEye-macOS-arm64/InfraEye-macOS-arm64.dmg
             dist/InfraEye-Linux/InfraEye-Linux.deb
+            dist/InfraEye-Linux/InfraEye-Linux.pkg.tar.zst
             dist/InfraEye-Windows-amd64/InfraEye-Windows-amd64.exe
