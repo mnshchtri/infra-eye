@@ -1,9 +1,10 @@
 name: Desktop App Build
 
-# Builds the standalone Wails desktop app for macOS (Apple Silicon) and Linux.
-# Each OS builds natively on its own runner — Wails' native webview chrome
-# (WebKit/WebKitGTK) cannot be cross-compiled from a single host, so this
-# can't be done from a single machine the way the Docker image can.
+# Builds the standalone Wails desktop app for macOS (Apple Silicon), Linux,
+# and Windows. Each OS builds natively on its own runner — Wails' native
+# webview chrome (WebKit/WebKitGTK/WebView2) cannot be cross-compiled from a
+# single host, so this can't be done from a single machine the way the
+# Docker image can.
 on:
   push:
     tags:
@@ -22,6 +23,9 @@ jobs:
           - os: ubuntu-latest
             artifact_name: InfraEye-Linux
             bin_glob: build/bin/infraeye-desktop
+          - os: windows-latest
+            artifact_name: InfraEye-Windows-amd64
+            bin_glob: build/bin/infraeye-desktop.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -88,6 +92,15 @@ jobs:
         working-directory: backend/cmd/desktop
         run: wails build -platform linux/amd64 -tags webkit2_41
 
+      # NSIS (makensis) ships preinstalled on GitHub's windows-latest runner
+      # image, so no separate install step is needed. `-nsis` bundles the
+      # WebView2 bootstrapper and produces a double-clickable Setup.exe
+      # instead of a bare binary.
+      - name: wails build (Windows, NSIS installer)
+        if: runner.os == 'Windows'
+        working-directory: backend/cmd/desktop
+        run: wails build -platform windows/amd64 -nsis
+
       - name: Package artifact (macOS .app -> .dmg)
         if: runner.os == 'macOS'
         working-directory: backend/cmd/desktop/build/bin
@@ -139,6 +152,18 @@ jobs:
           dpkg-deb --build --root-owner-group "$PKGROOT" "build/bin/${{ matrix.artifact_name }}.deb"
           rm -rf "$PKGROOT"
 
+      # The NSIS output filename isn't pinned by us (it's derived from
+      # wails.json's productName), so find it by suffix instead of hardcoding
+      # the exact name.
+      - name: Package artifact (Windows installer)
+        if: runner.os == 'Windows'
+        working-directory: backend/cmd/desktop/build/bin
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Filter "*installer.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer (*installer.exe) not found in build/bin" }
+          Copy-Item $installer.FullName "${{ matrix.artifact_name }}.exe"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -146,6 +171,7 @@ jobs:
           path: |
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.dmg
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.deb
+            backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.exe
           if-no-files-found: ignore
 
   release:
@@ -166,3 +192,4 @@ jobs:
           files: |
             dist/InfraEye-macOS-arm64/InfraEye-macOS-arm64.dmg
             dist/InfraEye-Linux/InfraEye-Linux.deb
+            dist/InfraEye-Windows-amd64/InfraEye-Windows-amd64.exe

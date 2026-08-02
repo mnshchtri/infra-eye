@@ -187,7 +187,7 @@ This directory holds `infraeye.db` (SQLite, WAL mode), a generated `jwt.secret` 
 
 <a id="desktop-app-platforms"></a>
 > [!NOTE]
-> Windows and Intel Mac builds aren't published at this time — the CI workflow currently only targets macOS (Apple Silicon) and Linux (amd64). Contributions extending `.github/workflows/desktop-release.yml` to cover them are welcome.
+> Intel Mac builds aren't published at this time — the CI workflow targets macOS (Apple Silicon), Linux (amd64), and Windows (amd64, NSIS installer). Contributions extending `.github/workflows/desktop-release.yml` to cover Intel Macs are welcome.
 
 **Troubleshooting: Kubernetes cluster shows "offline" / no data**
 
