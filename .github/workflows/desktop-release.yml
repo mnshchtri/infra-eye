@@ -95,10 +95,15 @@ jobs:
       # makensis is NOT preinstalled on windows-latest (confirmed by a failed
       # run — `wails build -nsis` silently warns "makensis not found" and
       # falls back to just the bare .exe instead of failing outright).
-      # Chocolatey is preinstalled, so grab it from there.
+      # Chocolatey is preinstalled, so grab it from there. choco updates the
+      # machine PATH, but that doesn't propagate to later steps in the same
+      # job on its own (confirmed by a second failed run) — GITHUB_PATH is
+      # the mechanism Actions actually reads for that.
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
-        run: choco install nsis -y
+        run: |
+          choco install nsis -y
+          echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
       # `-nsis` bundles the WebView2 bootstrapper and produces a
       # double-clickable Setup.exe instead of a bare binary.
