@@ -1762,9 +1762,17 @@ p {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
-  white-space: nowrap;
+}
+
+/* text-overflow: ellipsis has no effect directly on a flex container (icon
+   + text as separate children) — it has to go on the text's own child
+   element, which also needs min-width: 0 since flex items don't shrink
+   below their content size by default. */
+.sidebar-update-btn-label {
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .sidebar-update-btn:hover:not(:disabled) {

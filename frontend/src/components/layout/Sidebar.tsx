@@ -252,11 +252,13 @@ export function Sidebar() {
               disabled={updateState !== 'idle'}
               title={updateInfo ? `Update available: v${updateInfo.version}` : `Running v${__APP_VERSION__} — click to check for updates`}
             >
-              <Download size={12} />
-              {updateState === 'checking' ? 'Checking…'
-                : updateState === 'updating' ? 'Updating…'
-                : updateInfo ? `Update to v${updateInfo.version}`
-                : `v${__APP_VERSION__} — Check for Updates`}
+              <Download size={12} style={{ flexShrink: 0 }} />
+              <span className="sidebar-update-btn-label">
+                {updateState === 'checking' ? 'Checking…'
+                  : updateState === 'updating' ? 'Updating…'
+                  : updateInfo ? `Update to v${updateInfo.version}`
+                  : 'Check for Updates'}
+              </span>
             </button>
           ) : (
             <div className="sidebar-version">v{__APP_VERSION__}</div>
