@@ -92,10 +92,16 @@ jobs:
         working-directory: backend/cmd/desktop
         run: wails build -platform linux/amd64 -tags webkit2_41
 
-      # NSIS (makensis) ships preinstalled on GitHub's windows-latest runner
-      # image, so no separate install step is needed. `-nsis` bundles the
-      # WebView2 bootstrapper and produces a double-clickable Setup.exe
-      # instead of a bare binary.
+      # makensis is NOT preinstalled on windows-latest (confirmed by a failed
+      # run — `wails build -nsis` silently warns "makensis not found" and
+      # falls back to just the bare .exe instead of failing outright).
+      # Chocolatey is preinstalled, so grab it from there.
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        run: choco install nsis -y
+
+      # `-nsis` bundles the WebView2 bootstrapper and produces a
+      # double-clickable Setup.exe instead of a bare binary.
       - name: wails build (Windows, NSIS installer)
         if: runner.os == 'Windows'
         working-directory: backend/cmd/desktop
