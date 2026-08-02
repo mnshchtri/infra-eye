@@ -83,34 +83,54 @@ export function Sidebar() {
 
   // Desktop-only: the server/Docker deployment has no concept of
   // self-updating its own running binary — that's what redeploys are for.
+  // The button stays visible even when already on the latest version (no
+  // update available yet doesn't mean never — a click always re-checks
+  // GitHub for whatever the current latest release is, rather than relying
+  // on a version fetched once at page load).
   const [updateInfo, setUpdateInfo] = useState<{ version: string; downloadUrl: string } | null>(null)
-  const [updating, setUpdating] = useState(false)
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'updating'>('idle')
+
   useEffect(() => {
     if (!__IS_DESKTOP__) return
-    api.get('/api/desktop/update/check')
-      .then(res => {
-        if (res.data?.available && res.data.download_url) {
-          setUpdateInfo({ version: res.data.latest_version, downloadUrl: res.data.download_url })
-        }
-      })
-      .catch(() => {})
+    checkForUpdate(false)
   }, [])
 
-  async function applyUpdate() {
-    if (!updateInfo || updating) return
+  async function checkForUpdate(manual: boolean) {
+    setUpdateState('checking')
+    try {
+      const res = await api.get('/api/desktop/update/check')
+      if (res.data?.available && res.data.download_url) {
+        setUpdateInfo({ version: res.data.latest_version, downloadUrl: res.data.download_url })
+      } else {
+        setUpdateInfo(null)
+        if (manual) toast.success('Up to date', `You're already on the latest version (v${__APP_VERSION__}).`)
+      }
+    } catch (e: any) {
+      if (manual) toast.error('Update check failed', e.response?.data?.error || e.message)
+    } finally {
+      setUpdateState('idle')
+    }
+  }
+
+  async function handleUpdateClick() {
+    if (updateState !== 'idle') return
+    if (!updateInfo) {
+      checkForUpdate(true)
+      return
+    }
     if (!window.confirm(`Update InfraEye to v${updateInfo.version}? The app will close and reopen automatically.`)) return
-    setUpdating(true)
+    setUpdateState('updating')
     try {
       const res = await api.post('/api/desktop/update/apply', { download_url: updateInfo.downloadUrl })
       if (res.data?.success) {
         toast.info('Updating…', 'InfraEye will restart shortly.')
       } else {
         toast.error('Update failed', res.data?.error || 'Unknown error')
-        setUpdating(false)
+        setUpdateState('idle')
       }
     } catch (e: any) {
       toast.error('Update failed', e.response?.data?.error || e.message)
-      setUpdating(false)
+      setUpdateState('idle')
     }
   }
 
@@ -225,15 +245,18 @@ export function Sidebar() {
         </div>
 
         {!sidebarCollapsed && (
-          updateInfo ? (
+          __IS_DESKTOP__ ? (
             <button
-              className="sidebar-update-btn"
-              onClick={applyUpdate}
-              disabled={updating}
-              title={`Update available: v${updateInfo.version}`}
+              className={`sidebar-update-btn ${updateInfo ? 'available' : ''}`}
+              onClick={handleUpdateClick}
+              disabled={updateState !== 'idle'}
+              title={updateInfo ? `Update available: v${updateInfo.version}` : `Running v${__APP_VERSION__} — click to check for updates`}
             >
               <Download size={12} />
-              {updating ? 'Updating…' : `Update to v${updateInfo.version}`}
+              {updateState === 'checking' ? 'Checking…'
+                : updateState === 'updating' ? 'Updating…'
+                : updateInfo ? `Update to v${updateInfo.version}`
+                : `v${__APP_VERSION__} — Check for Updates`}
             </button>
           ) : (
             <div className="sidebar-version">v{__APP_VERSION__}</div>
