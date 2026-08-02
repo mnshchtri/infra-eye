@@ -173,6 +173,7 @@ func RegisterRoutes(r *gin.Engine) {
 		ws.GET("/servers/:id/metrics", metricsWsHandler)
 		ws.GET("/servers/:id/terminal", middleware.RequireRole("admin", "devops"), handlers.SSHTerminal)
 		ws.GET("/servers/:id/kubectl/pod-terminal", middleware.RequireRole("admin", "devops"), handlers.RunPodTerminal)
+		ws.GET("/servers/:id/kubectl/node-terminal", middleware.RequireRole("admin", "devops"), handlers.RunNodeTerminal)
 		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops", "trainee", "intern"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
 		ws.GET("/metrics/all", allMetricsWsHandler)
