@@ -25,7 +25,7 @@ export function ConfigViewer({ content, onChange, fullPage }: ConfigViewerProps)
         padding={16}
         data-color-mode={darkMode ? 'dark' : 'light'}
         style={{
-          fontFamily: '"JetBrains Mono", monospace',
+          fontFamily: '"JetBrains Mono Variable", "JetBrains Mono", monospace',
           fontSize: 13,
           backgroundColor: 'transparent',
           minHeight: '100%',

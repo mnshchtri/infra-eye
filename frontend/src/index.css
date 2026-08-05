@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+/* Self-hosted rather than fetched from Google Fonts: the desktop app has no
+   guaranteed network at startup. Variable builds cover the full 300-900 range
+   the design system uses. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
 
 /* Canonical responsive breakpoints (documentation only — custom properties
    can't be referenced inside @media queries). Use exactly these values:
@@ -86,8 +90,8 @@
   /* Usage rule: --font-mono is reserved for DATA — metric values, hostnames/IPs,
      technical table cells, code/log output. Everything else (titles, section
      headers, button/nav/form labels, badges) is --font-sans. */
-  --font-sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
+  --font-sans: 'Inter Variable', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
 
   /* Typography Scale - PatternFly Based */
   --text-xs:   0.75rem;   /* 12px */
