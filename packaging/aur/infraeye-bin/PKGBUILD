@@ -1,0 +1,33 @@
+# Maintainer: Manish Karki <mnshchtri@gmail.com>
+
+# Repackages the prebuilt desktop binary published with each desktop-v* GitHub
+# release. The .deb is used as the source because it is the only release asset
+# that already carries the full install layout (binary, .desktop entry, icon) —
+# the .pkg.tar.zst published alongside it is a built pacman package, and
+# rebuilding one package from another is not something an AUR PKGBUILD should
+# do.
+pkgname=infraeye-bin
+pkgver=1.6.1
+pkgrel=1
+pkgdesc="Agentless observability platform for Linux servers and Kubernetes clusters — desktop app"
+arch=('x86_64')
+url="https://github.com/mnshchtri/infra-eye"
+license=('MIT')
+# glibc/glib2 are linked directly by the binary rather than only pulled in
+# transitively through gtk3, and hicolor-icon-theme owns the icon hierarchy the
+# package installs into — namcap flags all three as missing without them.
+depends=('gtk3' 'webkit2gtk-4.1' 'glib2' 'glibc' 'hicolor-icon-theme')
+provides=('infraeye')
+conflicts=('infraeye' 'infra-eye')
+# The binary ships prebuilt and already stripped by the Go linker; letting
+# makepkg strip it again only risks corrupting it, and there is no separate
+# debug package to extract.
+options=('!strip' '!debug')
+source=("$pkgname-$pkgver.deb::$url/releases/download/desktop-v$pkgver/InfraEye-Linux.deb")
+sha256sums=('7004017171c447b5c05f72bf46f34be895f6ee448e6d9b2ae8a94a46237750bb')
+
+package() {
+  # makepkg unpacks the outer ar archive for us, leaving data.tar.zst in
+  # $srcdir; its contents are already rooted at ./usr with the right modes.
+  bsdtar -xf "$srcdir/data.tar.zst" -C "$pkgdir"
+}
