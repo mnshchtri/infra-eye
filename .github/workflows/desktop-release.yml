@@ -1,9 +1,10 @@
 name: Desktop App Build
 
-# Builds the standalone Wails desktop app for macOS (Apple Silicon) and Linux.
-# Each OS builds natively on its own runner — Wails' native webview chrome
-# (WebKit/WebKitGTK) cannot be cross-compiled from a single host, so this
-# can't be done from a single machine the way the Docker image can.
+# Builds the standalone Wails desktop app for macOS (Apple Silicon), Linux,
+# and Windows. Each OS builds natively on its own runner — Wails' native
+# webview chrome (WebKit/WebKitGTK/WebView2) cannot be cross-compiled from a
+# single host, so this can't be done from a single machine the way the
+# Docker image can.
 on:
   push:
     tags:
@@ -22,6 +23,9 @@ jobs:
           - os: ubuntu-latest
             artifact_name: InfraEye-Linux
             bin_glob: build/bin/infraeye-desktop
+          - os: windows-latest
+            artifact_name: InfraEye-Windows-amd64
+            bin_glob: build/bin/infraeye-desktop.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -56,6 +60,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_URL: http://127.0.0.1:8073
+          VITE_DESKTOP: 'true'
         run: |
           npm ci
           npm run build
@@ -81,12 +86,32 @@ jobs:
           # rejects some Go-produced object files ("unknown file type") —
           # force the classic linker to avoid it.
           CGO_LDFLAGS: -Wl,-ld_classic
-        run: wails build
+        run: wails build -ldflags "-X main.appVersion=$APP_VERSION"
 
       - name: wails build (Linux, webkit2gtk 4.1)
         if: runner.os == 'Linux'
         working-directory: backend/cmd/desktop
-        run: wails build -platform linux/amd64 -tags webkit2_41
+        run: wails build -platform linux/amd64 -tags webkit2_41 -ldflags "-X main.appVersion=$APP_VERSION"
+
+      # makensis is NOT preinstalled on windows-latest (confirmed by a failed
+      # run — `wails build -nsis` silently warns "makensis not found" and
+      # falls back to just the bare .exe instead of failing outright).
+      # Chocolatey is preinstalled, so grab it from there. choco updates the
+      # machine PATH, but that doesn't propagate to later steps in the same
+      # job on its own (confirmed by a second failed run) — GITHUB_PATH is
+      # the mechanism Actions actually reads for that.
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install nsis -y
+          echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
+
+      # `-nsis` bundles the WebView2 bootstrapper and produces a
+      # double-clickable Setup.exe instead of a bare binary.
+      - name: wails build (Windows, NSIS installer)
+        if: runner.os == 'Windows'
+        working-directory: backend/cmd/desktop
+        run: wails build -platform windows/amd64 -nsis -ldflags "-X main.appVersion=$env:APP_VERSION"
 
       - name: Package artifact (macOS .app -> .dmg)
         if: runner.os == 'macOS'
@@ -139,6 +164,86 @@ jobs:
           dpkg-deb --build --root-owner-group "$PKGROOT" "build/bin/${{ matrix.artifact_name }}.deb"
           rm -rf "$PKGROOT"
 
+      # Arch has no apt/dpkg equivalent — pacman only installs its own
+      # .pkg.tar.zst format, built via makepkg from a PKGBUILD. makepkg
+      # refuses to run as root, so this builds inside an archlinux container
+      # under a throwaway non-root user rather than needing an Arch runner.
+      # Reuses the same binary the .deb above already packaged — no
+      # recompile, since the ELF binary itself is distro-agnostic as long as
+      # the runtime libs (gtk3, webkit2gtk) are present, which pacman's
+      # depends= handles at install time.
+      - name: Package artifact (Arch pkg.tar.zst)
+        if: runner.os == 'Linux'
+        working-directory: backend/cmd/desktop
+        run: |
+          set -e
+          PKGDIR="$PWD/build/arch"
+          rm -rf "$PKGDIR"
+          mkdir -p "$PKGDIR"
+          cp build/bin/infraeye-desktop "$PKGDIR/infraeye-desktop"
+          cp build/appicon.png "$PKGDIR/appicon.png"
+
+          printf '%s\n' \
+            '[Desktop Entry]' \
+            'Name=InfraEye' \
+            'Comment=Agentless observability platform' \
+            'Exec=/usr/bin/infraeye-desktop' \
+            'Icon=infraeye' \
+            'Terminal=false' \
+            'Type=Application' \
+            'Categories=Utility;Development;' \
+            > "$PKGDIR/infraeye.desktop"
+
+          printf '%s\n' \
+            'pkgname=infra-eye' \
+            "pkgver=${APP_VERSION}" \
+            'pkgrel=1' \
+            'pkgdesc="Agentless observability platform — desktop app"' \
+            "arch=('x86_64')" \
+            'url="https://github.com/mnshchtri/infra-eye"' \
+            "license=('MIT')" \
+            "depends=('gtk3' 'webkit2gtk-4.1')" \
+            "options=('!debug')" \
+            "source=('infraeye-desktop' 'appicon.png' 'infraeye.desktop')" \
+            "sha256sums=('SKIP' 'SKIP' 'SKIP')" \
+            '' \
+            'package() {' \
+            '  install -Dm755 "$srcdir/infraeye-desktop" "$pkgdir/usr/bin/infraeye-desktop"' \
+            '  install -Dm644 "$srcdir/appicon.png" "$pkgdir/usr/share/icons/hicolor/1024x1024/apps/infraeye.png"' \
+            '  install -Dm644 "$srcdir/infraeye.desktop" "$pkgdir/usr/share/applications/infraeye.desktop"' \
+            '}' \
+            > "$PKGDIR/PKGBUILD"
+
+          docker run --rm -v "$PKGDIR:/pkgbuild" archlinux:base-devel bash -c '
+            set -e
+            # Modern pacman sandboxes downloads via seccomp (DisableSandboxSyscalls,
+            # off by default) which fails inside some container setups with
+            # "error restricting syscalls via seccomp" — disable it rather than
+            # depend on the host allowing that seccomp filter.
+            sed -i "s/^#DisableSandboxSyscalls/DisableSandboxSyscalls/" /etc/pacman.conf
+            pacman -Sy --noconfirm archlinux-keyring
+            pacman -Syu --noconfirm --needed gtk3 webkit2gtk-4.1
+            useradd -m builder
+            chown -R builder /pkgbuild
+            cd /pkgbuild
+            su builder -c "makepkg -f --nosign"
+          '
+
+          BUILT=$(ls "$PKGDIR"/infra-eye-*.pkg.tar.zst | head -1)
+          cp "$BUILT" "build/bin/${{ matrix.artifact_name }}.pkg.tar.zst"
+
+      # The NSIS output filename isn't pinned by us (it's derived from
+      # wails.json's productName), so find it by suffix instead of hardcoding
+      # the exact name.
+      - name: Package artifact (Windows installer)
+        if: runner.os == 'Windows'
+        working-directory: backend/cmd/desktop/build/bin
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Filter "*installer.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer (*installer.exe) not found in build/bin" }
+          Copy-Item $installer.FullName "${{ matrix.artifact_name }}.exe"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -146,6 +251,8 @@ jobs:
           path: |
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.dmg
             backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.deb
+            backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.pkg.tar.zst
+            backend/cmd/desktop/build/bin/${{ matrix.artifact_name }}.exe
           if-no-files-found: ignore
 
   release:
@@ -166,3 +273,5 @@ jobs:
           files: |
             dist/InfraEye-macOS-arm64/InfraEye-macOS-arm64.dmg
             dist/InfraEye-Linux/InfraEye-Linux.deb
+            dist/InfraEye-Linux/InfraEye-Linux.pkg.tar.zst
+            dist/InfraEye-Windows-amd64/InfraEye-Windows-amd64.exe

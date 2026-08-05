@@ -162,7 +162,7 @@ brew tap mnshchtri/infra-eye
 brew install --cask infra-eye
 ```
 
-**Download directly**: prebuilt packages are published on the [GitHub Releases page](https://github.com/mnshchtri/infra-eye/releases) — `InfraEye-macOS-arm64.dmg` (drag-to-Applications disk image) and `InfraEye-Linux.deb` (Debian/Ubuntu package, `Depends: libgtk-3-0, libwebkit2gtk-4.1-0`). Each is built natively on its own CI runner ([`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml)); Wails' native webview layer (WebKit/WebKitGTK) can't be cross-compiled from a single machine.
+**Download directly**: prebuilt packages are published on the [GitHub Releases page](https://github.com/mnshchtri/infra-eye/releases) — `InfraEye-macOS-arm64.dmg` (drag-to-Applications disk image), `InfraEye-Linux.deb` (Debian/Ubuntu package, `Depends: libgtk-3-0, libwebkit2gtk-4.1-0`), and `InfraEye-Linux.pkg.tar.zst` (Arch package, `depends: gtk3, webkit2gtk-4.1` — install with `pacman -U InfraEye-Linux.pkg.tar.zst`). The Arch package is the same binary as the .deb, just repackaged — built via `makepkg` in an Arch container rather than natively, since only one Linux job builds the app itself. Each platform is built natively on its own CI runner ([`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml)); Wails' native webview layer (WebKit/WebKitGTK) can't be cross-compiled from a single machine.
 
 **Build from source**:
 ```bash
@@ -187,7 +187,7 @@ This directory holds `infraeye.db` (SQLite, WAL mode), a generated `jwt.secret` 
 
 <a id="desktop-app-platforms"></a>
 > [!NOTE]
-> Windows and Intel Mac builds aren't published at this time — the CI workflow currently only targets macOS (Apple Silicon) and Linux (amd64). Contributions extending `.github/workflows/desktop-release.yml` to cover them are welcome.
+> Intel Mac builds aren't published at this time — the CI workflow targets macOS (Apple Silicon), Linux (amd64), and Windows (amd64, NSIS installer). Contributions extending `.github/workflows/desktop-release.yml` to cover Intel Macs are welcome.
 
 **Troubleshooting: Kubernetes cluster shows "offline" / no data**
 

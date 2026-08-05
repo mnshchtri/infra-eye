@@ -1746,6 +1746,58 @@ p {
   font-family: var(--font-mono);
 }
 
+.sidebar-update-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - var(--space-2) * 2);
+  margin: 0 var(--space-2) var(--space-2);
+  padding: 6px var(--space-2);
+  font-size: 11px;
+  font-weight: var(--font-medium);
+  font-family: var(--font-mono);
+  color: var(--sidebar-text-muted);
+  background: transparent;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+/* text-overflow: ellipsis has no effect directly on a flex container (icon
+   + text as separate children) — it has to go on the text's own child
+   element, which also needs min-width: 0 since flex items don't shrink
+   below their content size by default. */
+.sidebar-update-btn-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sidebar-update-btn:hover:not(:disabled) {
+  color: var(--sidebar-text);
+  border-color: var(--sidebar-text-muted);
+}
+
+/* An update is actually available — make it look actionable, not decorative. */
+.sidebar-update-btn.available {
+  color: white;
+  font-weight: var(--font-semibold);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.sidebar-update-btn.available:hover:not(:disabled) {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+}
+
+.sidebar-update-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .sidebar-overlay {
   display: none;
   position: fixed;

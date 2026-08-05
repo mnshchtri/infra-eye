@@ -3,7 +3,7 @@ import yaml from 'js-yaml'
 import {
   KeySquare, KeyRound, Clock, ArrowRightLeft, CalendarClock,
   FileJson, Braces, Hash, Copy, Check, AlertCircle, Trash2, Eraser, Route,
-  Network, ShieldCheck, Cpu, GitCompare, Fingerprint, Container, type LucideIcon
+  Network, ShieldCheck, Cpu, GitCompare, Fingerprint, Container, FileCode2, type LucideIcon
 } from 'lucide-react'
 import { cleanManifest, DEFAULT_CLEAN_OPTIONS, type CleanOptions } from '../utils/k8sManifestCleaner'
 import { convertIngressToGateway } from '../utils/ingressToGateway'
@@ -11,13 +11,14 @@ import { calculateCidr } from '../utils/cidrCalculator'
 import { decodeCertificate } from '../utils/certDecoder'
 import { parseCron } from '../utils/cronParser'
 import { computeDiff } from '../utils/textDiff'
+import { evaluateJsonnet } from '../utils/jsonnetEvaluator'
 import { SectionHeader, EmptyState, TabSwitcher } from '../components/ui'
 
 type ToolId =
   | 'json' | 'base64' | 'yaml-json' | 'hash'
   | 'epoch' | 'cron'
   | 'jwt' | 'jwt-encode' | 'cert-decode'
-  | 'k8s-clean' | 'ingress2gateway' | 'k8s-units'
+  | 'k8s-clean' | 'ingress2gateway' | 'k8s-units' | 'jsonnet'
   | 'cidr'
   | 'uuid' | 'diff' | 'docker-image'
 
@@ -47,6 +48,7 @@ const TOOLS: ToolMeta[] = [
   { id: 'k8s-clean', label: 'K8s Manifest Cleaner', subtitle: 'Strip server-generated fields from a live manifest so it can be re-applied to any cluster.', icon: Eraser, color: 'var(--success)', group: 'Kubernetes' },
   { id: 'ingress2gateway', label: 'Ingress → Gateway API', subtitle: 'Convert an Ingress into a Gateway and HTTPRoute (Gateway API). Best-effort — review annotation-driven behavior manually.', icon: Route, color: 'var(--accent-purple)', group: 'Kubernetes' },
   { id: 'k8s-units', label: 'Resource Units', subtitle: 'Convert CPU (millicores/cores) and memory (Ki/Mi/Gi/Ti, decimal/binary) quantities.', icon: Cpu, color: 'var(--success)', group: 'Kubernetes' },
+  { id: 'jsonnet', label: 'Jsonnet Evaluator', subtitle: 'Evaluate Jsonnet — the language Tanka (grafana.com/oss/tanka) uses for Kubernetes config — into JSON or YAML.', icon: FileCode2, color: 'var(--accent-cyan)', group: 'Kubernetes' },
   { id: 'cidr', label: 'CIDR Calculator', subtitle: 'Network/broadcast address, usable host range, and netmask for a CIDR block.', icon: Network, color: 'var(--accent-cyan)', group: 'Networking' },
   { id: 'uuid', label: 'UUID / Secret Generator', subtitle: 'Generate UUIDv4s or cryptographically random secrets.', icon: Fingerprint, color: 'var(--accent-purple)', group: 'Utilities' },
   { id: 'diff', label: 'Diff Checker', subtitle: 'Compare two blocks of text line by line.', icon: GitCompare, color: 'var(--accent-pink)', group: 'Utilities' },
@@ -111,6 +113,7 @@ export function DevTools() {
         {activeTab === 'k8s-clean' && <K8sManifestCleanerTool />}
         {activeTab === 'ingress2gateway' && <Ingress2GatewayTool />}
         {activeTab === 'k8s-units' && <ResourceUnitsTool />}
+        {activeTab === 'jsonnet' && <JsonnetEvaluatorTool />}
         {activeTab === 'cidr' && <CidrCalculatorTool />}
         {activeTab === 'uuid' && <UuidGeneratorTool />}
         {activeTab === 'diff' && <DiffCheckerTool />}
@@ -807,6 +810,135 @@ function Ingress2GatewayTool() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── JSONNET EVALUATOR (TANKA) ──
+
+const JSONNET_PLACEHOLDER = `// Jsonnet is the config language Tanka (grafana.com/oss/tanka) uses to
+// generate Kubernetes manifests. This evaluates a standalone snippet
+// in-browser — no imports of external files, matching Tanka's "jsonnet
+// eval" step but without a project's lib/vendor tree.
+local deployment(name, image, replicas=1) = {
+  apiVersion: 'apps/v1',
+  kind: 'Deployment',
+  metadata: { name: name },
+  spec: {
+    replicas: replicas,
+    selector: { matchLabels: { app: name } },
+    template: {
+      metadata: { labels: { app: name } },
+      spec: { containers: [{ name: name, image: image }] },
+    },
+  },
+};
+
+deployment('web', 'nginx:1.27', replicas=3)
+`
+
+function JsonnetEvaluatorTool() {
+  const [input, setInput] = useState(JSONNET_PLACEHOLDER)
+  const [outputFormat, setOutputFormat] = useState<'json' | 'yaml'>('yaml')
+  const [result, setResult] = useState<unknown>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const output = result === null ? '' : outputFormat === 'yaml'
+    ? yaml.dump(result, { lineWidth: -1, noRefs: true })
+    : JSON.stringify(result, null, 2)
+
+  async function evaluate() {
+    if (!input.trim()) return
+    setBusy(true)
+    setError('')
+    try {
+      const evaluated = await evaluateJsonnet(input)
+      if (evaluated.error) {
+        setError(evaluated.error)
+        setResult(null)
+      } else {
+        setResult(JSON.parse(evaluated.output))
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not evaluate this Jsonnet snippet.')
+      setResult(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function copy() {
+    if (!output) return
+    navigator.clipboard.writeText(output)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function clearAll() {
+    setInput(''); setResult(null); setError('')
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); evaluate() }
+  }
+
+  return (
+    <div className="devtools-body">
+      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+        <AlertCircle size={16} style={{ flexShrink: 0 }} />
+        Standalone snippet only — no <code>import</code> of external files or Tanka's <code>lib/</code>/<code>vendor/</code>. First run downloads a ~2MB WASM evaluator.
+      </div>
+
+      <div className="devtools-toolbar">
+        <button className="btn btn-primary" onClick={evaluate} disabled={busy || !input.trim()}>
+          {busy ? 'Evaluating…' : 'Evaluate'}
+        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className={`btn btn-sm ${outputFormat === 'yaml' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOutputFormat('yaml')}>YAML</button>
+          <button className={`btn btn-sm ${outputFormat === 'json' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOutputFormat('json')}>JSON</button>
+        </div>
+        <div className="devtools-toolbar-spacer">
+          {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
+          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="devtools-error"><AlertCircle size={16} /> <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>{error}</pre></div>
+      )}
+
+      <div className="devtools-split">
+        <div className="devtools-pane">
+          <label className="devtools-pane-label">Jsonnet Input</label>
+          <textarea
+            className="input devtools-textarea"
+            value={input}
+            onChange={e => { setInput(e.target.value); setError('') }}
+            onKeyDown={onKeyDown}
+            placeholder="Paste Jsonnet here... Ctrl/Cmd + Enter to evaluate"
+            spellCheck={false}
+          />
+        </div>
+
+        <div className="devtools-pane">
+          <div className="devtools-pane-label-row">
+            <label className="devtools-pane-label">Output ({outputFormat.toUpperCase()})</label>
+            {output && (
+              <button className="btn btn-secondary btn-sm" onClick={copy}>
+                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+            )}
+          </div>
+          {output ? (
+            <textarea className="input devtools-textarea" value={output} readOnly style={{ background: 'var(--bg-app)' }} />
+          ) : (
+            <EmptyState icon={FileCode2} title="Evaluated manifest will appear here" />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

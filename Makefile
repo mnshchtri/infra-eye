@@ -49,15 +49,16 @@ build:
 # some Go-produced object files (a go-m1cpu link crash), reproduced both
 # locally and in CI. Not applicable/needed on Linux.
 desktop-build:
-	cd frontend && VITE_API_URL=http://127.0.0.1:8073 npm run build
+	cd frontend && VITE_API_URL=http://127.0.0.1:8073 VITE_DESKTOP=true npm run build
 	rm -rf backend/cmd/desktop/frontenddist
 	mkdir -p backend/cmd/desktop/frontenddist
 	cp -R frontend/dist/. backend/cmd/desktop/frontenddist/
+	@APP_VERSION=$$(node -p "require('./frontend/package.json').version"); \
 	cd backend/cmd/desktop && \
 		if [ "$$(uname)" = "Darwin" ]; then \
-			CGO_LDFLAGS=-Wl,-ld_classic wails build; \
+			CGO_LDFLAGS=-Wl,-ld_classic wails build -ldflags "-X main.appVersion=$$APP_VERSION"; \
 		else \
-			wails build; \
+			wails build -ldflags "-X main.appVersion=$$APP_VERSION"; \
 		fi
 	@$(MAKE) desktop-package
 

@@ -3,10 +3,11 @@ import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound, GitBranch
+  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
+import { useToastStore } from '../../store/toastStore'
 import { usePermission, type PermissionAction } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
 import { KubernetesIcon } from '../OSIcons'
@@ -67,6 +68,7 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode, mobileNavOpen, toggleMobileNav } = useUIStore()
   const { can } = usePermission()
   const navigate = useNavigate()
+  const toast = useToastStore()
 
   const [servers, setServers] = useState<any[]>([])
   const [serversExpanded, setServersExpanded] = useState(true)
@@ -78,6 +80,59 @@ export function Sidebar() {
       })
       .catch(() => setServers([]))
   }, [])
+
+  // Desktop-only: the server/Docker deployment has no concept of
+  // self-updating its own running binary — that's what redeploys are for.
+  // The button stays visible even when already on the latest version (no
+  // update available yet doesn't mean never — a click always re-checks
+  // GitHub for whatever the current latest release is, rather than relying
+  // on a version fetched once at page load).
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; downloadUrl: string } | null>(null)
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'updating'>('idle')
+
+  useEffect(() => {
+    if (!__IS_DESKTOP__) return
+    checkForUpdate(false)
+  }, [])
+
+  async function checkForUpdate(manual: boolean) {
+    setUpdateState('checking')
+    try {
+      const res = await api.get('/api/desktop/update/check')
+      if (res.data?.available && res.data.download_url) {
+        setUpdateInfo({ version: res.data.latest_version, downloadUrl: res.data.download_url })
+      } else {
+        setUpdateInfo(null)
+        if (manual) toast.success('Up to date', `You're already on the latest version (v${__APP_VERSION__}).`)
+      }
+    } catch (e: any) {
+      if (manual) toast.error('Update check failed', e.response?.data?.error || e.message)
+    } finally {
+      setUpdateState('idle')
+    }
+  }
+
+  async function handleUpdateClick() {
+    if (updateState !== 'idle') return
+    if (!updateInfo) {
+      checkForUpdate(true)
+      return
+    }
+    if (!window.confirm(`Update InfraEye to v${updateInfo.version}? The app will close and reopen automatically.`)) return
+    setUpdateState('updating')
+    try {
+      const res = await api.post('/api/desktop/update/apply', { download_url: updateInfo.downloadUrl })
+      if (res.data?.success) {
+        toast.info('Updating…', 'InfraEye will restart shortly.')
+      } else {
+        toast.error('Update failed', res.data?.error || 'Unknown error')
+        setUpdateState('idle')
+      }
+    } catch (e: any) {
+      toast.error('Update failed', e.response?.data?.error || e.message)
+      setUpdateState('idle')
+    }
+  }
 
   function handleLogout() {
     logout()
@@ -190,7 +245,24 @@ export function Sidebar() {
         </div>
 
         {!sidebarCollapsed && (
-          <div className="sidebar-version">v{__APP_VERSION__}</div>
+          __IS_DESKTOP__ ? (
+            <button
+              className={`sidebar-update-btn ${updateInfo ? 'available' : ''}`}
+              onClick={handleUpdateClick}
+              disabled={updateState !== 'idle'}
+              title={updateInfo ? `Update available: v${updateInfo.version}` : `Running v${__APP_VERSION__} — click to check for updates`}
+            >
+              <Download size={12} style={{ flexShrink: 0 }} />
+              <span className="sidebar-update-btn-label">
+                {updateState === 'checking' ? 'Checking…'
+                  : updateState === 'updating' ? 'Updating…'
+                  : updateInfo ? `Update to v${updateInfo.version}`
+                  : 'Check for Updates'}
+              </span>
+            </button>
+          ) : (
+            <div className="sidebar-version">v{__APP_VERSION__}</div>
+          )
         )}
 
         <div className="sidebar-user">

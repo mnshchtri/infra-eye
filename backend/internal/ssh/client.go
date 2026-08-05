@@ -89,10 +89,15 @@ func NewClient(serverID uint, host string, port int, user, keyPath, password, au
 		authMethods = append(authMethods, gossh.PublicKeys(signer))
 	}
 
+	hostKeyCallback, err := trustOnFirstUseCallback()
+	if err != nil {
+		return nil, fmt.Errorf("ssh host key verification: %w", err)
+	}
+
 	config := &gossh.ClientConfig{
 		User:            user,
 		Auth:            authMethods,
-		HostKeyCallback: gossh.InsecureIgnoreHostKey(), // TODO: store known hosts
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         10 * time.Second,
 	}
 

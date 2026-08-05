@@ -678,6 +678,161 @@ func RunPodTerminal(c *gin.Context) {
 	}
 }
 
+// RunNodeTerminal opens a shell on a cluster node. There's no API in
+// Kubernetes to exec into a node directly, so this uses the same technique
+// `kubectl debug node/<name>` does: schedule a short-lived privileged pod
+// onto that node with the host filesystem bind-mounted at /host, exec
+// `chroot /host sh` in it, and delete the pod once the session ends.
+func RunNodeTerminal(c *gin.Context) {
+	if DenyWithoutServerAccess(c) {
+		return
+	}
+	id := c.Param("id")
+	nodeName := c.Query("node")
+	if nodeName == "" {
+		return
+	}
+
+	var server models.Server
+	if err := db.DB.First(&server, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+		return
+	}
+
+	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer wsConn.Close()
+
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(server.KubeConfig))
+	if err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("KubeConfig parse error: %v\r\n", err)))
+		return
+	}
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("K8s client error: %v\r\n", err)))
+		return
+	}
+
+	const debugNS = "default"
+	podName := fmt.Sprintf("infraeye-node-shell-%s-%d", strings.ToLower(strings.ReplaceAll(nodeName, ".", "-")), time.Now().UnixNano()%1_000_000)
+	if len(podName) > 63 {
+		podName = podName[:63]
+	}
+	hostPathType := corev1.HostPathDirectory
+	privileged := true
+
+	debugPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   podName,
+			Labels: map[string]string{"app": "infraeye-node-shell"},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:      nodeName,
+			HostPID:       true,
+			RestartPolicy: corev1.RestartPolicyNever,
+			// Tolerate every taint (control-plane nodes included) — this is a
+			// deliberate, temporary debug pod, not a workload placement decision.
+			Tolerations: []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
+			Containers: []corev1.Container{{
+				Name:            "shell",
+				Image:           "busybox:1.36",
+				Command:         []string{"sleep", "3600"},
+				SecurityContext: &corev1.SecurityContext{Privileged: &privileged},
+				VolumeMounts:    []corev1.VolumeMount{{Name: "host-root", MountPath: "/host"}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name:         "host-root",
+				VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/", Type: &hostPathType}},
+			}},
+		},
+	}
+
+	wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\x1b[90m── opening a node shell on %s via a temporary privileged debug pod ──\x1b[0m\r\n", nodeName)))
+
+	created, err := clientset.CoreV1().Pods(debugNS).Create(context.TODO(), debugPod, metav1.CreateOptions{})
+	if err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Failed to create debug pod: %v\r\n", err)))
+		return
+	}
+	defer func() {
+		gracePeriod := int64(0)
+		clientset.CoreV1().Pods(debugNS).Delete(context.Background(), created.Name, metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod})
+	}()
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	for {
+		p, err := clientset.CoreV1().Pods(debugNS).Get(waitCtx, created.Name, metav1.GetOptions{})
+		if err != nil {
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Failed to watch debug pod: %v\r\n", err)))
+			return
+		}
+		if p.Status.Phase == corev1.PodRunning {
+			break
+		}
+		if p.Status.Phase == corev1.PodFailed {
+			wsConn.WriteMessage(websocket.TextMessage, []byte("Debug pod failed to start\r\n"))
+			return
+		}
+		select {
+		case <-waitCtx.Done():
+			wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Timed out waiting for the debug pod to start on %s (node may be unreachable or lack capacity)\r\n", nodeName)))
+			return
+		case <-time.After(time.Second):
+		}
+	}
+
+	req := clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(created.Name).
+		Namespace(debugNS).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: "shell",
+			Command:   []string{"chroot", "/host", "sh"},
+			Stdin:     true,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
+	if err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec setup error: %v\r\n", err)))
+		return
+	}
+
+	stdinReader, stdinWriter := io.Pipe()
+	defer stdinReader.Close()
+
+	go func() {
+		defer stdinWriter.Close()
+		for {
+			_, msg, err := wsConn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if _, err := stdinWriter.Write(msg); err != nil {
+				return
+			}
+		}
+	}()
+
+	writer := &wsStreamWriter{conn: wsConn}
+	if err := exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
+		Stdin:  stdinReader,
+		Stdout: writer,
+		Stderr: writer,
+		Tty:    true,
+	}); err != nil {
+		wsConn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Exec stream error: %v\r\n", err)))
+		return
+	}
+}
+
 // TestK8sConnection — dry-run test of a KubeConfig against a server
 func TestK8sConnection(c *gin.Context) {
 	var req struct {
