@@ -409,3 +409,105 @@ jobs:
             dist/InfraEye-Linux/InfraEye-Linux.deb
             dist/InfraEye-Linux/InfraEye-Linux.pkg.tar.zst
             dist/InfraEye-Windows-amd64/InfraEye-Windows-amd64.exe
+
+  # Publishes packaging/aur/infraeye-bin to the AUR so Arch users get the new
+  # version from `yay -S infraeye-bin` without anyone touching it by hand.
+  # Runs after `release` because the PKGBUILD's sha256sum is computed from the
+  # published .deb — the release assets have to exist first.
+  #
+  # Skipped entirely when AUR_SSH_PRIVATE_KEY isn't configured, so this never
+  # blocks a release for anyone who hasn't set the AUR side up.
+  publish-aur:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+    steps:
+      - name: Checkout
+        if: env.AUR_SSH_PRIVATE_KEY != ''
+        uses: actions/checkout@v4
+
+      - name: Update PKGBUILD for the tagged release
+        if: env.AUR_SSH_PRIVATE_KEY != ''
+        working-directory: packaging/aur/infraeye-bin
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          DEB_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/InfraEye-Linux.deb"
+
+          # Hash the asset users will actually download, rather than trusting a
+          # locally rebuilt copy to be byte-identical to it.
+          curl -fsSL --retry 3 -o /tmp/InfraEye-Linux.deb "$DEB_URL"
+          SHA256="$(sha256sum /tmp/InfraEye-Linux.deb | cut -d' ' -f1)"
+          echo "version=$VERSION sha256=$SHA256"
+
+          # pkgrel resets to 1 on every new pkgver; it only ever increments when
+          # the packaging changes for an unchanged upstream version, which by
+          # definition isn't what a release tag is.
+          sed -i \
+            -e "s/^pkgver=.*/pkgver=${VERSION}/" \
+            -e "s/^pkgrel=.*/pkgrel=1/" \
+            -e "s/^sha256sums=.*/sha256sums=('${SHA256}')/" \
+            PKGBUILD
+
+          # makepkg only exists on Arch, and it refuses to run as root, hence
+          # the container plus an unprivileged user. --printsrcinfo doesn't
+          # fetch sources, so this is just a parse and reformat.
+          docker run --rm -v "$PWD:/pkg" archlinux:base-devel bash -c '
+            useradd -m builder
+            cp /pkg/PKGBUILD /home/builder/
+            chown -R builder /home/builder
+            su builder -c "cd /home/builder && makepkg --printsrcinfo"
+          ' > .SRCINFO
+
+          echo "--- PKGBUILD ---"; cat PKGBUILD
+          echo "--- .SRCINFO ---"; cat .SRCINFO
+
+          # A .SRCINFO that disagrees with the PKGBUILD is rejected by the AUR's
+          # own hook, but only after the push — catch it here where the error is
+          # readable.
+          test "$(grep -c "pkgver = ${VERSION}$" .SRCINFO)" -eq 1
+          test "$(grep -c "sha256sums = ${SHA256}$" .SRCINFO)" -eq 1
+
+      - name: Publish to the AUR
+        if: env.AUR_SSH_PRIVATE_KEY != ''
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+
+          # Pinned rather than ssh-keyscan'd: trust-on-first-use in CI would
+          # accept whatever key answers, which is exactly the case this guards
+          # against. Fingerprint SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4
+          # is the one the AUR publishes.
+          echo 'aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o IdentitiesOnly=yes"
+
+          git clone ssh://aur@aur.archlinux.org/infraeye-bin.git /tmp/aur
+          cd /tmp/aur
+          # A package that has never been pushed clones as an empty repo with no
+          # branch checked out; git checkout -B handles both that and the normal case.
+          git checkout -B master
+
+          cp "$GITHUB_WORKSPACE/packaging/aur/infraeye-bin/PKGBUILD" .
+          cp "$GITHUB_WORKSPACE/packaging/aur/infraeye-bin/.SRCINFO" .
+
+          git config user.name "InfraEye Release Bot"
+          git config user.email "mnshchtri@gmail.com"
+          git add PKGBUILD .SRCINFO
+
+          # Re-running a tag build with no packaging change would otherwise fail
+          # the commit and take the job down with it.
+          if git diff --cached --quiet; then
+            echo "AUR package already matches ${VERSION}; nothing to push."
+            exit 0
+          fi
+
+          git commit -m "infraeye-bin ${VERSION}-1"
+          git push origin master

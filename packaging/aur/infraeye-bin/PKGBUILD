@@ -1,5 +1,10 @@
 # Maintainer: Manish Karki <mnshchtri@gmail.com>
 
+# pkgver, pkgrel and sha256sums are rewritten from the tag by the publish-aur
+# job in .github/workflows/desktop-release.yml, so the values committed here are
+# a snapshot of the last published release rather than something to hand-edit
+# during a normal release. See packaging/aur/README.md.
+
 # Repackages the prebuilt desktop binary published with each desktop-v* GitHub
 # release. The .deb is used as the source because it is the only release asset
 # that already carries the full install layout (binary, .desktop entry, icon) —

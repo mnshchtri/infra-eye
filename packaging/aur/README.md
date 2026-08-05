@@ -37,6 +37,21 @@ expected, and the first push is what creates it.
 
 ## Updating for a new release
 
+**This is automated.** The `publish-aur` job in
+`.github/workflows/desktop-release.yml` runs on every `desktop-v*` tag, after
+the GitHub release exists: it hashes the published `InfraEye-Linux.deb`, rewrites
+`pkgver`/`pkgrel`/`sha256sums`, regenerates `.SRCINFO`, and pushes to the AUR.
+
+It needs one repository secret, `AUR_SSH_PRIVATE_KEY` — the private half of an
+SSH key registered to an AUR account that co-maintains the package. Without it
+the job is skipped and releases proceed as normal.
+
+Because CI rewrites those three fields, the values committed here are a snapshot
+of the last published release; there is no need to bump them by hand.
+
+The manual process below is only needed for the first import, or to recover if
+the automated push fails.
+
 `pkgver` and `sha256sums` both have to change, and `.SRCINFO` must be regenerated
 or the AUR will reject the push as out of sync with the PKGBUILD.
 
