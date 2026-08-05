@@ -32,7 +32,7 @@ export function TerminalPortal({ serverID, pod, namespace, container, node, targ
     const term = new XTerm({
       theme: { background: '#0f172a', foreground: '#cbd5e1' },
       fontSize: 13,
-      fontFamily: '"JetBrains Mono", monospace'
+      fontFamily: '"JetBrains Mono Variable", "JetBrains Mono", monospace'
     })
     const fitAddon = new FitAddon()
     fitAddonRef.current = fitAddon

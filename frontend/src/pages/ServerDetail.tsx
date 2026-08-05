@@ -701,7 +701,7 @@ export function ServerDetail() {
         cursor: 'var(--brand-primary)', 
         selectionBackground: 'var(--brand-glow)' 
       },
-      fontFamily: "'JetBrains Mono', monospace",
+      fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', monospace",
       fontSize: 13,
     })
     const fitAddon = new FitAddon()
