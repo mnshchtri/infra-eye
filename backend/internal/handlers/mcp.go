@@ -28,6 +28,10 @@ var mcpClient = &http.Client{Timeout: 60 * time.Second}
 // A 30s timeout on the shared client was killing the stream before tool responses arrived.
 var mcpSSEClient = &http.Client{Timeout: 0}
 
+// mcpStatusClient is intentionally short-lived: /api/mcp/status must not hang
+// while a wrong process is bound to the configured port.
+var mcpStatusClient = &http.Client{Timeout: 5 * time.Second}
+
 
 // ── MCP JSON-RPC types ─────────────────────────────────────────────────────
 
@@ -166,28 +170,74 @@ func MCPServerStatus(c *gin.Context) {
 		log.Printf("⚠️ MCP: Kubeconfig sync failed: %v", err)
 	}
 
-	resp, err := mcpClient.Get(config.C.MCPServerURL + "/healthz")
+	available, statusCode, details := checkMCPServer(config.C.MCPServerURL)
+	body := gin.H{
+		"available":   available,
+		"url":         config.C.MCPServerURL,
+		"status_code": statusCode,
+	}
+	if details != "" {
+		body["details"] = details
+	}
+	c.JSON(http.StatusOK, body)
+}
+
+func checkMCPServer(baseURL string) (bool, int, string) {
+	payload := mcpRequest{
+		JSONRPC: "2.0",
+		ID:      intPtr(1),
+		Method:  "initialize",
+		Params: map[string]interface{}{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]interface{}{},
+			"clientInfo": map[string]string{
+				"name":    "infra-eye-status",
+				"version": "1.0.0",
+			},
+		},
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
-		// Try fallback to root if /health 404s or fails
-		resp, err = mcpClient.Get(config.C.MCPServerURL + "/sse")
+		return false, 0, fmt.Sprintf("marshal initialize request: %v", err)
 	}
 
+	target := strings.TrimRight(baseURL, "/") + "/mcp"
+	req, err := http.NewRequest(http.MethodPost, target, bytes.NewBuffer(body))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"available": false,
-			"url":       config.C.MCPServerURL,
-			"error":     err.Error(),
-			"hint":      "Check if mcp-server container is running and port 8090 is open",
-		})
-		return
+		return false, 0, fmt.Sprintf("create MCP status request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+
+	resp, err := mcpStatusClient.Do(req)
+	if err != nil {
+		return false, 0, fmt.Sprintf("MCP server unreachable: %v", err)
 	}
 	defer resp.Body.Close()
 
-	c.JSON(http.StatusOK, gin.H{
-		"available":   resp.StatusCode == 200 || resp.StatusCode == 404, // 404 means server is up but endpoint missing
-		"url":         config.C.MCPServerURL,
-		"status_code": resp.StatusCode,
-	})
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, resp.StatusCode, fmt.Sprintf("read MCP status response: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return false, resp.StatusCode, fmt.Sprintf("MCP server returned HTTP %d", resp.StatusCode)
+	}
+
+	var decoded mcpResponse
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return false, resp.StatusCode, "MCP endpoint returned a non-JSON-RPC response"
+	}
+	if decoded.JSONRPC != "2.0" || decoded.ID != 1 {
+		return false, resp.StatusCode, "MCP endpoint returned an unexpected JSON-RPC response"
+	}
+	if decoded.Error != nil {
+		return false, resp.StatusCode, fmt.Sprintf("MCP initialize failed: %s", decoded.Error.Message)
+	}
+	if len(decoded.Result) == 0 {
+		return false, resp.StatusCode, "MCP initialize returned no result"
+	}
+
+	return true, resp.StatusCode, ""
 }
 
 var (
