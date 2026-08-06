@@ -26,11 +26,9 @@
 
 name: SonarQube analysis
 
+# Disabled for automatic runs until SONAR_TOKEN (and SONAR_HOST_URL for
+# self-hosted) are configured as repository secrets. Keep manual runs available.
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 permissions:
