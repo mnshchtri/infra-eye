@@ -97,6 +97,17 @@ func generateState() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
+// isRequestSecure reports whether the request reached us over HTTPS, either
+// directly or via a TLS-terminating reverse proxy, so the oidc_state cookie
+// can get the Secure attribute in production without breaking plain-HTTP
+// local dev.
+func isRequestSecure(c *gin.Context) bool {
+	if c.Request.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https")
+}
+
 // OIDCLogin initiates the OIDC login flow
 func OIDCLogin(c *gin.Context) {
 	if !config.C.OIDCEnabled || oidcDiscovery == nil {
@@ -105,9 +116,9 @@ func OIDCLogin(c *gin.Context) {
 	}
 
 	state := generateState()
-	
+
 	// Store state in session/cookie for validation (in production, use Redis)
-	c.SetCookie("oidc_state", state, 600, "/", "", false, true)
+	c.SetCookie("oidc_state", state, 600, "/", "", isRequestSecure(c), true)
 
 	scopes := strings.Split(config.C.OIDCScopes, " ")
 	scopeStr := strings.Join(scopes, " ")
@@ -190,7 +201,7 @@ func OIDCCallback(c *gin.Context) {
 	}
 
 	// Clear state cookie
-	c.SetCookie("oidc_state", "", -1, "/", "", false, true)
+	c.SetCookie("oidc_state", "", -1, "/", "", isRequestSecure(c), true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": signed,

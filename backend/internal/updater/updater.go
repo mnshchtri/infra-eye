@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -156,11 +157,34 @@ func compareSemver(a, b string) int {
 	return 0
 }
 
-// download fetches url into a fresh temp file matching pattern (see
+// validateAssetURL rejects anything that isn't an https URL on a GitHub
+// release-asset host. DownloadURL originates from the GitHub Releases API
+// response, so this is defense-in-depth against that API (or a compromised
+// path to it) ever pointing us at an internal/arbitrary address.
+func validateAssetURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid download URL: %w", err)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("download URL must use https")
+	}
+	host := strings.ToLower(u.Hostname())
+	if host != "github.com" && host != "api.github.com" && !strings.HasSuffix(host, ".githubusercontent.com") {
+		return fmt.Errorf("download URL host %q is not a recognized GitHub release host", host)
+	}
+	return nil
+}
+
+// download fetches rawURL into a fresh temp file matching pattern (see
 // os.CreateTemp) and returns its path plus a cleanup func that removes it.
 // Callers that want to keep the file (e.g. a Windows installer that's about
 // to be launched) can simply not call cleanup.
-func download(url, pattern string) (path string, cleanup func(), err error) {
+func download(rawURL, pattern string) (path string, cleanup func(), err error) {
+	if err := validateAssetURL(rawURL); err != nil {
+		return "", nil, err
+	}
+
 	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return "", nil, fmt.Errorf("create temp file: %w", err)
@@ -168,7 +192,7 @@ func download(url, pattern string) (path string, cleanup func(), err error) {
 	cleanup = func() { os.Remove(f.Name()) }
 
 	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		f.Close()
 		cleanup()

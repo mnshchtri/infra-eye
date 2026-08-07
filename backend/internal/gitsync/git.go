@@ -59,11 +59,36 @@ func validateBranch(branch string) error {
 	return nil
 }
 
+// validateRepoURL rejects anything that isn't a well-formed http(s)/ssh/git
+// URL. In particular this blocks a URL starting with "-", which would
+// otherwise be passed as a positional exec.Command argument and could be
+// interpreted by git as a flag (e.g. "--upload-pack=...") — argument
+// injection rather than shell injection, but exec.Command's lack of a shell
+// doesn't protect against it on its own.
+func validateRepoURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid repo URL: %w", err)
+	}
+	switch u.Scheme {
+	case "http", "https", "ssh", "git":
+	default:
+		return fmt.Errorf("unsupported repo URL scheme %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("repo URL is missing a host")
+	}
+	return nil
+}
+
 // authenticatedURL splices a PAT into the URL in-memory only, immediately
 // before exec — never stored or logged in this form. The working directory's
 // .git/config will contain it (normal git HTTPS-credential behavior), which
 // is why WorkDir always lives in a non-served, 0700 app-data-style location.
 func authenticatedURL(rawURL, pat string) (string, error) {
+	if err := validateRepoURL(rawURL); err != nil {
+		return "", err
+	}
 	if pat == "" {
 		return rawURL, nil
 	}
