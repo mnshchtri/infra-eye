@@ -8,6 +8,9 @@
 
 **Observing the Unseen • Healing the Broken**
 
+<img width="1440" height="900" alt="Screenshot 2026-08-08 at 1 26 44 AM" src="https://github.com/user-attachments/assets/e7e6a8e9-91ec-4350-91a6-9f81d5a01644" />
+
+
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript)](https://typescriptlang.org)
