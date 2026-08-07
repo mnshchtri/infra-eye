@@ -279,7 +279,7 @@ jobs:
             'Icon=infraeye' \
             'Terminal=false' \
             'Type=Application' \
-            'Categories=Utility;Development;' \
+            'Categories=Development;Monitor;' \
             > "$PKGROOT/usr/share/applications/infraeye.desktop"
 
           printf '%s\n' \
@@ -325,7 +325,7 @@ jobs:
             'Icon=infraeye' \
             'Terminal=false' \
             'Type=Application' \
-            'Categories=Utility;Development;' \
+            'Categories=Development;Monitor;' \
             > "$PKGDIR/infraeye.desktop"
 
           printf '%s\n' \
