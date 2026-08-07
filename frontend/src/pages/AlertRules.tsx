@@ -29,6 +29,16 @@ const emptyForm = {
   cooldown_minutes: 5,
 }
 
+// escapeXmlText escapes the characters that are unsafe in XML element text content.
+function escapeXmlText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// escapeXmlAttr escapes the characters that are unsafe inside a double-quoted XML attribute.
+function escapeXmlAttr(s: string): string {
+  return escapeXmlText(s).replace(/"/g, '&quot;')
+}
+
 const CONDITION_COLORS: Record<string, string> = {
   cpu: '#f59e0b', mem: '#3b82f6', disk: '#ec4899',
   load: '#10b981', log_keyword: '#ef4444',
@@ -125,9 +135,9 @@ export function AlertRules() {
   const generateXml = useCallback(() => {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<!-- InfraEye alert / self-healing rules -->\n<AlertRules>\n'
     rules.forEach(r => {
-      xml += `  <Rule id="${r.id}" name="${r.name}" serverId="${r.server_id}" enabled="${r.enabled}">\n`
-      xml += `    <Condition type="${r.condition_type}" op="${r.condition_op}" value="${r.condition_value}" />\n`
-      xml += `    <Action type="${r.action_type}">${r.action_command}</Action>\n`
+      xml += `  <Rule id="${r.id}" name="${escapeXmlAttr(r.name)}" serverId="${r.server_id}" enabled="${r.enabled}">\n`
+      xml += `    <Condition type="${escapeXmlAttr(r.condition_type)}" op="${escapeXmlAttr(r.condition_op)}" value="${escapeXmlAttr(r.condition_value)}" />\n`
+      xml += `    <Action type="${escapeXmlAttr(r.action_type)}">${escapeXmlText(r.action_command)}</Action>\n`
       xml += `  </Rule>\n`
     })
     xml += '</AlertRules>'
@@ -139,6 +149,9 @@ export function AlertRules() {
     try {
       const parser = new DOMParser()
       const xmlDoc = parser.parseFromString(xmlContent, 'text/xml')
+      if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+        throw new Error('The XML is not well-formed — check for unescaped characters like < or & in rule values.')
+      }
       const ruleNodes = xmlDoc.getElementsByTagName('Rule')
 
       const newRules = Array.from(ruleNodes).map(node => ({
