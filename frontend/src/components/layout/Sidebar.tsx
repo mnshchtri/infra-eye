@@ -12,6 +12,7 @@ import { usePermission, type PermissionAction } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
 import { KubernetesIcon } from '../OSIcons'
 import { api } from '../../api/client'
+import { Modal, ModalBody, ModalFooter, Button } from '../ui'
 import { useState, useEffect, Fragment } from 'react'
 
 type NavItem = {
@@ -89,6 +90,7 @@ export function Sidebar() {
   // on a version fetched once at page load).
   const [updateInfo, setUpdateInfo] = useState<{ version: string; downloadUrl: string } | null>(null)
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'updating'>('idle')
+  const [confirmUpdateOpen, setConfirmUpdateOpen] = useState(false)
 
   useEffect(() => {
     if (!__IS_DESKTOP__) return
@@ -112,13 +114,23 @@ export function Sidebar() {
     }
   }
 
-  async function handleUpdateClick() {
+  function handleUpdateClick() {
     if (updateState !== 'idle') return
     if (!updateInfo) {
       checkForUpdate(true)
       return
     }
-    if (!window.confirm(`Update InfraEye to v${updateInfo.version}? The app will close and reopen automatically.`)) return
+    // Wails' embedded webview doesn't reliably surface window.confirm() as a
+    // visible dialog (it can silently resolve without ever rendering), which
+    // made this button look like it did nothing when clicked. Use the app's
+    // own Modal instead so confirmation always works, in the desktop app and
+    // in a regular browser alike.
+    setConfirmUpdateOpen(true)
+  }
+
+  async function runUpdate() {
+    if (!updateInfo) return
+    setConfirmUpdateOpen(false)
     setUpdateState('updating')
     try {
       const res = await api.post('/api/desktop/update/apply', { download_url: updateInfo.downloadUrl })
@@ -281,6 +293,24 @@ export function Sidebar() {
         </div>
       </div>
 
+      {updateInfo && (
+        <Modal
+          isOpen={confirmUpdateOpen}
+          onClose={() => setConfirmUpdateOpen(false)}
+          title="Update InfraEye"
+          size="sm"
+          footer={
+            <ModalFooter>
+              <Button variant="ghost" onClick={() => setConfirmUpdateOpen(false)}>Cancel</Button>
+              <Button variant="primary" onClick={runUpdate}>Update & Restart</Button>
+            </ModalFooter>
+          }
+        >
+          <ModalBody>
+            Update InfraEye to v{updateInfo.version}? The app will close and reopen automatically.
+          </ModalBody>
+        </Modal>
+      )}
     </aside>
   )
 }
