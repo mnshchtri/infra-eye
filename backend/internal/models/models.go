@@ -257,6 +257,45 @@ type ChatThread struct {
 	ServerID  uint      `gorm:"index" json:"server_id"`
 }
 
+// AgentRun is one goal-driven, multi-turn Claude tool-calling session against
+// a single server. Each turn proposes at most one tool call (ssh_command or
+// an MCP/Kubernetes tool), which is only executed after explicit human
+// approval of the corresponding AgentStep.
+type AgentRun struct {
+	ID         uint        `gorm:"primaryKey" json:"id"`
+	UserID     uint        `gorm:"index" json:"user_id"`
+	ServerID   uint        `gorm:"index" json:"server_id"`
+	Goal       string      `gorm:"type:text" json:"goal"`
+	Status     string      `gorm:"default:running" json:"status"` // running, awaiting_approval, completed, failed, cancelled
+	Provider   string      `json:"provider"`                      // "claude" for v1
+	Model      string      `json:"model"`
+	StartedAt  time.Time   `json:"started_at"`
+	FinishedAt *time.Time  `json:"finished_at"`
+	ErrorText  string      `gorm:"type:text" json:"error_text"`
+	Steps      []AgentStep `gorm:"foreignKey:AgentRunID" json:"steps,omitempty"`
+	CreatedAt  time.Time   `gorm:"index" json:"created_at"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+}
+
+// AgentStep is one proposed action (or the final answer) within an AgentRun.
+type AgentStep struct {
+	ID              uint       `gorm:"primaryKey" json:"id"`
+	AgentRunID      uint       `gorm:"index;uniqueIndex:idx_run_step" json:"agent_run_id"`
+	StepNumber      int        `gorm:"uniqueIndex:idx_run_step" json:"step_number"`
+	Kind            string     `json:"kind"` // ssh_command, mcp_tool, final_answer, unknown_tool
+	ToolName        string     `json:"tool_name"`
+	ToolArgs        string     `gorm:"type:text" json:"tool_args"` // JSON-marshaled map
+	ToolUseID       string     `json:"tool_use_id"`                // Claude's tool_use block id
+	Reasoning       string     `gorm:"type:text" json:"reasoning"` // assistant text preceding the tool call, or the final answer
+	Status          string     `json:"status"`                     // pending_approval, approved, rejected, executed, failed
+	Output          string     `gorm:"type:text" json:"output"`
+	ErrorText       string     `gorm:"type:text" json:"error_text"`
+	DecidedByUserID *uint      `json:"decided_by_user_id"`
+	DecidedAt       *time.Time `json:"decided_at"`
+	ExecutedAt      *time.Time `json:"executed_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
 // AppSetting is a platform-wide key/value setting configured from the UI
 // (e.g. notification webhook URLs). A stored value overrides the matching
 // environment-variable default.

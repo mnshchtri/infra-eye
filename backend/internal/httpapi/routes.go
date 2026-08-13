@@ -136,6 +136,14 @@ func RegisterRoutes(r *gin.Engine) {
 		api.POST("/mcp/tool", middleware.RequireRole("admin", "devops"), handlers.ExecuteMCPTool)
 		api.POST("/mcp/kubectl", middleware.RequireRole("admin", "devops"), handlers.RunKubectlViaMCP)
 
+		// ── Agent (multi-turn, human-approved DevOps automation) ──
+		api.POST("/agent/runs", middleware.RequireRole("admin", "devops"), handlers.CreateAgentRun)
+		api.GET("/agent/runs", middleware.RequireRole("admin", "devops"), handlers.ListAgentRuns)
+		api.GET("/agent/runs/:id", middleware.RequireRole("admin", "devops"), handlers.GetAgentRun)
+		api.POST("/agent/runs/:id/steps/:stepId/approve", middleware.RequireRole("admin", "devops"), handlers.ApproveAgentStep)
+		api.POST("/agent/runs/:id/steps/:stepId/reject", middleware.RequireRole("admin", "devops"), handlers.RejectAgentStep)
+		api.POST("/agent/runs/:id/cancel", middleware.RequireRole("admin", "devops"), handlers.CancelAgentRun)
+
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
 		api.POST("/alert-rules", middleware.RequireRole("admin", "devops"), handlers.CreateAlertRule)
@@ -176,6 +184,7 @@ func RegisterRoutes(r *gin.Engine) {
 		ws.GET("/servers/:id/kubectl/node-terminal", middleware.RequireRole("admin", "devops"), handlers.RunNodeTerminal)
 		ws.GET("/servers/:id/k8s/watch", middleware.RequireRole("admin", "devops", "trainee", "intern"), handlers.WatchKubectl)
 		ws.GET("/alerts", alertsWsHandler)
+		ws.GET("/agent/runs/:id", middleware.RequireRole("admin", "devops"), handlers.AgentRunWS)
 		ws.GET("/metrics/all", allMetricsWsHandler)
 	}
 }
