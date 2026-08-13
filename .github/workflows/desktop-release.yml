@@ -47,6 +47,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # macos-latest runners ship with ~14GB free after OS/toolchain overhead,
+      # most of which is preinstalled Xcode platforms/simulators and an Android
+      # SDK this build never touches. hdiutil create needs scratch space on the
+      # order of the .app bundle size to stage the compressed DMG, and as the
+      # frontend has grown that pushed a build over the edge ("No space left on
+      # device" from hdiutil, confirmed reproducible across reruns on the same
+      # commit). Clearing these frees 10GB+ before the build even starts.
+      # Leaves Xcode itself alone — codesign/notarytool need the active
+      # toolchain, and pruning "other" Xcode versions risks removing the one
+      # xcode-select actually points at.
+      - name: Free up disk space (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          df -h /
+          sudo rm -rf /Users/runner/Library/Android
+          sudo rm -rf ~/Library/Developer/CoreSimulator
+          sudo rm -rf ~/Library/Developer/Xcode/DerivedData
+          df -h /
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
