@@ -148,6 +148,8 @@ func UpdateProfile(c *gin.Context) {
 		ClaudeKey     string `json:"claude_key"`
 		GeminiKey     string `json:"gemini_key"`
 		MistralKey    string `json:"mistral_key"`
+		LocalLLMURL   string `json:"local_llm_url"`
+		LocalLLMModel string `json:"local_llm_model"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -171,6 +173,12 @@ func UpdateProfile(c *gin.Context) {
 	if body.MistralKey != "" {
 		user.MistralKey = body.MistralKey
 	}
+	if body.LocalLLMURL != "" {
+		user.LocalLLMURL = body.LocalLLMURL
+	}
+	if body.LocalLLMModel != "" {
+		user.LocalLLMModel = body.LocalLLMModel
+	}
 	if body.Password != "" {
 		if len(body.Password) < 6 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 6 characters"})
@@ -191,6 +199,8 @@ func UpdateProfile(c *gin.Context) {
 		"claude_key":      user.ClaudeKey,
 		"gemini_key":      user.GeminiKey,
 		"mistral_key":     user.MistralKey,
+		"local_llm_url":   user.LocalLLMURL,
+		"local_llm_model": user.LocalLLMModel,
 	})
 }
 

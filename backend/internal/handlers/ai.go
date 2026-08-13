@@ -613,6 +613,16 @@ func askAI(systemContext, question, imageBase64, imageMime, provider string, use
 		if user.ClaudeKey != "" { return askClaude(systemContext, question, user.ClaudeKey) }
 	}
 
+	// Local LLM (self-hosted, OpenAI-compatible: Ollama, LM Studio, llama.cpp server, vLLM)
+	if provider == "local" || (provider == "" && (user.LocalLLMURL != "" || config.C.LocalLLMURL != "")) {
+		url := config.C.LocalLLMURL
+		if user.LocalLLMURL != "" { url = user.LocalLLMURL }
+		model := config.C.LocalLLMModel
+		if user.LocalLLMModel != "" { model = user.LocalLLMModel }
+		if url != "" { return askLocalLLM(systemContext, question, url, model) }
+		if provider == "local" { return "No local LLM endpoint configured. Set LOCAL_LLM_URL (server-wide) or add your local endpoint in Settings → AI." }
+	}
+
 	// OpenRouter (Default fallback)
 	if provider == "openrouter" || provider == "" {
 		key := config.C.OpenRouterKey
@@ -763,6 +773,55 @@ func askDeepSeek(systemContext, question, apiKey string) string {
 
 	if len(aiResp.Choices) == 0 {
 		return "No response from DeepSeek AI."
+	}
+
+	return aiResp.Choices[0].Message.Content.(string)
+}
+
+// askLocalLLM talks to a self-hosted, OpenAI-compatible chat endpoint (Ollama,
+// LM Studio, llama.cpp server, vLLM, text-generation-webui). No API key is
+// required since these run on trusted infrastructure the operator controls.
+func askLocalLLM(systemContext, question, baseURL, model string) string {
+	endpoint := strings.TrimRight(baseURL, "/")
+	if !strings.Contains(endpoint, "/chat/completions") {
+		endpoint += "/v1/chat/completions"
+	}
+
+	reqBody := openAIRequest{
+		Model: model,
+		Messages: []openAIMessage{
+			{Role: "system", Content: systemContext},
+			{Role: "user", Content: question},
+		},
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Sprintf("Request creation failed: %v", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Local inference (especially on CPU) can be slow, so allow a generous timeout.
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Sprintf("Local LLM request failed: %v (is the server running at %s?)", err, endpoint)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var aiResp openAIResponse
+	if err := json.Unmarshal(body, &aiResp); err != nil {
+		return fmt.Sprintf("Local LLM parse error: %v | raw: %s", err, string(body))
+	}
+
+	if aiResp.Error != nil {
+		return fmt.Sprintf("Local LLM error: %s", aiResp.Error.Message)
+	}
+
+	if len(aiResp.Choices) == 0 {
+		return "No response from local LLM."
 	}
 
 	return aiResp.Choices[0].Message.Content.(string)
