@@ -231,13 +231,26 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: backend/cmd/desktop/build/bin
         run: |
+          set -euo pipefail
           rm -rf dmg-staging
           mkdir dmg-staging
           # -R preserves the signature; a plain cp would strip the bundle's
           # extended attributes and invalidate it.
           cp -R InfraEye.app dmg-staging/
           ln -s /Applications dmg-staging/Applications
-          hdiutil create -volname "InfraEye" -srcfolder dmg-staging -ov -format UDZO "${{ matrix.artifact_name }}.dmg"
+
+          # hdiutil, left to auto-size from -srcfolder, sizes the intermediate
+          # read/write image off the source's raw byte count. A codesigned
+          # .app's extended attributes and resource forks push actual block
+          # usage above that estimate, and as the app has grown that gap has
+          # gotten big enough to blow the auto-computed size ("hdiutil: create
+          # failed - No space left on device" on a runner that otherwise has
+          # 100GB+ free — confirmed via `df -h /` in this same job). Sizing
+          # explicitly off `du` plus generous headroom sidesteps the estimate
+          # entirely instead of trying to out-guess it.
+          STAGING_MB=$(du -sm dmg-staging | cut -f1)
+          IMAGE_MB=$((STAGING_MB + 200))
+          hdiutil create -volname "InfraEye" -srcfolder dmg-staging -ov -format UDZO -size "${IMAGE_MB}m" "${{ matrix.artifact_name }}.dmg"
           rm -rf dmg-staging
 
       # The ticket has to be stapled to the .dmg, not just the .app inside it:
