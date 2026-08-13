@@ -354,7 +354,7 @@ func loadOwnedAgentRun(c *gin.Context) (models.AgentRun, bool) {
 func loadAgentRunWithSteps(runID uint) models.AgentRun {
 	var run models.AgentRun
 	db.DB.First(&run, runID)
-	var steps []models.AgentStep
+	steps := []models.AgentStep{}
 	db.DB.Where("agent_run_id = ?", runID).Order("step_number ASC").Find(&steps)
 	run.Steps = steps
 	return run
@@ -416,7 +416,7 @@ func CreateAgentRun(c *gin.Context) {
 // ListAgentRuns — GET /api/agent/runs
 func ListAgentRuns(c *gin.Context) {
 	userID := c.GetUint("user_id")
-	var runs []models.AgentRun
+	runs := []models.AgentRun{}
 	db.DB.Where("user_id = ?", userID).Order("created_at DESC").Find(&runs)
 	c.JSON(http.StatusOK, runs)
 }

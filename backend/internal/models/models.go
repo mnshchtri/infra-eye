@@ -272,7 +272,7 @@ type AgentRun struct {
 	StartedAt  time.Time   `json:"started_at"`
 	FinishedAt *time.Time  `json:"finished_at"`
 	ErrorText  string      `gorm:"type:text" json:"error_text"`
-	Steps      []AgentStep `gorm:"foreignKey:AgentRunID" json:"steps,omitempty"`
+	Steps      []AgentStep `gorm:"foreignKey:AgentRunID" json:"steps"`
 	CreatedAt  time.Time   `gorm:"index" json:"created_at"`
 	UpdatedAt  time.Time   `json:"updated_at"`
 }

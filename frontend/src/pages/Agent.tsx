@@ -230,7 +230,7 @@ export function Agent() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [activeRun?.steps.length])
+  }, [activeRun?.steps?.length])
 
   const startRun = useCallback(async () => {
     if (!goal.trim() || !selectedServer || starting) return
@@ -384,7 +384,7 @@ export function Agent() {
                   )}
                 </div>
 
-                {activeRun.steps.map(step => (
+                {(activeRun.steps ?? []).map(step => (
                   <StepCard
                     key={step.id}
                     step={step}
