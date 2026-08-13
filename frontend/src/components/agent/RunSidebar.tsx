@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight, Plus, Workflow } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Plus, Workflow, Trash2 } from 'lucide-react'
 
 export interface AgentRunSummary {
   id: number
@@ -13,6 +13,7 @@ interface RunSidebarProps {
   activeRunId: number | null
   onSelect: (id: number) => void
   onNew: () => void
+  onDelete: (id: number) => void
   isCollapsed: boolean
   onToggle: (v: boolean) => void
 }
@@ -47,10 +48,11 @@ const STATUS_LABEL: Record<AgentRunSummary['status'], string> = {
 }
 
 export const RunSidebar = memo(({
-  runs, activeRunId, onSelect, onNew, isCollapsed, onToggle,
+  runs, activeRunId, onSelect, onNew, onDelete, isCollapsed, onToggle,
 }: RunSidebarProps) => {
   const [width, setWidth] = useState(280)
   const [isResizing, setIsResizing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
 
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -197,20 +199,49 @@ export const RunSidebar = memo(({
             onMouseLeave={e => { if (activeRunId !== r.id) e.currentTarget.style.background = 'transparent' }}
           >
             {!isCollapsed ? (
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{
-                  fontSize: 13.5, color: activeRunId === r.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  fontWeight: activeRunId === r.id ? 700 : 600,
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  {r.goal}
+              <>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{
+                    fontSize: 13.5, color: activeRunId === r.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontWeight: activeRunId === r.id ? 700 : 600,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {r.goal}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[r.status], flexShrink: 0 }} />
+                    <span style={{ fontSize: 11.5, color: STATUS_COLOR[r.status], fontWeight: 700 }}>{STATUS_LABEL[r.status]}</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>· {timeAgo(r.created_at)}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[r.status], flexShrink: 0 }} />
-                  <span style={{ fontSize: 11.5, color: STATUS_COLOR[r.status], fontWeight: 700 }}>{STATUS_LABEL[r.status]}</span>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>· {timeAgo(r.created_at)}</span>
-                </div>
-              </div>
+                {confirmDelete === r.id ? (
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                    <button
+                      title="Confirm delete"
+                      onClick={() => { onDelete(r.id); setConfirmDelete(null) }}
+                      style={{ padding: '4px 8px', borderRadius: 'var(--radius-md)', fontSize: 11, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 800 }}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      title="Cancel"
+                      onClick={() => setConfirmDelete(null)}
+                      style={{ padding: '4px 8px', borderRadius: 'var(--radius-md)', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Keep
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn-icon danger"
+                    title="Delete run"
+                    onClick={e => { e.stopPropagation(); setConfirmDelete(r.id) }}
+                    style={{ width: 26, height: 26, flexShrink: 0 }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </>
             ) : (
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[r.status] }} />
             )}

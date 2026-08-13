@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/infra-eye/backend/internal/agent"
+	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
@@ -128,6 +129,79 @@ func buildMessageHistory(run *models.AgentRun, steps []models.AgentStep) []agent
 	return messages
 }
 
+// ── Provider dispatch ────────────────────────────────────────────────────────
+
+// resolveLocalLLM applies the same per-user-override-then-server-default
+// precedent as askAI/askLocalLLM in ai.go.
+func resolveLocalLLM(user models.User) (url, model string) {
+	url = config.C.LocalLLMURL
+	if user.LocalLLMURL != "" {
+		url = user.LocalLLMURL
+	}
+	model = config.C.LocalLLMModel
+	if user.LocalLLMModel != "" {
+		model = user.LocalLLMModel
+	}
+	return url, model
+}
+
+// defaultOpenRouterModel and defaultMistralModel are used when a run's
+// stored Model field is empty (e.g. runs created before per-provider model
+// selection existed).
+const (
+	defaultOpenRouterModel = "openai/gpt-4o-mini"
+	defaultMistralModel    = "mistral-large-latest"
+)
+
+// resolveKey applies the same per-user-override-then-server-default
+// precedent as askAI in ai.go for a plain API key field.
+func resolveKey(userKey, configKey string) string {
+	if userKey != "" {
+		return userKey
+	}
+	return configKey
+}
+
+// callAgentLLM dispatches one tool-calling turn to whichever provider the
+// run was started with.
+func callAgentLLM(run *models.AgentRun, user models.User, systemPrompt string, messages []agent.Message, tools []agent.ToolDefinition) (*agent.TurnResult, error) {
+	model := run.Model
+	switch run.Provider {
+	case "local":
+		url, llmModel := resolveLocalLLM(user)
+		if url == "" {
+			return nil, fmt.Errorf("no local LLM endpoint configured")
+		}
+		if model == "" {
+			model = llmModel
+		}
+		return agent.CallLocalLLM(url, model, systemPrompt, messages, tools)
+	case "openrouter":
+		key := resolveKey(user.OpenRouterKey, config.C.OpenRouterKey)
+		if key == "" {
+			return nil, fmt.Errorf("OpenRouter API key not configured for this user")
+		}
+		if model == "" {
+			model = defaultOpenRouterModel
+		}
+		return agent.CallOpenRouter(key, model, systemPrompt, messages, tools)
+	case "mistral":
+		key := resolveKey(user.MistralKey, config.C.MistralKey)
+		if key == "" {
+			return nil, fmt.Errorf("Mistral API key not configured for this user")
+		}
+		if model == "" {
+			model = defaultMistralModel
+		}
+		return agent.CallMistral(key, model, systemPrompt, messages, tools)
+	default:
+		if user.ClaudeKey == "" {
+			return nil, fmt.Errorf("Claude API key not configured for this user")
+		}
+		return agent.CallClaude(user.ClaudeKey, systemPrompt, messages, tools)
+	}
+}
+
 // ── Turn driver ──────────────────────────────────────────────────────────────
 
 func failAgentRun(run *models.AgentRun, errText string) {
@@ -160,8 +234,8 @@ func doAgentTurn(run *models.AgentRun) {
 	}
 
 	var user models.User
-	if err := db.DB.First(&user, run.UserID).Error; err != nil || user.ClaudeKey == "" {
-		failAgentRun(run, "Claude API key not configured for this user")
+	if err := db.DB.First(&user, run.UserID).Error; err != nil {
+		failAgentRun(run, "user not found")
 		return
 	}
 
@@ -174,7 +248,7 @@ func doAgentTurn(run *models.AgentRun) {
 
 	messages := buildMessageHistory(run, steps)
 
-	result, err := agent.CallClaude(user.ClaudeKey, systemPrompt, messages, tools)
+	result, err := callAgentLLM(run, user, systemPrompt, messages, tools)
 	if err != nil {
 		failAgentRun(run, err.Error())
 		return
@@ -354,7 +428,7 @@ func loadOwnedAgentRun(c *gin.Context) (models.AgentRun, bool) {
 func loadAgentRunWithSteps(runID uint) models.AgentRun {
 	var run models.AgentRun
 	db.DB.First(&run, runID)
-	var steps []models.AgentStep
+	steps := []models.AgentStep{}
 	db.DB.Where("agent_run_id = ?", runID).Order("step_number ASC").Find(&steps)
 	run.Steps = steps
 	return run
@@ -365,9 +439,20 @@ func CreateAgentRun(c *gin.Context) {
 	var req struct {
 		Goal     string `json:"goal" binding:"required"`
 		ServerID uint   `json:"server_id" binding:"required"`
+		Provider string `json:"provider"` // "claude" (default), "local", "openrouter", or "mistral"
+		Model    string `json:"model"`    // optional override; falls back to provider default
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Provider == "" {
+		req.Provider = "claude"
+	}
+	switch req.Provider {
+	case "claude", "local", "openrouter", "mistral":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "provider must be one of \"claude\", \"local\", \"openrouter\", \"mistral\""})
 		return
 	}
 
@@ -384,9 +469,42 @@ func CreateAgentRun(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 		return
 	}
-	if user.ClaudeKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Set your Claude API key in Settings → AI to use the Agent"})
-		return
+
+	model := req.Model
+	switch req.Provider {
+	case "claude":
+		if user.ClaudeKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Set your Claude API key in Settings → AI to use the Agent"})
+			return
+		}
+		if model == "" {
+			model = agent.ClaudeModel
+		}
+	case "local":
+		url, localModel := resolveLocalLLM(user)
+		if url == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No local LLM endpoint configured. Set LOCAL_LLM_URL (server-wide) or add your local endpoint in Settings → AI."})
+			return
+		}
+		if model == "" {
+			model = localModel
+		}
+	case "openrouter":
+		if resolveKey(user.OpenRouterKey, config.C.OpenRouterKey) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Set your OpenRouter API key in Settings → AI to use the Agent"})
+			return
+		}
+		if model == "" {
+			model = defaultOpenRouterModel
+		}
+	case "mistral":
+		if resolveKey(user.MistralKey, config.C.MistralKey) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Set your Mistral API key in Settings → AI to use the Agent"})
+			return
+		}
+		if model == "" {
+			model = defaultMistralModel
+		}
 	}
 
 	if err := db.DB.First(&models.Server{}, req.ServerID).Error; err != nil {
@@ -399,8 +517,8 @@ func CreateAgentRun(c *gin.Context) {
 		ServerID:  req.ServerID,
 		Goal:      req.Goal,
 		Status:    "running",
-		Provider:  "claude",
-		Model:     agent.ClaudeModel,
+		Provider:  req.Provider,
+		Model:     model,
 		StartedAt: time.Now(),
 	}
 	if err := db.DB.Create(&run).Error; err != nil {
@@ -416,7 +534,7 @@ func CreateAgentRun(c *gin.Context) {
 // ListAgentRuns — GET /api/agent/runs
 func ListAgentRuns(c *gin.Context) {
 	userID := c.GetUint("user_id")
-	var runs []models.AgentRun
+	runs := []models.AgentRun{}
 	db.DB.Where("user_id = ?", userID).Order("created_at DESC").Find(&runs)
 	c.JSON(http.StatusOK, runs)
 }
@@ -527,6 +645,19 @@ func CancelAgentRun(c *gin.Context) {
 	ws.GlobalHub.Broadcast(agentRoom(run.ID), "run_cancelled", gin.H{"run_id": run.ID, "status": run.Status})
 
 	c.JSON(http.StatusOK, loadAgentRunWithSteps(run.ID))
+}
+
+// DeleteAgentRun — DELETE /api/agent/runs/:id
+func DeleteAgentRun(c *gin.Context) {
+	run, ok := loadOwnedAgentRun(c)
+	if !ok {
+		return
+	}
+
+	db.DB.Where("agent_run_id = ?", run.ID).Delete(&models.AgentStep{})
+	db.DB.Delete(&run)
+
+	c.JSON(http.StatusOK, gin.H{"id": run.ID})
 }
 
 // AgentRunWS subscribes a client to live updates for one agent run.
