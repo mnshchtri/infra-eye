@@ -143,6 +143,7 @@ func RegisterRoutes(r *gin.Engine) {
 		api.POST("/agent/runs/:id/steps/:stepId/approve", middleware.RequireRole("admin", "devops"), handlers.ApproveAgentStep)
 		api.POST("/agent/runs/:id/steps/:stepId/reject", middleware.RequireRole("admin", "devops"), handlers.RejectAgentStep)
 		api.POST("/agent/runs/:id/cancel", middleware.RequireRole("admin", "devops"), handlers.CancelAgentRun)
+		api.DELETE("/agent/runs/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteAgentRun)
 
 		// ── Alert rules ───────────────────────────────────────────
 		api.GET("/alert-rules", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListAlertRules)
