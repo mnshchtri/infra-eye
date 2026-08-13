@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download
+  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -43,6 +43,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     label: 'Operations',
     items: [
       { to: '/ai',         icon: Bot,             label: 'AI Assistant', action: 'use-ai' },
+      { to: '/agent',      icon: Workflow,        label: 'Agent',        action: 'use-agent' },
     ]
   },
   {

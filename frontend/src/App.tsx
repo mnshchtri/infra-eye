@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Servers } from './pages/Servers'
 import { ServerDetail } from './pages/ServerDetail'
 import { AIAssistant } from './pages/AIAssistant'
+import { Agent } from './pages/Agent'
 import { AlertRules } from './pages/AlertRules'
 import { Settings } from './pages/Settings'
 import { Resources } from './pages/Resources'
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="terminal" element={<Navigate to="/" />} />
           <Route path="kubectl" element={<Navigate to="/" />} />
           <Route path="ai" element={<AIAssistant />} />
+          <Route path="agent" element={<Agent />} />
           <Route path="alerts" element={<AlertRules />} />
           <Route path="settings" element={<Settings />} />
           <Route path="kubernetes" element={<Kubernetes />} />

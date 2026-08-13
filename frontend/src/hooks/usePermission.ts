@@ -7,6 +7,7 @@ export type PermissionAction =
   | 'use-terminal'
   | 'use-kubectl'
   | 'use-ai'
+  | 'use-agent'
   | 'manage-alerts'
   | 'manage-resources'
   | 'manage-users'
@@ -32,6 +33,8 @@ export function usePermission() {
       case 'use-kubectl':
         return ['admin', 'devops'].includes(role)
       case 'use-ai':
+        return ['admin', 'devops'].includes(role)
+      case 'use-agent':
         return ['admin', 'devops'].includes(role)
       case 'manage-alerts':
         return ['admin', 'devops'].includes(role)

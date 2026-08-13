@@ -32,7 +32,6 @@ var mcpSSEClient = &http.Client{Timeout: 0}
 // while a wrong process is bound to the configured port.
 var mcpStatusClient = &http.Client{Timeout: 5 * time.Second}
 
-
 // ── MCP JSON-RPC types ─────────────────────────────────────────────────────
 
 type mcpRequest struct {
@@ -87,18 +86,40 @@ func ExecuteMCPTool(c *gin.Context) {
 		return
 	}
 
+	output, isError, err := executeMCPToolInternal(req.ServerID, req.Tool, req.Arguments)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "MCP tool execution failed",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tool":     req.Tool,
+		"output":   output,
+		"is_error": isError,
+		"success":  !isError,
+	})
+}
+
+// executeMCPToolInternal runs an MCP tool call against the sidecar, injecting
+// the target server's kubeconfig context when serverID has one, and returns
+// the concatenated text output. It is the shared implementation behind both
+// ExecuteMCPTool and the Agent orchestrator's mcp_tool step execution.
+func executeMCPToolInternal(serverID uint, toolName string, args map[string]interface{}) (output string, isError bool, err error) {
 	// If a server_id is provided and it has a kubeconfig, inject the context
-	if req.ServerID > 0 {
+	if serverID > 0 {
 		var server models.Server
-		if err := db.DB.First(&server, req.ServerID).Error; err == nil && server.KubeConfig != "" {
-			if req.Arguments == nil {
-				req.Arguments = map[string]interface{}{}
+		if dbErr := db.DB.First(&server, serverID).Error; dbErr == nil && server.KubeConfig != "" {
+			if args == nil {
+				args = map[string]interface{}{}
 			}
 
 			// Load the config to find the correct context name
 			prefix := fmt.Sprintf("server-%d", server.ID)
-			cfg, err := clientcmd.Load([]byte(server.KubeConfig))
-			if err == nil {
+			cfg, cfgErr := clientcmd.Load([]byte(server.KubeConfig))
+			if cfgErr == nil {
 				selectedCtx := ""
 				if cfg.CurrentContext != "" {
 					selectedCtx = fmt.Sprintf("%s-%s", prefix, cfg.CurrentContext)
@@ -112,26 +133,22 @@ func ExecuteMCPTool(c *gin.Context) {
 				if selectedCtx == "" {
 					selectedCtx = prefix + "-default"
 				}
-				req.Arguments["context"] = selectedCtx
+				args["context"] = selectedCtx
 			} else {
 				// Fallback if load fails
-				req.Arguments["context"] = prefix + "-default"
+				args["context"] = prefix + "-default"
 			}
 		}
 	}
 
 	params := mcpToolCallParams{
-		Name:      req.Tool,
-		Arguments: req.Arguments,
+		Name:      toolName,
+		Arguments: args,
 	}
 
 	result, err := callMCPMethod("tools/call", params, 1)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "MCP tool execution failed",
-			"details": err.Error(),
-		})
-		return
+		return "", false, err
 	}
 
 	// Parse and re-emit the result content
@@ -142,25 +159,18 @@ func ExecuteMCPTool(c *gin.Context) {
 		} `json:"content"`
 		IsError bool `json:"isError"`
 	}
-	if err := json.Unmarshal(result, &parsed); err != nil {
-		// Return raw result if parsing fails
-		c.Data(http.StatusOK, "application/json", result)
-		return
+	if unmarshalErr := json.Unmarshal(result, &parsed); unmarshalErr != nil {
+		// Fall back to the raw JSON-RPC result if it doesn't match the expected shape
+		return string(result), false, nil
 	}
 
-	output := ""
 	for _, content := range parsed.Content {
 		if content.Type == "text" {
 			output += content.Text
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"tool":     req.Tool,
-		"output":   output,
-		"is_error": parsed.IsError,
-		"success":  !parsed.IsError,
-	})
+	return output, parsed.IsError, nil
 }
 
 // ── MCPServerStatus ─────────────────────────────────────────────────────────
