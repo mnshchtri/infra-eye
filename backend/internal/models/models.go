@@ -24,6 +24,11 @@ type User struct {
 	ClaudeKey     string `json:"claude_key"`
 	GeminiKey     string `json:"gemini_key"`
 	MistralKey    string `json:"mistral_key"`
+	// LocalLLMURL points at a self-hosted, OpenAI-compatible chat endpoint
+	// (Ollama, LM Studio, llama.cpp server, vLLM). Overrides the server-wide
+	// LOCAL_LLM_URL/LOCAL_LLM_MODEL env defaults when set.
+	LocalLLMURL   string `json:"local_llm_url"`
+	LocalLLMModel string `json:"local_llm_model"`
 }
 
 type Server struct {

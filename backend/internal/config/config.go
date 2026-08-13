@@ -22,6 +22,8 @@ type Config struct {
 	DeepSeekKey           string
 	OpenRouterKey         string
 	MistralKey            string
+	LocalLLMURL           string
+	LocalLLMModel         string
 	ResourceGatewayURL    string
 	ResourceGatewayToken  string
 	MetricsInterval       int
@@ -59,6 +61,8 @@ func Load() {
 		DeepSeekKey:     getEnv("DEEPSEEK_API_KEY", ""),
 		OpenRouterKey:   getEnv("OPENROUTER_API_KEY", ""),
 		MistralKey:      getEnv("MISTRAL_API_KEY", ""),
+		LocalLLMURL:     getEnv("LOCAL_LLM_URL", ""),
+		LocalLLMModel:   getEnv("LOCAL_LLM_MODEL", "llama3.2"),
 		MetricsInterval: getEnvInt("METRICS_INTERVAL", 30),
 		LogMaxLines:            getEnvInt("LOG_MAX_LINES", 500),
 		GoogleChatWebhookURL:   getEnv("GOOGLE_CHAT_WEBHOOK_URL", ""),

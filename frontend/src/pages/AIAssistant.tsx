@@ -116,7 +116,7 @@ export function AIAssistant() {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
-  const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude'>('mistral')
+  const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude' | 'local'>('mistral')
   const [mcpAvailable, setMcpAvailable] = useState(false)
   const [inputFocused, setInputFocused] = useState(false)
 
@@ -420,6 +420,7 @@ export function AIAssistant() {
                 <option value="google">Gemini</option>
                 <option value="deepseek">DeepSeek</option>
                 <option value="openrouter">OpenRouter</option>
+                <option value="local">Local LLM</option>
               </select>
               <ChevronDown size={13} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
             </div>

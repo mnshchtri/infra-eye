@@ -33,6 +33,8 @@ export function Settings() {
   const [claudeKey, setClaudeKey] = useState((currentUser as any)?.claude_key || '')
   const [geminiKey, setGeminiKey] = useState((currentUser as any)?.gemini_key || '')
   const [mistralKey, setMistralKey] = useState((currentUser as any)?.mistral_key || '')
+  const [localLLMURL, setLocalLLMURL] = useState((currentUser as any)?.local_llm_url || '')
+  const [localLLMModel, setLocalLLMModel] = useState((currentUser as any)?.local_llm_model || '')
 
   // Notification webhook state (admin only)
   const [gchatUrl, setGchatUrl] = useState('')
@@ -125,6 +127,8 @@ export function Settings() {
       payload.claude_key = claudeKey
       payload.gemini_key = geminiKey
       payload.mistral_key = mistralKey
+      payload.local_llm_url = localLLMURL
+      payload.local_llm_model = localLLMModel
 
       const res = await api.put('/api/auth/me', payload)
       useAuthStore.getState().setAuth(useAuthStore.getState().token!, res.data)
@@ -351,6 +355,21 @@ export function Settings() {
                     <div className="input-group">
                       <label className="input-label">Mistral API Key</label>
                       <input className="input" type="password" value={mistralKey} onChange={e => setMistralKey(e.target.value)} placeholder="sk-..." />
+                    </div>
+                  </div>
+
+                  <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: '20px 0 4px' }}>Local LLM</h3>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Point Netra at a self-hosted, OpenAI-compatible endpoint — Ollama, LM Studio, llama.cpp server, or vLLM. No API key needed; runs entirely on infrastructure you control.</p>
+                    <div className="grid-2-col" style={{ gap: 20 }}>
+                      <div className="input-group">
+                        <label className="input-label">Endpoint URL</label>
+                        <input className="input" type="text" value={localLLMURL} onChange={e => setLocalLLMURL(e.target.value)} placeholder="http://localhost:11434" />
+                      </div>
+                      <div className="input-group">
+                        <label className="input-label">Model Name</label>
+                        <input className="input" type="text" value={localLLMModel} onChange={e => setLocalLLMModel(e.target.value)} placeholder="llama3.2" />
+                      </div>
                     </div>
                   </div>
                 </div>
