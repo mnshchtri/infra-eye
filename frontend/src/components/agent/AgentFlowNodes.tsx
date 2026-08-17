@@ -87,13 +87,15 @@ export const StepFlowNode = memo(({ data }: { data: StepNodeData }) => {
       }}
     >
       <Handle type="target" position={Position.Left} style={{ background: color, border: 'none', width: 8, height: 8 }} />
+      {/* Status accent strip, matching the Infra Map card language */}
+      <div style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3.5, borderRadius: 1.75, background: color }} />
       {step.status === 'pending_approval' && (
         <span style={{
           position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%',
           background: color, boxShadow: `0 0 0 4px color-mix(in srgb, ${color} 25%, transparent)`,
         }} className="agent-node-pulse" />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px 10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
         <div style={{
           width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--bg-card)', border: `1.5px solid ${color}`, color,
