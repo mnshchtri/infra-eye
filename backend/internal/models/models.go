@@ -160,6 +160,17 @@ type ResourceMetric struct {
 	Metrics    string    `gorm:"type:text" json:"metrics"` // JSON: type-specific gauges
 }
 
+// NetworkScan caches the most recent set of real interface CIDRs read from a
+// server over SSH (topology live scan). Follows the SecurityScan precedent:
+// scans always run live on request, only the latest outcome is kept so the
+// infrastructure map can show real network segments — never guessed ones —
+// without forcing an SSH sweep on every page load.
+type NetworkScan struct {
+	ServerID  uint      `gorm:"primaryKey;autoIncrement:false" json:"server_id"`
+	CIDRs     string    `gorm:"column:cidrs;type:text" json:"cidrs"` // JSON array, e.g. ["10.0.0.0/24","172.17.0.0/16"]
+	ScannedAt time.Time `json:"scanned_at"`
+}
+
 type Metric struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	ServerID    uint      `gorm:"index;not null" json:"server_id"`

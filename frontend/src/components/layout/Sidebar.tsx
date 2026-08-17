@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Server, Boxes,
   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow
+  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow, Map
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -33,6 +33,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Infrastructure',
     items: [
+      { to: '/infra-map',  icon: Map,             label: 'Infra Map' },
       { to: '/kubernetes', icon: KubernetesIcon,  label: 'Kubernetes',  action: 'use-kubectl' },
       { to: '/resources',  icon: Database,        label: 'Resources',   action: 'manage-resources' },
       { to: '/alerts',     icon: Bell,            label: 'Alert Rules', action: 'view-alerts' },
