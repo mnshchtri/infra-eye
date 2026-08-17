@@ -19,6 +19,7 @@ import { AuditHardening } from './pages/AuditHardening'
 import { AuditCluster } from './pages/AuditCluster'
 import { AuditResources } from './pages/AuditResources'
 import { IacSync } from './pages/IacSync'
+import { InfraMap } from './pages/InfraMap'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="servers" element={<Servers />} />
           <Route path="servers/:id" element={<ServerDetail />} />
           <Route path="servers/:id/networking" element={<Networking />} />
+          <Route path="infra-map" element={<InfraMap />} />
           <Route path="resources" element={<Resources />} />
           <Route path="resources/:id" element={<ResourceDetail />} />
           <Route path="logs" element={<Navigate to="/" />} /> {/* Redirects to select a server */}

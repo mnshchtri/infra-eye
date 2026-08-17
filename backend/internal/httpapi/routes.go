@@ -48,6 +48,11 @@ func RegisterRoutes(r *gin.Engine) {
 		api.PUT("/folders/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateFolder)
 		api.DELETE("/folders/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteFolder)
 
+		// ── Infrastructure blueprint (topology map) ───────────────
+		// Visible to every authenticated role; the handler filters servers
+		// by per-user access grants and resources by role internally.
+		api.GET("/topology", handlers.GetTopology)
+
 		// ── Servers ───────────────────────────────────────────────
 		api.GET("/servers", handlers.ListServers)
 		api.POST("/servers", middleware.RequireRole("admin", "devops"), handlers.CreateServer)

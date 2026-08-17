@@ -46,6 +46,7 @@ func Connect() {
 		&models.ResourceAccess{},
 		&models.ResourceAudit{},
 		&models.ResourceMetric{},
+		&models.NetworkScan{},
 		&models.Metric{},
 		&models.LogEntry{},
 		&models.AlertRule{},
