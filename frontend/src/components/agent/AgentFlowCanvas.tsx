@@ -1,10 +1,10 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  ReactFlow, ReactFlowProvider, Background, Controls, BackgroundVariant,
-  useReactFlow, type Node, type Edge, type NodeTypes,
+  ReactFlow, ReactFlowProvider, useReactFlow, type Node, type Edge, type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { GoalFlowNode, StepFlowNode, ThinkingFlowNode, nodeColor } from './AgentFlowNodes'
+import { FlowBlueprintBackground, FlowZoomControls, FlowPanHint } from './FlowChrome'
 import type { AgentRun } from '../../pages/agentTypes'
 
 const nodeTypes: NodeTypes = {
@@ -28,9 +28,12 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
   const { fitView } = useReactFlow()
   const isRunning = run.status === 'running'
   const steps = run.steps ?? []
+  // Hovering a node dims everything not adjacent to it, matching the Infra
+  // Map blueprint's "highlight the connected chain" behavior.
+  const [hoverId, setHoverId] = useState<string | null>(null)
 
   const { nodes, edges } = useMemo(() => {
-    const nodes: Node[] = [
+    const rawNodes: Node[] = [
       {
         id: 'goal',
         type: 'goal',
@@ -40,21 +43,21 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
         selectable: false,
       },
     ]
-    const edges: Edge[] = []
+    const rawEdges: Edge[] = []
     let prevId = 'goal'
     let prevColor = 'var(--brand-primary)'
 
     steps.forEach((step, i) => {
       const id = `step-${step.id}`
       const color = nodeColor(step)
-      nodes.push({
+      rawNodes.push({
         id,
         type: 'step',
         position: { x: (i + 1) * NODE_SPACING, y: 60 },
         data: { kind: 'step', step, selected: selectedStepId === step.id, isBusy: busyStepId === step.id, onApprove, onReject },
         draggable: false,
       })
-      edges.push({
+      rawEdges.push({
         id: `e-${prevId}-${id}`,
         source: prevId,
         target: id,
@@ -68,7 +71,7 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
 
     if (isRunning) {
       const id = 'thinking'
-      nodes.push({
+      rawNodes.push({
         id,
         type: 'thinking',
         position: { x: (steps.length + 1) * NODE_SPACING, y: 66 },
@@ -76,7 +79,7 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
         draggable: false,
         selectable: false,
       })
-      edges.push({
+      rawEdges.push({
         id: `e-${prevId}-${id}`,
         source: prevId,
         target: id,
@@ -86,8 +89,20 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
       })
     }
 
+    if (!hoverId) return { nodes: rawNodes, edges: rawEdges }
+
+    const neighbors = new Set([hoverId])
+    for (const e of rawEdges) {
+      if (e.source === hoverId) neighbors.add(e.target)
+      if (e.target === hoverId) neighbors.add(e.source)
+    }
+    const nodes = rawNodes.map(n => ({ ...n, style: { ...n.style, opacity: neighbors.has(n.id) ? 1 : 0.3, transition: 'opacity 120ms' } }))
+    const edges = rawEdges.map(e => {
+      const active = e.source === hoverId || e.target === hoverId
+      return { ...e, style: { ...e.style, opacity: active ? 1 : 0.15 }, zIndex: active ? 1 : 0 }
+    })
     return { nodes, edges }
-  }, [run.goal, steps, isRunning, selectedStepId, busyStepId, onApprove, onReject])
+  }, [run.goal, steps, isRunning, selectedStepId, busyStepId, onApprove, onReject, hoverId])
 
   useEffect(() => {
     fitView({ padding: 0.25, duration: 400, maxZoom: 1 })
@@ -101,15 +116,17 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
       onNodeClick={(_, node) => {
         if (node.type === 'step') onSelectStep(Number(node.id.replace('step-', '')))
       }}
+      onNodeMouseEnter={(_, node) => setHoverId(node.id)}
+      onNodeMouseLeave={() => setHoverId(null)}
       onPaneClick={() => onSelectStep(null)}
       proOptions={{ hideAttribution: true }}
-      minZoom={0.3}
-      maxZoom={1.5}
-      panOnScroll
+      minZoom={0.15}
+      maxZoom={3}
       fitView
     >
-      <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color="var(--border)" />
-      <Controls showInteractive={false} position="bottom-right" />
+      <FlowBlueprintBackground />
+      <FlowZoomControls />
+      <FlowPanHint />
     </ReactFlow>
   )
 }
