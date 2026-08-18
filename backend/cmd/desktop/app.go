@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -25,6 +27,7 @@ import (
 	"github.com/infra-eye/backend/internal/resources"
 	"github.com/infra-eye/backend/internal/seed"
 	sshclient "github.com/infra-eye/backend/internal/ssh"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // backendPort is fixed for v1 (baked into the frontend build via VITE_API_URL
@@ -143,6 +146,44 @@ func (a *App) OnShutdown(ctx context.Context) {
 			_ = sqlDB.Close()
 		}
 	}
+}
+
+// SaveFile is bound to the frontend (see main.go's Bind option) so exports
+// like the Infra Map blueprint can reach disk from inside the Wails webview.
+// The webview doesn't support the browser's `<a download>` flow, so the
+// frontend hands us the file as base64 and we drive a native "Save As"
+// dialog instead. An empty returned path (with a nil error) means the user
+// cancelled the dialog — not a failure.
+func (a *App) SaveFile(defaultFilename, base64Data string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return "", fmt.Errorf("invalid file data: %w", err)
+	}
+
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(defaultFilename), "."))
+	var filters []wailsruntime.FileFilter
+	if ext != "" {
+		filters = []wailsruntime.FileFilter{
+			{DisplayName: fmt.Sprintf("%s files (*.%s)", strings.ToUpper(ext), ext), Pattern: "*." + ext},
+		}
+	}
+
+	path, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		DefaultFilename: defaultFilename,
+		Title:           "Save file",
+		Filters:         filters,
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", nil
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // loadOrCreateJWTSecret persists a random JWT signing secret under appDir so

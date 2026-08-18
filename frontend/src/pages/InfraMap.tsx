@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Boxes, Database, Zap, Layers, HardDrive, Globe, Cpu, Eye,
   Download, RefreshCw, Radar, ZoomIn, ZoomOut, Maximize, Loader2, AlertTriangle,
-  Network, Folder, ScanSearch, Wifi,
+  Network, Folder, ScanSearch, Wifi, Search, X,
 } from 'lucide-react'
 import { api } from '../api/client'
 import { useUIStore } from '../store/uiStore'
 import { useToastStore } from '../store/toastStore'
 import { Button } from '../components/ui'
+import { saveFile } from '../utils/saveFile'
 
 // ── Topology API shapes (mirror backend handlers/topology.go) ──
 
@@ -61,7 +62,8 @@ type GroupMode = 'network' | 'folder'
 // ── Layout geometry ──
 
 interface Box { x: number; y: number; w: number; h: number }
-interface GroupBox extends Box { label: string; color: string }
+interface GroupBox extends Box { label: string; color: string; key: string; count: number; collapsed: boolean }
+interface ChipBox { box: Box; key: string; label: string; color: string; count: number }
 
 const SIZE: Record<TNode['kind'], { w: number; h: number }> = {
   core: { w: 230, h: 76 },
@@ -79,6 +81,11 @@ const GROUP_GAP = 34
 const COL_X = [56, 470, 900]
 const TOP_MARGIN = 96 // leaves room for the title block
 const BOTTOM_MARGIN = 48
+const COLLAPSED_GROUP_H = 40
+// Zones bigger than this default to collapsed when "Compact" is clicked —
+// past ~6 stacked nodes a zone stops reading as a shape and starts reading
+// as a wall of boxes, which is exactly the "too many servers" complaint.
+const AUTO_COLLAPSE_THRESHOLD = 6
 
 function resourceIcon(type?: string) {
   switch (type) {
@@ -164,9 +171,17 @@ function edgeStyle(kind: TEdge['kind'], p: ReturnType<typeof useCssPalette>) {
 // hosts what" blueprint. Columns are grouped into zones either by folder or
 // by network segment; in network mode the same segment gets the same color
 // in both columns, so "these machines share a network" reads at a glance.
-function computeLayout(topo: Topology, mode: GroupMode, netColors: Record<string, string>) {
+function computeLayout(
+  topo: Topology,
+  mode: GroupMode,
+  netColors: Record<string, string>,
+  collapsedKeys: Set<string>,
+) {
   const pos: Record<string, Box> = {}
   const groups: GroupBox[] = []
+  const chips: ChipBox[] = []
+  const hidden = new Set<string>()
+  const nodeGroupKey: Record<string, string> = {}
 
   const folderName = (id?: number | null) =>
     topo.folders.find(f => f.id === id)?.name ?? 'Ungrouped'
@@ -205,19 +220,41 @@ function computeLayout(topo: Topology, mode: GroupMode, netColors: Record<string
 
   const groupBy = mode === 'network' ? byNetwork : byFolder
 
-  const layoutColumn = (colX: number, groupDefs: { label: string; color: string; nodes: TNode[] }[]) => {
+  const layoutColumn = (
+    colX: number,
+    colKey: string,
+    groupDefs: { label: string; color: string; nodes: TNode[] }[],
+  ) => {
     let y = TOP_MARGIN
     for (const g of groupDefs) {
       if (g.nodes.length === 0) continue
+      const key = `${colKey}:${g.label}`
+      const isCollapsed = collapsedKeys.has(key)
       const w = Math.max(...g.nodes.map(n => SIZE[n.kind].w))
       const startY = y
       y += GROUP_HEADER + GROUP_PAD
-      for (const n of g.nodes) {
-        pos[n.id] = { x: colX, y, w: SIZE[n.kind].w, h: SIZE[n.kind].h }
-        y += SIZE[n.kind].h + NODE_GAP
+      if (isCollapsed) {
+        const box: Box = { x: colX, y, w, h: COLLAPSED_GROUP_H }
+        for (const n of g.nodes) {
+          pos[n.id] = box
+          nodeGroupKey[n.id] = key
+          hidden.add(n.id)
+        }
+        chips.push({ box, key, label: g.label, color: g.color, count: g.nodes.length })
+        y += COLLAPSED_GROUP_H
+      } else {
+        for (const n of g.nodes) {
+          pos[n.id] = { x: colX, y, w: SIZE[n.kind].w, h: SIZE[n.kind].h }
+          nodeGroupKey[n.id] = key
+          y += SIZE[n.kind].h + NODE_GAP
+        }
+        y -= NODE_GAP
       }
-      y += GROUP_PAD - NODE_GAP
-      groups.push({ x: colX - GROUP_PAD, y: startY, w: w + GROUP_PAD * 2, h: y - startY, label: g.label, color: g.color })
+      y += GROUP_PAD
+      groups.push({
+        x: colX - GROUP_PAD, y: startY, w: w + GROUP_PAD * 2, h: y - startY,
+        label: g.label, color: g.color, key, count: g.nodes.length, collapsed: isCollapsed,
+      })
       y += GROUP_GAP
     }
     return y - GROUP_GAP
@@ -228,7 +265,7 @@ function computeLayout(topo: Topology, mode: GroupMode, netColors: Record<string
   const k8sNodes = topo.nodes.filter(n => n.kind === 'k8s_node')
   const discovered = topo.nodes.filter(n => n.kind === 'discovered')
 
-  const col1Bottom = layoutColumn(COL_X[1], groupBy(servers))
+  const col1Bottom = layoutColumn(COL_X[1], 'servers', groupBy(servers))
 
   // Right column. Folder mode: each cluster's member nodes first, then
   // resources (and any nmap-discovered peers) grouped by folder. Network
@@ -252,7 +289,7 @@ function computeLayout(topo: Topology, mode: GroupMode, netColors: Record<string
       : []
     col2Groups = [...clusterGroups, ...byFolder(resources), ...discoveredGroup]
   }
-  const col2Bottom = layoutColumn(COL_X[2], col2Groups)
+  const col2Bottom = layoutColumn(COL_X[2], 'right', col2Groups)
 
   const contentH = Math.max(col1Bottom, col2Bottom, TOP_MARGIN + 200) + BOTTOM_MARGIN
 
@@ -264,7 +301,7 @@ function computeLayout(topo: Topology, mode: GroupMode, netColors: Record<string
   }
 
   const contentW = COL_X[2] + Math.max(SIZE.resource.w, SIZE.k8s_node.w) + GROUP_PAD + 60
-  return { pos, groups, contentW, contentH }
+  return { pos, groups, chips, hidden, nodeGroupKey, contentW, contentH }
 }
 
 function edgePath(s: Box, t: Box): { d: string; mid: [number, number] } {
@@ -295,15 +332,6 @@ function edgePath(s: Box, t: Box): { d: string; mid: [number, number] } {
   }
 }
 
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 export function InfraMap() {
   const navigate = useNavigate()
   const toast = useToastStore()
@@ -319,6 +347,8 @@ export function InfraMap() {
   const [notesOpen, setNotesOpen] = useState(false)
   const [groupMode, setGroupMode] = useState<GroupMode>('network')
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
 
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -332,9 +362,20 @@ export function InfraMap() {
     return map
   }, [topo, p])
 
-  const layout = useMemo(
-    () => (topo ? computeLayout(topo, groupMode, netColors) : null),
-    [topo, groupMode, netColors],
+  // Switching how zones are grouped invalidates old collapse keys outright
+  // (a folder-mode key means nothing in network mode) — reset them as a
+  // render-time state adjustment rather than an effect, per React's guidance
+  // for state that depends on a prop/state change (avoids the extra commit
+  // an effect-based reset would cost).
+  const [collapseResetFor, setCollapseResetFor] = useState(groupMode)
+  if (collapseResetFor !== groupMode) {
+    setCollapseResetFor(groupMode)
+    setCollapsedGroups(new Set())
+  }
+
+  const baseLayout = useMemo(
+    () => (topo ? computeLayout(topo, groupMode, netColors, collapsedGroups) : null),
+    [topo, groupMode, netColors, collapsedGroups],
   )
 
   const neighbors = useMemo(() => {
@@ -345,6 +386,67 @@ export function InfraMap() {
     }
     return map
   }, [topo])
+
+  // Matches are pinned (unlike hover) so tracing a specific server's
+  // correlations doesn't require holding the mouse still over a tiny box.
+  const matchIds = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const set = new Set<string>()
+    if (!q || !topo) return set
+    for (const n of topo.nodes) {
+      if (
+        n.name.toLowerCase().includes(q) ||
+        n.host?.toLowerCase().includes(q) ||
+        n.tags?.some(t => t.toLowerCase().includes(q))
+      ) {
+        set.add(n.id)
+      }
+    }
+    return set
+  }, [topo, search])
+
+  const searchNeighborIds = useMemo(() => {
+    const set = new Set<string>()
+    matchIds.forEach(id => neighbors[id]?.forEach(nb => set.add(nb)))
+    return set
+  }, [matchIds, neighbors])
+
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const compactView = useCallback(() => {
+    if (!baseLayout) return
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      baseLayout.groups.forEach(g => { if (g.count > AUTO_COLLAPSE_THRESHOLD) next.add(g.key) })
+      return next
+    })
+  }, [baseLayout])
+
+  // A search match hidden inside a collapsed zone is worse than no search at
+  // all — derive a layout with those zones force-expanded rather than
+  // mutating collapsedGroups itself, so the user's manual collapses survive
+  // once the search is cleared.
+  const layout = useMemo(() => {
+    if (!baseLayout || !topo || matchIds.size === 0) return baseLayout
+    const forceExpand = new Set<string>()
+    matchIds.forEach(id => {
+      if (baseLayout.hidden.has(id)) {
+        const key = baseLayout.nodeGroupKey[id]
+        if (key) forceExpand.add(key)
+      }
+    })
+    if (forceExpand.size === 0) return baseLayout
+    const effectiveCollapsed = new Set(collapsedGroups)
+    forceExpand.forEach(k => effectiveCollapsed.delete(k))
+    return computeLayout(topo, groupMode, netColors, effectiveCollapsed)
+  }, [baseLayout, topo, groupMode, netColors, collapsedGroups, matchIds])
 
   const fetchTopology = useCallback(async (live: boolean, discover: boolean) => {
     if (live) setScanning(true)
@@ -452,10 +554,19 @@ export function InfraMap() {
 
   const stamp = () => new Date().toISOString().slice(0, 10)
 
+  const exportBlob = async (blob: Blob, filename: string) => {
+    try {
+      const result = await saveFile(blob, filename)
+      if (result === 'saved') toast.success('Blueprint saved', filename)
+    } catch {
+      toast.error('Export failed', `Could not save ${filename}.`)
+    }
+  }
+
   const downloadSvg = () => {
     const s = buildSvgString()
     if (!s) return
-    saveBlob(new Blob([s], { type: 'image/svg+xml;charset=utf-8' }), `infraeye-blueprint-${stamp()}.svg`)
+    void exportBlob(new Blob([s], { type: 'image/svg+xml;charset=utf-8' }), `infraeye-blueprint-${stamp()}.svg`)
   }
 
   const downloadPng = () => {
@@ -472,7 +583,7 @@ export function InfraMap() {
       ctx.scale(scale, scale)
       ctx.drawImage(img, 0, 0)
       URL.revokeObjectURL(url)
-      canvas.toBlob(b => b && saveBlob(b, `infraeye-blueprint-${stamp()}.png`), 'image/png')
+      canvas.toBlob(b => b && void exportBlob(b, `infraeye-blueprint-${stamp()}.png`), 'image/png')
     }
     img.onerror = () => {
       URL.revokeObjectURL(url)
@@ -483,7 +594,7 @@ export function InfraMap() {
 
   const downloadJson = () => {
     if (!topo) return
-    saveBlob(
+    void exportBlob(
       new Blob([JSON.stringify(topo, null, 2)], { type: 'application/json' }),
       `infraeye-blueprint-${stamp()}.json`,
     )
@@ -516,6 +627,14 @@ export function InfraMap() {
   const netLabel = (id: string) => topo?.networks.find(nw => nw.id === id)?.label ?? id
   const hasInfra = nodes.some(n => n.kind !== 'core')
   const connectedTo = (id: string) => hoverId === id || (hoverId != null && (neighbors[hoverId]?.has(id) ?? false))
+  const searchActive = matchIds.size > 0
+  // Hover wins when present (precise, momentary); otherwise a pinned search
+  // takes over so tracing correlations doesn't need a steady mouse.
+  const isRelevant = (id: string) => {
+    if (hoverId != null) return connectedTo(id)
+    if (searchActive) return matchIds.has(id) || searchNeighborIds.has(id)
+    return true
+  }
   const serverCount = nodes.filter(n => n.kind === 'server').length
   const clusterCount = nodes.filter(n => n.kind === 'cluster').length
   const resourceCount = nodes.filter(n => n.kind === 'resource').length
@@ -531,7 +650,33 @@ export function InfraMap() {
             servers, clusters, resources & the networks that join them
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Search size={13} style={{ position: 'absolute', left: 9, color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Find a server…"
+              title="Highlight a node and its direct connections — matches also auto-expand a collapsed zone"
+              style={{
+                padding: '5px 26px 5px 27px', fontSize: 12, borderRadius: 7, width: 150,
+                border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                outline: 'none',
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                title="Clear search"
+                style={{
+                  position: 'absolute', right: 6, display: 'flex', background: 'none', border: 'none',
+                  color: 'var(--text-muted)', cursor: 'pointer', padding: 2,
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
           <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             <Button
               variant={groupMode === 'network' ? 'primary' : 'ghost'}
@@ -550,6 +695,18 @@ export function InfraMap() {
               <Folder size={14} /> Folders
             </Button>
           </div>
+          <Button
+            variant={collapsedGroups.size > 0 ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => (collapsedGroups.size > 0 ? setCollapsedGroups(new Set()) : compactView())}
+            title={
+              collapsedGroups.size > 0
+                ? 'Expand every collapsed zone'
+                : `Collapse zones with more than ${AUTO_COLLAPSE_THRESHOLD} nodes into summary chips`
+            }
+          >
+            <Layers size={14} /> {collapsedGroups.size > 0 ? 'Expand all' : 'Compact'}
+          </Button>
           <Button
             variant={liveMode ? 'primary' : 'secondary'}
             size="sm"
@@ -657,15 +814,48 @@ export function InfraMap() {
                 <line x1={COL_X[0]} y1={64} x2={layout.contentW - 60} y2={64} stroke={p.border} strokeWidth={1} />
               </g>
 
-              {/* Folder / cluster group frames */}
-              {layout.groups.map((g, i) => (
-                <g key={i} opacity={hoverId ? 0.55 : 1}>
+              {/* Folder / cluster group frames — click the header to collapse a
+                  zone into a summary chip, which is the main lever for
+                  taming a blueprint with a lot of servers in it */}
+              {layout.groups.map(g => (
+                <g key={g.key} opacity={(hoverId != null || searchActive) ? 0.55 : 1}>
                   <rect x={g.x} y={g.y} width={g.w} height={g.h} rx={10}
                     fill={g.color || 'none'} fillOpacity={0.05}
                     stroke={g.color || p.border} strokeWidth={1.2} strokeDasharray="5 4" opacity={0.8} />
-                  <text x={g.x + 10} y={g.y + 17} fill={g.color || p.textSec} fontSize={10.5} fontWeight={700} letterSpacing={0.8}>
-                    {g.label.toUpperCase()}
+                  <g
+                    onClick={ev => { ev.stopPropagation(); toggleGroup(g.key) }}
+                    onMouseDown={ev => ev.stopPropagation()}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <rect x={g.x} y={g.y} width={g.w} height={GROUP_HEADER} fill="transparent" />
+                    <text x={g.x + 10} y={g.y + 17} fill={g.color || p.textSec} fontSize={10.5} fontWeight={700}>
+                      {g.collapsed ? '▸' : '▾'}
+                    </text>
+                    <text x={g.x + 24} y={g.y + 17} fill={g.color || p.textSec} fontSize={10.5} fontWeight={700} letterSpacing={0.8}>
+                      {g.label.toUpperCase()} · {g.count}
+                    </text>
+                  </g>
+                </g>
+              ))}
+
+              {/* Collapsed zone summaries — every hidden member node still
+                  shares this box's position, so edges to/from it bundle into
+                  one line instead of vanishing */}
+              {layout.chips.map(c => (
+                <g
+                  key={c.key}
+                  opacity={(hoverId != null || searchActive) ? 0.35 : 1}
+                  style={{ cursor: 'pointer', transition: 'opacity 120ms' }}
+                  onClick={ev => { ev.stopPropagation(); toggleGroup(c.key) }}
+                  onMouseDown={ev => ev.stopPropagation()}
+                >
+                  <rect x={c.box.x} y={c.box.y} width={c.box.w} height={c.box.h} rx={9}
+                    fill={p.elevated} stroke={c.color || p.border} strokeWidth={1.2} strokeDasharray="3 3" />
+                  <Boxes x={c.box.x + 12} y={c.box.y + c.box.h / 2 - 9} size={18} color={c.color || p.textSec} strokeWidth={2} />
+                  <text x={c.box.x + 38} y={c.box.y + c.box.h / 2 + 4} fill={p.text} fontSize={12} fontWeight={700}>
+                    {c.count} node{c.count > 1 ? 's' : ''} collapsed
                   </text>
+                  <title>Click to expand</title>
                 </g>
               ))}
 
@@ -676,8 +866,12 @@ export function InfraMap() {
                 if (!s || !t) return null
                 const st = edgeStyle(e.kind, p)
                 const { d, mid } = edgePath(s, t)
-                const active = hoverId != null && (e.source === hoverId || e.target === hoverId)
-                const dim = hoverId != null && !active
+                const active = hoverId != null
+                  ? (e.source === hoverId || e.target === hoverId)
+                  : searchActive
+                    ? (matchIds.has(e.source) || matchIds.has(e.target))
+                    : false
+                const dim = (hoverId != null || searchActive) && !active
                 return (
                   <g key={i} opacity={dim ? 0.12 : active ? 1 : 0.6}>
                     <path d={d} fill="none" stroke={st.stroke} strokeWidth={active ? 2.2 : 1.4} strokeDasharray={st.dash}>
@@ -695,13 +889,14 @@ export function InfraMap() {
 
               {/* Nodes */}
               {nodes.map(n => {
+                if (layout.hidden.has(n.id)) return null
                 const b = layout.pos[n.id]
                 if (!b) return null
                 const Icon = nodeIcon(n)
                 const sc = statusColor(n.status, p)
                 const isCore = n.kind === 'core'
                 const isDiscovered = n.kind === 'discovered'
-                const dim = hoverId != null && !connectedTo(n.id)
+                const dim = !isRelevant(n.id)
                 const sub = isCore
                   ? 'control plane'
                   : isDiscovered
