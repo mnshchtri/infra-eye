@@ -2,14 +2,14 @@ import { memo, useState, useEffect, useRef, useCallback, useMemo, startTransitio
 import {
   LayoutGrid, Server,
   RefreshCw, FileCode,
-  Boxes, ChevronRight, ChevronLeft, Activity,
+  Boxes, ChevronLeft, Activity,
   Globe, X, Terminal,
   List,
   Shield, Key, Lock,
   Database, Gauge, Cpu, Layers,
-  Hash, RotateCw, Expand, Route, Waypoints, Network, Puzzle, Plus, Trash2
+  Hash, RotateCw, Expand, Route, Waypoints, Network, Puzzle, Plus, Trash2, KeyRound
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
+import { KubernetesIcon } from '../OSIcons'
 import { api, buildWsUrl } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { KTable } from './KTable'
@@ -17,6 +17,7 @@ import { ResNavLink, NavCategory } from './K8sSidebar'
 import { PulseDashboard } from './PulseDashboard'
 import { ConfigViewer } from './ConfigViewer'
 import { PortForwardModal } from './PortForwardModal'
+import { ReadOnlyKubeconfigModal } from './ReadOnlyKubeconfigModal'
 import { TerminalPortal } from './TerminalPortal'
 import { MCPTerminal } from './MCPTerminal'
 
@@ -240,6 +241,44 @@ spec:
 `,
 }
 
+// Human-readable titles for each resource view (UI chrome — sans-serif titles).
+const RESOURCE_LABELS: Record<string, string> = {
+  pulse: 'Pulse Dashboard',
+  nodes: 'Nodes',
+  namespaces: 'Namespaces',
+  crds: 'Custom Resource Definitions',
+  pods: 'Pods',
+  deployments: 'Deployments',
+  daemonsets: 'DaemonSets',
+  statefulsets: 'StatefulSets',
+  replicasets: 'ReplicaSets',
+  jobs: 'Jobs',
+  cronjobs: 'CronJobs',
+  configmaps: 'ConfigMaps',
+  secrets: 'Secrets',
+  resourcequotas: 'ResourceQuotas',
+  hpa: 'Autoscalers',
+  poddisruptionbudgets: 'Pod Disruption Budgets',
+  services: 'Services',
+  endpoints: 'Endpoints',
+  ingresses: 'Ingresses',
+  networkpolicies: 'NetworkPolicies',
+  gatewayclasses: 'GatewayClasses',
+  gateways: 'Gateways',
+  httproutes: 'HTTPRoutes',
+  grpcroutes: 'GRPCRoutes',
+  referencegrants: 'ReferenceGrants',
+  pvcs: 'PersistentVolumeClaims',
+  pvs: 'PersistentVolumes',
+  storageclasses: 'StorageClasses',
+  serviceaccounts: 'ServiceAccounts',
+  roles: 'Roles',
+  clusterroles: 'ClusterRoles',
+  rolebindings: 'RoleBindings',
+  clusterrolebindings: 'ClusterRoleBindings',
+  events: 'Events',
+  yaml: 'KubeConfig'
+}
 export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8sResourceExplorerProps) => {
   const [activeRes, setActiveRes] = useState<ResourceType>('pulse')
   const [data, setData] = useState<any[]>([])
@@ -271,6 +310,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   }
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)
   const [showMCPTerminal, setShowMCPTerminal] = useState(false)
+  const [showReadOnlyKubeconfig, setShowReadOnlyKubeconfig] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768)
   
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
@@ -420,7 +460,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         success: res.data.success, 
         msg: res.data.output || res.data.stderr || res.data.error || (res.data.success ? "Resource applied successfully" : "Application failed") 
       })
-    } catch (e: any) { setApplyResult({ success: false, msg: "Network error during apply" }) }
+    } catch { setApplyResult({ success: false, msg: "Network error during apply" }) }
     finally { setLoading(false) }
   }
 
@@ -550,7 +590,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           const randomPort = Math.floor(Math.random() * (9999 - 8000 + 1) + 8000).toString();
           
           let target = '';
-          let port = randomPort;
+          const port = randomPort;
 
           if (activeRes === 'pods') target = `pod/${name}`;
           else if (activeRes === 'services') target = `svc/${name}`;
@@ -686,7 +726,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              className="btn-icon" 
              onClick={onBack} 
              style={{ 
-               width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', 
+               width: 32, height: 32, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', 
                background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', 
                justifyContent: 'center', cursor: 'pointer' 
              }}
@@ -695,26 +735,19 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
            </button>
            
            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-             <KubernetesIcon size={26} />
+             <KubernetesIcon size={24} />
              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ 
-                  fontWeight: 900, fontSize: 12, color: 'var(--text-primary)', 
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', 
-                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.02em' 
-                }}>
+                <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {cluster.name}
                 </span>
-                <span style={{ 
-                  fontSize: 11, color: 'var(--text-muted)', fontWeight: 900, 
-                  textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' 
-                }}>
-                  Cluster Node
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Kubernetes cluster
                 </span>
               </div>
            </div>
            
            {/* Mobile Sidebar Close */}
-           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)} style={{ borderRadius: 0, border: '1px solid var(--border)' }}>
+           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)} style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <X size={14} />
            </button>
         </div>
@@ -930,51 +963,41 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                 <LayoutGrid size={16} color="var(--brand-primary)" />
               </button>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ 
-                  display: 'flex', alignItems: 'center', gap: 6, 
-                  background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)20', 
-                  padding: '4px 10px', borderRadius: 0 
-                }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', boxShadow: '0 0 8px var(--brand-primary)' }} />
-                  <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono)' }}>Real-Time Stream</span>
-                </div>
-                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-                <h2 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {activeRes === 'yaml' ? 'KubeConfig' : activeRes} <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>PROTOCOLS</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: connecting ? 'var(--warning)' : 'var(--success)', boxShadow: connecting ? 'none' : '0 0 6px var(--success)', flexShrink: 0 }} />
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {activeRes === 'yaml' ? 'KubeConfig' : (RESOURCE_LABELS[activeRes] || activeRes)}
                 </h2>
-                {loading && <RefreshCw size={13} className="spin" color="var(--brand-primary)" style={{ marginLeft: 4 }} />}
+                {loading && <RefreshCw size={13} className="spin" color="var(--brand-primary)" style={{ flexShrink: 0 }} />}
               </div>
            </div>
            
-           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {activeRes !== 'yaml' && (
                 <div className="namespace-selector hidden-mobile" style={{ 
-                  display: 'flex', alignItems: 'center', gap: 10, 
+                  display: 'flex', alignItems: 'center', gap: 8, 
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)', 
-                  padding: '6px 14px', borderRadius: 0 
+                  padding: '0 12px', height: 34, borderRadius: 'var(--radius-md)' 
                 }}>
-                  <Globe size={14} color="var(--brand-primary)" />
+                  <Globe size={14} color="var(--text-muted)" />
                   <select 
-                    style={{ background: 'transparent', border: 'none', fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', paddingRight: 4 }}
+                    style={{ background: 'transparent', border: 'none', fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', paddingRight: 4 }}
                     value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
                   >
-                      <option value="All">CLUSTER_SCOPE</option>
-                      {namespaces.map(ns => <option key={ns} value={ns}>{ns.toUpperCase()}</option>)}
+                      <option value="All">Cluster scope</option>
+                      {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
                   </select>
                 </div>
               )}
-              
-              <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} className="hidden-mobile" />
 
               {activeRes === 'yaml' && (
                 <button 
                   className="btn btn-primary" 
                   onClick={saveClusterConfig}
                   disabled={savingRaw}
-                  style={{ height: 36, padding: '0 20px', borderRadius: 0, fontWeight: 900, fontSize: 12, letterSpacing: '0.05em' }}
+                  style={{ height: 34, padding: '0 16px', fontWeight: 700, fontSize: 12.5 }}
                 >
-                  {savingRaw ? 'SYNCHRONIZING...' : 'COMMIT_CHANGES'}
+                  {savingRaw ? 'Saving…' : 'Save config'}
                 </button>
               )}
               
@@ -982,40 +1005,40 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                 <button
                   className="btn btn-primary"
                   onClick={() => openCreateResource()}
-                  title="Create a new resource from a YAML template"
-                  style={{
-                    height: 36, padding: '0 16px', borderRadius: 0,
-                    gap: 8, display: 'flex', alignItems: 'center',
-                    fontWeight: 900, fontSize: 12, letterSpacing: '0.05em'
-                  }}
+                  title="Create a resource from a YAML template"
+                  style={{ height: 34, padding: '0 16px', gap: 6, fontWeight: 700, fontSize: 12.5 }}
                 >
                   <Plus size={14} />
-                  <span className="hidden-mobile">CREATE</span>
+                  <span className="hidden-mobile">Create</span>
+                </button>
+              )}
+
+              {canUseKubectl && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowReadOnlyKubeconfig(true)}
+                  title="Generate a read-only kubeconfig to share with a developer"
+                  style={{ height: 34, padding: '0 14px', gap: 6, fontWeight: 700, fontSize: 12.5 }}
+                >
+                  <KeyRound size={14} />
+                  <span className="hidden-mobile">Read-only access</span>
                 </button>
               )}
 
               <button
-                className="btn btn-secondary"
+                className={`btn ${showMCPTerminal ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setShowMCPTerminal(t => !t)}
-                style={{
-                  height: 36, padding: '0 16px', borderRadius: 0,
-                  gap: 8,
-                  display: 'flex', alignItems: 'center',
-                  background: showMCPTerminal ? 'var(--brand-gradient)' : 'var(--bg-elevated)',
-                  color: showMCPTerminal ? '#fff' : 'var(--text-primary)',
-                  border: showMCPTerminal ? 'none' : '1px solid var(--border)',
-                  fontWeight: 900, fontSize: 12, letterSpacing: '0.05em'
-                }}
+                style={{ height: 34, padding: '0 14px', gap: 6, fontWeight: 700, fontSize: 12.5 }}
               >
                 <Terminal size={14} />
-                <span className="hidden-mobile">KUBECTL_SHELL</span>
+                <span className="hidden-mobile">Kubectl shell</span>
               </button>
            </div>
         </header>
 
          <main style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', position: 'relative' }}>
           {(showSearch || showCommandBar) && (
-            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--danger)' : '1px solid var(--border-bright)', borderRadius: 12, marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--danger)' : '1px solid var(--border-bright)', borderRadius: 'var(--radius-md)', marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)' }}>
               <span style={{ color: 'var(--brand-primary)', fontWeight: 800, marginRight: 12 }}>{showSearch ? '/' : ':'}</span>
               <form onSubmit={handleCommandSubmit} style={{ flex: 1, margin: 0 }}>
                 <input ref={showSearch ? searchInputRef : cmdInputRef}
@@ -1023,7 +1046,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                        onChange={e => showSearch ? setFilterQuery(e.target.value) : setCommandInput(e.target.value)}
                        style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, outline: 'none', width: '100%' }}
                        autoFocus
-                       placeholder={showSearch ? "Fuzzy search..." : "resource type..."} />
+                       placeholder={showSearch ? "Search resources…" : "kubectl command…"} />
               </form>
               <button className="btn-icon" onClick={() => { setShowSearch(false); setShowCommandBar(false); }}><X size={14}/></button>
             </div>
@@ -1043,25 +1066,26 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
           {activeRes === 'pods' && canUseKubectl && selectedPods.size > 0 && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
-              padding: '10px 16px', border: '1px solid var(--danger)30', background: 'var(--danger)10'
+              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap',
+              padding: '10px 14px', border: '1px solid var(--danger)30', background: 'var(--danger-glow)', borderRadius: 'var(--radius-md)'
             }}>
-              <span style={{ fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)', color: 'var(--danger)', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>
                 {selectedPods.size} pod{selectedPods.size === 1 ? '' : 's'} selected
               </span>
               <button
-                className="btn"
+                className="btn btn-sm btn-danger"
                 onClick={handleBulkDeletePods}
                 disabled={bulkDeleting}
-                style={{ marginLeft: 'auto', height: 30, padding: '0 14px', borderRadius: 0, background: 'var(--danger)', color: '#fff', border: 'none', fontWeight: 900, fontSize: 11, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6, cursor: bulkDeleting ? 'default' : 'pointer', opacity: bulkDeleting ? 0.6 : 1 }}
+                style={{ marginLeft: 'auto', gap: 6 }}
               >
-                <Trash2 size={13} /> {bulkDeleting ? 'DELETING...' : 'DELETE SELECTED'}
+                <Trash2 size={13} /> {bulkDeleting ? 'Deleting…' : 'Delete selected'}
               </button>
               <button
+                className="btn btn-sm btn-secondary"
                 onClick={() => setSelectedPods(new Set())}
-                style={{ height: 30, padding: '0 12px', borderRadius: 0, background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+                style={{ fontWeight: 700, fontSize: 11 }}
               >
-                CLEAR
+                Clear
               </button>
             </div>
           )}
@@ -1298,6 +1322,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       />}
       {drawer?.open && canUseKubectl && <TerminalPortal serverID={cluster.id} target={drawer.target || 'pod'} pod={drawer.pod} namespace={drawer.ns} container={drawer.container} node={drawer.node} mode={drawer.mode} onClose={() => setDrawer(null)} />}
       {showMCPTerminal && <MCPTerminal clusterId={cluster.id} clusterName={cluster.name} onClose={() => setShowMCPTerminal(false)} />}
+      {showReadOnlyKubeconfig && canUseKubectl && <ReadOnlyKubeconfigModal serverID={cluster.id} clusterName={cluster.name} onClose={() => setShowReadOnlyKubeconfig(false)} />}
       
       {editingYaml.open && (
         <div className="fade-in" style={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', background: 'var(--bg-app)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
@@ -1305,13 +1330,13 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             {editingYaml.isNew ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>CREATE RESOURCE</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pick a template, edit, apply • CMD+S TO APPLY</span>
+                  <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>Create resource</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pick a template, edit and apply · Ctrl/Cmd + S to apply</span>
                 </div>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  padding: '6px 14px', borderRadius: 0
+                  padding: '6px 12px', borderRadius: 'var(--radius-md)'
                 }}>
                   <FileCode size={14} color="var(--brand-primary)" />
                   <select
@@ -1325,12 +1350,12 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{editingYaml.kind?.toUpperCase()}: {editingYaml.name}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{editingYaml.ns || 'cluster-scoped'} • CMD+S TO APPLY</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{editingYaml.ns || 'Cluster scoped'} · Ctrl/Cmd + S to apply</span>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
               <button className="btn btn-secondary" onClick={() => setEditingYaml({ open: false, content: '' })}>Cancel</button>
-              <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying...' : editingYaml.isNew ? 'Create & Apply' : 'Save & Apply'}</button>
+              <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying…' : editingYaml.isNew ? 'Create & apply' : 'Save & apply'}</button>
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

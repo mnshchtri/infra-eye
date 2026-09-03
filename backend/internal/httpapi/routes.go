@@ -124,6 +124,12 @@ func RegisterRoutes(r *gin.Engine) {
 		api.POST("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.StartPortForward)
 		api.GET("/servers/:id/kubectl/port-forward", middleware.RequireRole("admin", "devops"), handlers.ListPortForwards)
 		api.DELETE("/servers/:id/kubectl/port-forward/:sessionId", middleware.RequireRole("admin", "devops"), handlers.StopPortForward)
+		// Read-only kubeconfig generation. Gated at admin/devops like the other
+		// kubectl routes: minting one writes RBAC objects to the cluster, which
+		// those roles can already do through /kubectl anyway.
+		api.POST("/servers/:id/k8s/readonly-kubeconfig", middleware.RequireRole("admin", "devops"), handlers.GenerateReadOnlyKubeconfig)
+		api.GET("/servers/:id/k8s/readonly-kubeconfig", middleware.RequireRole("admin", "devops"), handlers.ListReadOnlyKubeconfigs)
+		api.DELETE("/servers/:id/k8s/readonly-kubeconfig/:name", middleware.RequireRole("admin", "devops"), handlers.RevokeReadOnlyKubeconfig)
 		api.POST("/servers/:id/k8s/disconnect", middleware.RequireRole("admin", "devops"), handlers.DisconnectCluster)
 		api.POST("/servers/:id/k8s/reconnect", middleware.RequireRole("admin", "devops"), handlers.ReconnectCluster)
 
