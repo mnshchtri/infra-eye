@@ -18,12 +18,15 @@ type User struct {
 	Email    string `json:"email"`
 	Avatar   string `json:"avatar"`
 	IsActive bool   `gorm:"default:true" json:"is_active"`
-	// Personal AI API Keys
-	OpenRouterKey string `json:"open_router_key"`
-	DeepSeekKey   string `json:"deep_seek_key"`
-	ClaudeKey     string `json:"claude_key"`
-	GeminiKey     string `json:"gemini_key"`
-	MistralKey    string `json:"mistral_key"`
+	// Personal AI API Keys. Never serialized: ListUsers and the create/update
+	// handlers return this struct to admin *and devops*, which would hand every
+	// operator each colleague's billable LLM keys. UpdateProfile echoes the
+	// caller's own keys back explicitly, which is the only place they belong.
+	OpenRouterKey string `json:"-"`
+	DeepSeekKey   string `json:"-"`
+	ClaudeKey     string `json:"-"`
+	GeminiKey     string `json:"-"`
+	MistralKey    string `json:"-"`
 	// LocalLLMURL points at a self-hosted, OpenAI-compatible chat endpoint
 	// (Ollama, LM Studio, llama.cpp server, vLLM). Overrides the server-wide
 	// LOCAL_LLM_URL/LOCAL_LLM_MODEL env defaults when set.
