@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/glebarez/sqlite"
@@ -386,5 +387,85 @@ func TestRunSync_ReusesWorkDirAcrossDifferentBranch(t *testing.T) {
 	var s models.Server
 	if err := db.DB.Where("name = ?", "develop-only-server").First(&s).Error; err != nil {
 		t.Fatalf("develop-only-server not found after switching branches: %v", err)
+	}
+}
+
+// A PAT spliced into the remote URL must never survive into an error string:
+// /api/gitsync/test is reachable by devops and GitSyncRun.ErrorText by trainee,
+// while the PAT itself is admin-only to set and is never echoed by
+// GetGitSyncSettings.
+func TestRedactCredentials(t *testing.T) {
+	const pat = "ghp_realTokenValue123"
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "user and password",
+			in:   "git [ls-remote --exit-code https://x-access-token:" + pat + "@github.com/o/r.git main]: exit status 128",
+			want: "git [ls-remote --exit-code https://x-access-token:***@github.com/o/r.git main]: exit status 128",
+		},
+		{
+			name: "token as bare userinfo",
+			in:   "fatal: could not read from https://" + pat + "@github.com/o/r.git",
+			want: "fatal: could not read from https://***@github.com/o/r.git",
+		},
+		{
+			name: "ssh scheme",
+			in:   "ssh://git:" + pat + "@example.com:22/o/r.git",
+			want: "ssh://git:***@example.com:22/o/r.git",
+		},
+		{
+			name: "several occurrences in one message",
+			in:   "https://x:" + pat + "@a.com and https://y:" + pat + "@b.com",
+			want: "https://x:***@a.com and https://y:***@b.com",
+		},
+		{
+			name: "no credential is left untouched",
+			in:   "fatal: repository 'https://github.com/o/r.git/' not found",
+			want: "fatal: repository 'https://github.com/o/r.git/' not found",
+		},
+		{
+			name: "bare path is left untouched",
+			in:   "git [clone /nonexistent/path]: exit status 128",
+			want: "git [clone /nonexistent/path]: exit status 128",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := RedactCredentials(tc.in)
+			if got != tc.want {
+				t.Errorf("RedactCredentials()\n got: %s\nwant: %s", got, tc.want)
+			}
+			if strings.Contains(got, pat) {
+				t.Errorf("PAT survived redaction: %s", got)
+			}
+		})
+	}
+}
+
+// End-to-end: a sync against an unreachable authenticated remote must record a
+// diagnosable error that does not contain the PAT.
+func TestRunSync_UnreachableAuthenticatedRepoRedactsPAT(t *testing.T) {
+	setupTestDB(t)
+	SetWorkDir(t.TempDir() + "/work")
+	const pat = "ghp_secretShouldNeverAppear"
+	db.SetSetting(SettingRepoURL, "https://github.com/does-not-exist-"+t.Name()+"/nope.git")
+	db.SetSetting(SettingBranch, "main")
+	db.SetSetting(SettingPAT, pat)
+
+	run := RunSync("manual")
+	if run.Status != "failed" {
+		t.Fatalf("expected failed status, got %q", run.Status)
+	}
+	if run.ErrorText == "" {
+		t.Fatal("expected the git error to still be surfaced")
+	}
+	if strings.Contains(run.ErrorText, pat) {
+		t.Errorf("PAT leaked into GitSyncRun.ErrorText: %s", run.ErrorText)
+	}
+	if !strings.Contains(run.ErrorText, "github.com") {
+		t.Errorf("redaction destroyed diagnostic value, want the host to survive: %s", run.ErrorText)
 	}
 }

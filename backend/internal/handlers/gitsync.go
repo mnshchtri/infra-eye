@@ -155,7 +155,10 @@ func TestGitSyncConnection(c *gin.Context) {
 	}
 
 	if err := gitsync.TestConnection(repoURL, branch, pat); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error()})
+		// Redacted again at the boundary: this endpoint is open to devops, while
+		// the PAT is admin-only to set and is deliberately never echoed back by
+		// GetGitSyncSettings.
+		c.JSON(http.StatusOK, gin.H{"success": false, "error": gitsync.RedactCredentials(err.Error())})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})

@@ -100,6 +100,26 @@ func authenticatedURL(rawURL, pat string) (string, error) {
 	return u.String(), nil
 }
 
+// credInURL matches the "user:password@" userinfo of a URL; credUserOnlyInURL
+// matches the "token@" form some providers accept. Both are applied to every
+// string that leaves this package.
+var (
+	credInURL         = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s:]*):([^/@\s]*)@`)
+	credUserOnlyInURL = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s:]+)@`)
+)
+
+// RedactCredentials strips the secret half of any URL userinfo it finds.
+// authenticatedURL splices the PAT into the remote URL, so that URL reaches
+// git's argv and, on failure, git's own output — both of which end up in error
+// strings this app shows to devops (via /api/gitsync/test) and trainees (via
+// GitSyncRun.ErrorText). Only the password is replaced, so the host, path,
+// username, and git's verbatim message all survive for diagnosis, per
+// docs/DESIGN_PRINCIPLES.md.
+func RedactCredentials(s string) string {
+	s = credInURL.ReplaceAllString(s, "${1}${2}:***@")
+	return credUserOnlyInURL.ReplaceAllString(s, "${1}***@")
+}
+
 func runGit(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	if dir != "" {
@@ -107,7 +127,11 @@ func runGit(ctx context.Context, dir string, args ...string) (string, error) {
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("git %v: %w: %s", args, err, string(out))
+		// Both the args (which carry the authenticated remote URL) and git's own
+		// output must be redacted — git echoes the remote back in several of its
+		// failure messages.
+		return RedactCredentials(string(out)),
+			fmt.Errorf("git %v: %w: %s", RedactCredentials(fmt.Sprint(args)), err, RedactCredentials(string(out)))
 	}
 	return string(out), nil
 }
