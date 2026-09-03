@@ -228,28 +228,31 @@ func metricsWsHandler(c *gin.Context) {
 	}
 	_ = srv
 
-	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	conn, release, err := handlers.UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 
 	handlers.MetricsWSHandler(conn, id)
 }
 
 // alertsWsHandler subscribes a client to the global alerts room
 func alertsWsHandler(c *gin.Context) {
-	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	conn, release, err := handlers.UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	client := wshub.GlobalHub.Register(conn, "alerts")
 	client.ReadPump(wshub.GlobalHub, nil)
 }
 
 func allMetricsWsHandler(c *gin.Context) {
-	conn, err := handlers.UpgradeConn(c.Writer, c.Request)
+	conn, release, err := handlers.UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	handlers.AllMetricsWSHandler(conn)
 }

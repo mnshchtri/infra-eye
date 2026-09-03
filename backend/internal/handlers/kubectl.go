@@ -431,11 +431,12 @@ func SSHTerminal(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		log.Printf("WS terminal upgrade error: %v", err)
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	if server.Host == "" {
@@ -548,10 +549,11 @@ func RunPodTerminal(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	if mode == "logs" {
@@ -699,10 +701,11 @@ func RunNodeTerminal(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(server.KubeConfig))
@@ -1106,11 +1109,12 @@ func WatchKubectl(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		log.Printf("WS k8s watch upgrade error: %v", err)
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	clientset, err := k8s.GetK8sClient(server.KubeConfig)
