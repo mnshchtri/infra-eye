@@ -21,6 +21,11 @@ interface GeneratedConfig {
 interface ListResponse {
   identities: ReadOnlyIdentity[]
   api_server: string
+  // False when InfraEye's own connection to this cluster cannot manage RBAC —
+  // e.g. the cluster was registered with a read-only kubeconfig, possibly one
+  // this very dialog generated. Issuing and revoking are impossible then.
+  can_manage: boolean
+  connected_as: string
 }
 
 interface Props {
@@ -57,6 +62,8 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
   const [apiServer, setApiServer] = useState('')
   const [detectedServer, setDetectedServer] = useState('')
   const [identities, setIdentities] = useState<ReadOnlyIdentity[]>([])
+  const [canManage, setCanManage] = useState(true)
+  const [connectedAs, setConnectedAs] = useState('')
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState<GeneratedConfig | null>(null)
 
@@ -64,6 +71,8 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
     setIdentities(data.identities || [])
     const detected = data.api_server || ''
     setDetectedServer(detected)
+    setCanManage(data.can_manage !== false)
+    setConnectedAs(data.connected_as || '')
     // Only seed the field; never clobber an address the operator has typed.
     setApiServer(prev => prev || detected)
   }, [])
@@ -197,13 +206,25 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--warning)40', background: 'var(--warning)10' }}>
-            <AlertTriangle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Secret read access is cluster-wide. Whoever holds this file can read every credential stored in the
-              cluster, so treat it as sensitive and prefer a short expiry.
-            </span>
-          </div>
+          {!canManage ? (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--danger)40', background: 'var(--danger)10' }}>
+              <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                InfraEye connects to this cluster
+                {connectedAs ? <> as <code>{connectedAs}</code></> : null}, which cannot manage RBAC — so access
+                cannot be issued or revoked here. This is expected if the cluster was registered with a read-only
+                kubeconfig. Register it with an admin kubeconfig to manage access from this panel.
+              </span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--warning)40', background: 'var(--warning)10' }}>
+              <AlertTriangle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                Secret read access is cluster-wide. Whoever holds this file can read every credential stored in the
+                cluster, so treat it as sensitive and prefer a short expiry.
+              </span>
+            </div>
+          )}
 
           <form onSubmit={generate} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 16, marginBottom: 12, background: 'var(--bg-card)', padding: 24, border: '1px solid var(--border-bright)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -224,7 +245,8 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button className="btn btn-primary" disabled={generating || !name.trim()} style={{ height: 42, padding: '0 24px', fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <button className="btn btn-primary" disabled={generating || !name.trim() || !canManage}
+                title={canManage ? undefined : 'This cluster is registered with a credential that cannot manage RBAC'} style={{ height: 42, padding: '0 24px', fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {generating ? 'Generating...' : 'Generate'}
               </button>
             </div>
@@ -302,7 +324,12 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
                         {new Date(idn.created_at).toLocaleDateString()}
                       </td>
                       <td style={{ padding: '14px 20px' }}>
-                        <button className="btn-icon" title={`Revoke ${idn.name}'s access`} onClick={() => revoke(idn)}>
+                        <button
+                          className="btn-icon"
+                          disabled={!canManage}
+                          title={canManage ? `Revoke ${idn.name}'s access` : 'This cluster is registered with a credential that cannot manage RBAC'}
+                          onClick={() => revoke(idn)}
+                        >
                           <Trash2 size={14} />
                         </button>
                       </td>

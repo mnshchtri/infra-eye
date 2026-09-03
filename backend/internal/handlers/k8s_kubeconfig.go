@@ -14,6 +14,7 @@ import (
 	"github.com/infra-eye/backend/internal/k8s"
 	"github.com/infra-eye/backend/internal/models"
 	authenticationv1 "k8s.io/api/authentication/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -172,6 +173,9 @@ func GenerateReadOnlyKubeconfig(c *gin.Context) {
 	}
 
 	ctx := context.Background()
+	if denyIfReadOnlyConnection(c, ctx, clientset) {
+		return
+	}
 	saName := readOnlySAPrefix + slug
 
 	if err := ensureReadOnlyRBAC(ctx, clientset, saName); err != nil {
@@ -205,6 +209,65 @@ func GenerateReadOnlyKubeconfig(c *gin.Context) {
 		resp["expires_at"] = expiresAt.UTC().Format(time.RFC3339)
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// whoAmI reports the identity the stored kubeconfig authenticates as, for error
+// messages. Best-effort: SelfSubjectReview is Kubernetes 1.28+, and older
+// clusters simply get a less specific message.
+func whoAmI(ctx context.Context, cs *kubernetes.Clientset) string {
+	rev, err := cs.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	if err != nil {
+		return ""
+	}
+	return rev.Status.UserInfo.Username
+}
+
+// canManageRBAC asks the API server whether the stored credential may create
+// the objects this feature needs, rather than finding out halfway through.
+//
+// Creating a ClusterRoleBinding is the privileged step — a credential that can
+// do it can grant itself anything — so it stands in for the whole set. This
+// matters because a cluster can legitimately be registered in InfraEye using a
+// read-only kubeconfig (including one this feature generated), and on those the
+// generate and revoke actions cannot work at all.
+func canManageRBAC(ctx context.Context, cs *kubernetes.Clientset) (bool, error) {
+	review, err := cs.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Group:    "rbac.authorization.k8s.io",
+				Resource: "clusterrolebindings",
+				Verb:     "create",
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return false, err
+	}
+	return review.Status.Allowed, nil
+}
+
+// denyIfReadOnlyConnection aborts with a 403 explaining the situation when the
+// stored credential cannot manage RBAC. Without this the caller gets a raw
+// Forbidden from partway through provisioning, naming a ServiceAccount they
+// never chose and giving no hint that the cluster connection itself is the
+// problem.
+func denyIfReadOnlyConnection(c *gin.Context, ctx context.Context, cs *kubernetes.Clientset) bool {
+	ok, err := canManageRBAC(ctx, cs)
+	if err != nil {
+		// Couldn't ask — let the real operation proceed and surface its own error.
+		return false
+	}
+	if ok {
+		return false
+	}
+	msg := "InfraEye is connected to this cluster with a credential that cannot manage RBAC, so it cannot issue or revoke access here."
+	if who := whoAmI(ctx, cs); who != "" {
+		msg = fmt.Sprintf("InfraEye is connected to this cluster as %q, which cannot manage RBAC, so it cannot issue or revoke access here.", who)
+	}
+	c.JSON(http.StatusForbidden, gin.H{
+		"error": msg + " Register the cluster with an admin kubeconfig to manage read-only access from it.",
+	})
+	return true
 }
 
 // ensureReadOnlyRBAC makes the namespace, ClusterRole, ServiceAccount, and
@@ -459,7 +522,14 @@ func ListReadOnlyKubeconfigs(c *gin.Context) {
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// Namespace doesn't exist yet — nothing has been generated.
-			c.JSON(http.StatusOK, gin.H{"identities": []ReadOnlyIdentity{}, "api_server": apiServer})
+			canManage, cmErr := canManageRBAC(ctx, cs)
+			if cmErr != nil {
+				canManage = true
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"identities": []ReadOnlyIdentity{}, "api_server": apiServer,
+				"can_manage": canManage, "connected_as": whoAmI(ctx, cs),
+			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -488,7 +558,16 @@ func ListReadOnlyKubeconfigs(c *gin.Context) {
 			HasStatic:   staticTokens[sa.Name],
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"identities": out, "api_server": apiServer})
+	canManage, err := canManageRBAC(ctx, cs)
+	if err != nil {
+		canManage = true // couldn't ask; don't disable the UI on a guess
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"identities":   out,
+		"api_server":   apiServer,
+		"can_manage":   canManage,
+		"connected_as": whoAmI(ctx, cs),
+	})
 }
 
 // storedAPIServerURL reports the API server address in the cluster's stored
@@ -534,6 +613,9 @@ func RevokeReadOnlyKubeconfig(c *gin.Context) {
 	}
 	saName := readOnlySAPrefix + slug
 	ctx := context.Background()
+	if denyIfReadOnlyConnection(c, ctx, cs) {
+		return
+	}
 
 	// Binding first: if the SA delete then fails, what is left behind is a
 	// binding pointing at nothing rather than a live credential.
