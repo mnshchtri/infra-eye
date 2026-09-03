@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/infra-eye/backend/internal/config"
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
+	"gorm.io/gorm"
 )
 
 type Claims struct {
@@ -48,12 +50,26 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		// Tokens live 24h, so checking IsActive only at login would leave a
-		// deactivated account with a working session for up to a day. Re-read the
-		// account on each request so deactivation takes effect immediately.
+		// Tokens live 24h, so trusting the JWT alone would leave a deactivated
+		// account — or a demoted one — with its old access for up to a day.
+		// Re-read the account on each request instead.
+		//
+		// This covers HTTP requests only. A WebSocket authenticates once at the
+		// upgrade handshake and then runs its own read loop, so an already-open
+		// terminal or log stream survives until the socket closes.
 		var user models.User
 		if err := db.DB.Select("id", "role", "is_active").First(&user, claims.UserID).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "account no longer exists"})
+			// Only a genuinely missing row means the account is gone. Every other
+			// error here is a database problem (connection reset, timeout, pool
+			// exhaustion), and answering those with 401 would be actively harmful:
+			// the frontend clears the token and redirects to /login on any 401, so
+			// one transient blip would sign out every operator at once — precisely
+			// when they need to be signed in. Fail with 500 and keep the session.
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "account no longer exists"})
+				return
+			}
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to verify account: " + err.Error()})
 			return
 		}
 		if !user.IsActive {
@@ -63,7 +79,9 @@ func Auth() gin.HandlerFunc {
 
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
-		c.Set("role", claims.Role)
+		// The stored role, not the one baked into the token, so a promotion or
+		// demotion applies on the very next request rather than at next login.
+		c.Set("role", user.Role)
 		c.Next()
 	}
 }
@@ -80,9 +98,9 @@ func RequireRole(allowed ...string) gin.HandlerFunc {
 		roleStr, _ := role.(string)
 		if _, ok := set[roleStr]; !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error": "access denied: insufficient role",
+				"error":           "access denied: insufficient role",
 				"required_one_of": allowed,
-				"your_role": roleStr,
+				"your_role":       roleStr,
 			})
 			return
 		}
