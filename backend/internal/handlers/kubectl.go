@@ -1194,6 +1194,23 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 			}
 		}
 
+		// Confirm we can actually talk to the API server before gathering
+		// anything. Every List below degrades to zero on failure, so without
+		// this an unreachable endpoint, an expired token, or a revoked
+		// ServiceAccount renders as a healthy cluster that happens to contain
+		// nothing — indistinguishable from a genuinely empty one. Discovery is
+		// the cheapest call that exercises both connectivity and authentication.
+		k8sVersion := ""
+		if v, verr := clientset.Discovery().ServerVersion(); verr != nil {
+			// Same frame shape the non-pulse branch uses for fetch failures, so
+			// the client's existing error path renders it.
+			errPayload := fmt.Sprintf(`{"error":"Cluster unreachable","stderr":%q,"cmd":"pulse"}`, verr.Error())
+			wsConn.WriteMessage(websocket.TextMessage, []byte(errPayload))
+			return
+		} else {
+			k8sVersion = v.GitVersion
+		}
+
 		// Nodes (cluster-scoped - always use empty string)
 		nl, nlErr := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 		capture("nodes", nlErr)
@@ -1394,11 +1411,6 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 					evWarn++
 				}
 			}
-		}
-
-		k8sVersion := ""
-		if v, verr := clientset.Discovery().ServerVersion(); verr == nil {
-			k8sVersion = v.GitVersion
 		}
 
 		// Fetch real-time usage from metrics-server

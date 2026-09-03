@@ -12,6 +12,11 @@ interface PulseDashboardProps {
    stats: any;
    namespace: string;
    error: string | null;
+   // Per-resource failures from a reachable cluster — a credential scoped to
+   // some namespaces, or an API group the cluster doesn't serve. The counts
+   // for these are zero because the lookup failed, not because they're empty,
+   // so they must not be shown as ordinary zeroes.
+   partialErrors: Record<string, string> | null;
    connecting: boolean;
    onJump: (r: any) => void;
    onResync: () => void;
@@ -24,12 +29,19 @@ const Meta = ({ label, value, mono = true }: { label: string; value: string; mon
   </span>
 )
 
-const StatusBadge = ({ connecting }: { connecting: boolean }) => (
-  <span className={connecting ? 'badge badge-warning' : 'badge badge-success'} style={{ gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em' }}>
-    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
-    {connecting ? 'Connecting…' : 'Online'}
-  </span>
-)
+const StatusBadge = ({ connecting, error, degraded }: { connecting: boolean; error: boolean; degraded: boolean }) => {
+  // Reachability outranks everything: reporting "Online" next to a screen of
+  // zeroes, when the zeroes exist because the cluster never answered, is the
+  // one state this badge must never show.
+  const cls = error ? 'badge badge-danger' : connecting ? 'badge badge-warning' : degraded ? 'badge badge-warning' : 'badge badge-success'
+  const label = error ? 'Unreachable' : connecting ? 'Connecting…' : degraded ? 'Partial access' : 'Online'
+  return (
+    <span className={cls} style={{ gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+      {label}
+    </span>
+  )
+}
 
 const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -38,14 +50,16 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   </div>
 )
 
-export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecting, onJump, onResync }: PulseDashboardProps) => {
+export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialErrors, connecting, onJump, onResync }: PulseDashboardProps) => {
+   const failed = partialErrors ? Object.keys(partialErrors) : []
+   const degraded = failed.length > 0
    return (
       <div className="fade-in" style={{ padding: '0 6px', maxWidth: '100%' }}>
          {/* Header */}
          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 26 }}>
             <div style={{ minWidth: 0 }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <StatusBadge connecting={connecting} />
+                  <StatusBadge connecting={connecting} error={!!error} degraded={degraded} />
                   {stats?.k8sVersion && <span className="badge badge-neutral" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>{stats.k8sVersion}</span>}
                   <span className="badge badge-neutral hidden-mobile" style={{ fontSize: 11 }}>Kubernetes engine</span>
                </div>
@@ -86,6 +100,18 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
             </div>
          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+               {degraded && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', border: '1px solid var(--warning)40', background: 'var(--warning)10', borderRadius: 'var(--radius-md)' }}>
+                     <AlertTriangle size={15} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
+                     <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, minWidth: 0 }}>
+                        <b style={{ color: 'var(--text-primary)' }}>Some resources could not be read.</b>{' '}
+                        Counts below show 0 for {failed.join(', ')} because the lookup failed, not because none exist.
+                        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
+                           {partialErrors && partialErrors[failed[0]]}
+                        </div>
+                     </div>
+                  </div>
+               )}
                {stats && (
                   <>
                      {/* Tier 1: Core metrics */}

@@ -284,6 +284,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [pulsePartial, setPulsePartial] = useState<Record<string, string> | null>(null)
   const [namespaces, setNamespaces] = useState<string[]>([])
   const [selectedNS, setSelectedNS] = useState<string>('All')
   const [stats, setStats] = useState({ nodes: 0, pods: 0, deployments: 0, services: 0, events: 0 })
@@ -393,10 +394,15 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
            const parsed = JSON.parse(event.data);
            if (parsed.error) {
               setPulseError(parsed.details || parsed.stderr || parsed.error)
+              setPulsePartial(null)
               setData([])
               return
            }
            setPulseError(null)
+           // The cluster answered, but individual lookups inside the frame may
+           // still have failed; those counts are zero for the wrong reason.
+           const partial = parsed.errors && Object.keys(parsed.errors).length ? parsed.errors : null
+           setPulsePartial(partial)
 
            if (resource === 'pulse') {
              if (parsed.kind === 'Pulse') {
@@ -412,7 +418,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         } catch(e) { console.error("JSON parse error:", e); setData([]); }
     }
     
-    ws.onerror = () => { setLoading(false); setConnecting(false); setPulseError('WebSocket connection failed.'); }
+    ws.onerror = () => { setLoading(false); setConnecting(false); setPulsePartial(null); setPulseError('WebSocket connection failed.'); }
     ws.onclose = () => setConnecting(false)
   }, [])
 
@@ -1052,7 +1058,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             </div>
           )}
 
-          {activeRes === 'pulse' && <PulseDashboard cluster={cluster} stats={stats} namespace={selectedNS} error={pulseError} connecting={connecting} onJump={(r) => setActiveRes(r)} onResync={() => watchK8sData(cluster.id, activeRes, selectedNS)} />}
+          {activeRes === 'pulse' && <PulseDashboard cluster={cluster} stats={stats} namespace={selectedNS} error={pulseError} partialErrors={pulsePartial} connecting={connecting} onJump={(r) => setActiveRes(r)} onResync={() => watchK8sData(cluster.id, activeRes, selectedNS)} />}
           
           {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version', 'Internal-IP']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
              actions={(n: any) => (
