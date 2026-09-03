@@ -20,7 +20,7 @@ interface ServerData {
   tags: string; description: string; port: number; ssh_user: string;
   os: string;
   is_k8s: boolean;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
 }
 interface MetricData {
   cpu_percent: number; mem_percent: number; disk_percent: number;

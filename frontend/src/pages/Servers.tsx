@@ -18,7 +18,7 @@ interface ServerData {
   description: string; status: string; ssh_key_path: string;
   os: string;
   distro?: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
   folder_id?: number | null;
   git_managed?: boolean;
 }
@@ -467,7 +467,7 @@ export function Servers() {
                           border: `1px solid var(--border)`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         }}>
-                          {s.kube_config
+                          {s.has_kubeconfig
                             ? <KubernetesIcon size={18} />
                             : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
                             : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />

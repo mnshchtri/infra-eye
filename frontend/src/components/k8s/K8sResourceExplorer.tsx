@@ -25,7 +25,7 @@ interface Cluster {
   name: string;
   host: string;
   os?: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
 }
 
 type ResourceType =
@@ -629,7 +629,10 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     setShowCommandBar(false); setCommandInput('');
   }
 
-  const [rawConfig, setRawConfig] = useState(cluster.kube_config || '')
+  // Write-only: the API no longer returns stored kubeconfigs (they carry
+  // cluster-admin credentials), so this pane starts empty and saving replaces
+  // the stored config rather than editing it in place.
+  const [rawConfig, setRawConfig] = useState('')
   const [savingRaw, setSavingRaw] = useState(false)
 
   const saveClusterConfig = async () => {
@@ -641,7 +644,8 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         kube_config: rawConfig 
       })
       if (res.status === 200) {
-        toast.success('Configuration saved', 'Cluster KubeConfig updated successfully.')
+        setRawConfig('')
+        toast.success('Configuration saved', 'Cluster KubeConfig replaced successfully.')
       } else {
         toast.error('Save failed', 'Status: ' + res.status)
       }

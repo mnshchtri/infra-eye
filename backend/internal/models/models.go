@@ -35,31 +35,48 @@ type User struct {
 }
 
 type Server struct {
-	ID               uint           `gorm:"primaryKey" json:"id"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
-	Name             string         `gorm:"not null" json:"name"`
-	Host             string         `json:"host"`
-	Port             int            `gorm:"default:22" json:"port"`
-	SSHUser          string         `json:"ssh_user"`
-	SSHKeyPath       string         `json:"ssh_key_path"`
-	SSHPassword      string         `json:"-"`                               // encrypted
-	AuthType         string         `gorm:"default:'key'" json:"auth_type"`  // key or password
-	Tags             string         `json:"tags"`                            // comma-separated
-	Status           string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
-	Description      string         `json:"description"`
-	KubeConfig       string         `gorm:"type:text" json:"kube_config"`
-	IsK8s            bool           `gorm:"default:false" json:"is_k8s"`
-	K8sConnected     bool           `gorm:"default:true" json:"k8s_connected"`
-	OS               string         `json:"os"`                 // linux, darwin, unknown
-	Distro           string         `json:"distro"`             // devicon-compatible id, e.g. ubuntu, debian, fedora
-	DistroVersion    string         `json:"distro_version"`     // e.g. 22.04
-	DistroPrettyName string         `json:"distro_pretty_name"` // e.g. "Ubuntu 22.04.3 LTS"
-	KernelVersion    string         `json:"kernel_version"`     // e.g. 5.15.0-91-generic
-	FolderID         *uint          `gorm:"index" json:"folder_id"`
-	GitManaged       bool           `gorm:"default:false" json:"git_managed"` // created/updated by Git-sync; cleared on manual edit
-	GitKey           string         `gorm:"index" json:"git_key,omitempty"`   // Name at last sync (reserved for future rename detection)
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	Name        string         `gorm:"not null" json:"name"`
+	Host        string         `json:"host"`
+	Port        int            `gorm:"default:22" json:"port"`
+	SSHUser     string         `json:"ssh_user"`
+	SSHKeyPath  string         `json:"ssh_key_path"`
+	SSHPassword string         `json:"-"`                               // encrypted
+	AuthType    string         `gorm:"default:'key'" json:"auth_type"`  // key or password
+	Tags        string         `json:"tags"`                            // comma-separated
+	Status      string         `gorm:"default:'unknown'" json:"status"` // online, offline, unknown
+	Description string         `json:"description"`
+	// KubeConfig embeds cluster-admin credentials (client certs / tokens), so it
+	// is never serialized to API responses — any role holding a read grant on the
+	// cluster would otherwise get full cluster-admin and bypass every role gate.
+	// Callers that only need to know a cluster is configured read HasKubeConfig.
+	KubeConfig       string `gorm:"type:text" json:"-"`
+	IsK8s            bool   `gorm:"default:false" json:"is_k8s"`
+	K8sConnected     bool   `gorm:"default:true" json:"k8s_connected"`
+	OS               string `json:"os"`                 // linux, darwin, unknown
+	Distro           string `json:"distro"`             // devicon-compatible id, e.g. ubuntu, debian, fedora
+	DistroVersion    string `json:"distro_version"`     // e.g. 22.04
+	DistroPrettyName string `json:"distro_pretty_name"` // e.g. "Ubuntu 22.04.3 LTS"
+	KernelVersion    string `json:"kernel_version"`     // e.g. 5.15.0-91-generic
+	FolderID         *uint  `gorm:"index" json:"folder_id"`
+	GitManaged       bool   `gorm:"default:false" json:"git_managed"` // created/updated by Git-sync; cleared on manual edit
+	GitKey           string `gorm:"index" json:"git_key,omitempty"`   // Name at last sync (reserved for future rename detection)
+
+	// HasKubeConfig is a read-only projection of KubeConfig for the UI. Not
+	// persisted; populated by AfterFind on every load, and set by hand in the
+	// create/update handlers, which respond with a struct they built themselves.
+	HasKubeConfig bool `gorm:"-" json:"has_kubeconfig"`
+}
+
+// AfterFind populates the non-persisted HasKubeConfig projection so every read
+// path (list, get, topology, collectors) reports kubeconfig presence without
+// any of them having to remember to compute it.
+func (s *Server) AfterFind(*gorm.DB) error {
+	s.HasKubeConfig = s.KubeConfig != ""
+	return nil
 }
 
 // Folder is a user-defined grouping (e.g. "dev", "staging", "production")

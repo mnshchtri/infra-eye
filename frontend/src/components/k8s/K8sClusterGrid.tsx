@@ -11,7 +11,7 @@ interface Cluster {
   host: string;
   k8s_connected?: boolean;
   os?: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
   folder_id?: number | null;
 }
 

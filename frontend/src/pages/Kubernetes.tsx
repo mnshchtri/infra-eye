@@ -14,7 +14,7 @@ interface Cluster {
   id: number;
   name: string;
   host: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
   k8s_connected?: boolean;
   os?: string;
   folder_id?: number | null;
@@ -37,7 +37,7 @@ export function Kubernetes() {
   const loadClusters = useCallback(async () => {
     try {
       const res = await api.get('/api/servers')
-      setClusters(res.data?.filter((c: any) => c.kube_config) || [])
+      setClusters(res.data?.filter((c: any) => c.has_kubeconfig) || [])
     } catch (e) { console.error(e) }
   }, [])
 
