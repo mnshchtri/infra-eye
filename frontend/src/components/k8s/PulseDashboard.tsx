@@ -63,7 +63,7 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialE
                   {stats?.k8sVersion && <span className="badge badge-neutral" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>{stats.k8sVersion}</span>}
                   <span className="badge badge-neutral hidden-mobile" style={{ fontSize: 11 }}>Kubernetes engine</span>
                </div>
-               <h1 style={{ fontSize: 23, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25, margin: '0 0 10' }}>
+               <h1 style={{ fontSize: 23, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25, margin: '0 0 10px' }}>
                   {cluster.name}
                </h1>
                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12.5, lineHeight: 1.4 }}>
@@ -89,9 +89,9 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialE
          {error ? (
             <div style={{ border: '1px solid var(--danger)30', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '48px 32px', textAlign: 'center' }}>
                <Zap size={22} color="var(--danger)" style={{ marginBottom: 14 }} />
-               <h2 style={{ fontWeight: 800, fontSize: 16, margin: '0 0 6' }}>Could not reach the cluster</h2>
-               <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 18' }}>The real-time stream failed. Check the cluster connection and try again.</p>
-               <div style={{ margin: '0 auto 20', maxWidth: 560, padding: 12, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)', textAlign: 'left', wordBreak: 'break-word' }}>
+               <h2 style={{ fontWeight: 800, fontSize: 16, margin: '0 0 6px' }}>Could not reach the cluster</h2>
+               <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 18px' }}>The real-time stream failed. Check the cluster connection and try again.</p>
+               <div style={{ margin: '0 auto 20px', maxWidth: 560, padding: 12, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)', textAlign: 'left', wordBreak: 'break-word' }}>
                   {error}
                </div>
                <button className="btn btn-primary" onClick={onResync} style={{ fontWeight: 700 }}>

@@ -113,7 +113,7 @@ export const K8sClusterGrid = memo(({
                       <KubernetesIcon size={24} />
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 0 6' }}>{cluster.name}</h3>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 0 6px' }}>{cluster.name}</h3>
                       <span
                         className="status-pill status-pill-solid"
                         style={{
