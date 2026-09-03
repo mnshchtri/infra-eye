@@ -1,9 +1,8 @@
 import { memo } from 'react'
-import { Plus, Zap, ChevronRight, Unlink, Globe, Trash2, RefreshCw, Cpu, Database, Activity } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
+import { Plus, ChevronRight, Unlink, Trash2, RefreshCw, Server } from 'lucide-react'
+import { KubernetesIcon } from '../OSIcons'
 import { FolderTag } from '../ui/FolderTag'
 import type { FolderItem } from '../../hooks/useFolders'
-import logo from '../../assets/logo.png'
 
 interface Cluster {
   id: number;
@@ -31,166 +30,166 @@ interface K8sClusterGridProps {
   canManage: boolean;
 }
 
+const Meta = ({ label, value }: { label: string; value: string }) => (
+  <div style={{ minWidth: 0 }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{label}</div>
+    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+  </div>
+)
+
 export const K8sClusterGrid = memo(({
   clusters, onSelect, onAdd, onDisconnect, onReconnect, onDelete,
   confirmDisconnect, setConfirmDisconnect, confirmDelete, setConfirmDelete,
   folders, onMoveFolder, canManage
 }: K8sClusterGridProps) => {
+  const online = clusters.filter(c => c.k8s_connected).length
+  const offline = clusters.length - online
+
   return (
     <div className="fade-in">
-      <div className="page-header" style={{ marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+      <div className="page-header" style={{ marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
         <div>
-          <h1 className="page-title">
-            Infrastructure Clusters
-          </h1>
-          <p className="page-subtitle" style={{ 
-            fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', 
-            textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', marginTop: 2 
-          }}>
-            Managed Kubernetes Control Planes : Active Systems
+          <h1 className="page-title">Kubernetes clusters</h1>
+          <p className="page-subtitle" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            Manage control planes and workloads across every connected cluster.
+            {(online > 0 || offline > 0) && (
+              <span style={{ marginLeft: 10, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                <span className="badge badge-success" style={{ fontSize: 11, fontWeight: 700 }}>{online} online</span>
+                {offline > 0 && <span className="badge badge-danger" style={{ fontSize: 11, fontWeight: 700 }}>{offline} offline</span>}
+              </span>
+            )}
           </p>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={onAdd} 
-          style={{ height: 44, borderRadius: 0, padding: '0 24px', fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}
-        >
-          <Plus size={16} /> CONNECT CLUSTER
+        <button className="btn btn-primary" onClick={onAdd} style={{ height: 40, padding: '0 20px', fontWeight: 700, flexShrink: 0 }}>
+          <Plus size={16} /> Connect cluster
         </button>
       </div>
 
-      <div className="grid-cards" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 24 }}>
-        {clusters.map((cluster, i) => {
-          const isConnected = !!cluster.k8s_connected
-          const statusColor = isConnected ? 'var(--success)' : 'var(--danger)'
-
-          return (
-            <div
-              key={cluster.id}
-              className="card server-card fade-up hover-lift"
-              style={{
-                animationDelay: `${i * 50}ms`,
-                cursor: isConnected ? 'pointer' : 'default',
-                padding: 24,
-                borderRadius: 0,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-card)',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-              onClick={() => { if (isConnected) onSelect(cluster) }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      {clusters.length === 0 ? (
+        <div className="empty-state" style={{ padding: '96px 40px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+            <Server size={28} color="var(--brand-primary)" />
+          </div>
+          <h2 style={{ fontWeight: 800, fontSize: 18, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>No clusters connected</h2>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 8, maxWidth: 420, lineHeight: 1.7 }}>
+            Connect your first cluster by providing its KubeConfig identity file.
+          </p>
+          <button className="btn btn-primary" style={{ marginTop: 28, padding: '10px 24px', fontWeight: 700 }} onClick={onAdd}>
+            <Plus size={16} /> Connect cluster
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 20 }}>
+          {clusters.map((cluster, i) => {
+            const isConnected = !!cluster.k8s_connected
+            return (
+              <div
+                key={cluster.id}
+                className="card fade-up hover-lift"
+                style={{
+                  animationDelay: `${i * 50}ms`,
+                  cursor: isConnected ? 'pointer' : 'default',
+                  padding: 22,
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16
+                }}
+                onClick={() => { if (isConnected) onSelect(cluster) }}
+              >
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                     <div style={{
-                      width: 40, height: 40, borderRadius: 0,
-                      background: 'var(--brand-primary)', border: `1px solid var(--border)`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, padding: 6
+                      width: 44, height: 44, borderRadius: 'var(--radius-md)',
+                      background: isConnected ? 'var(--brand-glow)' : 'var(--bg-elevated)',
+                      border: `1px solid ${isConnected ? 'var(--brand-primary)30' : 'var(--border)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                     }}>
-                      <img src={logo} alt="L" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+                      <KubernetesIcon size={24} />
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                       <h3 style={{ 
-                         fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', 
-                         textTransform: 'uppercase', letterSpacing: '0.02em', fontFamily: 'var(--font-mono)',
-                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                       }}>
-                         {cluster.name}
-                       </h3>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
-                          <span style={{ 
-                            fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', 
-                            textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' 
-                          }}>
-                            {isConnected ? 'STREAM_ACTIVE' : 'LINK_OFFLINE'}
-                          </span>
-                       </div>
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '0 0 6' }}>{cluster.name}</h3>
+                      <span
+                        className="status-pill status-pill-solid"
+                        style={{
+                          '--pill-color': isConnected ? 'var(--success)' : 'var(--danger)',
+                          '--pill-bg': isConnected ? 'var(--success-glow)' : 'var(--danger-glow)',
+                          '--pill-border': isConnected ? 'var(--success)' : 'var(--danger)',
+                          fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em'
+                        } as any}
+                      >
+                        {isConnected ? 'Connected' : 'Offline'}
+                      </span>
                     </div>
-                 </div>
-                 
-                 <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>NODE_IP</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{cluster.host || 'DIRECT_API'}</div>
-                 </div>
-              </div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>#{String(cluster.id).padStart(2, '0')}</span>
+                </div>
 
-              <div style={{ display: 'flex', gap: 32, marginBottom: 28, alignItems: 'flex-start' }}>
-                 <div>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Protocol</div>
-                    <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>KUBERNETES_API</div>
-                 </div>
-                 <div>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Infrastructure</div>
-                    <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>PRODUCTION_CORE</div>
-                 </div>
-                 <div onClick={e => e.stopPropagation()}>
-                    <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Folder</div>
+                {/* Meta */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <Meta label="API host" value={cluster.host || 'auto'} />
+                  <Meta label="Engine" value="Kubernetes" />
+                  <div onClick={e => e.stopPropagation()}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>Folder</div>
                     <FolderTag
                       folders={folders}
                       value={cluster.folder_id ?? null}
                       onChange={fid => onMoveFolder(cluster.id, fid)}
                       disabled={!canManage}
                     />
-                 </div>
-              </div>
+                  </div>
+                </div>
 
-              {/* Action Layer */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                 <div style={{ display: 'flex', gap: 8 }}>
+                {/* Footer actions */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {isConnected ? (
-                       confirmDisconnect === cluster.id ? (
-                          <div style={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
-                             <button className="btn btn-warning" onClick={() => onDisconnect(cluster.id)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>OFFLINE</button>
-                             <button className="btn btn-secondary" onClick={() => setConfirmDisconnect(null)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>BACK</button>
-                          </div>
-                       ) : (
-                          <button className="btn-icon" onClick={(e) => { e.stopPropagation(); setConfirmDisconnect(cluster.id) }} style={{ width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-app)' }} title="Deauthorize"><Unlink size={14} /></button>
-                       )
+                      confirmDisconnect === cluster.id ? (
+                        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-sm btn-danger" onClick={() => onDisconnect(cluster.id)}>Disconnect</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => setConfirmDisconnect(null)}>Cancel</button>
+                        </div>
+                      ) : (
+                        canManage && (
+                          <button className="btn-icon" onClick={(e) => { e.stopPropagation(); setConfirmDisconnect(cluster.id) }} title="Disconnect cluster" style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-app)' }}><Unlink size={14} /></button>
+                        )
+                      )
                     ) : (
-                       <button className="btn-icon" onClick={(e) => { e.stopPropagation(); onReconnect(cluster.id) }} style={{ width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-app)' }} title="Handshake"><RefreshCw size={14} /></button>
+                      <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); onReconnect(cluster.id) }} style={{ gap: 6 }}>
+                        <RefreshCw size={13} /> Reconnect
+                      </button>
                     )}
 
                     {confirmDelete === cluster.id ? (
-                       <div style={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
-                          <button className="btn btn-danger" onClick={() => onDelete(cluster.id)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>DELETE</button>
-                          <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)} style={{ height: 32, borderRadius: 0, padding: '0 12px', fontSize: 12, fontWeight: 900 }}>BACK</button>
-                       </div>
+                      <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                        <button className="btn btn-sm btn-danger" onClick={() => onDelete(cluster.id)}>Delete</button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                      </div>
                     ) : (
-                       <button className="btn-icon danger" onClick={(e) => { e.stopPropagation(); setConfirmDelete(cluster.id) }} style={{ width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-app)' }} title="Destroy"><Trash2 size={14} /></button>
+                      canManage && (
+                        <button className="btn-icon danger" onClick={(e) => { e.stopPropagation(); setConfirmDelete(cluster.id) }} title="Delete cluster" style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-app)' }}><Trash2 size={14} /></button>
+                      )
                     )}
-                 </div>
+                  </div>
 
-                 {isConnected && (
-                    <button className="btn btn-primary" style={{ padding: '0 16px', height: 32, borderRadius: 0, fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                       MANAGE_CLUSTER <ChevronRight size={13} style={{ marginLeft: 4 }} />
+                  {isConnected ? (
+                    <button className="btn btn-primary btn-sm" style={{ gap: 6, flexShrink: 0 }}>
+                      Manage cluster <ChevronRight size={13} />
                     </button>
-                 )}
+                  ) : (
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>Not connected</span>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
-
-        {clusters.length === 0 && (
-          <div className="empty-state" style={{ gridColumn: '1 / -1', padding: '120px 40px', textAlign: 'center', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: 0,
-              background: 'var(--bg-app)', border: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 32,
-            }}>
-              <Database size={28} color="var(--brand-primary)" />
-            </div>
-            <h2 style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 900, fontSize: 20, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>No Clusters Discovered</h2>
-            <p style={{ fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', marginTop: 16, maxWidth: 420, lineHeight: 1.8 }}>
-              Initialize your first infrastructure control plane by providing a KubeConfig identity file.
-            </p>
-            <button className="btn btn-primary" style={{ marginTop: 40, padding: '16px 48px', borderRadius: 0, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }} onClick={onAdd}>
-              INITIATE HANDSHAKE
-            </button>
-          </div>
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 })

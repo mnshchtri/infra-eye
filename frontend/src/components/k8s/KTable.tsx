@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Inbox } from 'lucide-react'
 
 interface KTableProps {
   columns: string[];
@@ -83,12 +84,13 @@ const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, check
         </td>
       )}
       {columns.map((c: string) => (
-        <td 
-          key={c} 
+        <td
+          key={c}
+          className={c === 'Name' ? 'k-name-cell' : undefined}
           style={{
-            ...(c === 'Name' ? { fontWeight: 900, color: 'var(--text-primary)', cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
-            fontFamily: 'var(--font-mono)', fontSize: 12, textTransform: 'uppercase',
-            padding: '10px 16px', borderBottom: '1px solid var(--border)'
+            ...(c === 'Name' ? { cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
+            fontFamily: 'var(--font-mono)', fontSize: 12.5,
+            padding: '12px 16px', borderBottom: '1px solid var(--border)'
           }}
           onClick={() => { if (c === 'Name' && onNameClick) onNameClick(item) }}
         >
@@ -96,8 +98,8 @@ const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, check
         </td>
       ))}
       {actions && (
-        <td style={{ borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)20', padding: '10px 16px' }}>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <td style={{ borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             {actions(item)}
           </div>
         </td>
@@ -139,7 +141,7 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
   }
 
   return (
-    <div className="table-container fade-up" style={{ borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-card)', marginBottom: 20 }}>
+    <div className="table-container fade-up" style={{ borderRadius: 'var(--radius-md)', marginBottom: 20 }}>
        <table className="k-table" style={{ width: '100%', minWidth: 800 }}>
           <colgroup>
             {selectable && <col style={{ width: 36 }} />}
@@ -155,9 +157,9 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
                 )}
                 {columns.map((c: string) => <th key={c} style={{
                   ...(c === 'Status' ? { textAlign: 'center' } : {}),
-                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.1em'
+                  fontFamily: 'var(--font-sans)', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.06em'
                 }}>{c}</th>)}
-                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.1em' }}>ACTIONS</th>}
+                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.06em' }}>Actions</th>}
              </tr>
           </thead>
           <tbody>
@@ -171,8 +173,11 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
                ))
              ) : data.length === 0 ? (
                <tr>
-                 <td colSpan={colCount} style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
-                   No resources found
+                 <td colSpan={colCount} style={{ textAlign: 'center', padding: '56px 24px', color: 'var(--text-muted)' }}>
+                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                     <Inbox size={22} color="var(--text-muted)" opacity={0.6} />
+                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>No resources found</span>
+                   </div>
                  </td>
                </tr>
              ) : data.map((item: any, i: number) => (
