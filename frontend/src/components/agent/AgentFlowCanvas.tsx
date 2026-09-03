@@ -3,9 +3,10 @@ import {
   ReactFlow, ReactFlowProvider, useReactFlow, type Node, type Edge, type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { GoalFlowNode, StepFlowNode, ThinkingFlowNode, nodeColor } from './AgentFlowNodes'
+import { GoalFlowNode, StepFlowNode, ThinkingFlowNode } from './AgentFlowNodes'
 import { FlowBlueprintBackground, FlowZoomControls, FlowPanHint } from './FlowChrome'
 import type { AgentRun } from '../../pages/agentTypes'
+import { nodeColor } from './agentFlowMeta'
 
 const nodeTypes: NodeTypes = {
   goal: GoalFlowNode,

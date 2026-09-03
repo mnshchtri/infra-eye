@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Cpu, MemoryStick, HardDrive, Activity,
   ScrollText, Terminal as TerminalIcon, RefreshCw, Wifi, Shield,
-  Search, Download, Power, Settings as SettingsIcon, Loader2,
+  Search, Power, Settings as SettingsIcon, Loader2,
   ChevronRight, Gauge, Layers, HelpCircle,
   Trash2, Maximize2, Minimize2, Network, Users, Plus, Globe
 } from 'lucide-react'
@@ -16,6 +16,10 @@ import { api, buildWsUrl } from '../api/client'
 import { format } from 'date-fns'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
+import { apiError, errMessage } from '../utils/errors'
+import type { IconComponent } from '../types/k8s'
+import type { Terminal } from '@xterm/xterm'
+import type { FitAddon } from '@xterm/addon-fit'
 
 interface Server {
   id: number; name: string; host: string; port: number; ssh_user: string;
@@ -93,7 +97,9 @@ const CHART_COLORS = {
   disk: { stroke: 'var(--warning)', fill: 'var(--warning)' },
 }
 
-const StatCard = memo(({ label, value, icon: Icon, color, unit }: any) => (
+const StatCard = memo(({ label, value, icon: Icon, unit }: {
+  label: string; value: string; icon: IconComponent; unit?: string; color?: string;
+}) => (
   <div className="card stat-card" style={{ padding: '20px 24px', border: '1px solid var(--border)' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
       <div style={{ 
@@ -142,7 +148,7 @@ const LogLine = memo(({ log }: { log: LogEntry }) => (
   </div>
 ))
 
-const SectionCard = ({ icon: Icon, title, count, children }: { icon: any, title: string, count?: number, children: React.ReactNode }) => (
+const SectionCard = ({ icon: Icon, title, count, children }: { icon: IconComponent, title: string, count?: number, children: React.ReactNode }) => (
   <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
     <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10 }}>
       <Icon size={16} color="var(--brand-primary)" />
@@ -372,8 +378,8 @@ export function ServerDetail() {
   const terminalRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const logWsRef = useRef<WebSocket | null>(null)
-  const xtermRef = useRef<any>(null)
-  const fitAddonRef = useRef<any>(null)
+  const xtermRef = useRef<Terminal | null>(null)
+  const fitAddonRef = useRef<FitAddon | null>(null)
 
   // Accounts tab needs the admin/devops-gated list endpoint — hide it otherwise
   const canSeeAccounts = can('manage-servers')
@@ -403,7 +409,9 @@ export function ServerDetail() {
           setMetrics(res.data)
           clearInterval(poll)
         }
-      } catch (e) {}
+      } catch {
+        // Polling for the first metrics to arrive: a failed round is expected while the collector spins up, and the next tick retries.
+      }
     }, 5000)
     return () => clearInterval(poll)
   }, [id, metrics.length])
@@ -425,7 +433,9 @@ export function ServerDetail() {
     try {
       const res = await api.get(`/api/servers/${id}/metrics?minutes=60`)
       setMetrics(res.data || [])
-    } catch {}
+    } catch {
+      // Charts stay on their last values rather than the tab erroring out.
+    }
   }
 
   async function loadLogs() {
@@ -434,7 +444,9 @@ export function ServerDetail() {
       // no stored history, so the live tail is their whole view.
       const res = await api.get(`/api/servers/${id}/logs?limit=100${logSource ? `&stream=${encodeURIComponent(logSource)}` : ''}`)
       setLogs(res.data?.data || [])
-    } catch { }
+    } catch {
+      // History is best-effort; the live tail below is the primary view.
+    }
   }
 
   // Load the selectable log sources for this server's OS (journalctl/syslog/…)
@@ -472,9 +484,9 @@ export function ServerDetail() {
     try {
       const res = await api.get(`/api/servers/${id}/accounts`)
       setOsAccounts(res.data?.accounts || [])
-    } catch (e: any) {
+    } catch (e: unknown) {
       setOsAccounts(null)
-      setOsAccountsError(e.response?.data?.error || e.message)
+      setOsAccountsError(errMessage(e))
     } finally { setOsAccountsLoading(false) }
   }
 
@@ -495,9 +507,9 @@ export function ServerDetail() {
     try {
       const res = await api.get(`/api/servers/${id}/k8s-accounts`)
       setK8sAccounts(res.data?.accounts || [])
-    } catch (e: any) {
+    } catch (e: unknown) {
       setK8sAccounts(null)
-      setK8sAccountsError(e.response?.data?.error || e.message)
+      setK8sAccountsError(errMessage(e))
     } finally { setK8sAccountsLoading(false) }
   }
 
@@ -528,8 +540,8 @@ export function ServerDetail() {
       } else {
         toast.error('Create failed', res.data.error || 'Command failed on the server')
       }
-    } catch (e: any) {
-      toast.error('Create failed', e.response?.data?.error || e.message)
+    } catch (e: unknown) {
+      toast.error('Create failed', errMessage(e))
     } finally { setAccBusy(false) }
   }
 
@@ -541,7 +553,7 @@ export function ServerDetail() {
         toast.success('Privilege updated', `${acc.username} → ${privLabel(privilege)}`)
         loadOsAccounts()
       } else toast.error('Update failed', res.data.error)
-    } catch (e: any) { toast.error('Update failed', e.response?.data?.error || e.message) }
+    } catch (e: unknown) { toast.error('Update failed', errMessage(e)) }
   }
 
   async function deleteOsAccount(acc: OSAccount) {
@@ -552,13 +564,13 @@ export function ServerDetail() {
         toast.success('User deleted', `${acc.username} removed from the server`)
         loadOsAccounts()
       } else toast.error('Delete failed', res.data.error)
-    } catch (e: any) { toast.error('Delete failed', e.response?.data?.error || e.message) }
+    } catch (e: unknown) { toast.error('Delete failed', errMessage(e)) }
   }
 
   // ── Access control (per-user grants; admin only) ──
   const canManageUsers = can('manage-users')
-  const [accessList, setAccessList] = useState<any[]>([])
-  const [allUsers, setAllUsers] = useState<any[]>([])
+  const [accessList, setAccessList] = useState<{ id: number; user_id: number; access_level: string; user?: { username: string; role?: string } }[]>([])
+  const [allUsers, setAllUsers] = useState<{ id: number; username: string; role: string }[]>([])
   const [grantUserId, setGrantUserId] = useState('')
   const [grantLevel, setGrantLevel] = useState('read')
   const [grantSaving, setGrantSaving] = useState(false)
@@ -586,8 +598,8 @@ export function ServerDetail() {
       toast.success('Access granted', 'User can now see this server')
       setGrantUserId('')
       loadAccess()
-    } catch (e: any) {
-      toast.error('Grant failed', e.response?.data?.error || e.message)
+    } catch (e: unknown) {
+      toast.error('Grant failed', errMessage(e))
     } finally { setGrantSaving(false) }
   }
 
@@ -595,7 +607,7 @@ export function ServerDetail() {
     try {
       await api.put(`/api/servers/${id}/access/${accessId}`, { access_level: level })
       loadAccess()
-    } catch (e: any) { toast.error('Update failed', e.response?.data?.error || e.message) }
+    } catch (e: unknown) { toast.error('Update failed', errMessage(e)) }
   }
 
   async function revokeAccess(accessId: number) {
@@ -603,7 +615,7 @@ export function ServerDetail() {
       await api.delete(`/api/servers/${id}/access/${accessId}`)
       toast.success('Access revoked', 'User no longer sees this server')
       loadAccess()
-    } catch (e: any) { toast.error('Revoke failed', e.response?.data?.error || e.message) }
+    } catch (e: unknown) { toast.error('Revoke failed', errMessage(e)) }
   }
 
   async function loadNetworking() {
@@ -631,10 +643,10 @@ export function ServerDetail() {
           interfaces: res.data?.interfaces || [],
         })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setNetInfo(null)
       setK8sNetInfo(null)
-      toast.error('Failed to load networking data', err.response?.data?.error || err.message)
+      toast.error('Failed to load networking data', errMessage(err))
     } finally {
       setNetLoading(false)
     }
@@ -650,7 +662,9 @@ export function ServerDetail() {
         if (msg.type === 'metric') {
           setMetrics(prev => [...prev.slice(-119), msg.payload])
         }
-      } catch {}
+      } catch {
+        // Ignore a malformed frame rather than tearing down a live stream.
+      }
     }
   }
 
@@ -665,7 +679,9 @@ export function ServerDetail() {
         if (msg.type === 'log') {
           setLogs(prev => [msg.payload, ...prev].slice(0, 500))
         }
-      } catch {}
+      } catch {
+        // Ignore a malformed frame rather than tearing down a live stream.
+      }
     }
   }
 
@@ -764,8 +780,8 @@ export function ServerDetail() {
     try {
       await api.post(`/api/servers/${id}/diagnose`)
       toast.info('Diagnostics Started', 'Real-time diagnostic logs will appear in the output.')
-    } catch (err: any) {
-      toast.error('Diagnostic failed', err.response?.data?.error || 'Unknown error')
+    } catch (err: unknown) {
+      toast.error('Diagnostic failed', apiError(err) || 'Unknown error')
     }
   }
 
@@ -774,8 +790,8 @@ export function ServerDetail() {
       await api.delete(`/api/servers/${id}/logs`)
       setLogs([])
       toast.success('Logs cleared', 'All historical log entries removed.')
-    } catch (err: any) {
-      toast.error('Clear failed', err.response?.data?.error || 'Failed to clear logs')
+    } catch (err: unknown) {
+      toast.error('Clear failed', apiError(err) || 'Failed to clear logs')
     }
   }
 
@@ -809,8 +825,8 @@ export function ServerDetail() {
       await api.delete(`/api/servers/${id}`)
       toast.success('Server deleted', 'All data has been permanently removed.')
       navigate('/servers')
-    } catch (err: any) {
-      toast.error('Delete failed', err.response?.data?.error || 'Delete failed')
+    } catch (err: unknown) {
+      toast.error('Delete failed', apiError(err) || 'Delete failed')
     }
   }
 
@@ -821,8 +837,8 @@ export function ServerDetail() {
       setServer(prev => prev ? { ...prev, status: 'offline' } : null)
       toast.warning('Reboot initiated', `${server?.name} is restarting.`)
       navigate('/servers')
-    } catch (err: any) {
-      toast.error('Reboot failed', err.response?.data?.error || 'Reboot command failed')
+    } catch (err: unknown) {
+      toast.error('Reboot failed', apiError(err) || 'Reboot command failed')
     } finally {
       setRebooting(false)
     }
@@ -834,8 +850,8 @@ export function ServerDetail() {
       const res = await api.patch(`/api/servers/${id}/preferences`, { name: prefName, tags: prefTags, description: prefDesc })
       setServer(res.data)
       toast.success('Preferences saved', 'Server display settings have been updated.')
-    } catch (err: any) {
-      toast.error('Save failed', err.response?.data?.error || 'Could not save preferences.')
+    } catch (err: unknown) {
+      toast.error('Save failed', apiError(err) || 'Could not save preferences.')
     } finally {
       setPrefSaving(false)
     }
@@ -847,8 +863,8 @@ export function ServerDetail() {
       await api.delete(`/api/servers/${id}/metrics`)
       setMetrics([])
       toast.success('Metrics purged', 'All historical performance data removed.')
-    } catch (err: any) {
-      toast.error('Purge failed', err.response?.data?.error || 'Could not purge metrics.')
+    } catch (err: unknown) {
+      toast.error('Purge failed', apiError(err) || 'Could not purge metrics.')
     } finally {
       setPurgingMetrics(false)
     }
@@ -1065,7 +1081,7 @@ export function ServerDetail() {
                   <XAxis dataKey="t" stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                   <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    formatter={(v: any) => `${v} MB/s`}
+                    formatter={(v) => `${v} MB/s`}
                     contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 12, fontFamily: 'var(--font-mono)' }}
                   />
                   <Legend iconType="plainline" wrapperStyle={{ paddingTop: 16, fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }} />

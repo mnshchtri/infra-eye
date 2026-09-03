@@ -3,11 +3,12 @@ import { Plus, Bell, History, Zap, FileCode, ShieldAlert, AlertTriangle } from '
 import { api } from '../api/client'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
-import { Modal, ModalBody, ModalFooter, SectionHeader, EmptyState, SearchInput, TabSwitcher } from '../components/ui'
+import { Modal, SectionHeader, EmptyState, SearchInput, TabSwitcher } from '../components/ui'
 
 // Sub-components
 import { RuleCard } from '../components/alerts/RuleCard'
 import { HistoryRow } from '../components/alerts/HistoryRow'
+import { apiError, errMessage } from '../utils/errors'
 
 interface Rule {
   id: number; name: string; server_id: number;
@@ -105,8 +106,8 @@ export function AlertRules() {
       setShowForm(false)
       loadData()
       toast.success(editId ? 'Rule updated' : 'Rule created', `"${form.name}" is ${form.enabled ? 'active' : 'saved (paused)'}.`)
-    } catch (e: any) {
-      toast.error('Save failed', e.response?.data?.error || 'Could not save the rule')
+    } catch (e: unknown) {
+      toast.error('Save failed', apiError(e) || 'Could not save the rule')
     }
   }, [editId, form, loadData, toast])
 
@@ -121,8 +122,8 @@ export function AlertRules() {
       toast.success('Rule deleted', 'The alert rule has been removed.')
       setConfirmDelete(null)
       loadData()
-    } catch (e: any) {
-      toast.error('Delete failed', e.response?.data?.error || 'Could not delete the rule')
+    } catch (e: unknown) {
+      toast.error('Delete failed', apiError(e) || 'Could not delete the rule')
       setConfirmDelete(null)
     }
   }, [loadData, toast])
@@ -170,8 +171,8 @@ export function AlertRules() {
       toast.success('Rules imported', `${newRules.length} rule${newRules.length === 1 ? '' : 's'} applied.`)
       setTab('rules')
       loadData()
-    } catch (e: any) {
-      toast.error('Import failed', e.response?.data?.error || e.message)
+    } catch (e: unknown) {
+      toast.error('Import failed', errMessage(e))
     } finally {
       setLoading(false)
     }

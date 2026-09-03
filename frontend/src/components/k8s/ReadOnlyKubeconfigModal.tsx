@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { X, KeyRound, Download, Copy, Trash2, ShieldCheck, AlertTriangle, Eye } from 'lucide-react'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
+import { errMessage } from '../../utils/errors'
 
 interface ReadOnlyIdentity {
   name: string
@@ -34,12 +35,6 @@ interface Props {
   onClose: () => void
 }
 
-// The backend returns real API-server messages verbatim (see DESIGN_PRINCIPLES);
-// surface those rather than a generic string, without reaching for `any`.
-function errMessage(e: unknown): string {
-  const res = (e as { response?: { data?: { error?: string } } })?.response
-  return res?.data?.error || (e instanceof Error ? e.message : 'Unknown error')
-}
 
 const EXPIRY_CHOICES = [
   { label: '7 days', days: 7 },

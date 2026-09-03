@@ -69,7 +69,6 @@ function FlowInner(props: LauncherFlowCanvasProps) {
 
   useEffect(() => {
     fitView({ padding: 0.3, duration: 300, maxZoom: 1 })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitView])
 
   return (

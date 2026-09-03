@@ -3,6 +3,7 @@ import { Plus, ChevronRight, Unlink, Trash2, RefreshCw, Server } from 'lucide-re
 import { KubernetesIcon } from '../OSIcons'
 import { FolderTag } from '../ui/FolderTag'
 import type { FolderItem } from '../../hooks/useFolders'
+import type { CSSProperties } from 'react'
 
 interface Cluster {
   id: number;
@@ -121,7 +122,7 @@ export const K8sClusterGrid = memo(({
                           '--pill-bg': isConnected ? 'var(--success-glow)' : 'var(--danger-glow)',
                           '--pill-border': isConnected ? 'var(--success)' : 'var(--danger)',
                           fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em'
-                        } as any}
+                        } as CSSProperties}
                       >
                         {isConnected ? 'Connected' : 'Offline'}
                       </span>

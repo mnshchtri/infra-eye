@@ -12,6 +12,8 @@ import { api } from '../api/client'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
 import { format } from 'date-fns'
+import { apiError } from '../utils/errors'
+import type { IconComponent } from '../types/k8s'
 
 interface ResourceDetailData {
   id: number; name: string; description?: string; tags?: string
@@ -23,7 +25,9 @@ interface UserData { id: number; username: string; email?: string; role: string 
 interface AccessEntry { id: number; resource_id: number; user_id: number; access_level: string; user?: UserData; created_at?: string }
 interface AuditEntry { id: number; resource_id: number; user_id: number; action: string; details: string; performed_by: string; created_at: string }
 interface MetricRow { id: number; timestamp: string; status: string; latency_ms: number; error?: string; metrics: string }
-interface LiveProbe { status: string; latency_ms: number; error?: string; metrics: Record<string, any> }
+type ResourceTab = 'observability' | 'overview' | 'query' | 'access' | 'audit'
+
+interface LiveProbe { status: string; latency_ms: number; error?: string; metrics: Record<string, unknown> }
 
 const accessLevels = [
   { value: 'read', label: 'Read only' },
@@ -31,7 +35,7 @@ const accessLevels = [
   { value: 'admin', label: 'Admin' },
 ]
 
-const protoIcon: Record<string, any> = {
+const protoIcon: Record<string, IconComponent> = {
   postgres: Database, mysql: Database, redis: Zap, kafka: Layers, minio: HardDrive, http: Globe, https: Globe,
 }
 
@@ -130,7 +134,7 @@ export function ResourceDetail() {
   const [users, setUsers] = useState<UserData[]>([])
   const [audits, setAudits] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'observability' | 'overview' | 'query' | 'access' | 'audit'>('observability')
+  const [activeTab, setActiveTab] = useState<ResourceTab>('observability')
   const [assignUserId, setAssignUserId] = useState<number | ''>('')
   const [assignLevel, setAssignLevel] = useState('read')
   const [savingAccess, setSavingAccess] = useState(false)
@@ -150,7 +154,7 @@ export function ResourceDetail() {
 
   // Query state
   const [sql, setSql] = useState('SELECT * FROM users LIMIT 10;')
-  const [queryResult, setQueryResult] = useState<any>(null)
+  const [queryResult, setQueryResult] = useState<{ type?: string; columns?: string[]; rows?: Record<string, unknown>[]; rows_affected?: number } | null>(null)
   const [runningQuery, setRunningQuery] = useState(false)
 
   const isSqlable = resource?.protocol === 'postgres'
@@ -169,8 +173,8 @@ export function ResourceDetail() {
       setLive(snap.data)
       setHistory(hist.data || [])
       if (showToast) toast.success('Refreshed', 'Latest reading captured.')
-    } catch (err: any) {
-      if (showToast) toast.error('Probe failed', err.response?.data?.error || 'Unable to probe resource')
+    } catch (err: unknown) {
+      if (showToast) toast.error('Probe failed', apiError(err) || 'Unable to probe resource')
     } finally { setProbing(false) }
   }, [id])
 
@@ -189,28 +193,28 @@ export function ResourceDetail() {
 
   async function loadResource() {
     try { setResource((await api.get(`/api/resources/${id}`)).data) }
-    catch (err: any) { toast.error('Load failed', err.response?.data?.error || 'Unable to load resource') }
+    catch (err: unknown) { toast.error('Load failed', apiError(err) || 'Unable to load resource') }
   }
   async function loadAudit() {
     if (!id) return
     setLoadingAudit(true)
     try {
-      const params: any = { limit: auditLimit }
+      const params: Record<string, unknown> = { limit: auditLimit }
       if (auditSince) params.since = new Date(auditSince).toISOString()
       if (auditUntil) params.until = new Date(auditUntil).toISOString()
       setAudits((await api.get(`/api/resources/${id}/audit`, { params })).data || [])
-    } catch (err: any) { toast.error('Audit load failed', err.response?.data?.error || 'Unable to load audit history') }
+    } catch (err: unknown) { toast.error('Audit load failed', apiError(err) || 'Unable to load audit history') }
     finally { setLoadingAudit(false) }
   }
   async function loadAccess() {
     if (!id) return
     try { setAccessRecords((await api.get(`/api/resources/${id}/access`)).data || []) }
-    catch (err: any) { toast.error('Access load failed', err.response?.data?.error || 'Unable to load access records') }
+    catch (err: unknown) { toast.error('Access load failed', apiError(err) || 'Unable to load access records') }
   }
   async function loadUsers() {
     if (!canManage) return
     try { setUsers((await api.get('/api/users')).data || []) }
-    catch (err: any) { toast.error('User list failed', err.response?.data?.error || 'Unable to load users') }
+    catch (err: unknown) { toast.error('User list failed', apiError(err) || 'Unable to load users') }
   }
 
   async function assignAccess() {
@@ -221,7 +225,7 @@ export function ResourceDetail() {
       toast.success('Access granted', 'User access assigned.')
       setAssignUserId(''); setAssignLevel('read')
       await Promise.all([loadAccess(), loadAudit()])
-    } catch (err: any) { toast.error('Grant failed', err.response?.data?.error || 'Unable to assign access') }
+    } catch (err: unknown) { toast.error('Grant failed', apiError(err) || 'Unable to assign access') }
     finally { setSavingAccess(false) }
   }
   async function revokeAccess(accessId: number) {
@@ -230,7 +234,7 @@ export function ResourceDetail() {
       await api.delete(`/api/resources/${id}/access/${accessId}`)
       toast.success('Access revoked', 'User access removed.')
       await Promise.all([loadAccess(), loadAudit()])
-    } catch (err: any) { toast.error('Revoke failed', err.response?.data?.error || 'Unable to revoke access') }
+    } catch (err: unknown) { toast.error('Revoke failed', apiError(err) || 'Unable to revoke access') }
     finally { setRevokingId(null) }
   }
   async function runQuery() {
@@ -240,7 +244,7 @@ export function ResourceDetail() {
       setQueryResult((await api.post(`/api/resources/${id}/query`, { sql })).data)
       toast.success('Query executed', 'The operation completed.')
       loadAudit()
-    } catch (err: any) { toast.error('Query failed', err.response?.data?.error || 'Unable to execute SQL') }
+    } catch (err: unknown) { toast.error('Query failed', apiError(err) || 'Unable to execute SQL') }
     finally { setRunningQuery(false) }
   }
 
@@ -261,7 +265,7 @@ export function ResourceDetail() {
     history.forEach(h => {
       const t = new Date(h.timestamp).getTime()
       ;(map.latency ||= []).push({ t, v: Math.round(h.latency_ms * 10) / 10 })
-      let m: any = {}
+      let m: Record<string, unknown> = {}
       try { m = JSON.parse(h.metrics || '{}') } catch { /* skip bad row */ }
       Object.entries(m).forEach(([k, v]) => { if (typeof v === 'number') (map[k] ||= []).push({ t, v }) })
     })
@@ -338,7 +342,7 @@ export function ResourceDetail() {
 
       <div className="tabs-container tabs-scroll-x" style={{ display: 'flex', gap: 2, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
         {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as ResourceTab)}
             style={{
               border: 'none', background: 'transparent', margin: 0, padding: '11px 20px', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600,
@@ -364,8 +368,8 @@ export function ResourceDetail() {
               <HeroStat label="Latency" value={live ? fmtMs(live.latency_ms) : '—'} />
               <HeroStat label="Avail 1h" value={uptimePct !== null ? `${uptimePct}%` : '—'} />
               {typeof live?.metrics?.uptime_seconds === 'number' && <HeroStat label="Uptime" value={fmtDuration(Number(live.metrics.uptime_seconds))} />}
-              {live?.metrics?.version && <HeroStat label="Version" value={`v${String(live.metrics.version)}`} />}
-              {live?.metrics?.banner && <HeroStat label="Banner" value={String(live.metrics.banner)} />}
+              {Boolean(live?.metrics?.version) && <HeroStat label="Version" value={`v${String(live?.metrics?.version)}`} />}
+              {Boolean(live?.metrics?.banner) && <HeroStat label="Banner" value={String(live?.metrics?.banner)} />}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -542,7 +546,7 @@ export function ResourceDetail() {
                     <tbody>
                       {queryResult.rows?.length === 0 ? (
                         <tr><td colSpan={queryResult.columns?.length} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No rows returned</td></tr>
-                      ) : queryResult.rows?.map((row: any, i: number) => (
+                      ) : queryResult.rows?.map((row: Record<string, unknown>, i: number) => (
                         <tr key={i}>{queryResult.columns?.map((c: string) => <td key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>{String(row[c])}</td>)}</tr>
                       ))}
                     </tbody>
@@ -722,7 +726,7 @@ function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: nu
             </defs>
             <YAxis hide domain={domain} allowDataOverflow />
             <XAxis dataKey="t" hide />
-            <Tooltip labelFormatter={(t: any) => format(new Date(t), 'HH:mm:ss')} formatter={(v: any) => [trendFmt(def, Number(v)), def.label]}
+            <Tooltip labelFormatter={(t) => format(new Date(t), 'HH:mm:ss')} formatter={(v) => [trendFmt(def, Number(v)), def.label]}
               contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
             <Area type="monotone" dataKey="v" stroke={def.color} strokeWidth={2} fill={`url(#${id})`} isAnimationActive={false} dot={false} />
           </AreaChart>
@@ -732,7 +736,7 @@ function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: nu
   )
 }
 
-function MiniStat({ icon: Icon, label, value, mono }: { icon: any; label: string; value: string; mono?: boolean }) {
+function MiniStat({ icon: Icon, label, value, mono }: { icon: IconComponent; label: string; value: string; mono?: boolean }) {
   return (
     <div className="card stat-card">
       <div className="stat-icon-wrapper"><Icon size={18} /></div>

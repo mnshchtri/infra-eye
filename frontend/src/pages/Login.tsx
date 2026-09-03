@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { useThemeSync } from '../hooks/useThemeSync'
 import logo from '../assets/logo.png'
+import { apiError } from '../utils/errors'
 
 const FEATURES = [
   'No agents — SSH and kubeconfig are all it takes',
@@ -32,8 +33,8 @@ export function Login() {
       setAuth(res.data.token, res.data.user)
       setSignedIn(true)
       setTimeout(() => navigate('/'), 700)
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Invalid credentials. Please try again.')
+    } catch (err: unknown) {
+      setError(apiError(err) || 'Invalid credentials. Please try again.')
       setLoading(false)
     }
   }

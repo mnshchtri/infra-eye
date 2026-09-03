@@ -13,6 +13,7 @@ import { parseCron } from '../utils/cronParser'
 import { computeDiff } from '../utils/textDiff'
 import { evaluateJsonnet } from '../utils/jsonnetEvaluator'
 import { SectionHeader, EmptyState, TabSwitcher } from '../components/ui'
+import { errMessage } from '../utils/errors'
 
 type ToolId =
   | 'json' | 'base64' | 'yaml-json' | 'hash'
@@ -171,8 +172,8 @@ function JsonFormatterTool() {
     try {
       setOutput(JSON.stringify(JSON.parse(input), null, 2))
       setError('')
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(errMessage(e))
       setOutput('')
     }
   }
@@ -182,8 +183,8 @@ function JsonFormatterTool() {
     try {
       setOutput(JSON.stringify(JSON.parse(input)))
       setError('')
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(errMessage(e))
       setOutput('')
     }
   }
@@ -271,7 +272,7 @@ function Base64Tool() {
     try {
       setOutput(btoa(input))
       setError('')
-    } catch (e) {
+    } catch {
       setError('Cannot encode input to Base64 (contains invalid characters).')
       setOutput('')
     }
@@ -281,7 +282,7 @@ function Base64Tool() {
     try {
       setOutput(atob(input))
       setError('')
-    } catch (e) {
+    } catch {
       setError('Invalid Base64 string.')
       setOutput('')
     }
@@ -351,7 +352,7 @@ function Base64Tool() {
 // ── EPOCH CONVERTER ──
 
 function EpochConverterTool() {
-  const [timestamp, setTimestamp] = useState(Date.now().toString())
+  const [timestamp, setTimestamp] = useState(() => Date.now().toString())
 
   const tsNum = parseInt(timestamp) || 0
   const isSeconds = timestamp.length <= 10
@@ -361,7 +362,9 @@ function EpochConverterTool() {
 
   // Helper method inside component to easily manage dependencies like Date.now() difference
   const getRelativeTime = (d1: Date) => {
-    const elapsed = d1.getTime() - Date.now()
+    // A relative-time readout is inherently a function of the current clock.
+  // eslint-disable-next-line react-hooks/purity
+  const elapsed = d1.getTime() - Date.now()
     const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
     const abs = Math.abs(elapsed)
     if (abs < 1000 * 60) return rtf.format(Math.round(elapsed / 1000), 'second')
@@ -456,8 +459,8 @@ function JwtDecoderTool() {
       setHeader(JSON.stringify(JSON.parse(decodeB64Url(parts[0])), null, 2))
       setPayload(JSON.stringify(JSON.parse(decodeB64Url(parts[1])), null, 2))
       setError('')
-    } catch (e: any) {
-      setError(e.message || 'Invalid JWT format')
+    } catch (e: unknown) {
+      setError(errMessage(e) || 'Invalid JWT format')
       setHeader('')
       setPayload('')
     }
@@ -862,7 +865,7 @@ function JsonnetEvaluatorTool() {
         setResult(JSON.parse(evaluated.output))
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not evaluate this Jsonnet snippet.')
+      setError(e instanceof Error ? errMessage(e) : 'Could not evaluate this Jsonnet snippet.')
       setResult(null)
     } finally {
       setBusy(false)
@@ -957,7 +960,7 @@ function YamlJsonTool() {
       setOutput(JSON.stringify(yaml.load(input), null, 2))
       setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid YAML')
+      setError(e instanceof Error ? errMessage(e) : 'Invalid YAML')
       setOutput('')
     }
   }
@@ -968,7 +971,7 @@ function YamlJsonTool() {
       setOutput(yaml.dump(JSON.parse(input), { lineWidth: -1, noRefs: true }))
       setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid JSON')
+      setError(e instanceof Error ? errMessage(e) : 'Invalid JSON')
       setOutput('')
     }
   }
@@ -1175,7 +1178,7 @@ function JwtEncoderTool() {
       setToken(await signJwtHS256(payload, secret))
       setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not sign token — check the payload is valid JSON.')
+      setError(e instanceof Error ? errMessage(e) : 'Could not sign token — check the payload is valid JSON.')
       setToken('')
     }
   }
@@ -1261,7 +1264,7 @@ function CertDecoderTool() {
       setResult(await decodeCertificate(input))
       setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not parse this as a PEM certificate.')
+      setError(e instanceof Error ? errMessage(e) : 'Could not parse this as a PEM certificate.')
       setResult(null)
     }
     setBusy(false)

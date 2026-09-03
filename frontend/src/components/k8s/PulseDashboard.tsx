@@ -6,10 +6,32 @@ import {
   Binary, AlertTriangle, RefreshCw, Zap,
   Activity as PulseIcon
 } from 'lucide-react'
+import type { ResourceType } from './K8sResourceExplorer'
+import type { IconComponent } from '../../types/k8s'
+
+/** The `stats` block of the Pulse websocket frame (see sendNativeFrame). */
+export interface PulseStats {
+   k8sVersion?: string
+   nodes: number; nodesReady: number
+   pods: number; podsRunning: number
+   deployments: number; deploymentsReady: number
+   replicasets: number; replicasetsReady: number
+   statefulsets: number; statefulsetsReady: number
+   daemonsets: number; daemonsetsReady: number
+   jobs: number; cronjobs: number
+   services: number; endpoints: number; ingresses: number
+   configmaps: number; secrets: number
+   pvs: number; pvcs: number; storageclasses: number
+   resourcequotas: number; hpa: number; namespaces: number
+   eventsWarning: number
+   cpuTotal: number; cpuAllocatable: number; cpuUsage: number
+   memTotal: number; memAllocatable: number; memUsage: number
+   diskTotal: number; diskAllocatable: number; diskUsage: number
+}
 
 interface PulseDashboardProps {
-   cluster: any;
-   stats: any;
+   cluster: { id: number; name: string; host?: string };
+   stats: PulseStats | null;
    namespace: string;
    error: string | null;
    // Per-resource failures from a reachable cluster — a credential scoped to
@@ -18,7 +40,7 @@ interface PulseDashboardProps {
    // so they must not be shown as ordinary zeroes.
    partialErrors: Record<string, string> | null;
    connecting: boolean;
-   onJump: (r: any) => void;
+   onJump: (r: ResourceType) => void;
    onResync: () => void;
 }
 
@@ -188,7 +210,10 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialE
    )
 })
 
-const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, loading }: any) => {
+const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, loading }: {
+   label: string; main: number; total: number; sub: string;
+   icon: IconComponent; color: string; onClick: () => void; loading: boolean;
+ }) => {
    const hasTotal = total > 0;
    const isWarning = hasTotal && main < total;
    const statusColor = isWarning ? 'var(--warning)' : color;
@@ -228,7 +253,9 @@ const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, l
    )
 })
 
-const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: any) => (
+const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: {
+   label: string; count: number; icon: IconComponent; onClick: () => void; color?: string;
+ }) => (
    <div className="card hover-lift" style={{ cursor: 'pointer', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 10 }} onClick={onClick}>
       <div style={{ width: 28, height: 28, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: color || 'var(--brand-primary)', flexShrink: 0 }}>
          <Icon size={13} strokeWidth={2.2} />
@@ -238,7 +265,10 @@ const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: any) => (
    </div>
 ))
 
-const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon: Icon }: any) => {
+const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon: Icon }: {
+   label: string; allocatable: number; usage: number; total: number;
+   unit: string; color: string; icon: IconComponent;
+ }) => {
    const formatValue = (v: number, u: string) => {
       if (u === 'B') {
          const gb = v / (1024 * 1024 * 1024);

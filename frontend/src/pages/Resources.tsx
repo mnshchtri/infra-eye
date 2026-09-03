@@ -10,6 +10,10 @@ import { usePermission } from '../hooks/usePermission'
 import { useFolders } from '../hooks/useFolders'
 import { FolderBar, type FolderSelection } from '../components/ui/FolderBar'
 import { FolderTag } from '../components/ui/FolderTag'
+import { apiError } from '../utils/errors'
+import type { FolderItem } from '../hooks/useFolders'
+import type { IconComponent } from '../types/k8s'
+import type { ReactNode, CSSProperties, Dispatch, SetStateAction } from 'react'
 
 interface ResourceData {
   id: number
@@ -31,7 +35,7 @@ interface ResourceData {
 }
 
 // Protocol → sensible defaults so the form fills itself in as you pick.
-const PROTOCOLS: Record<string, { port: number; type: string; icon: any; label: string }> = {
+const PROTOCOLS: Record<string, { port: number; type: string; icon: IconComponent; label: string }> = {
   postgres: { port: 5432, type: 'database', icon: Database, label: 'PostgreSQL' },
   mysql: { port: 3306, type: 'database', icon: Database, label: 'MySQL' },
   redis: { port: 6379, type: 'cache', icon: Zap, label: 'Redis' },
@@ -53,6 +57,8 @@ const emptyForm = {
   folder_id: null as number | null,
 }
 
+type ResourceFormState = typeof emptyForm
+
 function statusMeta(status: string) {
   switch (status) {
     case 'online': return { color: 'var(--success)', label: 'Online', badge: 'badge-online' }
@@ -70,7 +76,7 @@ export function Resources() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
-  const [form, setForm] = useState<any>(emptyForm)
+  const [form, setForm] = useState<ResourceFormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [testingId, setTestingId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -86,8 +92,8 @@ export function Resources() {
     try {
       const res = await api.get('/api/resources')
       setResources(res.data)
-    } catch (err: any) {
-      toast.error('Load failed', err.response?.data?.error || 'Unable to load resources')
+    } catch (err: unknown) {
+      toast.error('Load failed', apiError(err) || 'Unable to load resources')
     } finally {
       setLoading(false)
     }
@@ -119,7 +125,7 @@ export function Resources() {
 
   function onProtocolChange(protocol: string) {
     const meta = protoMeta(protocol)
-    setForm((f: any) => ({
+    setForm(f => ({
       ...f,
       protocol,
       resource_type: meta.type,
@@ -142,8 +148,8 @@ export function Resources() {
       }
       setShowForm(false); setEditId(null); setForm(emptyForm)
       loadResources()
-    } catch (err: any) {
-      toast.error('Save failed', err.response?.data?.error || 'Unable to save resource')
+    } catch (err: unknown) {
+      toast.error('Save failed', apiError(err) || 'Unable to save resource')
     } finally { setSaving(false) }
   }
 
@@ -164,8 +170,8 @@ export function Resources() {
     try {
       await api.patch(`/api/resources/${id}/folder`, { folder_id: folderId })
       setResources(prev => prev.map(r => r.id === id ? { ...r, folder_id: folderId } : r))
-    } catch (err: any) {
-      toast.error('Move failed', err.response?.data?.error || 'Could not move resource.')
+    } catch (err: unknown) {
+      toast.error('Move failed', apiError(err) || 'Could not move resource.')
     }
   }
 
@@ -175,8 +181,8 @@ export function Resources() {
       await api.delete(`/api/resources/${id}`)
       toast.success('Resource removed', 'The resource was deleted.')
       loadResources()
-    } catch (err: any) {
-      toast.error('Delete failed', err.response?.data?.error || 'Unable to delete resource')
+    } catch (err: unknown) {
+      toast.error('Delete failed', apiError(err) || 'Unable to delete resource')
     }
   }
 
@@ -189,8 +195,8 @@ export function Resources() {
       else if (res.data.status === 'degraded') toast.error('Degraded', res.data.error || `Reachable but unhealthy${latency}`)
       else toast.error('Connection failed', res.data.error || 'Could not reach resource')
       loadResources()
-    } catch (err: any) {
-      toast.error('Test failed', err.response?.data?.error || 'Unable to test resource')
+    } catch (err: unknown) {
+      toast.error('Test failed', apiError(err) || 'Unable to test resource')
     } finally { setTestingId(null) }
   }
 
@@ -363,7 +369,11 @@ function SummaryPill({ label, value, color, dot }: { label: string; value: numbe
   )
 }
 
-function ResourceForm({ form, setForm, editId, saving, folders, onProtocolChange, onSave, onClose }: any) {
+function ResourceForm({ form, setForm, editId, saving, folders, onProtocolChange, onSave, onClose }: {
+  form: ResourceFormState; setForm: Dispatch<SetStateAction<ResourceFormState>>;
+  editId: number | null; saving: boolean; folders: FolderItem[];
+  onProtocolChange: (p: string) => void; onSave: () => void; onClose: () => void;
+}) {
   const isDb = form.protocol === 'postgres' || form.protocol === 'mysql'
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-modal-backdrop)', background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
@@ -448,7 +458,7 @@ function ResourceForm({ form, setForm, editId, saving, folders, onProtocolChange
           <Field label="Folder">
             <select className="input" value={form.folder_id ?? ''} onChange={(e) => setForm({ ...form, folder_id: e.target.value ? Number(e.target.value) : null })}>
               <option value="">No folder</option>
-              {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              {folders.map((f: FolderItem) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </Field>
         </div>
@@ -464,7 +474,7 @@ function ResourceForm({ form, setForm, editId, saving, folders, onProtocolChange
   )
 }
 
-function Field({ label, children, style }: { label: string; children: any; style?: any }) {
+function Field({ label, children, style }: { label: string; children: ReactNode; style?: CSSProperties }) {
   return (
     <div className="input-group" style={{ marginBottom: 0, ...style }}>
       <label className="input-label">{label}</label>

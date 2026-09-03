@@ -6,6 +6,7 @@ import chatbotLogo from '../assets/chatbot-logo.png'
 // Sub-components
 import { MessageItem } from '../components/ai/MessageItem'
 import { ThreadSidebar } from '../components/ai/ThreadSidebar'
+import { apiError, apiErrorBody, errMessage } from '../utils/errors'
 
 interface ServerData { id: number; name: string; is_k8s?: boolean }
 
@@ -107,6 +108,8 @@ const SuggestionCard = memo(({ group, text, onClick }: { group: SuggestionGroup;
 })
 SuggestionCard.displayName = 'SuggestionCard'
 
+type AIProvider = 'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude' | 'local'
+
 export function AIAssistant() {
   const [servers, setServers] = useState<ServerData[]>([])
   const [selectedServer, setSelectedServer] = useState<number | ''>('')
@@ -116,7 +119,7 @@ export function AIAssistant() {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
-  const [provider, setProvider] = useState<'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude' | 'local'>('mistral')
+  const [provider, setProvider] = useState<AIProvider>('mistral')
   const [mcpAvailable, setMcpAvailable] = useState(false)
   const [inputFocused, setInputFocused] = useState(false)
 
@@ -170,7 +173,7 @@ export function AIAssistant() {
     const fetchHistory = async () => {
       try {
         const res = await api.get(`/api/ai/history/${activeThreadId}`)
-        const history = res.data.map((m: any) => ({
+        const history = res.data.map((m: { id: number; role: string; content: string; created_at: string }) => ({
           id: m.id.toString(),
           role: m.role,
           content: m.content,
@@ -263,10 +266,10 @@ export function AIAssistant() {
         setActiveThreadId(res.data.thread_id)
         api.get(`/api/ai/threads?server_id=${selectedServer || 0}`).then(res => setThreads(res.data))
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessages(prev => [...prev, {
         id: Date.now().toString() + 'e', role: 'assistant',
-        content: `**Error:** ${err.response?.data?.error || 'Failed to reach the Netra service.'}`,
+        content: `**Error:** ${apiError(err) || 'Failed to reach the Netra service.'}`,
         timestamp: new Date(),
       }])
     } finally {
@@ -322,13 +325,13 @@ export function AIAssistant() {
       setTimeout(() => {
         askQuestion(`Analyze the following \`${tool}\` output and summarize findings with actionable next steps:\n\`\`\`\n${output.slice(0, 4000)}\n\`\`\``)
       }, 400)
-    } catch (err: any) {
-      const errData = err.response?.data
+    } catch (err: unknown) {
+      const errData = apiErrorBody(err)
       const errMsg: Message = {
         id: Date.now().toString() + '_mcperr',
         role: 'assistant',
         content: [
-          `**⚠️ MCP Tool Error: \`${tool}\`** ${errData?.error || err.message}`,
+          `**⚠️ MCP Tool Error: \`${tool}\`** ${errData?.error || errMessage(err)}`,
           errData?.details ? `\n> ${errData.details}` : '',
         ].filter(Boolean).join('\n'),
         timestamp: new Date(),
@@ -414,7 +417,7 @@ export function AIAssistant() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <select value={provider} onChange={e => setProvider(e.target.value as any)} title="AI model provider" style={selectStyle}>
+              <select value={provider} onChange={e => setProvider(e.target.value as AIProvider)} title="AI model provider" style={selectStyle}>
                 <option value="mistral">Mistral</option>
                 <option value="claude">Claude</option>
                 <option value="google">Gemini</option>

@@ -1,7 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Server, Boxes,
-  Bot, Bell, Settings, LogOut, ChevronRight,
+  LayoutDashboard, Server,   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
   ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow, Map
 } from 'lucide-react'
@@ -14,10 +13,12 @@ import { KubernetesIcon } from '../OSIcons'
 import { api } from '../../api/client'
 import { Modal, ModalBody, ModalFooter, Button } from '../ui'
 import { useState, useEffect, Fragment } from 'react'
+import { errMessage } from '../../utils/errors'
+import type { IconComponent } from '../../types/k8s'
 
 type NavItem = {
   to: string
-  icon: any
+  icon: IconComponent
   label: string
   action?: PermissionAction
 }
@@ -73,7 +74,7 @@ export function Sidebar() {
   const navigate = useNavigate()
   const toast = useToastStore()
 
-  const [servers, setServers] = useState<any[]>([])
+  const [servers, setServers] = useState<{ id: number; name: string; is_k8s?: boolean; status?: string }[]>([])
   const [serversExpanded, setServersExpanded] = useState(true)
   useEffect(() => {
     api.get('/api/servers')
@@ -109,8 +110,8 @@ export function Sidebar() {
         setUpdateInfo(null)
         if (manual) toast.success('Up to date', `You're already on the latest version (v${__APP_VERSION__}).`)
       }
-    } catch (e: any) {
-      if (manual) toast.error('Update check failed', e.response?.data?.error || e.message)
+    } catch (e: unknown) {
+      if (manual) toast.error('Update check failed', errMessage(e))
     } finally {
       setUpdateState('idle')
     }
@@ -142,8 +143,8 @@ export function Sidebar() {
         toast.error('Update failed', res.data?.error || 'Unknown error')
         setUpdateState('idle')
       }
-    } catch (e: any) {
-      toast.error('Update failed', e.response?.data?.error || e.message)
+    } catch (e: unknown) {
+      toast.error('Update failed', errMessage(e))
       setUpdateState('idle')
     }
   }

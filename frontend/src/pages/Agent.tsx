@@ -11,6 +11,7 @@ import { StepInspector } from '../components/agent/StepInspector'
 import { LauncherFlowCanvas } from '../components/agent/LauncherFlowCanvas'
 import type { AgentProvider } from '../components/agent/LauncherFlowNodes'
 import type { ServerData, AgentRun } from './agentTypes'
+import { errMessage } from '../utils/errors'
 
 const STATUS_BADGE: Record<AgentRun['status'], { label: string; variant: 'primary' | 'warning' | 'success' | 'danger' | 'neutral' }> = {
   running: { label: 'Running', variant: 'primary' },
@@ -120,8 +121,8 @@ export function Agent() {
       setActiveRunId(res.data.id)
       setActiveRun(res.data)
       fetchRuns()
-    } catch (err: any) {
-      toast.error('Could not start agent run', err.response?.data?.error || err.message)
+    } catch (err: unknown) {
+      toast.error('Could not start agent run', errMessage(err))
     } finally {
       setStarting(false)
     }
@@ -134,8 +135,8 @@ export function Agent() {
       const res = await api.post(`/api/agent/runs/${activeRunId}/steps/${stepId}/approve`)
       setActiveRun(res.data)
       fetchRuns()
-    } catch (err: any) {
-      toast.error('Could not approve step', err.response?.data?.error || err.message)
+    } catch (err: unknown) {
+      toast.error('Could not approve step', errMessage(err))
     } finally {
       setBusyStepId(null)
     }
@@ -148,8 +149,8 @@ export function Agent() {
       const res = await api.post(`/api/agent/runs/${activeRunId}/steps/${stepId}/reject`)
       setActiveRun(res.data)
       fetchRuns()
-    } catch (err: any) {
-      toast.error('Could not reject step', err.response?.data?.error || err.message)
+    } catch (err: unknown) {
+      toast.error('Could not reject step', errMessage(err))
     } finally {
       setBusyStepId(null)
     }
@@ -162,8 +163,8 @@ export function Agent() {
       const res = await api.post(`/api/agent/runs/${activeRunId}/cancel`)
       setActiveRun(res.data)
       fetchRuns()
-    } catch (err: any) {
-      toast.error('Could not cancel run', err.response?.data?.error || err.message)
+    } catch (err: unknown) {
+      toast.error('Could not cancel run', errMessage(err))
     } finally {
       setCancelling(false)
     }
@@ -177,8 +178,8 @@ export function Agent() {
         setActiveRun(null)
       }
       setRuns(prev => prev.filter(r => r.id !== id))
-    } catch (err: any) {
-      toast.error('Could not delete run', err.response?.data?.error || err.message)
+    } catch (err: unknown) {
+      toast.error('Could not delete run', errMessage(err))
     }
   }, [activeRunId, toast])
 

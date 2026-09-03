@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
+import { apiError } from '../utils/errors'
 
 interface SecurityScanSummary {
   target_type: string
@@ -27,7 +28,23 @@ interface UseSecurityScanOptions<TTarget> {
   scanErrorMessage: string
 }
 
-export function useSecurityScan<TTarget, TResult = any>({
+/**
+ * The fields this hook probes to summarise a scan. Each audit endpoint returns
+ * its own result shape (kernel CVEs, hardening checks, cluster posture,
+ * resource exposure), and they disagree on what the count is called — so the
+ * hook reads whichever of these is present rather than modelling each payload.
+ */
+interface ScanResultShape {
+  scanned_at?: string
+  findings?: unknown[]
+  checks?: unknown[]
+  finding_count?: number
+  high_count?: number
+  vulnerable_count?: number
+  fail_count?: number
+}
+
+export function useSecurityScan<TTarget, TResult = unknown>({
   targetType, scanType, loadTargets, scanUrl, scanErrorMessage,
 }: UseSecurityScanOptions<TTarget>) {
   const toast = useToastStore()
@@ -65,8 +82,8 @@ export function useSecurityScan<TTarget, TResult = any>({
   async function scan(id: number) {
     setScanning(prev => ({ ...prev, [id]: true }))
     try {
-      const res = await api.get<{ result: TResult & { scanned_at?: string; findings?: any[]; checks?: any[] } }>(scanUrl(id))
-      const result = res.data.result as any
+      const res = await api.get<{ result: TResult & ScanResultShape }>(scanUrl(id))
+      const result: ScanResultShape = res.data.result
       const findings = result.findings ?? result.checks ?? []
       const findingCount = typeof result.finding_count === 'number' ? result.finding_count : findings.length
       const highCount = typeof result.high_count === 'number' ? result.high_count
@@ -77,8 +94,8 @@ export function useSecurityScan<TTarget, TResult = any>({
         [id]: { result: res.data.result, findingCount, highCount, scannedAt: result.scanned_at ?? new Date().toISOString(), cached: false },
       }))
       setExpanded(prev => ({ ...prev, [id]: true }))
-    } catch (err: any) {
-      toast.error('Scan failed', err.response?.data?.error || scanErrorMessage)
+    } catch (err: unknown) {
+      toast.error('Scan failed', apiError(err) || scanErrorMessage)
     } finally {
       setScanning(prev => ({ ...prev, [id]: false }))
     }

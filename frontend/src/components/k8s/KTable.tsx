@@ -1,27 +1,28 @@
 import { memo } from 'react'
 import { Inbox } from 'lucide-react'
+import type { K8sRow } from '../../types/k8s'
 
 interface KTableProps {
   columns: string[];
-  data: any[];
-  actions?: (item: any) => React.ReactNode;
+  data: K8sRow[];
+  actions?: (item: K8sRow) => React.ReactNode;
   selectedIndex: number;
   loading: boolean;
-  onNameClick?: (item: any) => void;
+  onNameClick?: (item: K8sRow) => void;
   /** Row-selection checkboxes (bulk actions). Omit to keep the table as-is. */
   selectable?: boolean;
-  isRowChecked?: (item: any) => boolean;
-  onToggleRow?: (item: any) => void;
+  isRowChecked?: (item: K8sRow) => boolean;
+  onToggleRow?: (item: K8sRow) => void;
   allChecked?: boolean;
   onToggleAll?: () => void;
 }
 
-const getVal = (item: any, col: string) => {
+const getVal = (item: K8sRow, col: string) => {
   switch(col.toLowerCase()) {
     case 'name': return item.metadata.name;
     case 'namespace': return item.metadata.namespace;
     case 'status': {
-      const val = item.status?.phase || (item.status?.conditions?.find((c: any) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
+      const val = item.status?.phase || (item.status?.conditions?.find((c: K8sRow) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
       return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`} style={{ borderRadius: 0, textTransform: 'uppercase', fontSize: 11, minWidth: 80 }}>{val}</span>;
     }
     case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
@@ -62,7 +63,7 @@ const getVal = (item: any, col: string) => {
     case 'allowvolumeexpansion': return item.allowVolumeExpansion ? 'True' : 'False';
     case 'age': {
         if (!item.lastTimestamp && !item.creationTimestamp) return '—';
-        const ts = new Date(item.lastTimestamp || item.creationTimestamp).getTime();
+        const ts = new Date(item.lastTimestamp || item.creationTimestamp || item.metadata.creationTimestamp || 0).getTime();
         const diff = (Date.now() - ts) / 1000;
         if (diff < 60) return `${Math.floor(diff)}s`;
         if (diff < 3600) return `${Math.floor(diff/60)}m`;
@@ -70,12 +71,12 @@ const getVal = (item: any, col: string) => {
         return `${Math.floor(diff/86400)}d`;
     }
     case 'cluster-ip': return item.spec?.clusterIP;
-    case 'internal-ip': return item.status?.addresses?.find((a: any) => a.type === 'InternalIP')?.address;
+    case 'internal-ip': return item.status?.addresses?.find((a: K8sRow) => a.type === 'InternalIP')?.address;
     default: return '—';
   }
 }
 
-const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, checked, onToggleChecked }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode; onNameClick?: (item: any) => void; checked?: boolean; onToggleChecked?: (item: any) => void }) => {
+const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, checked, onToggleChecked }: { item: K8sRow; columns: string[]; isSelected: boolean; actions?: (item: K8sRow) => React.ReactNode; onNameClick?: (item: K8sRow) => void; checked?: boolean; onToggleChecked?: (item: K8sRow) => void }) => {
   return (
     <tr className={isSelected ? 'k-row-selected' : ''}>
       {onToggleChecked && (
@@ -180,7 +181,7 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
                    </div>
                  </td>
                </tr>
-             ) : data.map((item: any, i: number) => (
+             ) : data.map((item: K8sRow, i: number) => (
                 <KTableRow 
                   key={item.metadata?.uid || `${item.metadata?.name}-${i}`} 
                   item={item} 
