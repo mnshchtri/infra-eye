@@ -182,6 +182,14 @@ func OIDCCallback(c *gin.Context) {
 		return
 	}
 
+	// Same gate as the local login path — an operator who deactivates an account
+	// must not be able to be re-admitted through SSO.
+	if !user.IsActive {
+		log.Printf("Rejected OIDC login for deactivated user: %s", user.Username)
+		c.JSON(http.StatusForbidden, gin.H{"error": "account is deactivated"})
+		return
+	}
+
 	// Generate internal JWT token
 	claims := &middleware.Claims{
 		UserID:   user.ID,

@@ -7,6 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/infra-eye/backend/internal/config"
+	"github.com/infra-eye/backend/internal/db"
+	"github.com/infra-eye/backend/internal/models"
 )
 
 type Claims struct {
@@ -43,6 +45,19 @@ func Auth() gin.HandlerFunc {
 		})
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			return
+		}
+
+		// Tokens live 24h, so checking IsActive only at login would leave a
+		// deactivated account with a working session for up to a day. Re-read the
+		// account on each request so deactivation takes effect immediately.
+		var user models.User
+		if err := db.DB.Select("id", "role", "is_active").First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "account no longer exists"})
+			return
+		}
+		if !user.IsActive {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "account is deactivated"})
 			return
 		}
 
