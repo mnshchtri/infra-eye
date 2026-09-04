@@ -14,7 +14,7 @@ interface ServerData {
   os: string
   distro?: string
   status: string
-  kube_config?: string
+  has_kubeconfig?: boolean
 }
 
 async function loadServers(): Promise<ServerData[]> {
@@ -22,7 +22,7 @@ async function loadServers(): Promise<ServerData[]> {
   const list: ServerData[] = Array.isArray(res.data) ? res.data : []
   // Kernel scanning needs a live Linux SSH shell — exclude kubeconfig-only
   // clusters and non-Linux hosts (macOS has no comparable kernel CVE surface here).
-  return list.filter(s => s.host && !s.kube_config && s.os !== 'darwin')
+  return list.filter(s => s.host && !s.has_kubeconfig && s.os !== 'darwin')
 }
 
 function fmtAgo(iso: string) {

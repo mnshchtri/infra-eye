@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
+import { apiError } from '../utils/errors'
 
 export interface FolderItem {
   id: number
@@ -27,8 +28,8 @@ export function useFolders() {
       await api.post('/api/folders', { name, color })
       useToastStore.getState().success('Folder created', `"${name}" is ready to use.`)
       load()
-    } catch (e: any) {
-      useToastStore.getState().error('Failed to create folder', e.response?.data?.error || 'Please try again.')
+    } catch (e: unknown) {
+      useToastStore.getState().error('Failed to create folder', apiError(e) || 'Please try again.')
     }
   }
 
@@ -37,8 +38,8 @@ export function useFolders() {
       await api.delete(`/api/folders/${id}`)
       useToastStore.getState().info('Folder deleted', 'Its contents are now unassigned.')
       load()
-    } catch (e: any) {
-      useToastStore.getState().error('Failed to delete folder', e.response?.data?.error || 'Please try again.')
+    } catch (e: unknown) {
+      useToastStore.getState().error('Failed to delete folder', apiError(e) || 'Please try again.')
     }
   }
 

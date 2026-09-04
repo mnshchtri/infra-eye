@@ -1,30 +1,13 @@
 import { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import {
-  Target, Terminal, Boxes, Flag, CheckCircle2, XCircle,
-  AlertTriangle, Ban, Loader, Clock, Check, X,
+  Target, Flag, CheckCircle2, XCircle,
+  AlertTriangle, Loader, Clock, Check, X,
 } from 'lucide-react'
 import type { AgentStep } from '../../pages/agentTypes'
+import { kindMeta, nodeColor } from './agentFlowMeta'
 
-export function kindMeta(kind: AgentStep['kind']) {
-  switch (kind) {
-    case 'ssh_command': return { label: 'SSH command', icon: Terminal, color: 'var(--info, #3b82f6)' }
-    case 'mcp_tool': return { label: 'Kubernetes / MCP', icon: Boxes, color: 'var(--brand-primary)' }
-    case 'unknown_tool': return { label: 'Unknown tool', icon: Ban, color: 'var(--danger)' }
-    default: return { label: 'Final answer', icon: Flag, color: 'var(--success)' }
-  }
-}
 
-export function nodeColor(step: AgentStep): string {
-  if (step.kind === 'final_answer') return 'var(--success)'
-  switch (step.status) {
-    case 'pending_approval': return 'var(--warning, #d97706)'
-    case 'executed': return 'var(--success)'
-    case 'failed': return 'var(--danger)'
-    case 'rejected': return 'var(--text-muted)'
-    default: return kindMeta(step.kind).color
-  }
-}
 
 export interface GoalNodeData extends Record<string, unknown> {
   kind: 'goal'

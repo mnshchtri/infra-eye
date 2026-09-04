@@ -1,4 +1,4 @@
-import { Menu, X, Bell } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import logo from '../../assets/logo.png'
 

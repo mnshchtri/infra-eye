@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react'
-import { X, Upload, Info, Terminal, Shield, CheckCircle2, XCircle, CloudUpload, FileText, Loader2, Clock, Activity, Zap } from 'lucide-react'
+import { X, Terminal, Shield, XCircle, CloudUpload, Loader2, Activity, Zap } from 'lucide-react'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import type { FolderItem } from '../../hooks/useFolders'
+import { apiError } from '../../utils/errors'
 
 interface AddClusterModalProps {
   onClose: () => void;
@@ -56,8 +57,8 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
     try {
       const res = await api.post('/api/servers/test-k8s', { ...form, auth_type: 'password' })
       setTestResult({ success: res.data.success, msg: res.data.output || 'Connected successfully' })
-    } catch (e: any) {
-      setTestResult({ success: false, msg: e.response?.data?.error || 'Connection failed' })
+    } catch (e: unknown) {
+      setTestResult({ success: false, msg: apiError(e) || 'Connection failed' })
     } finally {
       setLoading(false)
     }
@@ -71,7 +72,7 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
     }
     setLoading(true)
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         name: form.name,
         kube_config: form.kube_config,
         auth_type: 'password',
@@ -87,8 +88,8 @@ export function AddClusterModal({ onClose, onSuccess, folders = [] }: AddCluster
       useToastStore.getState().success('Cluster Connected', `${form.name} integrated`)
       onSuccess()
       onClose()
-    } catch (e: any) {
-      useToastStore.getState().error('Failed', e.response?.data?.error || 'Could not add cluster')
+    } catch (e: unknown) {
+      useToastStore.getState().error('Failed', apiError(e) || 'Could not add cluster')
     } finally {
       setLoading(false)
     }

@@ -1,90 +1,143 @@
 import { memo } from 'react'
 import {
-  Server, Boxes, LayoutGrid, Zap, RefreshCw, Globe,
-  FileCode, Key, Database, Layers, Cpu, Activity,
-  Shield, Hash, Network, HardDrive, Box, Clock,
-  Binary, Activity as PulseIcon, AlertTriangle
+  Server, Boxes, LayoutGrid, Globe,
+  FileCode, Key, Database, Activity,
+  Shield, HardDrive, Box, Clock,
+  Binary, AlertTriangle, RefreshCw, Zap,
+  Activity as PulseIcon
 } from 'lucide-react'
+import type { ResourceType } from './K8sResourceExplorer'
+import type { IconComponent } from '../../types/k8s'
+
+/** The `stats` block of the Pulse websocket frame (see sendNativeFrame). */
+export interface PulseStats {
+   k8sVersion?: string
+   nodes: number; nodesReady: number
+   pods: number; podsRunning: number
+   deployments: number; deploymentsReady: number
+   replicasets: number; replicasetsReady: number
+   statefulsets: number; statefulsetsReady: number
+   daemonsets: number; daemonsetsReady: number
+   jobs: number; cronjobs: number
+   services: number; endpoints: number; ingresses: number
+   configmaps: number; secrets: number
+   pvs: number; pvcs: number; storageclasses: number
+   resourcequotas: number; hpa: number; namespaces: number
+   eventsWarning: number
+   cpuTotal: number; cpuAllocatable: number; cpuUsage: number
+   memTotal: number; memAllocatable: number; memUsage: number
+   diskTotal: number; diskAllocatable: number; diskUsage: number
+}
 
 interface PulseDashboardProps {
-   cluster: any;
-   stats: any;
+   cluster: { id: number; name: string; host?: string };
+   stats: PulseStats | null;
    namespace: string;
    error: string | null;
+   // Per-resource failures from a reachable cluster — a credential scoped to
+   // some namespaces, or an API group the cluster doesn't serve. The counts
+   // for these are zero because the lookup failed, not because they're empty,
+   // so they must not be shown as ordinary zeroes.
+   partialErrors: Record<string, string> | null;
    connecting: boolean;
-   onJump: (r: any) => void;
+   onJump: (r: ResourceType) => void;
    onResync: () => void;
 }
 
-export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecting, onJump, onResync }: PulseDashboardProps) => {
+const Meta = ({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+    <b style={{ color: 'var(--text-secondary)', fontFamily: mono ? 'var(--font-mono)' : undefined, fontWeight: 700 }}>{value}</b>
+  </span>
+)
+
+const StatusBadge = ({ connecting, error, degraded }: { connecting: boolean; error: boolean; degraded: boolean }) => {
+  // Reachability outranks everything: reporting "Online" next to a screen of
+  // zeroes, when the zeroes exist because the cluster never answered, is the
+  // one state this badge must never show.
+  const cls = error ? 'badge badge-danger' : connecting ? 'badge badge-warning' : degraded ? 'badge badge-warning' : 'badge badge-success'
+  const label = error ? 'Unreachable' : connecting ? 'Connecting…' : degraded ? 'Partial access' : 'Online'
+  return (
+    <span className={cls} style={{ gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+      {label}
+    </span>
+  )
+}
+
+const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+    <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>{children}</h3>
+    <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.5 }} />
+  </div>
+)
+
+export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialErrors, connecting, onJump, onResync }: PulseDashboardProps) => {
+   const failed = partialErrors ? Object.keys(partialErrors) : []
+   const degraded = failed.length > 0
    return (
-      <div className="fade-in" style={{ padding: '0 4px', maxWidth: '100%', margin: '0' }}>
-         {/* System Header */}
-         <div style={{ 
-            marginBottom: 32, 
-            borderBottom: '1px solid var(--border)', 
-            paddingBottom: 24, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'flex-end',
-            gap: 16
-         }}>
-            <div style={{ flex: 1 }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <div style={{ 
-                    display: 'flex', alignItems: 'center', gap: 6, 
-                    background: 'var(--success-glow)', border: '1px solid var(--success)20', 
-                    padding: '3px 8px', borderRadius: 0 
-                  }}>
-                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--success)' }} />
-                    <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>Online</span>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
-                    STREAM: OK
+      <div className="fade-in" style={{ padding: '0 6px', maxWidth: '100%' }}>
+         {/* Header */}
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 26 }}>
+            <div style={{ minWidth: 0 }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <StatusBadge connecting={connecting} error={!!error} degraded={degraded} />
+                  {stats?.k8sVersion && <span className="badge badge-neutral" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>{stats.k8sVersion}</span>}
+                  <span className="badge badge-neutral hidden-mobile" style={{ fontSize: 11 }}>Kubernetes engine</span>
+               </div>
+               <h1 style={{ fontSize: 23, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25, margin: '0 0 10px' }}>
+                  {cluster.name}
+               </h1>
+               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12.5, lineHeight: 1.4 }}>
+                  <Meta label="Host:" value={cluster.host || 'auto'} />
+                  <span style={{ opacity: 0.35 }}>•</span>
+                  <Meta label="Scope:" value={namespace === 'All' ? 'Cluster scope' : namespace} />
+                  <span className="hidden-mobile" style={{ opacity: 0.35 }}>•</span>
+                  <span className="hidden-mobile" style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Clock size={12} /> Live streaming
                   </span>
                </div>
-               
-               <h1 style={{ 
-                 fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', 
-                 letterSpacing: '-0.03em', marginBottom: 6, textTransform: 'uppercase'
-               }}>
-                 {cluster.name}
-               </h1>
-               
-               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>HOST: <span style={{ color: 'var(--text-secondary)' }}>{cluster.host || 'AUTO'}</span></span>
-                  <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>ENGINE: <span style={{ color: 'var(--brand-primary)' }}>NATIVE_K8S</span></span>
-                  <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
-                  {stats?.k8sVersion && (
-                    <>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>VERSION: <span style={{ color: 'var(--text-secondary)' }}>{stats.k8sVersion}</span></span>
-                      <div style={{ width: 1, height: 8, background: 'var(--border)' }} />
-                    </>
-                  )}
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                     <Clock size={12} color="var(--text-muted)" />
-                     <span style={{ color: 'var(--text-muted)', fontWeight: 800 }}>99.9% UPTIME</span>
-                  </div>
-               </div>
             </div>
+            <button
+              className="btn btn-secondary"
+              onClick={onResync}
+              title="Reconnect the live data stream"
+              style={{ height: 34, padding: '0 14px', fontWeight: 700, fontSize: 12.5, flexShrink: 0 }}
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
          </div>
 
          {error ? (
-            <div className="card" style={{ padding: '60px 40px', textAlign: 'center', border: '1px solid var(--danger)30', borderRadius: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-card)' }}>
-               <Zap size={24} color="var(--danger)" style={{ marginBottom: 20 }} />
-               <h2 style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Link Fault Detect</h2>
-               <div style={{ marginTop: 20, padding: '16px', background: 'var(--bg-app)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)', width: '100%', maxWidth: 600, textAlign: 'left' }}>
+            <div style={{ border: '1px solid var(--danger)30', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '48px 32px', textAlign: 'center' }}>
+               <Zap size={22} color="var(--danger)" style={{ marginBottom: 14 }} />
+               <h2 style={{ fontWeight: 800, fontSize: 16, margin: '0 0 6px' }}>Could not reach the cluster</h2>
+               <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 18px' }}>The real-time stream failed. Check the cluster connection and try again.</p>
+               <div style={{ margin: '0 auto 20px', maxWidth: 560, padding: 12, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)', textAlign: 'left', wordBreak: 'break-word' }}>
                   {error}
                </div>
-               <button className="btn btn-primary" onClick={onResync} style={{ marginTop: 24, padding: '10px 24px', borderRadius: 0, fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)' }}>REINITIALIZE</button>
+               <button className="btn btn-primary" onClick={onResync} style={{ fontWeight: 700 }}>
+                  <RefreshCw size={14} /> Reconnect
+               </button>
             </div>
          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+               {degraded && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', border: '1px solid var(--warning)40', background: 'var(--warning)10', borderRadius: 'var(--radius-md)' }}>
+                     <AlertTriangle size={15} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
+                     <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, minWidth: 0 }}>
+                        <b style={{ color: 'var(--text-primary)' }}>Some resources could not be read.</b>{' '}
+                        Counts below show 0 for {failed.join(', ')} because the lookup failed, not because none exist.
+                        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
+                           {partialErrors && partialErrors[failed[0]]}
+                        </div>
+                     </div>
+                  </div>
+               )}
                {stats && (
                   <>
-                     {/* Tier 1: Compact Core Metrics */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
+                     {/* Tier 1: Core metrics */}
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 14 }}>
                         <PulseStat
                            label="Nodes" main={stats.nodesReady || 0} total={stats.nodes || 0} sub="Ready"
                            icon={Server} color="var(--info)" onClick={() => onJump('nodes')} loading={connecting}
@@ -101,68 +154,36 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
 
                      {/* Tier 2: Consumption */}
                      {(stats.cpuTotal > 0 || stats.memTotal > 0) && (
-                        <div>
-                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                              <h3 style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Resource Metrics</h3>
-                              <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.3 }} />
-                           </div>
-                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 16 }}>
-                               <CapacityCard
-                                 label="CPU Resources"
+                        <section>
+                           <SectionTitle>Resource metrics</SectionTitle>
+                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 14 }}>
+                              <CapacityCard
+                                 label="CPU resources"
                                  allocatable={stats.cpuAllocatable}
                                  usage={stats.cpuUsage}
                                  total={stats.cpuTotal}
                                  unit="m"
-                                 color="#3b82f6"
+                                 color="#2b9af3"
                                  icon={Activity}
                               />
                               <CapacityCard
-                                 label="Memory Resources"
+                                 label="Memory resources"
                                  allocatable={stats.memAllocatable}
                                  usage={stats.memUsage}
                                  total={stats.memTotal}
                                  unit="B"
-                                 color="#f59e0b"
-                                 icon={HardDrive}
-                              />
-                              <CapacityCard
-                                 label="Ephemeral Disk"
-                                 allocatable={stats.diskAllocatable}
-                                 usage={stats.diskUsage}
-                                 total={stats.diskTotal}
-                                 unit="B"
-                                 color="#10b981"
-                                 icon={Database}
+                                 color="#5ba352"
+                                 icon={Box}
                               />
                            </div>
-                        </div>
+                        </section>
                      )}
 
-                     {/* Tier 3: Workloads */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
-                        <PulseStat
-                           label="ReplicaSets" main={stats.replicasetsReady || 0} total={stats.replicasets || 0} sub="Nominal"
-                           icon={Layers} color="#6366f1" onClick={() => onJump('replicasets')} loading={connecting} small
-                        />
-                        <PulseStat
-                           label="StatefulSets" main={stats.statefulsetsReady || 0} total={stats.statefulsets || 0} sub="Nominal"
-                           icon={Database} color="#ec4899" onClick={() => onJump('statefulsets')} loading={connecting} small
-                        />
-                        <PulseStat
-                           label="DaemonSets" main={stats.daemonsetsReady || 0} total={stats.daemonsets || 0} sub="Nominal"
-                           icon={Cpu} color="#06b6d4" onClick={() => onJump('daemonsets')} loading={connecting} small
-                        />
-                     </div>
-
-                     {/* Tier 4: Compact Inventory */}
-                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                           <h3 style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.15em', fontFamily: 'var(--font-mono)' }}>Inventory Dash</h3>
-                           <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.3 }} />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-                           <MiniStat label="Namespaces" count={stats.namespaces} icon={Hash} onClick={() => onJump('namespaces')} />
-                           <MiniStat label="Services" count={stats.services} icon={Network} onClick={() => onJump('services')} />
+                     {/* Tier 3: Resource counts */}
+                     <section>
+                        <SectionTitle>Resource counts</SectionTitle>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 10 }}>
+                           <MiniStat label="Services" count={stats.services} icon={Globe} onClick={() => onJump('services')} />
                            <MiniStat label="Endpoints" count={stats.endpoints} icon={Boxes} onClick={() => onJump('endpoints')} />
                            <MiniStat label="Ingresses" count={stats.ingresses} icon={Globe} onClick={() => onJump('ingresses')} />
                            <MiniStat label="ConfigMaps" count={stats.configmaps} icon={FileCode} onClick={() => onJump('configmaps')} />
@@ -175,12 +196,12 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
                            <MiniStat label="Jobs" count={stats.jobs} icon={Zap} onClick={() => onJump('jobs')} />
                            <MiniStat label="CronJobs" count={stats.cronjobs} icon={Binary} onClick={() => onJump('cronjobs')} />
                            <MiniStat
-                             label="Warning Events" count={stats.eventsWarning} icon={AlertTriangle}
+                             label="Warning events" count={stats.eventsWarning} icon={AlertTriangle}
                              color={stats.eventsWarning > 0 ? 'var(--warning)' : undefined}
                              onClick={() => onJump('events')}
                            />
                         </div>
-                     </div>
+                     </section>
                   </>
                )}
             </div>
@@ -189,110 +210,102 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, connecti
    )
 })
 
-const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon: Icon }: any) => {
+const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, loading }: {
+   label: string; main: number; total: number; sub: string;
+   icon: IconComponent; color: string; onClick: () => void; loading: boolean;
+ }) => {
+   const hasTotal = total > 0;
+   const isWarning = hasTotal && main < total;
+   const statusColor = isWarning ? 'var(--warning)' : color;
+
+   return (
+      <div className="card hover-lift" onClick={onClick} style={{ cursor: 'pointer', padding: 18, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+               <div style={{ width: 30, height: 30, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: statusColor, flexShrink: 0 }}>
+                  <Icon size={14} strokeWidth={2.2} />
+               </div>
+               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+            </div>
+            {hasTotal && (
+               <span className={`badge ${isWarning ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                  {isWarning ? 'Attention' : 'Healthy'}
+               </span>
+            )}
+         </div>
+
+         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
+               {loading ? '—' : (main || 0)}
+            </span>
+            {hasTotal && (
+               <span style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>/ {loading ? '—' : (total || 0)}</span>
+            )}
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{sub}</span>
+         </div>
+
+         {hasTotal && (
+            <div style={{ height: 4, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+               <div style={{ height: '100%', width: `${Math.min((main / total) * 100, 100)}%`, background: statusColor, transition: 'width 1s ease' }} />
+            </div>
+         )}
+      </div>
+   )
+})
+
+const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: {
+   label: string; count: number; icon: IconComponent; onClick: () => void; color?: string;
+ }) => (
+   <div className="card hover-lift" style={{ cursor: 'pointer', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 10 }} onClick={onClick}>
+      <div style={{ width: 28, height: 28, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: color || 'var(--brand-primary)', flexShrink: 0 }}>
+         <Icon size={13} strokeWidth={2.2} />
+      </div>
+      <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 800, color: color || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count || 0}</span>
+   </div>
+))
+
+const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon: Icon }: {
+   label: string; allocatable: number; usage: number; total: number;
+   unit: string; color: string; icon: IconComponent;
+ }) => {
    const formatValue = (v: number, u: string) => {
       if (u === 'B') {
          const gb = v / (1024 * 1024 * 1024);
-         return `${gb.toFixed(1)} GB`;
+         return `${gb.toFixed(1)} GiB`;
       }
       if (u === 'm') {
-         return `${(v / 1000).toFixed(1)}C`;
+         return `${(v / 1000).toFixed(1)} C`;
       }
       return `${v}${u}`;
    };
 
    const pct = total > 0 ? (usage && usage > 0 ? (usage / total) * 100 : ((total - allocatable) / total) * 100) : 0;
-   const displayUsage = usage && usage > 0 ? usage : (total - allocatable);
+   const safePct = Number.isFinite(pct) ? pct : 0;
+   const displayUsage = (usage && usage > 0) ? usage : ((total - allocatable) || 0);
 
    return (
-      <div className="card" style={{ padding: 16, border: '1px solid var(--border)', background: 'var(--bg-card)', borderRadius: 0 }}>
-         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+      <div className="card" style={{ padding: 18, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-               <Icon size={13} color={color} />
-               <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>{label}</span>
+               <Icon size={14} color={color} strokeWidth={2.2} />
+               <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>{label}</span>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 900, color, fontFamily: 'var(--font-mono)' }}>{pct.toFixed(0)}%</div>
-         </div>
-         
-         <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginBottom: 12 }}>
-            {formatValue(displayUsage, unit)} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/ {formatValue(total, unit)}</span>
-         </div>
-         
-         <div style={{ height: 4, background: 'var(--bg-elevated)', borderRadius: 0, overflow: 'hidden', marginBottom: 12 }}>
-            <div style={{ 
-               height: '100%', 
-               width: `${Math.min(pct, 100)}%`, 
-               background: color, 
-               transition: 'width 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
-            }} />
+            <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'var(--font-mono)' }}>{safePct.toFixed(0)}%</span>
          </div>
 
-         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>
-            {usage && usage > 0 ? "STREAM_ACTIVE" : "ESTIMATED_VAL"} • AVAIL: {formatValue(allocatable, unit)}
+         <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+            {formatValue(displayUsage || 0, unit)} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/ {formatValue(total || 0, unit)}</span>
+         </div>
+
+         <div style={{ height: 5, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden', marginTop: 14 }}>
+            <div style={{ height: '100%', width: `${Math.min(safePct, 100)}%`, background: color, borderRadius: 'var(--radius-full)', transition: 'width 1s ease' }} />
          </div>
       </div>
    )
 })
-
-const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, loading, small }: any) => {
-   const isWarning = total > 0 && main < total;
-   const statusColor = isWarning ? 'var(--warning)' : color;
-   
-   return (
-      <div className="card hover-lift" style={{ 
-         cursor: 'pointer', padding: 18, display: 'flex', flexDirection: 'column', borderRadius: 0,
-         border: '1px solid var(--border)', background: 'var(--bg-card)'
-      }} onClick={onClick}>
-         
-         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ 
-               width: 32, height: 32, borderRadius: 0, background: 'var(--bg-elevated)', 
-               border: '1px solid var(--border)', display: 'flex', alignItems: 'center', 
-               justifyContent: 'center', color: statusColor
-            }}>
-               <Icon size={14} strokeWidth={2.5} />
-            </div>
-            <div style={{ textAlign: 'right' }}>
-               <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>{label}</div>
-               <div style={{ fontSize: 11, fontWeight: 900, color: statusColor, textTransform: 'uppercase' }}>
-                  {isWarning ? 'ALERT' : 'OK'}
-               </div>
-            </div>
-         </div>
-
-         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 12 }}>
-            <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
-               {loading ? '—' : (main || 0)}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-               / {loading ? '—' : (total || 0)}
-            </div>
-            <div style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 900, color: 'var(--text-secondary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-               {sub}
-            </div>
-         </div>
-
-         <div style={{ height: 3, background: 'var(--bg-elevated)', borderRadius: 0, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${total > 0 ? (main / total) * 100 : 0}%`, background: statusColor, transition: 'width 1.5s ease-out' }} />
-         </div>
-      </div>
-   )
-})
-
-const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: any) => (
-   <div className="card hover-lift" style={{
-      cursor: 'pointer', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
-      border: color ? `1px solid ${color}` : '1px solid var(--border)', borderRadius: 0, background: 'var(--bg-card)'
-   }} onClick={onClick}>
-      <div style={{ color: color || 'var(--brand-primary)', opacity: 0.8 }}>
-         <Icon size={13} />
-      </div>
-      <div style={{ flex: 1, fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em', fontFamily: 'var(--font-mono)' }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 900, color: color || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count || 0}</div>
-   </div>
-))
 
 PulseStat.displayName = 'PulseStat'
-PulseDashboard.displayName = 'PulseDashboard'
 MiniStat.displayName = 'MiniStat'
+PulseDashboard.displayName = 'PulseDashboard'
 CapacityCard.displayName = 'CapacityCard'

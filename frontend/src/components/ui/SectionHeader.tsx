@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { IconComponent } from '../../types/k8s'
 
 export interface SectionHeaderProps {
-  icon?: LucideIcon
+  icon?: IconComponent
   iconColor?: string
   title: string
   subtitle?: string

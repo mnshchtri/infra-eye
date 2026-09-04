@@ -1,26 +1,28 @@
 import { memo } from 'react'
+import { Inbox } from 'lucide-react'
+import type { K8sRow } from '../../types/k8s'
 
 interface KTableProps {
   columns: string[];
-  data: any[];
-  actions?: (item: any) => React.ReactNode;
+  data: K8sRow[];
+  actions?: (item: K8sRow) => React.ReactNode;
   selectedIndex: number;
   loading: boolean;
-  onNameClick?: (item: any) => void;
+  onNameClick?: (item: K8sRow) => void;
   /** Row-selection checkboxes (bulk actions). Omit to keep the table as-is. */
   selectable?: boolean;
-  isRowChecked?: (item: any) => boolean;
-  onToggleRow?: (item: any) => void;
+  isRowChecked?: (item: K8sRow) => boolean;
+  onToggleRow?: (item: K8sRow) => void;
   allChecked?: boolean;
   onToggleAll?: () => void;
 }
 
-const getVal = (item: any, col: string) => {
+const getVal = (item: K8sRow, col: string) => {
   switch(col.toLowerCase()) {
     case 'name': return item.metadata.name;
     case 'namespace': return item.metadata.namespace;
     case 'status': {
-      const val = item.status?.phase || (item.status?.conditions?.find((c: any) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
+      const val = item.status?.phase || (item.status?.conditions?.find((c: K8sRow) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
       return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`} style={{ borderRadius: 0, textTransform: 'uppercase', fontSize: 11, minWidth: 80 }}>{val}</span>;
     }
     case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
@@ -61,7 +63,7 @@ const getVal = (item: any, col: string) => {
     case 'allowvolumeexpansion': return item.allowVolumeExpansion ? 'True' : 'False';
     case 'age': {
         if (!item.lastTimestamp && !item.creationTimestamp) return '—';
-        const ts = new Date(item.lastTimestamp || item.creationTimestamp).getTime();
+        const ts = new Date(item.lastTimestamp || item.creationTimestamp || item.metadata.creationTimestamp || 0).getTime();
         const diff = (Date.now() - ts) / 1000;
         if (diff < 60) return `${Math.floor(diff)}s`;
         if (diff < 3600) return `${Math.floor(diff/60)}m`;
@@ -69,12 +71,12 @@ const getVal = (item: any, col: string) => {
         return `${Math.floor(diff/86400)}d`;
     }
     case 'cluster-ip': return item.spec?.clusterIP;
-    case 'internal-ip': return item.status?.addresses?.find((a: any) => a.type === 'InternalIP')?.address;
+    case 'internal-ip': return item.status?.addresses?.find((a: K8sRow) => a.type === 'InternalIP')?.address;
     default: return '—';
   }
 }
 
-const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, checked, onToggleChecked }: { item: any; columns: string[]; isSelected: boolean; actions?: (item: any) => React.ReactNode; onNameClick?: (item: any) => void; checked?: boolean; onToggleChecked?: (item: any) => void }) => {
+const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, checked, onToggleChecked }: { item: K8sRow; columns: string[]; isSelected: boolean; actions?: (item: K8sRow) => React.ReactNode; onNameClick?: (item: K8sRow) => void; checked?: boolean; onToggleChecked?: (item: K8sRow) => void }) => {
   return (
     <tr className={isSelected ? 'k-row-selected' : ''}>
       {onToggleChecked && (
@@ -83,12 +85,13 @@ const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, check
         </td>
       )}
       {columns.map((c: string) => (
-        <td 
-          key={c} 
+        <td
+          key={c}
+          className={c === 'Name' ? 'k-name-cell' : undefined}
           style={{
-            ...(c === 'Name' ? { fontWeight: 900, color: 'var(--text-primary)', cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
-            fontFamily: 'var(--font-mono)', fontSize: 12, textTransform: 'uppercase',
-            padding: '10px 16px', borderBottom: '1px solid var(--border)'
+            ...(c === 'Name' ? { cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
+            fontFamily: 'var(--font-mono)', fontSize: 12.5,
+            padding: '12px 16px', borderBottom: '1px solid var(--border)'
           }}
           onClick={() => { if (c === 'Name' && onNameClick) onNameClick(item) }}
         >
@@ -96,8 +99,8 @@ const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, check
         </td>
       ))}
       {actions && (
-        <td style={{ borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)20', padding: '10px 16px' }}>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <td style={{ borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             {actions(item)}
           </div>
         </td>
@@ -139,7 +142,7 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
   }
 
   return (
-    <div className="table-container fade-up" style={{ borderRadius: 0, border: '1px solid var(--border)', background: 'var(--bg-card)', marginBottom: 20 }}>
+    <div className="table-container fade-up" style={{ borderRadius: 'var(--radius-md)', marginBottom: 20 }}>
        <table className="k-table" style={{ width: '100%', minWidth: 800 }}>
           <colgroup>
             {selectable && <col style={{ width: 36 }} />}
@@ -155,9 +158,9 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
                 )}
                 {columns.map((c: string) => <th key={c} style={{
                   ...(c === 'Status' ? { textAlign: 'center' } : {}),
-                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.1em'
+                  fontFamily: 'var(--font-sans)', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.06em'
                 }}>{c}</th>)}
-                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: 12, fontWeight: 900, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.1em' }}>ACTIONS</th>}
+                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.06em' }}>Actions</th>}
              </tr>
           </thead>
           <tbody>
@@ -171,11 +174,14 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
                ))
              ) : data.length === 0 ? (
                <tr>
-                 <td colSpan={colCount} style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
-                   No resources found
+                 <td colSpan={colCount} style={{ textAlign: 'center', padding: '56px 24px', color: 'var(--text-muted)' }}>
+                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                     <Inbox size={22} color="var(--text-muted)" opacity={0.6} />
+                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>No resources found</span>
+                   </div>
                  </td>
                </tr>
-             ) : data.map((item: any, i: number) => (
+             ) : data.map((item: K8sRow, i: number) => (
                 <KTableRow 
                   key={item.metadata?.uid || `${item.metadata?.name}-${i}`} 
                   item={item} 

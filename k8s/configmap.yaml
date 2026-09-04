@@ -9,7 +9,7 @@ data:
   PORT: "8080"
   ENV: "production"
   GIN_MODE: "release"
-  METRICS_INTERVAL: "30"
+  METRICS_INTERVAL: "10"
   LOG_MAX_LINES: "500"
   # Comma-separated LAN IPs that the MCP server cannot reach directly.
   # Set to your k3s node IP if kubeconfig uses 127.0.0.1 or a LAN address.

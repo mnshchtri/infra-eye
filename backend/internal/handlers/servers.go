@@ -185,8 +185,12 @@ type serverRequest struct {
 	AuthType    string `json:"auth_type"`
 	Tags        string `json:"tags"`
 	Description string `json:"description"`
-	KubeConfig  string `json:"kube_config"`
-	FolderID    *uint  `json:"folder_id"`
+	// KubeConfig is a pointer so an omitted field means "leave the stored
+	// kubeconfig alone". The API no longer echoes kubeconfigs back, so a client
+	// round-tripping a server object cannot resend one — a plain string here
+	// would silently wipe the cluster credential on every unrelated edit.
+	KubeConfig *string `json:"kube_config"`
+	FolderID   *uint   `json:"folder_id"`
 }
 
 func CreateServer(c *gin.Context) {
@@ -202,6 +206,11 @@ func CreateServer(c *gin.Context) {
 		req.AuthType = "key"
 	}
 
+	kubeConfig := ""
+	if req.KubeConfig != nil {
+		kubeConfig = *req.KubeConfig
+	}
+
 	server := models.Server{
 		Name:        req.Name,
 		Host:        req.Host,
@@ -212,8 +221,8 @@ func CreateServer(c *gin.Context) {
 		AuthType:    req.AuthType,
 		Tags:        req.Tags,
 		Description: req.Description,
-		KubeConfig:  req.KubeConfig,
-		IsK8s:       req.KubeConfig != "",
+		KubeConfig:  kubeConfig,
+		IsK8s:       kubeConfig != "",
 		Status:      "unknown",
 		OS:          "unknown",
 		FolderID:    req.FolderID,
@@ -232,6 +241,7 @@ func CreateServer(c *gin.Context) {
 		mcp.SyncMasterKubeconfig()
 	}
 
+	server.HasKubeConfig = server.KubeConfig != ""
 	c.JSON(http.StatusCreated, server)
 }
 
@@ -261,8 +271,10 @@ func UpdateServer(c *gin.Context) {
 	if req.AuthType != "" {
 		server.AuthType = req.AuthType
 	}
-	server.KubeConfig = req.KubeConfig
-	server.IsK8s = req.KubeConfig != ""
+	if req.KubeConfig != nil {
+		server.KubeConfig = *req.KubeConfig
+		server.IsK8s = *req.KubeConfig != ""
+	}
 	server.FolderID = req.FolderID
 	server.GitManaged = false // manual edit takes this server out of Git-sync's management
 
@@ -277,6 +289,7 @@ func UpdateServer(c *gin.Context) {
 		mcp.SyncMasterKubeconfig()
 	}
 
+	server.HasKubeConfig = server.KubeConfig != ""
 	c.JSON(http.StatusOK, server)
 }
 

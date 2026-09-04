@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Server, Cpu, MemoryStick, HardDrive, Wifi,
+  Server, Wifi,
   Plus, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, Activity, HelpCircle,
   Boxes, Search, Terminal, Settings, Database, Zap, CheckCircle, XCircle,
   Gauge, ShieldCheck, ScrollText
@@ -20,7 +20,7 @@ interface ServerData {
   tags: string; description: string; port: number; ssh_user: string;
   os: string;
   is_k8s: boolean;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
 }
 interface MetricData {
   cpu_percent: number; mem_percent: number; disk_percent: number;
@@ -30,6 +30,17 @@ interface ResourceData {
   id: number; name: string; status: string; protocol: string; host: string;
   port: number; resource_type: string; use_gateway: boolean;
 }
+/** One row from /api/servers/:id/metrics, as the chart consumes it. */
+interface MetricSample {
+  timestamp: string
+  cpu_percent?: number
+  mem_percent?: number
+  disk_percent?: number
+  net_rx_mbps?: number
+  net_tx_mbps?: number
+  load_avg_1?: number
+}
+
 interface HistPoint {
   t: number; cpu: number; mem: number; disk: number; rx: number; tx: number; load: number;
 }
@@ -97,12 +108,6 @@ const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; dang
 const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: MetricData }) => {
   const navigate = useNavigate()
 
-  const statusColors: Record<string, string> = {
-    online: 'var(--success)',
-    offline: 'var(--danger)',
-    unknown: 'var(--warning)',
-  }
-  const statusColor = statusColors[server.status] || 'var(--text-muted)'
 
   return (
     <div
@@ -213,10 +218,10 @@ export function Dashboard() {
     serverList.forEach(async (s) => {
       try {
         const h = await api.get(`/api/servers/${s.id}/metrics?minutes=${minutes}`)
-        const pts: HistPoint[] = (Array.isArray(h.data) ? h.data : []).map((m: any) => ({
+        const pts: HistPoint[] = (Array.isArray(h.data) ? h.data : []).map((m: MetricSample) => ({
           t: new Date(m.timestamp).getTime(),
-          cpu: m.cpu_percent, mem: m.mem_percent, disk: m.disk_percent,
-          rx: m.net_rx_mbps, tx: m.net_tx_mbps, load: m.load_avg_1,
+          cpu: m.cpu_percent ?? 0, mem: m.mem_percent ?? 0, disk: m.disk_percent ?? 0,
+          rx: m.net_rx_mbps ?? 0, tx: m.net_tx_mbps ?? 0, load: m.load_avg_1 ?? 0,
         }))
         setHistory(prev => ({ ...prev, [s.id]: pts }))
       } catch { /* no history yet */ }
@@ -396,12 +401,16 @@ export function Dashboard() {
   // Bucket width scales with the range so every window shows a readable ~30-60
   // points: 1-min buckets for ≤1h, 5-min for 6h, 15-min for 24h.
   const bucketMs = fleetRange <= 60 ? 60_000 : fleetRange <= 360 ? 300_000 : 900_000
-  const windowStart = () => Date.now() - fleetRange * 60_000
+  const windowStart = (now: number) => now - fleetRange * 60_000
 
   // 1-minute buckets so points from different servers align on the time axis
   const timelineData = useMemo(() => {
-    const cutoff = windowStart()
-    const rows = new Map<number, any>()
+    // Reading the clock here is what "last N minutes" means. Hoisting it into
+    // state would need a timer whose only job is to invalidate these memos,
+    // trading a real re-render cost for a lint rule.
+    // eslint-disable-next-line react-hooks/purity
+    const cutoff = windowStart(Date.now())
+    const rows = new Map<number, Record<string, number>>()
     seriesServers.forEach(s => {
       (history[s.id] || []).forEach(p => {
         if (p.t < cutoff) return
@@ -415,7 +424,11 @@ export function Dashboard() {
   }, [history, seriesServers, fleetMetric, fleetRange])
 
   const networkData = useMemo(() => {
-    const cutoff = windowStart()
+    // Reading the clock here is what "last N minutes" means. Hoisting it into
+    // state would need a timer whose only job is to invalidate these memos,
+    // trading a real re-render cost for a lint rule.
+    // eslint-disable-next-line react-hooks/purity
+    const cutoff = windowStart(Date.now())
     const rows = new Map<number, { t: number; RX: number; TX: number }>()
     seriesServers.forEach(s => {
       (history[s.id] || []).forEach(p => {
@@ -436,7 +449,11 @@ export function Dashboard() {
   // this isn't a percentage (can exceed 1 per core), so it gets its own
   // auto-scaled axis rather than the shared 0-100% one.
   const loadAvgData = useMemo(() => {
-    const cutoff = windowStart()
+    // Reading the clock here is what "last N minutes" means. Hoisting it into
+    // state would need a timer whose only job is to invalidate these memos,
+    // trading a real re-render cost for a lint rule.
+    // eslint-disable-next-line react-hooks/purity
+    const cutoff = windowStart(Date.now())
     const rows = new Map<number, { t: number; sum: number; count: number }>()
     seriesServers.forEach(s => {
       (history[s.id] || []).forEach(p => {
@@ -490,6 +507,10 @@ export function Dashboard() {
 
   // Direct label at the last point of each line — series identity is never
   // carried by color alone (relief rule for the light-mode palette).
+  // Recharts types LabelList's `content` as its own internal render-prop union,
+  // which a hand-written signature can't satisfy from outside the library; the
+  // fields actually used are destructured and guarded below.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const endLabel = (name: string, count: number) => (props: any) => {
     if (props.index !== count - 1) return <g key={`el-${name}-${props.index}`} />
     return (
@@ -572,7 +593,7 @@ export function Dashboard() {
                   <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
                   <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
                   <Tooltip
-                    labelFormatter={(t: any) => fmtClock(t)}
+                    labelFormatter={(t) => fmtClock(t)}
                     contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                   />
                   {seriesServers.length > 1 && (
@@ -656,8 +677,8 @@ export function Dashboard() {
                     <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
                     <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      labelFormatter={(t: any) => fmtClock(t)}
-                      formatter={(v: any) => `${v} MB/s`}
+                      labelFormatter={(t) => fmtClock(t)}
+                      formatter={(v) => `${v} MB/s`}
                       contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
                     <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
@@ -694,7 +715,7 @@ export function Dashboard() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(v: any, n: any) => [`${v}%`, n]}
+                      formatter={(v, n) => [`${v}%`, n]}
                       contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
                   </PieChart>
@@ -737,7 +758,7 @@ export function Dashboard() {
                     <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
                     <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      labelFormatter={(t: any) => fmtClock(t)}
+                      labelFormatter={(t) => fmtClock(t)}
                       contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                     />
                     <Line type="monotone" dataKey="Load" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
@@ -782,7 +803,7 @@ export function Dashboard() {
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(v: any, n: any) => [`${v} finding${v === 1 ? '' : 's'}`, SCAN_TYPE_LABEL[n] || n]}
+                          formatter={(v, n) => [`${v} finding${v === 1 ? '' : 's'}`, SCAN_TYPE_LABEL[String(n)] || n]}
                           contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                         />
                       </PieChart>
@@ -898,7 +919,7 @@ export function Dashboard() {
                 <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
                 <YAxis allowDecimals={false} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  labelFormatter={(t: any) => fmtClock(t)}
+                  labelFormatter={(t) => fmtClock(t)}
                   cursor={{ fill: 'var(--bg-elevated)' }}
                   contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
                 />
@@ -936,7 +957,7 @@ export function Dashboard() {
           {filteredServers.filter(s => s.is_k8s).length > 0 && (
             <div>
               <SectionHeader
-                icon={KubernetesIcon as any}
+                icon={KubernetesIcon}
                 title="Managed Clusters"
                 action={<span className="badge badge-primary hidden-mobile">{filteredServers.filter(s => s.is_k8s).length} Active</span>}
               />

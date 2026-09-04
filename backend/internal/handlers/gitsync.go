@@ -140,9 +140,24 @@ func TestGitSyncConnection(c *gin.Context) {
 	if branch == "" {
 		branch = db.GetSetting(gitsync.SettingBranch)
 	}
+	// Fall back to the stored PAT only when testing the repo it belongs to.
+	//
+	// This endpoint is open to devops, but the PAT is admin-only to set and is
+	// never echoed back by GetGitSyncSettings. Without this check a devops caller
+	// could POST an arbitrary repo_url with no pat, and git would send the
+	// admin's token as Basic auth straight to a host of their choosing —
+	// exfiltrating it over the wire, where redacting our own error responses
+	// does nothing to help.
 	pat := req.PAT
 	if pat == "" {
-		pat = db.GetSetting(gitsync.SettingPAT)
+		stored := db.GetSetting(gitsync.SettingPAT)
+		if stored != "" && repoURL != db.GetSetting(gitsync.SettingRepoURL) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "testing a different repository requires its own token — the saved token is only sent to the saved repository URL",
+			})
+			return
+		}
+		pat = stored
 	}
 
 	if repoURL == "" {
@@ -155,7 +170,10 @@ func TestGitSyncConnection(c *gin.Context) {
 	}
 
 	if err := gitsync.TestConnection(repoURL, branch, pat); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error()})
+		// Redacted again at the boundary: this endpoint is open to devops, while
+		// the PAT is admin-only to set and is deliberately never echoed back by
+		// GetGitSyncSettings.
+		c.JSON(http.StatusOK, gin.H{"success": false, "error": gitsync.RedactCredentials(err.Error())})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { 
-  Plus, Server, Trash2, Pencil, Wifi, CheckCircle2, XCircle, 
-  Loader2, X, WifiOff, HelpCircle, Search, Terminal, Settings, Activity 
+  Plus, Server, Trash2, Pencil, Wifi,   Loader2, X, WifiOff, Search 
 } from 'lucide-react'
 import { WindowsIcon, AppleIcon, KubernetesIcon, DistroIcon } from '../components/OSIcons'
 import { api } from '../api/client'
@@ -11,6 +10,7 @@ import { useToastStore } from '../store/toastStore'
 import { useFolders } from '../hooks/useFolders'
 import { FolderBar, type FolderSelection } from '../components/ui/FolderBar'
 import { FolderTag } from '../components/ui/FolderTag'
+import { apiError, errMessage } from '../utils/errors'
 
 interface ServerData {
   id: number; name: string; host: string; port: number;
@@ -18,7 +18,7 @@ interface ServerData {
   description: string; status: string; ssh_key_path: string;
   os: string;
   distro?: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
   folder_id?: number | null;
   git_managed?: boolean;
 }
@@ -28,12 +28,6 @@ const emptyForm = {
   auth_type: 'key', ssh_key_path: '~/.ssh/id_rsa',
   ssh_password: '', tags: '', description: '',
   folder_id: null as number | null,
-}
-
-const statusColors: Record<string, string> = {
-  online: 'var(--success)',
-  offline: 'var(--danger)',
-  unknown: 'var(--warning)',
 }
 
 export function Servers() {
@@ -82,8 +76,8 @@ export function Servers() {
       setForm(emptyForm)
       toast.success(editId ? 'Server updated' : 'Server added', 'SSH credentials saved successfully.')
       loadServers()
-    } catch (err: any) {
-      toast.error('Save failed', err.response?.data?.error || 'Could not save server.')
+    } catch (err: unknown) {
+      toast.error('Save failed', apiError(err) || 'Could not save server.')
     } finally {
       setSaving(false)
     }
@@ -105,8 +99,8 @@ export function Servers() {
     try {
       await api.patch(`/api/servers/${id}/folder`, { folder_id: folderId })
       setServers(prev => prev.map(s => s.id === id ? { ...s, folder_id: folderId } : s))
-    } catch (err: any) {
-      toast.error('Move failed', err.response?.data?.error || 'Could not move server.')
+    } catch (err: unknown) {
+      toast.error('Move failed', apiError(err) || 'Could not move server.')
     }
   }
 
@@ -116,8 +110,8 @@ export function Servers() {
       toast.success('Server deleted', 'Server and all data permanently removed.')
       setConfirmDelete(null)
       loadServers()
-    } catch (err: any) {
-      toast.error('Delete failed', err.response?.data?.error)
+    } catch (err: unknown) {
+      toast.error('Delete failed', apiError(err))
       setConfirmDelete(null)
     }
   }
@@ -134,8 +128,8 @@ export function Servers() {
       } else {
         toast.error('Connection failed', res.data.error || 'Could not reach the server.')
       }
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Could not reach the server.'
+    } catch (err: unknown) {
+      const errorMsg = errMessage(err, 'Could not reach the server.')
       setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: errorMsg } }))
       toast.error('Connection failed', errorMsg)
     } finally {
@@ -150,8 +144,8 @@ export function Servers() {
       setTestResults(prev => ({ ...prev, [id]: { ok: false, msg: 'Disconnected' } }))
       setServers(prev => prev.map(s => s.id === id ? { ...s, status: 'offline' } : s))
       toast.info('Disconnected', 'SSH session closed and metrics collection stopped.')
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Disconnect failed'
+    } catch (err: unknown) {
+      const errorMsg = errMessage(err, 'Disconnect failed')
       toast.error('Disconnect failed', errorMsg)
     } finally {
       setDisconnecting(null)
@@ -266,7 +260,7 @@ export function Servers() {
                   <input
                     className="input"
                     type={type || 'text'}
-                    value={(form as any)[key]}
+                    value={form[key as keyof typeof form] as string | number}
                     onChange={e => setForm({ ...form, [key]: type === 'number' ? +e.target.value : e.target.value })}
                     placeholder={placeholder}
                   />
@@ -467,7 +461,7 @@ export function Servers() {
                           border: `1px solid var(--border)`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         }}>
-                          {s.kube_config
+                          {s.has_kubeconfig
                             ? <KubernetesIcon size={18} />
                             : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
                             : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />

@@ -96,6 +96,7 @@ func (a *App) OnStartup(ctx context.Context) {
 
 	gitsync.SetWorkDir(filepath.Join(appDir, "gitsync", "repo"))
 	gitsync.StartEngine()
+	handlers.StartWSSessionSweeper()
 
 	a.mcpCmd = startMCPSidecar(kubeconfigPath, appDir)
 

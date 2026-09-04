@@ -2,33 +2,38 @@ import { memo, useState, useEffect, useRef, useCallback, useMemo, startTransitio
 import {
   LayoutGrid, Server,
   RefreshCw, FileCode,
-  Boxes, ChevronRight, ChevronLeft, Activity,
+  Boxes, ChevronLeft, Activity,
   Globe, X, Terminal,
   List,
   Shield, Key, Lock,
   Database, Gauge, Cpu, Layers,
-  Hash, RotateCw, Expand, Route, Waypoints, Network, Puzzle, Plus, Trash2
+  Hash, RotateCw, Expand, Route, Waypoints, Network, Puzzle, Plus, Trash2, KeyRound
 } from 'lucide-react'
-import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../OSIcons'
+import { KubernetesIcon } from '../OSIcons'
 import { api, buildWsUrl } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { KTable } from './KTable'
 import { ResNavLink, NavCategory } from './K8sSidebar'
 import { PulseDashboard } from './PulseDashboard'
+import type { PulseStats } from './PulseDashboard'
 import { ConfigViewer } from './ConfigViewer'
 import { PortForwardModal } from './PortForwardModal'
+import type { PortForwardSession } from './PortForwardModal'
+import { ReadOnlyKubeconfigModal } from './ReadOnlyKubeconfigModal'
 import { TerminalPortal } from './TerminalPortal'
 import { MCPTerminal } from './MCPTerminal'
+import { apiError, errMessage } from '../../utils/errors'
+import type { K8sRow } from '../../types/k8s'
 
 interface Cluster {
   id: number;
   name: string;
   host: string;
   os?: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
 }
 
-type ResourceType =
+export type ResourceType =
   | 'pulse' | 'nodes' | 'namespaces' | 'crds' | 'pods' | 'deployments' | 'daemonsets' | 'statefulsets' | 'replicasets' | 'jobs' | 'cronjobs'
   | 'configmaps' | 'secrets' | 'resourcequotas' | 'hpa' | 'poddisruptionbudgets'
   | 'services' | 'endpoints' | 'ingresses' | 'networkpolicies'
@@ -240,14 +245,53 @@ spec:
 `,
 }
 
+// Human-readable titles for each resource view (UI chrome — sans-serif titles).
+const RESOURCE_LABELS: Record<string, string> = {
+  pulse: 'Pulse Dashboard',
+  nodes: 'Nodes',
+  namespaces: 'Namespaces',
+  crds: 'Custom Resource Definitions',
+  pods: 'Pods',
+  deployments: 'Deployments',
+  daemonsets: 'DaemonSets',
+  statefulsets: 'StatefulSets',
+  replicasets: 'ReplicaSets',
+  jobs: 'Jobs',
+  cronjobs: 'CronJobs',
+  configmaps: 'ConfigMaps',
+  secrets: 'Secrets',
+  resourcequotas: 'ResourceQuotas',
+  hpa: 'Autoscalers',
+  poddisruptionbudgets: 'Pod Disruption Budgets',
+  services: 'Services',
+  endpoints: 'Endpoints',
+  ingresses: 'Ingresses',
+  networkpolicies: 'NetworkPolicies',
+  gatewayclasses: 'GatewayClasses',
+  gateways: 'Gateways',
+  httproutes: 'HTTPRoutes',
+  grpcroutes: 'GRPCRoutes',
+  referencegrants: 'ReferenceGrants',
+  pvcs: 'PersistentVolumeClaims',
+  pvs: 'PersistentVolumes',
+  storageclasses: 'StorageClasses',
+  serviceaccounts: 'ServiceAccounts',
+  roles: 'Roles',
+  clusterroles: 'ClusterRoles',
+  rolebindings: 'RoleBindings',
+  clusterrolebindings: 'ClusterRoleBindings',
+  events: 'Events',
+  yaml: 'KubeConfig'
+}
 export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8sResourceExplorerProps) => {
   const [activeRes, setActiveRes] = useState<ResourceType>('pulse')
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<K8sRow[]>([])
   const [loading, setLoading] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [pulsePartial, setPulsePartial] = useState<Record<string, string> | null>(null)
   const [namespaces, setNamespaces] = useState<string[]>([])
   const [selectedNS, setSelectedNS] = useState<string>('All')
-  const [stats, setStats] = useState({ nodes: 0, pods: 0, deployments: 0, services: 0, events: 0 })
+  const [stats, setStats] = useState<PulseStats | null>(null)
   const [pulseError, setPulseError] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [filterQuery, setFilterQuery] = useState('')
@@ -260,9 +304,17 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const [drawer, setDrawer] = useState<{ open: boolean; mode: 'logs' | 'shell'; target?: 'pod' | 'node'; pod?: string; ns?: string; container?: string; node?: string } | null>(null)
   const [showPortForward, setShowPortForward] = useState(false)
   const [pfTarget, setPfTarget] = useState<{ ns?: string; target?: string; port?: string; suggestedLocal?: string }>({})
-  const [portForwards, setPortForwards] = useState<any[]>([])
+  const [portForwards, setPortForwards] = useState<PortForwardSession[]>([])
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  // A Service's first exposed port, if it declares one. Narrowed here because
+  // K8sObject.spec is intentionally untyped — the explorer is generic over
+  // every kind, and only this call site needs the Service shape.
+  const servicePort = (s: K8sRow): string | undefined => {
+    const ports = (s.spec as { ports?: { port?: number }[] } | undefined)?.ports
+    return ports?.[0]?.port?.toString()
+  }
 
   const openPortForward = (ns: string, target: string, port?: string) => {
     const suggestedLocal = Math.floor(Math.random() * (9999 - 8000 + 1) + 8000).toString();
@@ -271,6 +323,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   }
   const [applyResult, setApplyResult] = useState<{ success: boolean; msg: string } | null>(null)
   const [showMCPTerminal, setShowMCPTerminal] = useState(false)
+  const [showReadOnlyKubeconfig, setShowReadOnlyKubeconfig] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768)
   
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
@@ -308,7 +361,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   const filteredData = useMemo(() => {
     if (!filterQuery) return data;
     const lowerQuery = filterQuery.toLowerCase();
-    return data.filter((item: any) => {
+    return data.filter((item: K8sRow) => {
       const name = item.metadata?.name?.toLowerCase() || '';
       return name.includes(lowerQuery);
     })
@@ -317,9 +370,9 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
   useEffect(() => { setSelectedIndex(0) }, [activeRes, selectedNS, filterQuery])
   useEffect(() => { setSelectedPods(new Set()) }, [activeRes, selectedNS])
 
-  const podKey = useCallback((item: any) => `${item.metadata.namespace}/${item.metadata.name}`, [])
+  const podKey = useCallback((item: K8sRow) => `${item.metadata.namespace}/${item.metadata.name}`, [])
 
-  const toggleSelectPod = useCallback((item: any) => {
+  const toggleSelectPod = useCallback((item: K8sRow) => {
     const key = podKey(item)
     setSelectedPods(prev => {
       const next = new Set(prev)
@@ -353,10 +406,15 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
            const parsed = JSON.parse(event.data);
            if (parsed.error) {
               setPulseError(parsed.details || parsed.stderr || parsed.error)
+              setPulsePartial(null)
               setData([])
               return
            }
            setPulseError(null)
+           // The cluster answered, but individual lookups inside the frame may
+           // still have failed; those counts are zero for the wrong reason.
+           const partial = parsed.errors && Object.keys(parsed.errors).length ? parsed.errors : null
+           setPulsePartial(partial)
 
            if (resource === 'pulse') {
              if (parsed.kind === 'Pulse') {
@@ -372,7 +430,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         } catch(e) { console.error("JSON parse error:", e); setData([]); }
     }
     
-    ws.onerror = () => { setLoading(false); setConnecting(false); setPulseError('WebSocket connection failed.'); }
+    ws.onerror = () => { setLoading(false); setConnecting(false); setPulsePartial(null); setPulseError('WebSocket connection failed.'); }
     ws.onclose = () => setConnecting(false)
   }, [])
 
@@ -386,7 +444,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       const res = await api.post(`/api/servers/${cluster.id}/kubectl`, { command: 'get namespaces -o json' })
       if (res.data.success) {
         const parsed = JSON.parse(res.data.output)
-        setNamespaces((parsed.items || []).map((i: any) => i.metadata.name))
+        setNamespaces((parsed.items || []).map((i: K8sRow) => i.metadata.name))
       }
     } catch (e) { console.error("NS Fetch error:", e) }
   }, [cluster.id])
@@ -403,8 +461,8 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       } else {
         toast.error('Fetch failed', res.data.error || 'Check cluster connection.')
       }
-    } catch (e: any) { 
-        toast.error('Network error', e.message)
+    } catch (e: unknown) { 
+        toast.error('Network error', errMessage(e))
     } finally { 
         setLoading(false) 
     }
@@ -420,7 +478,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         success: res.data.success, 
         msg: res.data.output || res.data.stderr || res.data.error || (res.data.success ? "Resource applied successfully" : "Application failed") 
       })
-    } catch (e: any) { setApplyResult({ success: false, msg: "Network error during apply" }) }
+    } catch { setApplyResult({ success: false, msg: "Network error during apply" }) }
     finally { setLoading(false) }
   }
 
@@ -439,7 +497,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     setEditingYaml(c => ({ ...c, content: K8S_TEMPLATES[kind] }))
   }
 
-  const handleDeleteResource = useCallback(async (item: any) => {
+  const handleDeleteResource = useCallback(async (item: K8sRow) => {
     const kind = item.kind || activeRes.slice(0, -1);
     if (!window.confirm(`Delete ${kind} ${item.metadata.name}?`)) return;
     try {
@@ -447,7 +505,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         data: { kind, name: item.metadata.name, namespace: item.metadata.namespace }
       })
       toast.success('Resource deleted', `Deleted ${item.metadata.name}`)
-    } catch (e: any) { toast.error('Delete failed', e.response?.data?.error || 'Failed to delete resource') }
+    } catch (e: unknown) { toast.error('Delete failed', apiError(e) || 'Failed to delete resource') }
   }, [cluster.id, activeRes, toast])
 
   const handleBulkDeletePods = useCallback(async () => {
@@ -474,17 +532,17 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     deployments: 'deployment', daemonsets: 'daemonset', statefulsets: 'statefulset', replicasets: 'replicaset'
   }
 
-  const rolloutRestart = useCallback(async (item: any) => {
+  const rolloutRestart = useCallback(async (item: K8sRow) => {
     const kind = singularKind[stateRef.current.activeRes] || 'deployment'
     const ns = item.metadata.namespace ? `-n ${item.metadata.namespace}` : ''
     try {
       const res = await api.post(`/api/servers/${cluster.id}/kubectl`, { command: `rollout restart ${kind}/${item.metadata.name} ${ns}` })
       if (res.data.success) toast.success('Rollout restarted', `${kind}/${item.metadata.name} is restarting`)
       else toast.error('Restart failed', res.data.stderr || res.data.error || 'kubectl rollout restart failed')
-    } catch (e: any) { toast.error('Restart failed', e.response?.data?.error || e.message) }
+    } catch (e: unknown) { toast.error('Restart failed', errMessage(e)) }
   }, [cluster.id, toast])
 
-  const scaleWorkload = useCallback(async (item: any) => {
+  const scaleWorkload = useCallback(async (item: K8sRow) => {
     const kind = singularKind[stateRef.current.activeRes] || 'deployment'
     const current = item.spec?.replicas ?? 1
     const input = window.prompt(`Scale ${kind}/${item.metadata.name} — desired replicas:`, String(current))
@@ -496,7 +554,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       const res = await api.post(`/api/servers/${cluster.id}/kubectl`, { command: `scale ${kind}/${item.metadata.name} --replicas=${replicas} ${ns}` })
       if (res.data.success) toast.success('Scaled', `${kind}/${item.metadata.name} → ${replicas} replicas`)
       else toast.error('Scale failed', res.data.stderr || res.data.error || 'kubectl scale failed')
-    } catch (e: any) { toast.error('Scale failed', e.response?.data?.error || e.message) }
+    } catch (e: unknown) { toast.error('Scale failed', errMessage(e)) }
   }, [cluster.id, toast])
 
   const fetchPortForwards = useCallback(async () => {
@@ -504,7 +562,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     try {
       const res = await api.get(`/api/servers/${cluster.id}/kubectl/port-forward`)
       setPortForwards(res.data.sessions || [])
-    } catch (e: any) { toast.error('Port-forward list failed', e.response?.data?.error || 'Unable to load sessions') }
+    } catch (e: unknown) { toast.error('Port-forward list failed', apiError(e) || 'Unable to load sessions') }
   }, [cluster.id, canUseKubectl, toast])
 
   useEffect(() => { if (showPortForward) fetchPortForwards() }, [showPortForward, fetchPortForwards])
@@ -550,7 +608,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           const randomPort = Math.floor(Math.random() * (9999 - 8000 + 1) + 8000).toString();
           
           let target = '';
-          let port = randomPort;
+          const port = randomPort;
 
           if (activeRes === 'pods') target = `pod/${name}`;
           else if (activeRes === 'services') target = `svc/${name}`;
@@ -596,7 +654,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown)
   }, [filteredData, fetchYaml, handleDeleteResource, canUseKubectl, drawer, watchK8sData, cluster.id])
 
-  const handleNameClick = useCallback((item: any) => {
+  const handleNameClick = useCallback((item: K8sRow) => {
     const kind = item.kind?.toLowerCase() || activeRes.slice(0, -1);
     fetchYaml(kind, item.metadata.name, item.metadata.namespace);
   }, [activeRes, fetchYaml]);
@@ -629,7 +687,10 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
     setShowCommandBar(false); setCommandInput('');
   }
 
-  const [rawConfig, setRawConfig] = useState(cluster.kube_config || '')
+  // Write-only: the API no longer returns stored kubeconfigs (they carry
+  // cluster-admin credentials), so this pane starts empty and saving replaces
+  // the stored config rather than editing it in place.
+  const [rawConfig, setRawConfig] = useState('')
   const [savingRaw, setSavingRaw] = useState(false)
 
   const saveClusterConfig = async () => {
@@ -641,12 +702,13 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
         kube_config: rawConfig 
       })
       if (res.status === 200) {
-        toast.success('Configuration saved', 'Cluster KubeConfig updated successfully.')
+        setRawConfig('')
+        toast.success('Configuration saved', 'Cluster KubeConfig replaced successfully.')
       } else {
         toast.error('Save failed', 'Status: ' + res.status)
       }
-    } catch (e: any) {
-      toast.error('Save failed', e.response?.data?.error || e.message)
+    } catch (e: unknown) {
+      toast.error('Save failed', errMessage(e))
     } finally {
       setSavingRaw(false)
     }
@@ -682,7 +744,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              className="btn-icon" 
              onClick={onBack} 
              style={{ 
-               width: 32, height: 32, borderRadius: 0, border: '1px solid var(--border)', 
+               width: 32, height: 32, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', 
                background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', 
                justifyContent: 'center', cursor: 'pointer' 
              }}
@@ -691,26 +753,19 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
            </button>
            
            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-             <KubernetesIcon size={26} />
+             <KubernetesIcon size={24} />
              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ 
-                  fontWeight: 900, fontSize: 12, color: 'var(--text-primary)', 
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', 
-                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.02em' 
-                }}>
+                <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {cluster.name}
                 </span>
-                <span style={{ 
-                  fontSize: 11, color: 'var(--text-muted)', fontWeight: 900, 
-                  textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' 
-                }}>
-                  Cluster Node
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Kubernetes cluster
                 </span>
               </div>
            </div>
            
            {/* Mobile Sidebar Close */}
-           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)} style={{ borderRadius: 0, border: '1px solid var(--border)' }}>
+           <button className="show-mobile-only btn-icon" onClick={() => setIsSidebarOpen(false)} style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <X size={14} />
            </button>
         </div>
@@ -926,51 +981,41 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                 <LayoutGrid size={16} color="var(--brand-primary)" />
               </button>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ 
-                  display: 'flex', alignItems: 'center', gap: 6, 
-                  background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)20', 
-                  padding: '4px 10px', borderRadius: 0 
-                }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-primary)', boxShadow: '0 0 8px var(--brand-primary)' }} />
-                  <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: 'var(--font-mono)' }}>Real-Time Stream</span>
-                </div>
-                <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-                <h2 style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {activeRes === 'yaml' ? 'KubeConfig' : activeRes} <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>PROTOCOLS</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: connecting ? 'var(--warning)' : 'var(--success)', boxShadow: connecting ? 'none' : '0 0 6px var(--success)', flexShrink: 0 }} />
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {activeRes === 'yaml' ? 'KubeConfig' : (RESOURCE_LABELS[activeRes] || activeRes)}
                 </h2>
-                {loading && <RefreshCw size={13} className="spin" color="var(--brand-primary)" style={{ marginLeft: 4 }} />}
+                {loading && <RefreshCw size={13} className="spin" color="var(--brand-primary)" style={{ flexShrink: 0 }} />}
               </div>
            </div>
            
-           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {activeRes !== 'yaml' && (
                 <div className="namespace-selector hidden-mobile" style={{ 
-                  display: 'flex', alignItems: 'center', gap: 10, 
+                  display: 'flex', alignItems: 'center', gap: 8, 
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)', 
-                  padding: '6px 14px', borderRadius: 0 
+                  padding: '0 12px', height: 34, borderRadius: 'var(--radius-md)' 
                 }}>
-                  <Globe size={14} color="var(--brand-primary)" />
+                  <Globe size={14} color="var(--text-muted)" />
                   <select 
-                    style={{ background: 'transparent', border: 'none', fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', paddingRight: 4 }}
+                    style={{ background: 'transparent', border: 'none', fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', fontFamily: 'var(--font-mono)', paddingRight: 4 }}
                     value={selectedNS} onChange={e => setSelectedNS(e.target.value)}
                   >
-                      <option value="All">CLUSTER_SCOPE</option>
-                      {namespaces.map(ns => <option key={ns} value={ns}>{ns.toUpperCase()}</option>)}
+                      <option value="All">Cluster scope</option>
+                      {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
                   </select>
                 </div>
               )}
-              
-              <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} className="hidden-mobile" />
 
               {activeRes === 'yaml' && (
                 <button 
                   className="btn btn-primary" 
                   onClick={saveClusterConfig}
                   disabled={savingRaw}
-                  style={{ height: 36, padding: '0 20px', borderRadius: 0, fontWeight: 900, fontSize: 12, letterSpacing: '0.05em' }}
+                  style={{ height: 34, padding: '0 16px', fontWeight: 700, fontSize: 12.5 }}
                 >
-                  {savingRaw ? 'SYNCHRONIZING...' : 'COMMIT_CHANGES'}
+                  {savingRaw ? 'Saving…' : 'Save config'}
                 </button>
               )}
               
@@ -978,40 +1023,40 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                 <button
                   className="btn btn-primary"
                   onClick={() => openCreateResource()}
-                  title="Create a new resource from a YAML template"
-                  style={{
-                    height: 36, padding: '0 16px', borderRadius: 0,
-                    gap: 8, display: 'flex', alignItems: 'center',
-                    fontWeight: 900, fontSize: 12, letterSpacing: '0.05em'
-                  }}
+                  title="Create a resource from a YAML template"
+                  style={{ height: 34, padding: '0 16px', gap: 6, fontWeight: 700, fontSize: 12.5 }}
                 >
                   <Plus size={14} />
-                  <span className="hidden-mobile">CREATE</span>
+                  <span className="hidden-mobile">Create</span>
+                </button>
+              )}
+
+              {canUseKubectl && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowReadOnlyKubeconfig(true)}
+                  title="Generate a read-only kubeconfig to share with a developer"
+                  style={{ height: 34, padding: '0 14px', gap: 6, fontWeight: 700, fontSize: 12.5 }}
+                >
+                  <KeyRound size={14} />
+                  <span className="hidden-mobile">Read-only access</span>
                 </button>
               )}
 
               <button
-                className="btn btn-secondary"
+                className={`btn ${showMCPTerminal ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setShowMCPTerminal(t => !t)}
-                style={{
-                  height: 36, padding: '0 16px', borderRadius: 0,
-                  gap: 8,
-                  display: 'flex', alignItems: 'center',
-                  background: showMCPTerminal ? 'var(--brand-gradient)' : 'var(--bg-elevated)',
-                  color: showMCPTerminal ? '#fff' : 'var(--text-primary)',
-                  border: showMCPTerminal ? 'none' : '1px solid var(--border)',
-                  fontWeight: 900, fontSize: 12, letterSpacing: '0.05em'
-                }}
+                style={{ height: 34, padding: '0 14px', gap: 6, fontWeight: 700, fontSize: 12.5 }}
               >
                 <Terminal size={14} />
-                <span className="hidden-mobile">KUBECTL_SHELL</span>
+                <span className="hidden-mobile">Kubectl shell</span>
               </button>
            </div>
         </header>
 
          <main style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', position: 'relative' }}>
           {(showSearch || showCommandBar) && (
-            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--danger)' : '1px solid var(--border-bright)', borderRadius: 12, marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)', padding: '12px 16px', border: cmdError ? '1px solid var(--danger)' : '1px solid var(--border-bright)', borderRadius: 'var(--radius-md)', marginBottom: 16, display: 'flex', alignItems: 'center', boxShadow: 'var(--shadow-md)' }}>
               <span style={{ color: 'var(--brand-primary)', fontWeight: 800, marginRight: 12 }}>{showSearch ? '/' : ':'}</span>
               <form onSubmit={handleCommandSubmit} style={{ flex: 1, margin: 0 }}>
                 <input ref={showSearch ? searchInputRef : cmdInputRef}
@@ -1019,16 +1064,16 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
                        onChange={e => showSearch ? setFilterQuery(e.target.value) : setCommandInput(e.target.value)}
                        style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 14, outline: 'none', width: '100%' }}
                        autoFocus
-                       placeholder={showSearch ? "Fuzzy search..." : "resource type..."} />
+                       placeholder={showSearch ? "Search resources…" : "kubectl command…"} />
               </form>
               <button className="btn-icon" onClick={() => { setShowSearch(false); setShowCommandBar(false); }}><X size={14}/></button>
             </div>
           )}
 
-          {activeRes === 'pulse' && <PulseDashboard cluster={cluster} stats={stats} namespace={selectedNS} error={pulseError} connecting={connecting} onJump={(r) => setActiveRes(r)} onResync={() => watchK8sData(cluster.id, activeRes, selectedNS)} />}
+          {activeRes === 'pulse' && <PulseDashboard cluster={cluster} stats={stats} namespace={selectedNS} error={pulseError} partialErrors={pulsePartial} connecting={connecting} onJump={(r) => setActiveRes(r)} onResync={() => watchK8sData(cluster.id, activeRes, selectedNS)} />}
           
           {activeRes === 'nodes' && <KTable columns={['Name', 'Status', 'Role', 'Version', 'Internal-IP']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(n: any) => (
+             actions={(n: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('node', n.metadata.name)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Shell (via a temporary debug pod)" onClick={() => setDrawer({ open: true, mode: 'shell', target: 'node', node: n.metadata.name })}><Terminal size={14} /></button>}
@@ -1039,41 +1084,42 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
           {activeRes === 'pods' && canUseKubectl && selectedPods.size > 0 && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
-              padding: '10px 16px', border: '1px solid var(--danger)30', background: 'var(--danger)10'
+              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap',
+              padding: '10px 14px', border: '1px solid var(--danger)30', background: 'var(--danger-glow)', borderRadius: 'var(--radius-md)'
             }}>
-              <span style={{ fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-mono)', color: 'var(--danger)', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)' }}>
                 {selectedPods.size} pod{selectedPods.size === 1 ? '' : 's'} selected
               </span>
               <button
-                className="btn"
+                className="btn btn-sm btn-danger"
                 onClick={handleBulkDeletePods}
                 disabled={bulkDeleting}
-                style={{ marginLeft: 'auto', height: 30, padding: '0 14px', borderRadius: 0, background: 'var(--danger)', color: '#fff', border: 'none', fontWeight: 900, fontSize: 11, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6, cursor: bulkDeleting ? 'default' : 'pointer', opacity: bulkDeleting ? 0.6 : 1 }}
+                style={{ marginLeft: 'auto', gap: 6 }}
               >
-                <Trash2 size={13} /> {bulkDeleting ? 'DELETING...' : 'DELETE SELECTED'}
+                <Trash2 size={13} /> {bulkDeleting ? 'Deleting…' : 'Delete selected'}
               </button>
               <button
+                className="btn btn-sm btn-secondary"
                 onClick={() => setSelectedPods(new Set())}
-                style={{ height: 30, padding: '0 12px', borderRadius: 0, background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+                style={{ fontWeight: 700, fontSize: 11 }}
               >
-                CLEAR
+                Clear
               </button>
             </div>
           )}
 
           {activeRes === 'pods' && <KTable columns={['Name', 'Namespace', 'Restarts', 'Status']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
              selectable={canUseKubectl}
-             isRowChecked={(p: any) => selectedPods.has(podKey(p))}
+             isRowChecked={(p: K8sRow) => selectedPods.has(podKey(p))}
              onToggleRow={toggleSelectPod}
              allChecked={filteredData.length > 0 && selectedPods.size === filteredData.length}
              onToggleAll={toggleSelectAllPods}
-             actions={ (p: any) => (
+             actions={ (p: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('pod', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
                   <button className="btn-icon" title="Logs" onClick={() => setDrawer({ open: true, mode: 'logs', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><List size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Shell" onClick={() => setDrawer({ open: true, mode: 'shell', pod: p.metadata.name, ns: p.metadata.namespace, container: p.spec?.containers?.[0]?.name })}><Terminal size={14} /></button>}
-                  {canUseKubectl && <button className="btn-icon" title="Port Forward" onClick={() => openPortForward(p.metadata.namespace, `pod/${p.metadata.name}`)}><Globe size={14} /></button>}
+                  {canUseKubectl && <button className="btn-icon" title="Port Forward" onClick={() => openPortForward(p.metadata.namespace ?? 'default', `pod/${p.metadata.name}`)}><Globe size={14} /></button>}
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(p)}><Trash2 size={14} /></button>}
                 </>
              )}
@@ -1081,7 +1127,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
 
           {['deployments', 'daemonsets', 'statefulsets', 'replicasets', 'jobs', 'cronjobs'].includes(activeRes) &&
             <KTable columns={['Name', 'Namespace', 'Ready', 'Available', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-              actions={(d: any) => (
+              actions={(d: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(d.kind?.toLowerCase() || activeRes.slice(0, -1), d.metadata.name, d.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && ['deployments', 'daemonsets', 'statefulsets'].includes(activeRes) &&
@@ -1094,7 +1140,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             />}
 
           {activeRes === 'configmaps' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(c: any) => (
+             actions={(c: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('configmap', c.metadata.name, c.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(c)}><Trash2 size={14} /></button>}
@@ -1102,7 +1148,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'secrets' && <KTable columns={['Name', 'Namespace', 'Type', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(s: any) => (
+             actions={(s: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('secret', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(s)}><Trash2 size={14} /></button>}
@@ -1110,7 +1156,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'resourcequotas' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(r: any) => (
+             actions={(r: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('resourcequota', r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(r)}><Trash2 size={14} /></button>}
@@ -1118,7 +1164,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'hpa' && <KTable columns={['Name', 'Namespace', 'Targets', 'MinPods', 'MaxPods', 'Replicas', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(h: any) => (
+             actions={(h: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('hpa', h.metadata.name, h.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(h)}><Trash2 size={14} /></button>}
@@ -1127,16 +1173,16 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           />}
 
           {activeRes === 'services' && <KTable columns={['Name', 'Namespace', 'Type', 'Cluster-IP', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(s: any) => (
+             actions={(s: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('service', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>
-                  {canUseKubectl && <button className="btn-icon" title="Port Forward" onClick={() => openPortForward(s.metadata.namespace, `svc/${s.metadata.name}`, s.spec?.ports?.[0]?.port?.toString())}><Globe size={14} /></button>}
+                  {canUseKubectl && <button className="btn-icon" title="Port Forward" onClick={() => openPortForward(s.metadata.namespace ?? 'default', `svc/${s.metadata.name}`, servicePort(s))}><Globe size={14} /></button>}
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(s)}><Trash2 size={14} /></button>}
                 </>
              )}
           />}
           {activeRes === 'endpoints' && <KTable columns={['Name', 'Namespace', 'Endpoints', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(e: any) => (
+             actions={(e: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('endpoints', e.metadata.name, e.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(e)}><Trash2 size={14} /></button>}
@@ -1144,7 +1190,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'ingresses' && <KTable columns={['Name', 'Namespace', 'Hosts', 'Address', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(i: any) => (
+             actions={(i: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('ingress', i.metadata.name, i.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(i)}><Trash2 size={14} /></button>}
@@ -1152,7 +1198,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'networkpolicies' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(n: any) => (
+             actions={(n: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('networkpolicy', n.metadata.name, n.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(n)}><Trash2 size={14} /></button>}
@@ -1161,7 +1207,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           />}
           
           {activeRes === 'pvcs' && <KTable columns={['Name', 'Namespace', 'Status', 'Volume', 'Capacity', 'AccessModes', 'StorageClass', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(p: any) => (
+             actions={(p: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('persistentvolumeclaim', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(p)}><Trash2 size={14} /></button>}
@@ -1169,7 +1215,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'pvs' && <KTable columns={['Name', 'Capacity', 'AccessModes', 'ReclaimPolicy', 'Status', 'Claim', 'StorageClass', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(p: any) => (
+             actions={(p: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('persistentvolume', p.metadata.name)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(p)}><Trash2 size={14} /></button>}
@@ -1177,7 +1223,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'storageclasses' && <KTable columns={['Name', 'Provisioner', 'ReclaimPolicy', 'VolumeBindingMode', 'AllowVolumeExpansion', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(s: any) => (
+             actions={(s: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('storageclass', s.metadata.name)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(s)}><Trash2 size={14} /></button>}
@@ -1186,7 +1232,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           />}
 
           {activeRes === 'serviceaccounts' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(s: any) => (
+             actions={(s: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('serviceaccount', s.metadata.name, s.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(s)}><Trash2 size={14} /></button>}
@@ -1194,7 +1240,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {['roles', 'clusterroles'].includes(activeRes) && <KTable columns={['Name', activeRes === 'roles' ? 'Namespace' : '', 'Age'].filter(Boolean)} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(r: any) => (
+             actions={(r: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(activeRes.slice(0, -1), r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(r)}><Trash2 size={14} /></button>}
@@ -1202,7 +1248,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {['rolebindings', 'clusterrolebindings'].includes(activeRes) && <KTable columns={['Name', activeRes === 'rolebindings' ? 'Namespace' : '', 'Role', 'Age'].filter(Boolean)} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(r: any) => (
+             actions={(r: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(activeRes.slice(0, -1), r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(r)}><Trash2 size={14} /></button>}
@@ -1213,7 +1259,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           {activeRes === 'events' && <KTable columns={['Type', 'Reason', 'Object', 'Message', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} />}
 
           {activeRes === 'namespaces' && <KTable columns={['Name', 'Status', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(n: any) => (
+             actions={(n: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('namespace', n.metadata.name)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(n)}><Trash2 size={14} /></button>}
@@ -1221,7 +1267,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'crds' && <KTable columns={['Name', 'Group', 'Scope', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(c: any) => (
+             actions={(c: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('crd', c.metadata.name)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(c)}><Trash2 size={14} /></button>}
@@ -1229,7 +1275,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'poddisruptionbudgets' && <KTable columns={['Name', 'Namespace', 'MinAvailable', 'MaxUnavailable', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(p: any) => (
+             actions={(p: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('poddisruptionbudget', p.metadata.name, p.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(p)}><Trash2 size={14} /></button>}
@@ -1238,7 +1284,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
           />}
 
           {activeRes === 'gatewayclasses' && <KTable columns={['Name', 'Controller', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(g: any) => (
+             actions={(g: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('gatewayclass', g.metadata.name)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(g)}><Trash2 size={14} /></button>}
@@ -1246,7 +1292,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'gateways' && <KTable columns={['Name', 'Namespace', 'Class', 'Address', 'Listeners', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(g: any) => (
+             actions={(g: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('gateway', g.metadata.name, g.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(g)}><Trash2 size={14} /></button>}
@@ -1254,7 +1300,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {['httproutes', 'grpcroutes'].includes(activeRes) && <KTable columns={['Name', 'Namespace', 'Hostnames', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(r: any) => (
+             actions={(r: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml(activeRes.slice(0, -1), r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(r)}><Trash2 size={14} /></button>}
@@ -1262,7 +1308,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
              )}
           />}
           {activeRes === 'referencegrants' && <KTable columns={['Name', 'Namespace', 'Age']} data={filteredData} loading={connecting} selectedIndex={selectedIndex} onNameClick={handleNameClick}
-             actions={(r: any) => (
+             actions={(r: K8sRow) => (
                 <>
                   <button className="btn-icon" title="Edit YAML" onClick={() => fetchYaml('referencegrant', r.metadata.name, r.metadata.namespace)}><FileCode size={14} /></button>
                   {canUseKubectl && <button className="btn-icon" title="Delete" onClick={() => handleDeleteResource(r)}><Trash2 size={14} /></button>}
@@ -1294,6 +1340,7 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
       />}
       {drawer?.open && canUseKubectl && <TerminalPortal serverID={cluster.id} target={drawer.target || 'pod'} pod={drawer.pod} namespace={drawer.ns} container={drawer.container} node={drawer.node} mode={drawer.mode} onClose={() => setDrawer(null)} />}
       {showMCPTerminal && <MCPTerminal clusterId={cluster.id} clusterName={cluster.name} onClose={() => setShowMCPTerminal(false)} />}
+      {showReadOnlyKubeconfig && canUseKubectl && <ReadOnlyKubeconfigModal serverID={cluster.id} clusterName={cluster.name} onClose={() => setShowReadOnlyKubeconfig(false)} />}
       
       {editingYaml.open && (
         <div className="fade-in" style={{ position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', background: 'var(--bg-app)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
@@ -1301,13 +1348,13 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             {editingYaml.isNew ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>CREATE RESOURCE</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pick a template, edit, apply • CMD+S TO APPLY</span>
+                  <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>Create resource</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pick a template, edit and apply · Ctrl/Cmd + S to apply</span>
                 </div>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  padding: '6px 14px', borderRadius: 0
+                  padding: '6px 12px', borderRadius: 'var(--radius-md)'
                 }}>
                   <FileCode size={14} color="var(--brand-primary)" />
                   <select
@@ -1321,12 +1368,12 @@ export const K8sResourceExplorer = memo(({ cluster, onBack, canUseKubectl }: K8s
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{editingYaml.kind?.toUpperCase()}: {editingYaml.name}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{editingYaml.ns || 'cluster-scoped'} • CMD+S TO APPLY</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{editingYaml.ns || 'Cluster scoped'} · Ctrl/Cmd + S to apply</span>
               </div>
             )}
-            <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
               <button className="btn btn-secondary" onClick={() => setEditingYaml({ open: false, content: '' })}>Cancel</button>
-              <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying...' : editingYaml.isNew ? 'Create & Apply' : 'Save & Apply'}</button>
+              <button className="btn btn-primary" onClick={applyYaml} disabled={loading}>{loading ? 'Applying…' : editingYaml.isNew ? 'Create & apply' : 'Save & apply'}</button>
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Terminal, Play, Loader2, X, ChevronDown, Zap, Wrench, RefreshCw, Copy, Check, Maximize2, Minimize2, Eraser, CornerDownLeft } from 'lucide-react'
 import { api } from '../../api/client'
+import { apiError, errMessage } from '../../utils/errors'
 
 interface MCPTerminalProps {
   clusterId: number
@@ -21,7 +22,7 @@ interface CommandEntry {
 interface MCPTool {
   name: string
   description?: string
-  inputSchema?: { properties?: Record<string, any>; required?: string[] }
+  inputSchema?: { properties?: Record<string, unknown>; required?: string[] }
 }
 
 // Console palette — resolves to a light "paper console" in light theme and
@@ -47,7 +48,7 @@ const TERM = {
 }
 
 // Smart parser: maps common kubectl commands → MCP tool name + arguments
-function parseKubectlToMCP(cmd: string, clusterId: number): { tool: string; args: Record<string, any> } | null {
+function parseKubectlToMCP(cmd: string, clusterId: number): { tool: string; args: Record<string, unknown> } | null {
   const parts = cmd.trim().split(/\s+/)
   const verb = parts[0]?.toLowerCase()
   const resource = parts[1]?.toLowerCase()
@@ -277,15 +278,15 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
         entry.output = res.data.output || res.data.error || '(no output)'
         entry.isError = !res.data.success
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       // 3. Final fallback to SSH kubectl
       try {
         entry.toolUsed = 'kubectl (SSH)'
         const res = await api.post(`/api/servers/${clusterId}/kubectl`, { command: cmd })
         entry.output = res.data.output || res.data.error || '(no output)'
         entry.isError = !res.data.success
-      } catch (e2: any) {
-        entry.output = e2.response?.data?.error ?? e.message ?? 'Command failed'
+      } catch (e2: unknown) {
+        entry.output = apiError(e2) ?? errMessage(e) ?? 'Command failed'
         entry.isError = true
       }
     }
@@ -316,8 +317,8 @@ export function MCPTerminal({ clusterId, clusterName, onClose }: MCPTerminalProp
       })
       entry.output = res.data.output || JSON.stringify(res.data, null, 2)
       entry.isError = res.data.is_error === true
-    } catch (e: any) {
-      entry.output = e.response?.data?.error || 'Tool execution failed'
+    } catch (e: unknown) {
+      entry.output = apiError(e) || 'Tool execution failed'
       entry.isError = true
     }
     entry.duration = Date.now() - startTime

@@ -6,6 +6,15 @@ interface User {
   username: string
   role: string
   email: string
+  // Returned by PUT /api/auth/me (the profile response), not by login — so a
+  // freshly logged-in user has these undefined until they save Settings.
+  open_router_key?: string
+  deep_seek_key?: string
+  claude_key?: string
+  gemini_key?: string
+  mistral_key?: string
+  local_llm_url?: string
+  local_llm_model?: string
 }
 
 interface AuthStore {

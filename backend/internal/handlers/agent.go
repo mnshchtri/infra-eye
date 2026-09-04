@@ -666,10 +666,11 @@ func AgentRunWS(c *gin.Context) {
 	if !ok {
 		return
 	}
-	conn, err := UpgradeConn(c.Writer, c.Request)
+	conn, release, err := UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	client := ws.GlobalHub.Register(conn, agentRoom(run.ID))
 	client.ReadPump(ws.GlobalHub, nil)
 }

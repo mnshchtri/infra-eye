@@ -1,4 +1,5 @@
 import yaml from 'js-yaml'
+import { errMessage } from '../utils/errors'
 
 // Fields Kubernetes (or kubectl) populates server-side / locally on apply.
 // Re-applying a manifest that still carries these causes immutable-field
@@ -65,7 +66,7 @@ export interface CleanResult {
   error?: string
 }
 
-function isPlainObject(v: unknown): v is Record<string, any> {
+function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
@@ -81,8 +82,8 @@ function stripTemplateCreationTimestamp<T>(template: T, pathLabel: string, remov
   return { ...template, metadata }
 }
 
-function cleanDocument(doc: Record<string, any>, options: CleanOptions, removed: Set<string>): Record<string, any> {
-  const cleaned: Record<string, any> = { ...doc }
+function cleanDocument(doc: Record<string, unknown>, options: CleanOptions, removed: Set<string>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = { ...doc }
   const kind = typeof cleaned.kind === 'string' ? cleaned.kind : ''
 
   if ('status' in cleaned) {
@@ -201,8 +202,8 @@ export function cleanManifest(input: string, options: CleanOptions = DEFAULT_CLE
   let docs: unknown[]
   try {
     docs = yaml.loadAll(input).filter(d => d !== null && d !== undefined)
-  } catch (e: any) {
-    return { output: '', documentCount: 0, removedFields: [], error: e.message || 'Invalid YAML' }
+  } catch (e: unknown) {
+    return { output: '', documentCount: 0, removedFields: [], error: errMessage(e) || 'Invalid YAML' }
   }
 
   if (docs.length === 0) {

@@ -2,8 +2,8 @@ import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { X } from 'lucide-react'
 import { Badge } from '../ui'
-import { kindMeta, nodeColor } from './AgentFlowNodes'
 import type { AgentStep } from '../../pages/agentTypes'
+import { kindMeta, nodeColor } from './agentFlowMeta'
 
 function prettyArgs(raw: string): string {
   try {

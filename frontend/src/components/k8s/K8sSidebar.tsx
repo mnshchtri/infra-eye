@@ -1,10 +1,11 @@
 import React, { memo } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 interface ResNavLinkProps {
   active: boolean;
   onClick: () => void;
-  icon: any;
+  icon: LucideIcon;
   label: string;
   isSub?: boolean;
 }
@@ -22,7 +23,7 @@ ResNavLink.displayName = 'ResNavLink'
 
 interface NavCategoryProps {
   label: string;
-  icon: any;
+  icon: LucideIcon;
   children: React.ReactNode;
   isOpen: boolean;
   onToggle: () => void;

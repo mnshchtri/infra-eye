@@ -13,13 +13,13 @@ interface ServerData {
   os: string
   distro?: string
   status: string
-  kube_config?: string
+  has_kubeconfig?: boolean
 }
 
 async function loadServers(): Promise<ServerData[]> {
   const res = await api.get('/api/servers')
   const list: ServerData[] = Array.isArray(res.data) ? res.data : []
-  return list.filter(s => s.host && !s.kube_config && s.os !== 'darwin')
+  return list.filter(s => s.host && !s.has_kubeconfig && s.os !== 'darwin')
 }
 
 function fmtAgo(iso: string) {

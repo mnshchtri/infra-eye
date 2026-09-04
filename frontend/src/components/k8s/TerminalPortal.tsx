@@ -52,7 +52,7 @@ export function TerminalPortal({ serverID, pod, namespace, container, node, targ
 
     ws.onmessage = (ev) => {
         if (typeof ev.data === 'string') { term.write(ev.data) }
-        else { ev.data.arrayBuffer().then((buf: any) => term.write(new Uint8Array(buf))) }
+        else { ev.data.arrayBuffer().then((buf: ArrayBuffer) => term.write(new Uint8Array(buf))) }
     }
 
     ws.onerror = () => {

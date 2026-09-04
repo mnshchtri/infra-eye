@@ -30,7 +30,7 @@ const TOAST_CONFIG = {
 }
 
 function ToastItem({ toast }: { toast: Toast }) {
-  const remove = useToastStore((s: any) => s.remove)
+  const remove = useToastStore(s => s.remove)
   const config = TOAST_CONFIG[toast.type] || TOAST_CONFIG.info
   const Icon = config.icon
   const progressRef = useRef<HTMLDivElement>(null)
@@ -151,7 +151,7 @@ function ToastItem({ toast }: { toast: Toast }) {
 }
 
 export function ToastContainer() {
-  const toasts = useToastStore((s: any) => s.toasts as Toast[])
+  const toasts = useToastStore(s => s.toasts as Toast[])
 
   return (
     <>

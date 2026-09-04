@@ -54,6 +54,10 @@ func main() {
 	// Start Infrastructure-as-Code Git-sync engine
 	gitsync.StartEngine()
 
+	// Close WebSockets belonging to accounts that stop being active — a socket
+	// authenticates once at the handshake and never re-enters the middleware.
+	handlers.StartWSSessionSweeper()
+
 	// Setup Gin
 	if config.C.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)

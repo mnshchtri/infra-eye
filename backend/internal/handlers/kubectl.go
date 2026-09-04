@@ -431,11 +431,12 @@ func SSHTerminal(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		log.Printf("WS terminal upgrade error: %v", err)
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	if server.Host == "" {
@@ -548,10 +549,11 @@ func RunPodTerminal(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	if mode == "logs" {
@@ -699,10 +701,11 @@ func RunNodeTerminal(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(server.KubeConfig))
@@ -1106,11 +1109,12 @@ func WatchKubectl(c *gin.Context) {
 		return
 	}
 
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	wsConn, release, err := UpgradeTracked(c)
 	if err != nil {
 		log.Printf("WS k8s watch upgrade error: %v", err)
 		return
 	}
+	defer release()
 	defer wsConn.Close()
 
 	clientset, err := k8s.GetK8sClient(server.KubeConfig)
@@ -1188,6 +1192,23 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 			if err != nil {
 				errs[key] = err.Error()
 			}
+		}
+
+		// Confirm we can actually talk to the API server before gathering
+		// anything. Every List below degrades to zero on failure, so without
+		// this an unreachable endpoint, an expired token, or a revoked
+		// ServiceAccount renders as a healthy cluster that happens to contain
+		// nothing — indistinguishable from a genuinely empty one. Discovery is
+		// the cheapest call that exercises both connectivity and authentication.
+		k8sVersion := ""
+		if v, verr := clientset.Discovery().ServerVersion(); verr != nil {
+			// Same frame shape the non-pulse branch uses for fetch failures, so
+			// the client's existing error path renders it.
+			errPayload := fmt.Sprintf(`{"error":"Cluster unreachable","stderr":%q,"cmd":"pulse"}`, verr.Error())
+			wsConn.WriteMessage(websocket.TextMessage, []byte(errPayload))
+			return
+		} else {
+			k8sVersion = v.GitVersion
 		}
 
 		// Nodes (cluster-scoped - always use empty string)
@@ -1390,11 +1411,6 @@ func sendNativeFrame(wsConn *websocket.Conn, server models.Server, clientset *ku
 					evWarn++
 				}
 			}
-		}
-
-		k8sVersion := ""
-		if v, verr := clientset.Discovery().ServerVersion(); verr == nil {
-			k8sVersion = v.GitVersion
 		}
 
 		// Fetch real-time usage from metrics-server

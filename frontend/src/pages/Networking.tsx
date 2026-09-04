@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ChevronRight, RefreshCw, Search,
   Wifi, Globe, Server, Activity, Power,
-  Loader2, HelpCircle, Filter, Network,
+  Loader2, HelpCircle, Network,
   ChevronDown, ChevronUp
 } from 'lucide-react'
 import { api } from '../api/client'
-import { WindowsIcon, LinuxIcon, AppleIcon } from '../components/OSIcons'
+import { LinuxIcon, AppleIcon } from '../components/OSIcons'
 import { useToastStore } from '../store/toastStore'
+import { apiError } from '../utils/errors'
+import type { IconComponent } from '../types/k8s'
 
 interface Server {
   id: number; name: string; host: string; status: string; os: string; ssh_user: string;
@@ -54,7 +56,7 @@ function formatBytes(b: string): string {
   return (n / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i]
 }
 
-const StatCard = memo(({ label, value, icon: Icon, color }: { label: string; value: string; icon: any; color: string }) => (
+const StatCard = memo(({ label, value, icon: Icon, color }: { label: string; value: string; icon: IconComponent; color: string }) => (
   <div className="card" style={{ padding: '20px 24px', border: '1px solid var(--border)' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
       <div style={{
@@ -234,8 +236,8 @@ export function Networking() {
         services: netRes.data?.services || [],
         interfaces: netRes.data?.interfaces || [],
       })
-    } catch (err: any) {
-      toast.error('Failed to load', err.response?.data?.error || 'Could not fetch networking data')
+    } catch (err: unknown) {
+      toast.error('Failed to load', apiError(err) || 'Could not fetch networking data')
     } finally {
       setLoading(false)
     }

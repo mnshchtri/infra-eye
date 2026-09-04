@@ -275,11 +275,12 @@ func StreamLogs(c *gin.Context) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, release, err := UpgradeTracked(c)
 	if err != nil {
 		log.Printf("WS upgrade error: %v", err)
 		return
 	}
+	defer release()
 
 	// Room is scoped to the selected source so viewers of different sources on
 	// the same server don't cross-contaminate each other's streams.

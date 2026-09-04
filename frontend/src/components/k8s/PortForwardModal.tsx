@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { X, ExternalLink, Globe, Trash2, Zap, ArrowRight, ShieldCheck } from 'lucide-react'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
+import { apiError } from '../../utils/errors'
 
-interface PortForwardSession {
+export interface PortForwardSession {
   id: string
   target: string
   namespace: string
@@ -28,13 +29,16 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
   
   // Suggested local port logic
   const getSuggestedPort = () => Math.floor(Math.random() * (9999 - 8000 + 1) + 8000).toString()
+  // Seeded once, in the state initialiser, so a re-render doesn't reshuffle
+  // the port the user is looking at.
 
-  const [form, setForm] = useState({ 
+  const [form, setForm] = useState(() => ({ 
     namespace: initialNamespace || 'default', 
     target: initialTarget || '', 
-    local_port: initialPort ? getSuggestedPort() : '', 
-    remote_port: initialPort || '' 
-  })
+    local_port: '', 
+    remote_port: initialPort || '',
+    ...(initialPort ? { local_port: getSuggestedPort() } : {}),
+  }))
   const [busy, setBusy] = useState(false)
 
   // Polling for status updates while open
@@ -61,11 +65,11 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
         const url = getForwardUrl(Number(form.local_port));
         window.open(url, '_blank');
 
-        setForm((prev: any) => ({ ...prev, target: '', local_port: '', remote_port: '' }))
+        setForm(prev => ({ ...prev, target: '', local_port: '', remote_port: '' }))
         onRefresh()
       }
-    } catch (e: any) {
-      toast.error('Port-forward failed', e.response?.data?.error || 'Check if the port is already in use')
+    } catch (e: unknown) {
+      toast.error('Port-forward failed', apiError(e) || 'Check if the port is already in use')
     } finally {
       setBusy(false)
     }
@@ -76,8 +80,8 @@ export function PortForwardModal({ serverID, sessions, onClose, onRefresh, initi
       await api.delete(`/api/servers/${serverID}/kubectl/port-forward/${id}`)
       toast.success('Tunnel closed', `Session ${id.slice(0, 8)}... terminated`)
       onRefresh()
-    } catch (e: any) {
-      toast.error('Stop failed', e.response?.data?.error || 'Unable to stop port-forward')
+    } catch (e: unknown) {
+      toast.error('Stop failed', apiError(e) || 'Unable to stop port-forward')
     }
   }
 

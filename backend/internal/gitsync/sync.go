@@ -48,7 +48,8 @@ func TestConnection(repoURL, branch, pat string) error {
 
 // RunSync performs one full sync attempt: clone-or-pull, parse, reconcile,
 // recording a GitSyncRun row throughout. Errors (git failures, YAML parse
-// errors) are stored verbatim in ErrorText — never abstracted.
+// errors) are stored verbatim in ErrorText — never abstracted, except that any
+// credential spliced into the remote URL is redacted (see RedactCredentials).
 func RunSync(trigger string) *models.GitSyncRun {
 	run := &models.GitSyncRun{StartedAt: time.Now(), Trigger: trigger, Status: "running"}
 	db.DB.Create(run)
@@ -73,20 +74,20 @@ func RunSync(trigger string) *models.GitSyncRun {
 
 	if err := cloneOrPull(ctx, repoURL, branch, pat); err != nil {
 		run.Status = "failed"
-		run.ErrorText = err.Error()
+		run.ErrorText = RedactCredentials(err.Error())
 		return run
 	}
 
 	servers, err := parseServers(WorkDir, filepath.Join(subdir, serversFileName))
 	if err != nil {
 		run.Status = "failed"
-		run.ErrorText = err.Error()
+		run.ErrorText = RedactCredentials(err.Error())
 		return run
 	}
 	rules, err := parseAlertRules(WorkDir, filepath.Join(subdir, alertRulesFileName))
 	if err != nil {
 		run.Status = "failed"
-		run.ErrorText = err.Error()
+		run.ErrorText = RedactCredentials(err.Error())
 		return run
 	}
 
@@ -105,7 +106,7 @@ func RunSync(trigger string) *models.GitSyncRun {
 	})
 	if txErr != nil {
 		run.Status = "failed"
-		run.ErrorText = txErr.Error()
+		run.ErrorText = RedactCredentials(txErr.Error())
 		return run
 	}
 

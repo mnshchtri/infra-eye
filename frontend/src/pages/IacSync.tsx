@@ -6,6 +6,8 @@ import {
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
 import { Badge } from '../components/ui/Badge'
+import { apiError } from '../utils/errors'
+import type { IconComponent } from '../types/k8s'
 
 interface GitSyncRun {
   id: number
@@ -23,14 +25,14 @@ interface GitSyncRun {
   rules_deleted: number
 }
 
-const statusMeta: Record<string, { variant: 'success' | 'warning' | 'danger' | 'neutral'; icon: any; label: string; color: string }> = {
+const statusMeta: Record<string, { variant: 'success' | 'warning' | 'danger' | 'neutral'; icon: IconComponent; label: string; color: string }> = {
   success: { variant: 'success', icon: CheckCircle2, label: 'Success', color: 'var(--success)' },
   partial: { variant: 'warning', icon: AlertTriangle, label: 'Partial', color: 'var(--warning)' },
   failed: { variant: 'danger', icon: XCircle, label: 'Failed', color: 'var(--danger)' },
   running: { variant: 'neutral', icon: RefreshCw, label: 'Running', color: 'var(--text-muted)' },
 }
 
-const triggerMeta: Record<string, { icon: any; label: string }> = {
+const triggerMeta: Record<string, { icon: IconComponent; label: string }> = {
   scheduled: { icon: Clock, label: 'Scheduled' },
   manual: { icon: UserIcon, label: 'Manual' },
 }
@@ -46,7 +48,7 @@ function fmtAgo(iso: string) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-function StatTile({ label, value, sub, icon: Icon, color }: { label: string; value: string; sub?: string; icon: any; color: string }) {
+function StatTile({ label, value, sub, icon: Icon, color }: { label: string; value: string; sub?: string; icon: IconComponent; color: string }) {
   return (
     <div className="card stat-card fade-up">
       <div className="stat-icon-wrapper" style={{ color }}>
@@ -99,8 +101,8 @@ export function IacSync() {
       setIntervalMinutes(String(res.data?.interval_minutes || '15'))
       setPatSet(res.data?.pat_set === true)
       setLoaded(true)
-    } catch (err: any) {
-      toast.error('Load failed', err.response?.data?.error || 'Could not load Git-sync settings.')
+    } catch (err: unknown) {
+      toast.error('Load failed', apiError(err) || 'Could not load Git-sync settings.')
     }
   }
 
@@ -130,8 +132,8 @@ export function IacSync() {
       setShowPat(false)
       setPatSet(patSet || !!body.pat)
       toast.success('Settings saved', 'Git-sync configuration updated.')
-    } catch (err: any) {
-      toast.error('Save failed', err.response?.data?.error || 'Could not save settings.')
+    } catch (err: unknown) {
+      toast.error('Save failed', apiError(err) || 'Could not save settings.')
     } finally {
       setSaving(false)
     }
@@ -152,8 +154,8 @@ export function IacSync() {
       } else {
         toast.error('Connection failed', res.data?.error || 'See details below.')
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.error || 'Could not test connection.'
+    } catch (err: unknown) {
+      const msg = apiError(err) || 'Could not test connection.'
       setTestResult({ success: false, error: msg })
       toast.error('Test failed', msg)
     } finally {
@@ -175,8 +177,8 @@ export function IacSync() {
         toast.error('Sync failed', run.error_text || 'See history below.')
       }
       loadRuns()
-    } catch (err: any) {
-      toast.error('Sync failed', err.response?.data?.error || 'Could not trigger sync.')
+    } catch (err: unknown) {
+      toast.error('Sync failed', apiError(err) || 'Could not trigger sync.')
     } finally {
       setSyncing(false)
     }

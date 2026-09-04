@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
+import { apiError } from '../utils/errors'
 
 interface UserData {
   id: number
@@ -28,13 +29,13 @@ export function Settings() {
   const [profileSaving, setProfileSaving] = useState(false)
 
   // AI Configuration state
-  const [openRouterKey, setOpenRouterKey] = useState((currentUser as any)?.open_router_key || '')
-  const [deepSeekKey, setDeepSeekKey] = useState((currentUser as any)?.deep_seek_key || '')
-  const [claudeKey, setClaudeKey] = useState((currentUser as any)?.claude_key || '')
-  const [geminiKey, setGeminiKey] = useState((currentUser as any)?.gemini_key || '')
-  const [mistralKey, setMistralKey] = useState((currentUser as any)?.mistral_key || '')
-  const [localLLMURL, setLocalLLMURL] = useState((currentUser as any)?.local_llm_url || '')
-  const [localLLMModel, setLocalLLMModel] = useState((currentUser as any)?.local_llm_model || '')
+  const [openRouterKey, setOpenRouterKey] = useState(currentUser?.open_router_key || '')
+  const [deepSeekKey, setDeepSeekKey] = useState(currentUser?.deep_seek_key || '')
+  const [claudeKey, setClaudeKey] = useState(currentUser?.claude_key || '')
+  const [geminiKey, setGeminiKey] = useState(currentUser?.gemini_key || '')
+  const [mistralKey, setMistralKey] = useState(currentUser?.mistral_key || '')
+  const [localLLMURL, setLocalLLMURL] = useState(currentUser?.local_llm_url || '')
+  const [localLLMModel, setLocalLLMModel] = useState(currentUser?.local_llm_model || '')
 
   // Notification webhook state (admin only)
   const [gchatUrl, setGchatUrl] = useState('')
@@ -69,8 +70,8 @@ export function Settings() {
       setGchatEnvSet(res.data?.google_chat_env_set === true)
       setSlackEnvSet(res.data?.slack_env_set === true)
       setNotifLoaded(true)
-    } catch (err: any) {
-      toast.error('Load failed', err.response?.data?.error || 'Could not load notification settings.')
+    } catch (err: unknown) {
+      toast.error('Load failed', apiError(err) || 'Could not load notification settings.')
     }
   }
 
@@ -83,8 +84,8 @@ export function Settings() {
         slack_webhook_url: slackUrl.trim(),
       })
       toast.success('Notifications updated', 'Alert rules will use the new webhook configuration.')
-    } catch (err: any) {
-      toast.error('Save failed', err.response?.data?.error || 'Could not save webhook settings.')
+    } catch (err: unknown) {
+      toast.error('Save failed', apiError(err) || 'Could not save webhook settings.')
     } finally {
       setNotifSaving(false)
     }
@@ -96,8 +97,8 @@ export function Settings() {
       const url = channel === 'google_chat' ? gchatUrl.trim() : slackUrl.trim()
       const res = await api.post('/api/settings/notifications/test', { channel, url })
       toast.success('Test sent', res.data?.message || 'Check the chat space for the test message.')
-    } catch (err: any) {
-      toast.error('Test failed', err.response?.data?.error || 'The webhook did not accept the test message.')
+    } catch (err: unknown) {
+      toast.error('Test failed', apiError(err) || 'The webhook did not accept the test message.')
     } finally {
       setTestingChannel(null)
     }
@@ -117,7 +118,7 @@ export function Settings() {
     e.preventDefault()
     setProfileSaving(true)
     try {
-      const payload: any = {}
+      const payload: Record<string, unknown> = {}
       if (profileEmail) payload.email = profileEmail
       if (profilePassword) payload.password = profilePassword
       
@@ -134,8 +135,8 @@ export function Settings() {
       useAuthStore.getState().setAuth(useAuthStore.getState().token!, res.data)
       toast.success('Settings updated', 'Your personal parameters and AI credentials have been synchronized.')
       setProfilePassword('')
-    } catch (err: any) {
-      toast.error('Update failed', err.response?.data?.error || 'Could not update settings.')
+    } catch (err: unknown) {
+      toast.error('Update failed', apiError(err) || 'Could not update settings.')
     } finally {
       setProfileSaving(false)
     }
@@ -147,7 +148,7 @@ export function Settings() {
     try {
       if (editUserId) {
         const { role, email, is_active, password } = userForm
-        const payload: any = { role, email, is_active }
+        const payload: Record<string, unknown> = { role, email, is_active }
         if (password) payload.password = password
         await api.put(`/api/users/${editUserId}`, payload)
       } else {
@@ -156,8 +157,8 @@ export function Settings() {
       setShowUserForm(false)
       toast.success(editUserId ? 'User updated' : 'User created', editUserId ? 'User account has been updated.' : 'New user provisioned successfully.')
       loadUsers()
-    } catch (err: any) {
-      toast.error('Save failed', err.response?.data?.error || 'Could not save user.')
+    } catch (err: unknown) {
+      toast.error('Save failed', apiError(err) || 'Could not save user.')
     } finally {
       setUserSaving(false)
     }
@@ -168,8 +169,8 @@ export function Settings() {
       await api.delete(`/api/users/${id}`)
       toast.success('User removed', `${username} has been deleted.`)
       loadUsers()
-    } catch (err: any) {
-      toast.error('Delete failed', err.response?.data?.error || 'Could not delete user.')
+    } catch (err: unknown) {
+      toast.error('Delete failed', apiError(err) || 'Could not delete user.')
     }
   }
 

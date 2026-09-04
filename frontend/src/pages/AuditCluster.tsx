@@ -11,14 +11,14 @@ interface ServerData {
   name: string
   host: string
   is_k8s: boolean
-  kube_config?: string
+  has_kubeconfig?: boolean
   status: string
 }
 
 async function loadClusters(): Promise<ServerData[]> {
   const res = await api.get('/api/servers')
   const list: ServerData[] = Array.isArray(res.data) ? res.data : []
-  return list.filter(s => s.is_k8s && s.kube_config)
+  return list.filter(s => s.is_k8s && s.has_kubeconfig)
 }
 
 function fmtAgo(iso: string) {

@@ -42,6 +42,15 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// A deactivated account must not be able to obtain a token. Without this the
+	// is_active flag is decorative and offboarding a user through the UI leaves
+	// their access fully intact.
+	if !user.IsActive {
+		log.Printf("[Login] Rejected login for deactivated user: %s", username)
+		c.JSON(http.StatusForbidden, gin.H{"error": "account is deactivated"})
+		return
+	}
+
 	claims := &middleware.Claims{
 		UserID:   user.ID,
 		Username: user.Username,

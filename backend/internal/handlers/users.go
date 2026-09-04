@@ -109,6 +109,14 @@ func UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
 		return
 	}
+
+	// Deactivating only stops future HTTP requests; a socket opened while the
+	// account was still active would keep running its terminal or log stream.
+	// Cut those now rather than leaving it to the sweeper.
+	if !user.IsActive {
+		DisconnectUserSockets(user.ID)
+	}
+
 	c.JSON(http.StatusOK, user)
 }
 
@@ -128,6 +136,7 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
 		return
 	}
+	DisconnectUserSockets(parseUint(id))
 	c.JSON(http.StatusOK, gin.H{"message": "user permanently deleted"})
 }
 

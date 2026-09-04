@@ -9,12 +9,13 @@ import { FolderBar, type FolderSelection } from '../components/ui/FolderBar'
 import { K8sClusterGrid } from '../components/k8s/K8sClusterGrid'
 import { K8sResourceExplorer } from '../components/k8s/K8sResourceExplorer'
 import { AddClusterModal } from '../components/k8s/AddClusterModal'
+import { apiError } from '../utils/errors'
 
 interface Cluster {
   id: number;
   name: string;
   host: string;
-  kube_config?: string;
+  has_kubeconfig?: boolean;
   k8s_connected?: boolean;
   os?: string;
   folder_id?: number | null;
@@ -37,7 +38,7 @@ export function Kubernetes() {
   const loadClusters = useCallback(async () => {
     try {
       const res = await api.get('/api/servers')
-      setClusters(res.data?.filter((c: any) => c.kube_config) || [])
+      setClusters(res.data?.filter((c: Cluster) => c.has_kubeconfig) || [])
     } catch (e) { console.error(e) }
   }, [])
 
@@ -51,8 +52,8 @@ export function Kubernetes() {
     try {
       await api.patch(`/api/servers/${id}/folder`, { folder_id: folderId })
       setClusters(prev => prev.map(c => c.id === id ? { ...c, folder_id: folderId } : c))
-    } catch (e: any) {
-      toast.error('Move failed', e.response?.data?.error || 'Could not move cluster.')
+    } catch (e: unknown) {
+      toast.error('Move failed', apiError(e) || 'Could not move cluster.')
     }
   }
 
@@ -64,8 +65,8 @@ export function Kubernetes() {
       toast.success('Cluster disconnected', 'Server is no longer actively managed.')
       setConfirmDisconnect(null)
       loadClusters()
-    } catch (e: any) {
-      toast.error('Disconnect failed', e.response?.data?.error || 'Could not disconnect')
+    } catch (e: unknown) {
+      toast.error('Disconnect failed', apiError(e) || 'Could not disconnect')
       setConfirmDisconnect(null)
     }
   }
@@ -75,7 +76,7 @@ export function Kubernetes() {
       await api.post(`/api/servers/${id}/k8s/reconnect`)
       toast.success('Cluster connected', 'Server is now actively managed.')
       loadClusters()
-    } catch (e: any) { toast.error('Connect failed', e.response?.data?.error || 'Could not connect') }
+    } catch (e: unknown) { toast.error('Connect failed', apiError(e) || 'Could not connect') }
   }
 
   const handleDelete = async (id: number) => {
@@ -84,8 +85,8 @@ export function Kubernetes() {
       toast.success('Server deleted', 'Cluster data destroyed.')
       setConfirmDelete(null)
       loadClusters()
-    } catch (e: any) {
-      toast.error('Delete failed', e.response?.data?.error || 'Could not delete server')
+    } catch (e: unknown) {
+      toast.error('Delete failed', apiError(e) || 'Could not delete server')
       setConfirmDelete(null)
     }
   }
