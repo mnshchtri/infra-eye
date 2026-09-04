@@ -2197,7 +2197,8 @@ p {
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.login-pw-toggle {
+.login-pw-toggle,
+.pw-toggle {
   position: absolute;
   right: 12px;
   top: 50%;
@@ -2212,7 +2213,8 @@ p {
   transition: color var(--transition-fast);
 }
 
-.login-pw-toggle:hover {
+.login-pw-toggle:hover,
+.pw-toggle:hover {
   color: var(--text-primary);
 }
 

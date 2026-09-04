@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight, Bell, Send } from 'lucide-react'
+import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight, Bell, Send, Eye, EyeOff } from 'lucide-react'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { usePermission } from '../hooks/usePermission'
@@ -12,6 +12,22 @@ interface UserData {
   role: string
   email: string
   is_active: boolean
+}
+
+function ApiKeyField({ label, value, onChange, placeholder, hint }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; hint?: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="input-group">
+      <label className="input-label">{label}</label>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input className="input" type={show ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ paddingRight: 40 }} />
+        <button type="button" onClick={() => setShow(s => !s)} aria-label={show ? 'Hide API key' : 'Show API key'} className="pw-toggle">
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+      {hint && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{hint}</p>}
+    </div>
+  )
 }
 
 export function Settings() {
@@ -331,32 +347,16 @@ export function Settings() {
 
               <form onSubmit={updateProfile}>
                 <div style={{ display: 'grid', gap: 24 }}>
-                  <div className="input-group">
-                    <label className="input-label">OpenRouter API Key</label>
-                    <input className="input" type="password" value={openRouterKey} onChange={e => setOpenRouterKey(e.target.value)} placeholder="sk-or-v1-..." />
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Used as primary fallback for most models.</p>
+                  <ApiKeyField label="OpenRouter API Key" value={openRouterKey} onChange={setOpenRouterKey} placeholder="sk-or-v1-..." hint="Used as primary fallback for most models." />
+
+                  <div className="grid-2-col" style={{ gap: 20 }}>
+                    <ApiKeyField label="DeepSeek API Key" value={deepSeekKey} onChange={setDeepSeekKey} placeholder="sk-..." />
+                    <ApiKeyField label="Anthropic (Claude) API Key" value={claudeKey} onChange={setClaudeKey} placeholder="sk-ant-..." />
                   </div>
 
                   <div className="grid-2-col" style={{ gap: 20 }}>
-                    <div className="input-group">
-                      <label className="input-label">DeepSeek API Key</label>
-                      <input className="input" type="password" value={deepSeekKey} onChange={e => setDeepSeekKey(e.target.value)} placeholder="sk-..." />
-                    </div>
-                    <div className="input-group">
-                      <label className="input-label">Anthropic (Claude) API Key</label>
-                      <input className="input" type="password" value={claudeKey} onChange={e => setClaudeKey(e.target.value)} placeholder="sk-ant-..." />
-                    </div>
-                  </div>
-
-                  <div className="grid-2-col" style={{ gap: 20 }}>
-                    <div className="input-group">
-                      <label className="input-label">Google (Gemini) API Key</label>
-                      <input className="input" type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIza..." />
-                    </div>
-                    <div className="input-group">
-                      <label className="input-label">Mistral API Key</label>
-                      <input className="input" type="password" value={mistralKey} onChange={e => setMistralKey(e.target.value)} placeholder="sk-..." />
-                    </div>
+                    <ApiKeyField label="Google (Gemini) API Key" value={geminiKey} onChange={setGeminiKey} placeholder="AIza..." />
+                    <ApiKeyField label="Mistral API Key" value={mistralKey} onChange={setMistralKey} placeholder="sk-..." />
                   </div>
 
                   <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
