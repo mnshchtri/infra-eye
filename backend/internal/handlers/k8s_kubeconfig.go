@@ -26,11 +26,11 @@ import (
 
 // Where the generated identities live. A dedicated namespace rather than
 // kube-system so every credential InfraEye hands out is visible, auditable, and
-// removable in one place (`kubectl delete ns infraeye-access` revokes them all).
+// removable in one place (`kubectl delete ns read-only` revokes them all).
 const (
-	readOnlyNamespace   = "infraeye-access"
-	readOnlyClusterRole = "infraeye-readonly"
-	readOnlySAPrefix    = "infraeye-ro-"
+	readOnlyNamespace   = "read-only"
+	readOnlyClusterRole = "read-only"
+	readOnlySAPrefix    = "read-only-"
 )
 
 // maxTokenTTL is the ceiling the API server itself enforces on TokenRequest in
