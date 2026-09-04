@@ -50,7 +50,8 @@ const labelStyle: React.CSSProperties = {
 }
 
 export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Props) {
-  const toast = useToastStore()
+  const toastError = useToastStore(s => s.error)
+  const toastSuccess = useToastStore(s => s.success)
 
   const [name, setName] = useState('')
   const [expiryDays, setExpiryDays] = useState(30)
@@ -58,6 +59,7 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
   const [detectedServer, setDetectedServer] = useState('')
   const [identities, setIdentities] = useState<ReadOnlyIdentity[]>([])
   const [canManage, setCanManage] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [connectedAs, setConnectedAs] = useState('')
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState<GeneratedConfig | null>(null)
@@ -66,6 +68,7 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
     setIdentities(data.identities || [])
     const detected = data.api_server || ''
     setDetectedServer(detected)
+    setLoadError(null)
     setCanManage(data.can_manage !== false)
     setConnectedAs(data.connected_as || '')
     // Only seed the field; never clobber an address the operator has typed.
@@ -77,9 +80,9 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
       const res = await api.get(`/api/servers/${serverID}/k8s/readonly-kubeconfig`)
       applyListing(res.data)
     } catch (e: unknown) {
-      toast.error('Could not reach cluster', errMessage(e))
+      setLoadError(errMessage(e))
     }
-  }, [serverID, applyListing, toast])
+  }, [serverID, applyListing])
 
   // Fetching in the async continuation rather than calling loadIdentities()
   // straight from the effect body keeps setState out of the synchronous render
@@ -88,9 +91,9 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
     let cancelled = false
     api.get(`/api/servers/${serverID}/k8s/readonly-kubeconfig`)
       .then(res => { if (!cancelled) applyListing(res.data) })
-      .catch((e: unknown) => { if (!cancelled) toast.error('Could not reach cluster', errMessage(e)) })
+      .catch((e: unknown) => { if (!cancelled) setLoadError(errMessage(e)) })
     return () => { cancelled = true }
-  }, [serverID, applyListing, toast])
+  }, [serverID, applyListing, toastError])
 
   const generate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,10 +106,10 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
         server_url: apiServer,
       })
       setResult(res.data)
-      toast.success('Kubeconfig generated', `Read-only access for ${name}`)
+      toastSuccess('Kubeconfig generated', `Read-only access for ${name}`)
       loadIdentities()
     } catch (e: unknown) {
-      toast.error('Generation failed', errMessage(e))
+      toastError('Generation failed', errMessage(e))
     } finally {
       setGenerating(false)
     }
@@ -132,20 +135,20 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
     if (!result) return
     try {
       await navigator.clipboard.writeText(result.kubeconfig)
-      toast.success('Copied', 'Kubeconfig copied to clipboard')
+      toastSuccess('Copied', 'Kubeconfig copied to clipboard')
     } catch {
-      toast.error('Copy failed', 'Your browser blocked clipboard access — use Download instead')
+      toastError('Copy failed', 'Your browser blocked clipboard access — use Download instead')
     }
   }
 
   const revoke = async (identity: ReadOnlyIdentity) => {
     try {
       await api.delete(`/api/servers/${serverID}/k8s/readonly-kubeconfig/${identity.name}`)
-      toast.success('Access revoked', `${identity.service_account} deleted — its kubeconfig no longer works`)
+      toastSuccess('Access revoked', `${identity.service_account} deleted — its kubeconfig no longer works`)
       if (result?.service_account === identity.service_account) setResult(null)
       loadIdentities()
     } catch (e: unknown) {
-      toast.error('Revoke failed', errMessage(e))
+      toastError('Revoke failed', errMessage(e))
     }
   }
 
@@ -201,7 +204,15 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
             </div>
           </div>
 
-          {!canManage ? (
+          {loadError ? (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--danger)40', background: 'var(--danger)10' }}>
+              <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                Could not reach this cluster, so access cannot be issued or revoked here.
+                <div style={{ marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--danger)', wordBreak: 'break-word' }}>{loadError}</div>
+              </span>
+            </div>
+          ) : !canManage ? (
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--danger)40', background: 'var(--danger)10' }}>
               <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
@@ -240,7 +251,7 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button className="btn btn-primary" disabled={generating || !name.trim() || !canManage}
+              <button className="btn btn-primary" disabled={generating || !name.trim() || !canManage || !!loadError}
                 title={canManage ? undefined : 'This cluster is registered with a credential that cannot manage RBAC'} style={{ height: 42, padding: '0 24px', fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {generating ? 'Generating...' : 'Generate'}
               </button>
@@ -321,7 +332,7 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
                       <td style={{ padding: '14px 20px' }}>
                         <button
                           className="btn-icon"
-                          disabled={!canManage}
+                          disabled={!canManage || !!loadError}
                           title={canManage ? `Revoke ${idn.name}'s access` : 'This cluster is registered with a credential that cannot manage RBAC'}
                           onClick={() => revoke(idn)}
                         >
