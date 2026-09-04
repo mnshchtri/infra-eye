@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -56,6 +57,9 @@ func assetNameFor() (string, error) {
 		}
 		return "InfraEye-macOS-arm64.dmg", nil
 	case "linux":
+		if _, err := exec.LookPath("pacman"); err == nil {
+			return "InfraEye-Linux.pkg.tar.zst", nil
+		}
 		return "InfraEye-Linux.deb", nil
 	case "windows":
 		return "InfraEye-Windows-amd64.exe", nil
