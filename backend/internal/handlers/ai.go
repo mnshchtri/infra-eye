@@ -645,7 +645,7 @@ func askAI(systemContext, question, imageBase64, imageMime, provider string, use
 }
 
 func askGemini(systemContext, question, imageBase64, imageMime, apiKey string) string {
-	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s", apiKey)
+	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=%s", apiKey)
 
 	parts := []geminiPart{
 		{Text: "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question},
@@ -872,7 +872,9 @@ func askOpenRouter(systemContext, question, apiKey string) string {
 }
 
 func askMistral(systemContext, question, imageBase64, imageMime, apiKey string) string {
-	model := "mistral-large-latest"
+	// mistral-large-latest is paid-tier only and 403s on free/trial keys;
+	// mistral-small-latest is available on every tier.
+	model := "mistral-small-latest"
 	var content interface{} = "SYSTEM CONTEXT: " + systemContext + "\n\nUSER QUESTION: " + question
 
 	// If there's an image, switch to the multimodal-enabled model (Pixtral)
