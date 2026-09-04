@@ -1,4 +1,4 @@
-.PHONY: dev infra backend frontend migrate build clean desktop-build desktop-package
+.PHONY: dev infra backend frontend migrate build clean desktop-build desktop-package desktop-stamp-version
 
 # Start core infrastructure in Docker (DB, Redis)
 # This uses official pre-built images, avoiding DNS/build issues
@@ -53,6 +53,7 @@ desktop-build:
 	rm -rf backend/cmd/desktop/frontenddist
 	mkdir -p backend/cmd/desktop/frontenddist
 	cp -R frontend/dist/. backend/cmd/desktop/frontenddist/
+	@$(MAKE) desktop-stamp-version
 	@APP_VERSION=$$(node -p "require('./frontend/package.json').version"); \
 	cd backend/cmd/desktop && \
 		if [ "$$(uname)" = "Darwin" ]; then \
@@ -62,6 +63,26 @@ desktop-build:
 		fi
 	@$(MAKE) desktop-package
 
+# Wails templates wails.json's info.productVersion into the bundle's
+# CFBundleShortVersionString / CFBundleVersion — it is not affected by the
+# -X main.appVersion ldflag, which only sets what the app reports about itself.
+# .github/workflows/desktop-release.yml stamps it from the release tag, so
+# released bundles are correct; a local `make desktop-build` had nothing doing
+# the same and produced a bundle whose Finder version disagreed with the app's.
+# package.json is already the source of truth for the ldflag and for the .deb
+# version in desktop-package, so take it from there too. Rewrites the file only
+# when the value actually differs, keeping a normal build a no-op on the tree.
+desktop-stamp-version:
+	@APP_VERSION=$$(node -p "require('./frontend/package.json').version"); \
+	node -e 'const fs=require("fs"),p="backend/cmd/desktop/wails.json",c=JSON.parse(fs.readFileSync(p,"utf8"));if(c.info.productVersion===process.argv[1]){process.exit(0)}c.info.productVersion=process.argv[1];fs.writeFileSync(p,JSON.stringify(c,null,2)+"\n");console.log("wails.json info.productVersion -> "+process.argv[1])' "$$APP_VERSION"
+
+# hdiutil, left to auto-size from -srcfolder, sizes the intermediate image off
+# the source's raw byte count, which undercounts a codesigned .app's extended
+# attributes — so it fails with "No space left on device" on a disk with tens of
+# GB free once the app is big enough. desktop-release.yml already sizes
+# explicitly off `du` plus headroom for this reason; this recipe had not caught
+# up, and now fails locally at ~90MB. Same fix here so the two agree.
+#
 # Wrap the raw `wails build` output (an unpacked .app on macOS, a bare ELF
 # binary on Linux) into the same installer format the GitHub release uses —
 # a double-clickable .dmg on macOS, a proper .deb on Linux — instead of
@@ -75,7 +96,8 @@ desktop-package:
 		mkdir dmg-staging && \
 		cp -R InfraEye.app dmg-staging/ && \
 		ln -s /Applications dmg-staging/Applications && \
-		hdiutil create -volname "InfraEye" -srcfolder dmg-staging -ov -format UDZO InfraEye.dmg && \
+		STAGING_MB=$$(du -sm dmg-staging | cut -f1) && \
+		hdiutil create -volname "InfraEye" -srcfolder dmg-staging -ov -format UDZO -size "$$((STAGING_MB + 200))m" InfraEye.dmg && \
 		rm -rf dmg-staging && \
 		echo "Installer ready: backend/cmd/desktop/build/bin/InfraEye.dmg (double-click to mount, then drag InfraEye to Applications)"; \
 	else \
