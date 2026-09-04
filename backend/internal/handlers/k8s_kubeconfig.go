@@ -26,9 +26,9 @@ import (
 
 // Where the generated identities live. A dedicated namespace rather than
 // kube-system so every credential InfraEye hands out is visible, auditable, and
-// removable in one place (`kubectl delete ns infraeye-access` revokes them all).
+// removable in one place (`kubectl delete ns read-only` revokes them all).
 const (
-	readOnlyNamespace   = "infraeye-access"
+	readOnlyNamespace   = "read-only"
 	readOnlyClusterRole = "infraeye-readonly"
 	readOnlySAPrefix    = "infraeye-ro-"
 )
