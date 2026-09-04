@@ -916,6 +916,27 @@ func askMistral(systemContext, question, imageBase64, imageMime, apiKey string) 
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
+
+	// Mistral doesn't use OpenAI's {"error":{"message":...}} shape for errors —
+	// it returns a bare {"detail": "..."} (e.g. on 401/422), so openAIResponse's
+	// Error field never matches and a real failure used to fall through to the
+	// generic "No response" message below, hiding the actual cause.
+	if resp.StatusCode != http.StatusOK {
+		var mistralErr struct {
+			Detail  string `json:"detail"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(body, &mistralErr); err == nil {
+			if mistralErr.Detail != "" {
+				return fmt.Sprintf("Mistral error (%d): %s", resp.StatusCode, mistralErr.Detail)
+			}
+			if mistralErr.Message != "" {
+				return fmt.Sprintf("Mistral error (%d): %s", resp.StatusCode, mistralErr.Message)
+			}
+		}
+		return fmt.Sprintf("Mistral error (%d): %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
 	var aiResp openAIResponse
 	if err := json.Unmarshal(body, &aiResp); err != nil {
 		// Return friendly error if JSON parsing fails
@@ -927,7 +948,7 @@ func askMistral(systemContext, question, imageBase64, imageMime, apiKey string) 
 	}
 
 	if len(aiResp.Choices) == 0 {
-		return "No response from Mistral AI Vision."
+		return fmt.Sprintf("No response from Mistral AI Vision. Raw response: %s", strings.TrimSpace(string(body)))
 	}
 
 	return aiResp.Choices[0].Message.Content.(string)
