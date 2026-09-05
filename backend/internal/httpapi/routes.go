@@ -97,6 +97,9 @@ func RegisterRoutes(r *gin.Engine) {
 		api.GET("/resources/:id/schema", middleware.RequireRole("admin", "devops"), handlers.GetResourceSchema)
 		api.GET("/resources/:id/schema/:schema/:table/columns", middleware.RequireRole("admin", "devops"), handlers.GetResourceTableColumns)
 		api.GET("/resources/:id/schema/:schema/:table/rows", middleware.RequireRole("admin", "devops"), handlers.GetResourceTableRows)
+		api.POST("/resources/:id/schema/:schema/:table/rows", middleware.RequireRole("admin", "devops"), handlers.PostResourceTableRow)
+		api.PUT("/resources/:id/schema/:schema/:table/rows", middleware.RequireRole("admin", "devops"), handlers.PutResourceTableRow)
+		api.DELETE("/resources/:id/schema/:schema/:table/rows", middleware.RequireRole("admin", "devops"), handlers.DeleteResourceTableRow)
 		api.PATCH("/resources/:id/folder", middleware.RequireRole("admin", "devops"), handlers.MoveResourceFolder)
 		api.GET("/resources/:id/audit/security", middleware.RequireRole("admin", "devops", "trainee"), handlers.ScanResourceSecurity)
 
