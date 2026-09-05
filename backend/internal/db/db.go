@@ -56,6 +56,8 @@ func Connect() {
 		&models.ChatThread{},
 		&models.AppSetting{},
 		&models.SecurityScan{},
+		&models.CodeRepo{},
+		&models.DastTarget{},
 		&models.AgentRun{},
 		&models.AgentStep{},
 	); err != nil {

@@ -157,14 +157,41 @@ type SecurityScan struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
-	TargetType   string    `gorm:"uniqueIndex:idx_security_scan_target" json:"target_type"` // server | resource
+	TargetType   string    `gorm:"uniqueIndex:idx_security_scan_target" json:"target_type"` // server | resource | code_repo | dast_target
 	TargetID     uint      `gorm:"uniqueIndex:idx_security_scan_target" json:"target_id"`
-	ScanType     string    `gorm:"uniqueIndex:idx_security_scan_target" json:"scan_type"` // kernel | hardening | cluster | resource
+	ScanType     string    `gorm:"uniqueIndex:idx_security_scan_target" json:"scan_type"` // kernel | hardening | cluster | resource | code | dast
 	FindingCount int       `json:"finding_count"`
 	HighCount    int       `json:"high_count"`
 	ResultJSON   string    `gorm:"type:text" json:"-"`
 	ScannedBy    uint      `json:"scanned_by"`
 	ScannedAt    time.Time `json:"scanned_at"`
+}
+
+// CodeRepo is a saved code-security audit target: a Git repository InfraEye
+// can shallow-clone (via gitsync.CloneShallowToTemp, an isolated one-off
+// checkout, never the IaC-sync mirror) and run SAST/secrets/SCA/CodeQL
+// scanners against. The PAT is stored the same way gitsync's is — a plain
+// setting, never echoed back by the API — since this repo may be private.
+type CodeRepo struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `gorm:"not null" json:"name"`
+	RepoURL   string    `gorm:"not null" json:"repo_url"`
+	Branch    string    `gorm:"not null;default:main" json:"branch"`
+	PAT       string    `gorm:"column:pat" json:"-"`
+}
+
+// DastTarget is a saved dynamic-scan target: a URL InfraEye is authorized to
+// point OWASP ZAP at. AuthorizedBy/AuthorizedAt record who acknowledged that
+// authorization for "full" (active) scans — see handlers/dastaudit.go.
+type DastTarget struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `gorm:"not null" json:"name"`
+	TargetURL string    `gorm:"not null" json:"target_url"`
+	Notes     string    `json:"notes"`
 }
 
 // ResourceMetric is a single health/observability probe snapshot for a resource,

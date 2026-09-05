@@ -2,7 +2,8 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Server,   Bot, Bell, Settings, LogOut, ChevronRight,
   ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow, Map
+  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow, Map,
+  FileCode2, Radar
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore } from '../../store/uiStore'
@@ -55,6 +56,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: '/audit/hardening', icon: Lock,        label: 'Server Hardening', action: 'view-audit' },
       { to: '/audit/cluster',   icon: Network,     label: 'Cluster Security', action: 'view-audit' },
       { to: '/audit/resources', icon: KeyRound,    label: 'Resource Security', action: 'view-audit' },
+      { to: '/audit/code',      icon: FileCode2,   label: 'Code Security',    action: 'view-audit' },
+      { to: '/audit/dast',      icon: Radar,       label: 'DAST Scanner',     action: 'view-audit' },
     ]
   },
   {

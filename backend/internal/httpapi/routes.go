@@ -110,6 +110,29 @@ func RegisterRoutes(r *gin.Engine) {
 		api.GET("/servers/:id/audit/hardening", handlers.ScanServerHardening)
 		api.GET("/servers/:id/audit/cluster", handlers.ScanCluster)
 		api.GET("/audit/summary", middleware.RequireRole("admin", "devops", "trainee"), handlers.GetSecurityScanSummary)
+		api.GET("/audit/tools", middleware.RequireRole("admin", "devops", "trainee"), handlers.GetAuditTools)
+		api.PUT("/audit/tools/:id/path", middleware.RequireRole("admin"), handlers.SetAuditToolPath)
+
+		// Code security (SAST/secrets/SCA/CodeQL): repo management carries a
+		// PAT, same tiering as gitsync settings — admin+devops can read/scan,
+		// admin-only can hold write access to the credential itself. Scanning
+		// clones the repo and shells out to local tools, so it's gated above
+		// read-only listing the same way gitsync's sync/test endpoints are.
+		api.GET("/audit/code/repos", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListCodeRepos)
+		api.POST("/audit/code/repos", middleware.RequireRole("admin"), handlers.CreateCodeRepo)
+		api.PUT("/audit/code/repos/:id", middleware.RequireRole("admin"), handlers.UpdateCodeRepo)
+		api.DELETE("/audit/code/repos/:id", middleware.RequireRole("admin"), handlers.DeleteCodeRepo)
+		api.POST("/audit/code/repos/:id/scan", middleware.RequireRole("admin", "devops"), handlers.ScanCodeRepo)
+
+		// DAST (OWASP ZAP): target management is lower-stakes than a repo PAT
+		// (no credential involved), so admin+devops can manage targets;
+		// running a scan — especially an active "full" scan, which sends real
+		// attack payloads at the target — stays admin+devops as well.
+		api.GET("/audit/dast/targets", middleware.RequireRole("admin", "devops", "trainee"), handlers.ListDastTargets)
+		api.POST("/audit/dast/targets", middleware.RequireRole("admin", "devops"), handlers.CreateDastTarget)
+		api.PUT("/audit/dast/targets/:id", middleware.RequireRole("admin", "devops"), handlers.UpdateDastTarget)
+		api.DELETE("/audit/dast/targets/:id", middleware.RequireRole("admin", "devops"), handlers.DeleteDastTarget)
+		api.POST("/audit/dast/targets/:id/scan", middleware.RequireRole("admin", "devops"), handlers.ScanDastTarget)
 
 		// ── Logs ──────────────────────────────────────────────────
 		api.GET("/servers/:id/logs", handlers.GetLogs)
@@ -198,6 +221,8 @@ func RegisterRoutes(r *gin.Engine) {
 		ws.GET("/alerts", alertsWsHandler)
 		ws.GET("/agent/runs/:id", middleware.RequireRole("admin", "devops"), handlers.AgentRunWS)
 		ws.GET("/metrics/all", allMetricsWsHandler)
+		ws.GET("/audit/code/repos/:id/scan-log", middleware.RequireRole("admin", "devops"), handlers.CodeScanLogWS)
+		ws.GET("/audit/dast/targets/:id/scan-log", middleware.RequireRole("admin", "devops"), handlers.DastScanLogWS)
 	}
 }
 
