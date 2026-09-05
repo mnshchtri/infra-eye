@@ -18,6 +18,7 @@ import { SchemaTree } from '../components/database/SchemaTree'
 import { DataGrid } from '../components/database/DataGrid'
 import { SqlConsole } from '../components/database/SqlConsole'
 import { RedisBrowser } from '../components/database/RedisBrowser'
+import { KafkaBrowser } from '../components/database/KafkaBrowser'
 
 interface ResourceDetailData {
   id: number; name: string; description?: string; tags?: string
@@ -29,7 +30,7 @@ interface UserData { id: number; username: string; email?: string; role: string 
 interface AccessEntry { id: number; resource_id: number; user_id: number; access_level: string; user?: UserData; created_at?: string }
 interface AuditEntry { id: number; resource_id: number; user_id: number; action: string; details: string; performed_by: string; created_at: string }
 interface MetricRow { id: number; timestamp: string; status: string; latency_ms: number; error?: string; metrics: string }
-type ResourceTab = 'observability' | 'overview' | 'database' | 'redis' | 'access' | 'audit'
+type ResourceTab = 'observability' | 'overview' | 'database' | 'redis' | 'kafka' | 'access' | 'audit'
 
 interface LiveProbe { status: string; latency_ms: number; error?: string; metrics: Record<string, unknown> }
 
@@ -162,6 +163,7 @@ export function ResourceDetail() {
 
   const isSqlable = ['postgres', 'postgresql', 'mysql', 'mariadb'].includes(resource?.protocol ?? '')
   const isRedis = resource?.protocol === 'redis'
+  const isKafka = resource?.protocol === 'kafka'
 
   useEffect(() => { if (id) loadPageData() }, [id])
   useEffect(() => { if (activeTab === 'audit') loadAudit() }, [auditLimit, auditSince, auditUntil, activeTab])
@@ -312,6 +314,7 @@ export function ResourceDetail() {
     { id: 'overview', label: 'Overview', icon: Database },
     ...(isSqlable ? [{ id: 'database', label: 'Database', icon: Code }] : []),
     ...(isRedis ? [{ id: 'redis', label: 'Keys', icon: KeyRound }] : []),
+    ...(isKafka ? [{ id: 'kafka', label: 'Topics', icon: Layers }] : []),
     { id: 'access', label: 'Access', icon: Lock },
     { id: 'audit', label: 'Audit Log', icon: History },
   ]
@@ -562,6 +565,13 @@ export function ResourceDetail() {
       {activeTab === 'redis' && resource && (
         <div className="card" style={{ padding: 0, height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
           <RedisBrowser resourceId={resource.id} canEdit={can('manage-resources')} />
+        </div>
+      )}
+
+      {/* ── Kafka topics ── */}
+      {activeTab === 'kafka' && resource && (
+        <div className="card" style={{ padding: 0, height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
+          <KafkaBrowser resourceId={resource.id} />
         </div>
       )}
 

@@ -104,6 +104,10 @@ func RegisterRoutes(r *gin.Engine) {
 		api.GET("/resources/:id/redis/key", middleware.RequireRole("admin", "devops"), handlers.GetResourceRedisKey)
 		api.PUT("/resources/:id/redis/key", middleware.RequireRole("admin", "devops"), handlers.PutResourceRedisKey)
 		api.DELETE("/resources/:id/redis/key", middleware.RequireRole("admin", "devops"), handlers.DeleteResourceRedisKey)
+		api.GET("/resources/:id/kafka/topics", middleware.RequireRole("admin", "devops"), handlers.GetResourceKafkaTopics)
+		api.GET("/resources/:id/kafka/topics/:topic/offsets", middleware.RequireRole("admin", "devops"), handlers.GetResourceKafkaTopicOffsets)
+		api.GET("/resources/:id/kafka/topics/:topic/messages", middleware.RequireRole("admin", "devops"), handlers.GetResourceKafkaMessages)
+		api.GET("/resources/:id/kafka/groups", middleware.RequireRole("admin", "devops"), handlers.GetResourceKafkaGroups)
 		api.PATCH("/resources/:id/folder", middleware.RequireRole("admin", "devops"), handlers.MoveResourceFolder)
 		api.GET("/resources/:id/audit/security", middleware.RequireRole("admin", "devops", "trainee"), handlers.ScanResourceSecurity)
 
