@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/infra-eye/backend/internal/db"
 )
@@ -43,6 +45,25 @@ func GetToolPathOverride(id string) string {
 // a typo here should fail loudly at save time, not silently at scan time.
 func SetToolPathOverride(id, path string) error {
 	if path != "" {
+		// Expand a leading "~" the way a shell would — the UI's own
+		// placeholder text suggests "~/codeql-home/...", so this has to keep
+		// working before the absolute-path check below.
+		if path == "~" || strings.HasPrefix(path, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("resolve home directory: %w", err)
+			}
+			path = filepath.Join(home, strings.TrimPrefix(path, "~"))
+		}
+		// Require an absolute, cleaned path — this is an admin-only setting
+		// (the route is RequireRole("admin")) meant to point at one specific
+		// binary on this machine, not an arbitrary relative/traversal-style
+		// path resolved against whatever the server process's cwd happens to
+		// be at scan time.
+		path = filepath.Clean(path)
+		if !filepath.IsAbs(path) {
+			return fmt.Errorf("path must be absolute")
+		}
 		st, err := os.Stat(path)
 		if err != nil {
 			return fmt.Errorf("path does not exist: %w", err)

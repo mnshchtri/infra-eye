@@ -74,6 +74,14 @@ function csvCell(v: string): string {
   return v
 }
 
+// Escape backslashes before pipes, not after — otherwise a title already
+// containing a literal backslash (e.g. a Windows-style path) ends up with a
+// backslash directly in front of an unescaped pipe once ours is inserted,
+// which re-breaks the table row it was meant to protect.
+function escapeMdCell(v: string): string {
+  return v.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
+}
+
 /** Row-per-finding spreadsheet — the format a PM/tracking board actually wants to import. */
 export function downloadCSV(meta: ReportMeta, rows: ReportRow[]) {
   const header = ['Severity', 'Source', 'Category', 'Rule', 'Title', 'Location', 'Detail']
@@ -114,7 +122,7 @@ export function downloadMarkdown(meta: ReportMeta, rows: ReportRow[]) {
     lines.push('| Severity | Source | Rule | Title | Location |')
     lines.push('|---|---|---|---|---|')
     for (const r of sortedRows(rows)) {
-      lines.push(`| ${r.severity.toUpperCase()} | ${r.source} | ${r.rule} | ${r.title.replace(/\|/g, '\\|')} | ${r.location.replace(/\|/g, '\\|')} |`)
+      lines.push(`| ${r.severity.toUpperCase()} | ${r.source} | ${r.rule} | ${escapeMdCell(r.title)} | ${escapeMdCell(r.location)} |`)
     }
     lines.push('')
     lines.push('## Details')
