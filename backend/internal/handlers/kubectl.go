@@ -209,6 +209,11 @@ func sudoPrefix(server *models.Server) string {
 
 // buildBaseCmd returns the kubectl base command, ensuring kubeconfig is written.
 // It automatically applies sudo when the SSH user is not root.
+// The commands built here are run through sshclient.PosixCommand at each call
+// site rather than being wrapped in the returned string, so the command shown
+// back to the caller on failure stays the plain kubectl invocation they typed.
+// Note the widened PATH only helps when kubectl is resolved by the login
+// shell — with a sudo prefix, a sudoers `secure_path` (Debian's default) wins.
 func buildBaseCmd(client *sshclient.Client, server *models.Server) (string, error) {
 	pfx := sudoPrefix(server)
 
@@ -396,7 +401,7 @@ func RunKubectl(c *gin.Context) {
 	}
 
 	fullCmd := fmt.Sprintf("%s %s", baseCmd, req.Command)
-	stdout, stderr, err := client.RunCommand(fullCmd)
+	stdout, stderr, err := client.RunCommand(sshclient.PosixCommand(fullCmd))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"command": fullCmd,
@@ -888,10 +893,10 @@ func TestK8sConnection(c *gin.Context) {
 	}
 
 	// Test with cluster info instead of just client version
-	stdout, stderr, err := client.RunCommand(fmt.Sprintf("kubectl --kubeconfig %s cluster-info 2>&1 | head -5", testPath))
+	stdout, stderr, err := client.RunCommand(sshclient.PosixCommand(fmt.Sprintf("kubectl --kubeconfig %s cluster-info 2>&1 | head -5", testPath)))
 	if err != nil || strings.Contains(stdout, "error") || strings.Contains(stdout, "refused") {
 		// Fall back to version check
-		stdout2, _, err2 := client.RunCommand(fmt.Sprintf("kubectl --kubeconfig %s version --client 2>&1", testPath))
+		stdout2, _, err2 := client.RunCommand(sshclient.PosixCommand(fmt.Sprintf("kubectl --kubeconfig %s version --client 2>&1", testPath)))
 		if err2 != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "output": fmt.Sprintf("Kubectl check failed: %v, stderr: %s", err, stderr)})
 			return
@@ -1085,7 +1090,7 @@ func ApplyKubectl(c *gin.Context) {
 
 	// Run k8s apply
 	applyCmd := fmt.Sprintf("%s apply -f %s", baseCmd, tmpPath)
-	stdout, stderr, err := client.RunCommand(applyCmd)
+	stdout, stderr, err := client.RunCommand(sshclient.PosixCommand(applyCmd))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "output": stdout, "stderr": stderr, "error": err.Error()})
 		return
@@ -1686,7 +1691,7 @@ func DeleteKubectl(c *gin.Context) {
 	}
 
 	delCmd := fmt.Sprintf("%s delete %s %s %s", baseCmd, req.Kind, req.Name, nsFlag)
-	stdout, stderr, err := client.RunCommand(delCmd)
+	stdout, stderr, err := client.RunCommand(sshclient.PosixCommand(delCmd))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "error": err.Error(), "stderr": stderr})
 		return

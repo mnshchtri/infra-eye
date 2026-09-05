@@ -88,7 +88,7 @@ func ScanServerKernel(c *gin.Context) {
 		return
 	}
 
-	out, _, err := client.RunCommandTimeout(audit.ScanCommand, auditCmdTimeout)
+	out, _, err := client.RunCommandTimeout(sshpool.PosixCommand(audit.ScanCommand), auditCmdTimeout)
 	if err != nil && out == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("kernel scan failed: %v", err)})
 		return
@@ -142,7 +142,7 @@ func ScanServerHardening(c *gin.Context) {
 		return
 	}
 
-	out, _, err := client.RunCommandTimeout(audit.HardeningScanCommand, auditCmdTimeout)
+	out, _, err := client.RunCommandTimeout(sshpool.PosixCommand(audit.HardeningScanCommand), auditCmdTimeout)
 	if err != nil && out == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("hardening scan failed: %v", err)})
 		return

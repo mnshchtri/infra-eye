@@ -396,6 +396,14 @@ func GetServerNetworking(c *gin.Context) {
 		svcScriptToRun = windowsServicesScript
 		ifaceScriptToRun = windowsInterfacesScript
 	}
+	// ss/netstat/ip live in sbin dirs an SSH exec session often can't see.
+	if server.OS != "windows" {
+		hostnameCmd = sshpool.PosixCommand(hostnameCmd)
+		uptimeCmd = sshpool.PosixCommand(uptimeCmd)
+		portsScript = sshpool.PosixCommand(portsScript)
+		svcScriptToRun = sshpool.PosixCommand(svcScriptToRun)
+		ifaceScriptToRun = sshpool.PosixCommand(ifaceScriptToRun)
+	}
 
 	// Hostname
 	hostnameOut, _, _ := client.RunCommandTimeout(hostnameCmd, cmdTimeout)

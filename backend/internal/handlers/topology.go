@@ -416,6 +416,12 @@ func scanServer(s models.Server, ipToNode map[string]string, nodePort map[string
 		estabScript = windowsEstabScript
 		ifaceScript = windowsIfaceNetScript
 	}
+	// `ip` and `ss` live in /usr/sbin on most distros, which a non-root SSH
+	// exec session doesn't have on its PATH — widen it for the POSIX probes.
+	if s.OS != "windows" {
+		estabScript = sshpool.PosixCommand(estabScript)
+		ifaceScript = sshpool.PosixCommand(ifaceScript)
+	}
 
 	// ── Interface networks: which segments is this machine actually on? ──
 	ifaceOut, _, err := client.RunCommandTimeout(ifaceScript, topologyScanTimeout)
@@ -528,13 +534,15 @@ const nmapScanTimeout = 45 * time.Second
 // scanning a /16. Anything bigger is skipped with a note explaining why.
 const maxDiscoveryHosts = 1024
 
-const nmapScript = `
+// nmapScript is wrapped in sshpool.PosixCommand because a Homebrew or snap
+// nmap sits outside the bare PATH an SSH exec session gets.
+var nmapScript = sshpool.PosixCommand(`
 if command -v nmap >/dev/null 2>&1; then
   nmap -sn -T4 --max-retries 1 %s 2>&1
 else
   echo "__NMAP_NOT_FOUND__"
 fi
-`
+`)
 
 // runNetworkDiscovery ping-sweeps each real (SSH-scanned) network segment
 // from one server that sits on it, surfacing devices InfraEye doesn't manage
@@ -624,7 +632,9 @@ func discoverOnSegment(s models.Server, cidr, netID string, known map[string]boo
 	}
 	if strings.Contains(out, "__NMAP_NOT_FOUND__") {
 		mu.Lock()
-		graph.Notes = append(graph.Notes, fmt.Sprintf("%s: nmap is not installed — skipping discovery on %s", s.Name, cidr))
+		graph.Notes = append(graph.Notes, fmt.Sprintf(
+			"%s: nmap not found on PATH — skipping discovery on %s (install it, e.g. `brew install nmap` / `apt install nmap`; if it is installed outside /usr/bin, /usr/local/bin, /opt/homebrew/bin, /opt/local/bin or /snap/bin, symlink it into one of those)",
+			s.Name, cidr))
 		mu.Unlock()
 		return
 	}
