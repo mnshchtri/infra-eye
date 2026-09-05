@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { CodeFinding, DastFinding } from '../types/audit'
+import { saveFile } from './saveFile'
 
 /**
  * One finding, normalized to a shape both Code Security and DAST results can
@@ -58,15 +59,12 @@ function fileBase(meta: ReportMeta): string {
   return `${safe || 'report'}-${date}`
 }
 
+// Routes through the desktop app's native save dialog when running
+// Wails-bundled — its embedded webview doesn't implement the browser's
+// `<a download>` flow, so the anchor-click trick this used to do silently
+// no-ops there. See saveFile.ts.
 function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  void saveFile(blob, filename)
 }
 
 function csvCell(v: string): string {
@@ -224,5 +222,8 @@ export function downloadPDF(meta: ReportMeta, rows: ReportRow[]) {
     doc.text(`InfraEye · generated ${new Date().toLocaleString()} · page ${i} of ${pageCount}`, margin, doc.internal.pageSize.getHeight() - 20)
   }
 
-  doc.save(`${fileBase(meta)}.pdf`)
+  // doc.save() drives the same anchor-click download jsPDF has always used,
+  // which is exactly what triggerDownload/saveFile exists to route around on
+  // desktop — so build the PDF as a blob and hand it to that instead.
+  triggerDownload(doc.output('blob'), `${fileBase(meta)}.pdf`)
 }
