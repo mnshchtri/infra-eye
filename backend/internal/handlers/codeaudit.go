@@ -412,6 +412,9 @@ func DastScanLogWS(c *gin.Context) {
 }
 
 func uintFromParam(s string) uint {
-	n, _ := strconv.ParseUint(s, 10, 64)
+	// Bound the parse to uint's actual bit width (32 on a 32-bit platform)
+	// rather than always 64, so the uint(n) conversion below can never
+	// silently truncate a value ParseUint accepted as valid.
+	n, _ := strconv.ParseUint(s, 10, strconv.IntSize)
 	return uint(n)
 }
