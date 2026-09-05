@@ -139,7 +139,7 @@ export function AuditResources() {
                           </tr>
                         </thead>
                         <tbody>
-                          {state.result.findings.map((f, i) => (
+                          {(state.result.findings ?? []).map((f, i) => (
                             <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '10px 16px' }}>
                                 {f.passed

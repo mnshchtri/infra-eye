@@ -32,7 +32,10 @@ const resourceDialTimeout = 5 * time.Second
 // dials and, for TLS, completes a handshake — no credentials are guessed or
 // submitted.
 func ScanResource(res models.Resource) (ResourceAuditResult, error) {
-	result := ResourceAuditResult{ScannedAt: time.Now()}
+	// Findings starts as an empty (non-nil) slice — a nil one marshals to
+	// JSON `null`, and the frontend calls .length/.map on it unconditionally
+	// once a result exists, which crashes the page on a clean scan.
+	result := ResourceAuditResult{ScannedAt: time.Now(), Findings: []ResourceFinding{}}
 
 	directlyReachable := false
 	if conn, err := dialWithTimeout(res.Host, res.Port); err == nil {

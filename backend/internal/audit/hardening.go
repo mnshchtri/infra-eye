@@ -62,7 +62,10 @@ func parseMarkerSections(output string, markers []string) map[string]string {
 // OS/SSH hardening checks.
 func ScanHardening(rawOutput string) HardeningAuditResult {
 	sec := parseMarkerSections(rawOutput, hardeningSectionMarkers)
-	result := HardeningAuditResult{ScannedAt: time.Now()}
+	// Checks starts as an empty (non-nil) slice — a nil one marshals to JSON
+	// `null`, and the frontend calls .length/.map on it unconditionally once
+	// a result exists, which crashes the page on a clean scan.
+	result := HardeningAuditResult{ScannedAt: time.Now(), Checks: []HardeningCheck{}}
 
 	sshd := sec["@@SSHD@@"]
 	sshdLower := strings.ToLower(sshd)
