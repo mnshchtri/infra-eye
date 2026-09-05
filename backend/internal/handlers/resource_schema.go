@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -61,36 +62,36 @@ func quoteIdent(isPostgres bool, ident string) string {
 	return "`" + strings.ReplaceAll(ident, "`", "``") + "`"
 }
 
-// verifyTableExists confirms (schema, table) names a real, currently-visible
-// base table before either name is used to build a query. schema/table can
-// only ever reach these handlers as raw path params, and every query below
-// that needs them as *identifiers* (a FROM/INTO target, which SQL gives no
-// parameter-binding syntax for) has to build that fragment by string
-// concatenation after quoteIdent escapes it — a static analyzer has no way
-// to know quoteIdent is a real sanitizer, so this existence check is the
-// actual runtime guarantee: the identifier is used only after being checked
-// against the schema this resource's own credentials can already see,
-// closing off both crafted-identifier injection and confusing driver errors
-// from a plain typo.
-func verifyTableExists(ctx context.Context, conn *sql.DB, isPG bool, schema, table string) error {
-	var exists bool
-	var err error
+// resolveTable looks up (schema, table) in the live catalog and returns the
+// catalog's *own* copy of those two strings rather than the caller-supplied
+// ones. schema/table reach these handlers as raw path params, and every
+// query below that needs them as *identifiers* (a FROM/INTO target, which
+// SQL gives no parameter-binding syntax for) has to build that fragment by
+// string concatenation after quoteIdent escapes it. Re-deriving the value
+// from a Scan() result here — rather than trusting quoteIdent's escaping (a
+// custom function no static analyzer can verify) or a hand-written format
+// check (which analyzers don't treat as breaking taint either) — is what
+// actually severs the flow from request input to query text: every later
+// use reads a value that came out of a database catalog lookup, not out of
+// the HTTP request. It also turns a typo or crafted name into a clean 404
+// instead of a confusing driver error.
+func resolveTable(ctx context.Context, conn *sql.DB, isPG bool, schema, table string) (safeSchema, safeTable string, err error) {
 	if isPG {
 		err = conn.QueryRowContext(ctx,
-			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE')`,
-			schema, table).Scan(&exists)
+			`SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE'`,
+			schema, table).Scan(&safeSchema, &safeTable)
 	} else {
 		err = conn.QueryRowContext(ctx,
-			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ? AND table_type = 'BASE TABLE')`,
-			schema, table).Scan(&exists)
+			`SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = ? AND table_name = ? AND table_type = 'BASE TABLE'`,
+			schema, table).Scan(&safeSchema, &safeTable)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", fmt.Errorf("table %s.%s not found (or has no columns visible to this user)", schema, table)
 	}
 	if err != nil {
-		return fmt.Errorf("verify table: %w", err)
+		return "", "", fmt.Errorf("verify table: %w", err)
 	}
-	if !exists {
-		return fmt.Errorf("table %s.%s not found (or has no columns visible to this user)", schema, table)
-	}
-	return nil
+	return safeSchema, safeTable, nil
 }
 
 type schemaGroup struct {
@@ -283,10 +284,12 @@ func GetResourceTableRows(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	if err := verifyTableExists(c.Request.Context(), conn, isPG, schema, table); err != nil {
+	safeSchema, safeTable, err := resolveTable(c.Request.Context(), conn, isPG, schema, table)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	schema, table = safeSchema, safeTable
 	qualified := quoteIdent(isPG, schema) + "." + quoteIdent(isPG, table)
 
 	var total int64
@@ -447,10 +450,12 @@ func PostResourceTableRow(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	if err := verifyTableExists(c.Request.Context(), conn, isPG, schema, table); err != nil {
+	safeSchema, safeTable, err := resolveTable(c.Request.Context(), conn, isPG, schema, table)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	schema, table = safeSchema, safeTable
 
 	cols := make([]string, 0, len(req.Values))
 	placeholders := make([]string, 0, len(req.Values))
@@ -529,10 +534,12 @@ func PutResourceTableRow(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	if err := verifyTableExists(c.Request.Context(), conn, isPG, schema, table); err != nil {
+	safeSchema, safeTable, err := resolveTable(c.Request.Context(), conn, isPG, schema, table)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	schema, table = safeSchema, safeTable
 	pkCols, err := primaryKeyColumns(c.Request.Context(), conn, isPG, schema, table)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("resolve primary key: %v", err)})
@@ -614,10 +621,12 @@ func DeleteResourceTableRow(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	if err := verifyTableExists(c.Request.Context(), conn, isPG, schema, table); err != nil {
+	safeSchema, safeTable, err := resolveTable(c.Request.Context(), conn, isPG, schema, table)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	schema, table = safeSchema, safeTable
 	pkCols, err := primaryKeyColumns(c.Request.Context(), conn, isPG, schema, table)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("resolve primary key: %v", err)})
