@@ -79,6 +79,9 @@ export function DataGrid({ resourceId, schema, table, canEdit }: DataGridProps) 
         api.get<ColumnInfo[]>(`/api/resources/${resourceId}/schema/${schema}/${table}/columns`),
         api.get<TableRowsResponse>(`/api/resources/${resourceId}/schema/${schema}/${table}/rows`, { params: { limit: PAGE_SIZE, offset } }),
       ])
+      if (!Array.isArray(colsRes.data) || !Array.isArray(rowsRes.data.rows)) {
+        throw new Error('Unexpected response from server')
+      }
       setColumns(colsRes.data)
       setData(rowsRes.data)
     } catch (err: unknown) {

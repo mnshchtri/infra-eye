@@ -54,7 +54,8 @@ export function RedisBrowser({ resourceId, canEdit }: RedisBrowserProps) {
       const res = await api.get<RedisKeysResponse>(`/api/resources/${resourceId}/redis/keys`, {
         params: { pattern, cursor: reset ? '0' : cursor, count: 200 },
       })
-      setKeys(prev => reset ? res.data.keys : [...prev, ...res.data.keys])
+      const keys = res.data.keys ?? []
+      setKeys(prev => reset ? keys : [...prev, ...keys])
       setCursor(res.data.cursor)
     } catch (err: unknown) {
       toast.error('Scan failed', errMessage(err))

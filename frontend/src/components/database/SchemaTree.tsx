@@ -26,6 +26,7 @@ export function SchemaTree({ resourceId, selected, onSelect }: SchemaTreeProps) 
     setError(null)
     try {
       const res = await api.get<SchemaGroup[]>(`/api/resources/${resourceId}/schema`)
+      if (!Array.isArray(res.data)) throw new Error('Unexpected response from server')
       setGroups(res.data)
       // First schema starts expanded so the tree isn't empty-looking on load.
       if (res.data.length > 0) setExpanded(prev => Object.keys(prev).length ? prev : { [res.data[0].schema]: true })
