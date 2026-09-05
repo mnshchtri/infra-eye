@@ -13,7 +13,6 @@ interface Rule {
 interface RuleCardProps {
   rule: Rule;
   serverName: string;
-  condColor: string;
   canManage: boolean;
   onEdit: (r: Rule) => void;
   onDelete: (id: number) => void;
@@ -37,7 +36,7 @@ function conditionText(rule: Rule): string {
 }
 
 export const RuleCard = memo(({
-  rule, serverName, condColor, canManage, onEdit, onDelete, onToggle, confirmDelete, setConfirmDelete,
+  rule, serverName, canManage, onEdit, onDelete, onToggle, confirmDelete, setConfirmDelete,
 }: RuleCardProps) => {
   const isCritical = rule.severity === 'critical'
   return (
@@ -47,8 +46,11 @@ export const RuleCard = memo(({
       display: 'flex', flexDirection: 'column', gap: 14,
       opacity: rule.enabled ? 1 : 0.75,
     }}>
-      {/* Accent bar keyed to the metric being watched */}
-      <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 3, background: rule.enabled ? condColor : 'var(--border)' }} />
+      {/* Accent bar: neutral by default, red only for a critical rule — a
+          color worth noticing, not a rainbow keyed to which metric it watches */}
+      {isCritical && (
+        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 3, background: 'var(--danger)' }} />
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
@@ -57,7 +59,7 @@ export const RuleCard = memo(({
             width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)',
             border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <Zap size={16} color={condColor} />
+            <Zap size={16} color="var(--text-secondary)" />
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13.5, lineHeight: 1.3, wordBreak: 'break-word' }}>{rule.name}</div>
@@ -123,7 +125,7 @@ export const RuleCard = memo(({
             </span>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
-              <Bell size={12} style={{ color: condColor }} /> Notify only
+              <Bell size={12} style={{ color: 'var(--text-muted)' }} /> Notify only
             </span>
           )}
         </div>

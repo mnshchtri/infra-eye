@@ -40,12 +40,6 @@ function escapeXmlAttr(s: string): string {
   return escapeXmlText(s).replace(/"/g, '&quot;')
 }
 
-const CONDITION_COLORS: Record<string, string> = {
-  cpu: '#f59e0b', mem: '#3b82f6', disk: '#ec4899',
-  load: '#10b981', log_keyword: '#ef4444',
-  pod_status: '#8b5cf6',
-}
-
 const METRICS: { value: string; label: string; hint: string }[] = [
   { value: 'cpu', label: 'CPU usage (%)', hint: 'Latest CPU utilization of the server' },
   { value: 'mem', label: 'Memory usage (%)', hint: 'Latest memory utilization of the server' },
@@ -408,7 +402,7 @@ export function AlertRules() {
           ) : (
             <div className="alert-rules-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 16, paddingBottom: 40 }}>
               {rules.map(rule => (
-                <RuleCard key={rule.id} rule={rule} serverName={getServerName(rule.server_id)} condColor={CONDITION_COLORS[rule.condition_type] || 'var(--brand-primary)'} canManage={can('manage-alerts')} onEdit={handleEdit} onDelete={deleteRule} onToggle={toggleEnable} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} />
+                <RuleCard key={rule.id} rule={rule} serverName={getServerName(rule.server_id)} canManage={can('manage-alerts')} onEdit={handleEdit} onDelete={deleteRule} onToggle={toggleEnable} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} />
               ))}
             </div>
           )}
