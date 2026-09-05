@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,24 @@ import (
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/resources"
 )
+
+// identPattern restricts a SQL identifier (schema/table/column name) to a
+// plain ASCII letter-or-underscore start followed by letters/digits/
+// underscores — every real name introspection ever returns matches this.
+// Anchoring the whole string against a fixed, SQL-metacharacter-free
+// character class is what lets a static analyzer (this closes CodeQL
+// go/sql-injection alerts #26-30) recognize the check as an actual sanitizer
+// for the string that follows, rather than trusting quoteIdent's escaping —
+// which is correct but, being a custom function, isn't something static
+// analysis can verify — to carry that weight alone.
+var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func validateIdent(kind, name string) error {
+	if !identPattern.MatchString(name) {
+		return fmt.Errorf("invalid %s name %q", kind, name)
+	}
+	return nil
+}
 
 // loadSQLResource fetches the resource and rejects anything OpenSQL can't
 // handle, so every schema/table endpoint below shares one error shape
@@ -159,6 +178,14 @@ func GetResourceTableColumns(c *gin.Context) {
 		return
 	}
 	schema, table := c.Param("schema"), c.Param("table")
+	if err := validateIdent("schema", schema); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateIdent("table", table); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	conn, err := resources.OpenSQL(c.Request.Context(), resource)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("connect to target: %v", err)})
@@ -230,6 +257,14 @@ func GetResourceTableRows(c *gin.Context) {
 		return
 	}
 	schema, table := c.Param("schema"), c.Param("table")
+	if err := validateIdent("schema", schema); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateIdent("table", table); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	isPG := resources.IsPostgres(resource.Protocol)
 
 	limit := defaultRowLimit
@@ -385,6 +420,14 @@ func PostResourceTableRow(c *gin.Context) {
 		return
 	}
 	schema, table := c.Param("schema"), c.Param("table")
+	if err := validateIdent("schema", schema); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateIdent("table", table); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	isPG := resources.IsPostgres(resource.Protocol)
 
 	var req rowInsertRequest
@@ -414,6 +457,10 @@ func PostResourceTableRow(c *gin.Context) {
 	args := make([]interface{}, 0, len(req.Values))
 	i := 1
 	for col, val := range req.Values {
+		if err := validateIdent("column", col); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		cols = append(cols, quoteIdent(isPG, col))
 		if isPG {
 			placeholders = append(placeholders, fmt.Sprintf("$%d", i))
@@ -455,6 +502,14 @@ func PutResourceTableRow(c *gin.Context) {
 		return
 	}
 	schema, table := c.Param("schema"), c.Param("table")
+	if err := validateIdent("schema", schema); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateIdent("table", table); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	isPG := resources.IsPostgres(resource.Protocol)
 
 	var req rowUpdateRequest
@@ -488,6 +543,10 @@ func PutResourceTableRow(c *gin.Context) {
 	args := make([]interface{}, 0, len(req.Set)+len(req.Where))
 	i := 1
 	for col, val := range req.Set {
+		if err := validateIdent("column", col); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if isPG {
 			setClauses = append(setClauses, fmt.Sprintf("%s = $%d", quoteIdent(isPG, col), i))
 		} else {
@@ -532,6 +591,14 @@ func DeleteResourceTableRow(c *gin.Context) {
 		return
 	}
 	schema, table := c.Param("schema"), c.Param("table")
+	if err := validateIdent("schema", schema); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateIdent("table", table); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	isPG := resources.IsPostgres(resource.Protocol)
 
 	var req rowDeleteRequest
