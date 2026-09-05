@@ -14,7 +14,6 @@ import (
 	"github.com/minio/madmin-go/v3"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/segmentio/kafka-go"
 
 	"github.com/infra-eye/backend/internal/models"
 )
@@ -244,12 +243,7 @@ func parseRedisInfo(info string) map[string]string {
 // ── Kafka ───────────────────────────────────────────────────────────────────
 
 func probeKafka(ctx context.Context, r models.Resource) ProbeResult {
-	dialer := &kafka.Dialer{
-		Timeout: 6 * time.Second,
-		DialFunc: func(_ context.Context, _, _ string) (net.Conn, error) {
-			return DialResource(r.Host, r.Port, r.UseGateway)
-		},
-	}
+	dialer := KafkaDialer(r)
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(r.Host, strconv.Itoa(r.Port)))
 	if err != nil {
 		return offline(err)
