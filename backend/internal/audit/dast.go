@@ -183,6 +183,18 @@ func runZAPViaDocker(ctx context.Context, dockerPath, targetURL, mode string, pr
 		"-J", "report.json", // JSON report; exit code is nonzero when alerts are found, which is expected
 		"-I", // don't fail the container run just because alerts were found
 	}
+	if script == "zap-baseline.py" {
+		// zap-baseline.py (unlike zap-full-scan.py) routes through ZAP's
+		// newer Automation Framework by default, which has a known flaky
+		// failure mode: "Failed to access summary file /home/zap/zap_out.json"
+		// — an internal completion-marker file the framework writes,
+		// unrelated to our -J report path, that intermittently fails for
+		// reasons upstream hasn't nailed down (see
+		// https://groups.google.com/g/zaproxy-users/c/rUzC7sS9NaA). --autooff
+		// reverts to the older direct-invocation path that doesn't have this
+		// marker file at all, at no cost to the scan itself.
+		args = append(args, "--autooff")
+	}
 	cmd := exec.CommandContext(ctx, dockerPath, args...)
 	// Neither stream is a parse target (the report comes from -J's file), so
 	// both stream live — this is also where a slow/first-time image pull
