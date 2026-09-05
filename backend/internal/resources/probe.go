@@ -14,7 +14,6 @@ import (
 	"github.com/minio/madmin-go/v3"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
 
 	"github.com/infra-eye/backend/internal/models"
@@ -182,15 +181,7 @@ func mysqlStatusInt(ctx context.Context, conn *sql.DB, name string) int64 {
 // ── Redis ───────────────────────────────────────────────────────────────────
 
 func probeRedis(ctx context.Context, r models.Resource) ProbeResult {
-	opt := &redis.Options{
-		Addr:        net.JoinHostPort(r.Host, strconv.Itoa(r.Port)),
-		Password:    firstNonEmpty(r.Password, r.Secret),
-		DialTimeout: 6 * time.Second,
-		Dialer: func(_ context.Context, _, _ string) (net.Conn, error) {
-			return DialResource(r.Host, r.Port, r.UseGateway)
-		},
-	}
-	client := redis.NewClient(opt)
+	client := OpenRedis(r)
 	defer client.Close()
 
 	if err := client.Ping(ctx).Err(); err != nil {
