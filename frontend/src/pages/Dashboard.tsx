@@ -498,6 +498,7 @@ export function Dashboard() {
 
   const SCAN_TYPE_LABEL: Record<string, string> = {
     kernel: 'Kernel CVEs', hardening: 'OS Hardening', cluster: 'Cluster Posture', resource: 'Resource Exposure',
+    code: 'Code Security', dast: 'DAST',
   }
 
   // On short ranges show HH:MM; on 24h include the day so the axis reads clearly
@@ -774,7 +775,7 @@ export function Dashboard() {
                 icon={ShieldCheck}
                 iconColor={securityTotals && securityTotals.high > 0 ? 'var(--danger)' : 'var(--success)'}
                 title="Security Posture"
-                subtitle={`${securityScans.length} scan${securityScans.length === 1 ? '' : 's'} across kernel, hardening, cluster & resource checks`}
+                subtitle={`${securityScans.length} scan${securityScans.length === 1 ? '' : 's'} across kernel, hardening, cluster, resource, code & DAST checks`}
                 action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/audit/kernel')}>Review</button>}
               />
               {!securityTotals || securityTotals.findings === 0 ? (

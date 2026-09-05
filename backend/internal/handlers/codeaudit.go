@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -101,11 +102,35 @@ func SetAuditToolPath(c *gin.Context) {
 func ListCodeRepos(c *gin.Context) {
 	var repos []models.CodeRepo
 	db.DB.Order("name").Find(&repos)
+
+	scanByRepo := latestScansByTarget("code_repo", "code")
 	out := make([]gin.H, 0, len(repos))
 	for _, r := range repos {
-		out = append(out, codeRepoJSON(r))
+		item := codeRepoJSON(r)
+		if scan, ok := scanByRepo[r.ID]; ok {
+			var result audit.CodeScanResult
+			if err := json.Unmarshal([]byte(scan.ResultJSON), &result); err == nil {
+				item["last_result"] = result
+			}
+		}
+		out = append(out, item)
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// latestScansByTarget loads every persisted SecurityScan matching
+// (targetType, scanType) in one query, keyed by target ID — lets a list
+// endpoint attach each target's last scan result (so switching tabs and
+// coming back shows prior findings without forcing a rescan) without an
+// N+1 query per target.
+func latestScansByTarget(targetType, scanType string) map[uint]models.SecurityScan {
+	var scans []models.SecurityScan
+	db.DB.Where("target_type = ? AND scan_type = ?", targetType, scanType).Find(&scans)
+	out := make(map[uint]models.SecurityScan, len(scans))
+	for _, s := range scans {
+		out[s.TargetID] = s
+	}
+	return out
 }
 
 // codeRepoJSON never includes the PAT — same discipline as gitsync's
@@ -258,7 +283,23 @@ func firstNonEmptyStr(vals ...string) string {
 func ListDastTargets(c *gin.Context) {
 	var targets []models.DastTarget
 	db.DB.Order("name").Find(&targets)
-	c.JSON(http.StatusOK, targets)
+
+	scanByTarget := latestScansByTarget("dast_target", "dast")
+	out := make([]gin.H, 0, len(targets))
+	for _, t := range targets {
+		item := gin.H{
+			"id": t.ID, "name": t.Name, "target_url": t.TargetURL, "notes": t.Notes,
+			"created_at": t.CreatedAt, "updated_at": t.UpdatedAt,
+		}
+		if scan, ok := scanByTarget[t.ID]; ok {
+			var result audit.DastScanResult
+			if err := json.Unmarshal([]byte(scan.ResultJSON), &result); err == nil {
+				item["last_result"] = result
+			}
+		}
+		out = append(out, item)
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 type dastTargetRequest struct {
