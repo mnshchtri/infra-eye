@@ -65,6 +65,11 @@ export function AuditDast() {
       ])
       setTargets(targetsRes.data)
       setEnv(toolsRes.data.dast_environment)
+      const persisted: Record<number, DastScanResult> = {}
+      for (const t of targetsRes.data) {
+        if (t.last_result) persisted[t.id] = t.last_result
+      }
+      setResults(persisted)
     } catch {
       setTargets([])
     } finally {

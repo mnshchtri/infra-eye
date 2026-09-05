@@ -64,6 +64,11 @@ export function AuditCode() {
       ])
       setRepos(reposRes.data)
       setTools(toolsRes.data.code_scan_tools)
+      const persisted: Record<number, CodeScanResult> = {}
+      for (const r of reposRes.data) {
+        if (r.last_result) persisted[r.id] = r.last_result
+      }
+      setResults(persisted)
     } catch {
       setRepos([])
     } finally {

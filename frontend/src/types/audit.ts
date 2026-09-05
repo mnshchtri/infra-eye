@@ -93,6 +93,7 @@ export interface CodeRepo {
   pat_set: boolean
   created_at: string
   updated_at: string
+  last_result?: CodeScanResult // most recent persisted scan, if this repo has ever been scanned
 }
 
 // ── DAST (dynamic application security testing) ──
@@ -128,6 +129,7 @@ export interface DastTarget {
   notes: string
   created_at: string
   updated_at: string
+  last_result?: DastScanResult // most recent persisted scan, if this target has ever been scanned
 }
 
 // ── Tool availability ──
