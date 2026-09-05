@@ -40,7 +40,10 @@ var knownEOLMinors = map[int]bool{
 // and reports workload, RBAC, and network-exposure risks.
 func ScanCluster(clientset *kubernetes.Clientset) (ClusterAuditResult, error) {
 	ctx := context.Background()
-	result := ClusterAuditResult{ScannedAt: time.Now()}
+	// Findings starts as an empty (non-nil) slice — a nil one marshals to
+	// JSON `null`, and the frontend calls .length/.map on it unconditionally
+	// once a result exists, which crashes the page on a clean scan.
+	result := ClusterAuditResult{ScannedAt: time.Now(), Findings: []ClusterFinding{}}
 
 	if v, err := clientset.Discovery().ServerVersion(); err == nil {
 		result.ServerVersion = v.String()

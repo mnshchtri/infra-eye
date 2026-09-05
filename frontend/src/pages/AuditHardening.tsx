@@ -142,7 +142,7 @@ export function AuditHardening() {
                           </tr>
                         </thead>
                         <tbody>
-                          {state.result.checks.map(chk => (
+                          {(state.result.checks ?? []).map(chk => (
                             <tr key={chk.id} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '10px 16px' }}>
                                 {chk.passed

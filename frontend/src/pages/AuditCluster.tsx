@@ -137,7 +137,7 @@ export function AuditCluster() {
                   </div>
 
                   {state?.result && isExpanded && (
-                    state.result.findings.length === 0 ? (
+                    (state.result.findings ?? []).length === 0 ? (
                       <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', fontSize: 12, color: 'var(--text-muted)' }}>No findings.</div>
                     ) : (
                       <div style={{ borderTop: '1px solid var(--border)' }}>
@@ -152,7 +152,7 @@ export function AuditCluster() {
                             </tr>
                           </thead>
                           <tbody>
-                            {state.result.findings.map((f, i) => (
+                            {(state.result.findings ?? []).map((f, i) => (
                               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                 <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 800, color: severityColor[f.severity] || 'var(--text-muted)' }}>{f.severity}</td>
                                 <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{f.category}</td>

@@ -335,10 +335,14 @@ func ScanKernel(rawOutput string) KernelAuditResult {
 	kernelVersion := strings.TrimSpace(sec.kernelVersion)
 	distro := parseDistroName(sec.distro)
 
+	// Findings starts as an empty (non-nil) slice — a nil one marshals to
+	// JSON `null`, and the frontend calls .length/.map on it unconditionally
+	// once a result exists, which crashes the page on a clean scan.
 	result := KernelAuditResult{
 		KernelVersion: kernelVersion,
 		Distro:        distro,
 		ScannedAt:     time.Now(),
+		Findings:      []KernelFinding{},
 	}
 
 	v, ok := parseVersion(kernelVersion)

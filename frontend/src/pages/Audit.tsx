@@ -200,7 +200,7 @@ export function Audit() {
                           </tr>
                         </thead>
                         <tbody>
-                          {state.result.findings.map(f => (
+                          {(state.result.findings ?? []).map(f => (
                             <tr key={f.cve} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '10px 16px' }}>
                                 <span style={{
