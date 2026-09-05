@@ -197,3 +197,37 @@ func testConnection(ctx context.Context, rawURL, branch, pat string) error {
 	}
 	return nil
 }
+
+// CloneShallowToTemp clones rawURL@branch into a fresh, throwaway temp
+// directory and returns it plus a cleanup func that removes it. Unlike
+// cloneOrPull (which mirrors one repo forever at WorkDir for the IaC-sync
+// engine), this is for one-off, isolated jobs — code security scanning —
+// that may target any number of different repos concurrently and must never
+// leave a checkout behind. Reuses the same URL validation, PAT-splicing, and
+// credential redaction as the sync path so a scan's error output is exactly
+// as safe to display as a sync's.
+func CloneShallowToTemp(ctx context.Context, rawURL, branch, pat string) (dir string, cleanup func(), err error) {
+	if err := validateBranch(branch); err != nil {
+		return "", nil, err
+	}
+	authURL, err := authenticatedURL(rawURL, pat)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid repo URL: %w", err)
+	}
+
+	dir, err = os.MkdirTemp("", "infraeye-codescan-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("create scan directory: %w", err)
+	}
+	cleanup = func() { _ = os.RemoveAll(dir) }
+
+	if _, err := runGit(ctx, "", "clone", "--branch", branch, "--depth", "1", "--single-branch", authURL, dir); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	// Drop the .git dir itself: scanners only need working-tree content, and
+	// this keeps a stray `git log`/credential helper in a scanner subprocess
+	// from ever seeing the spliced-in PAT.
+	_ = os.RemoveAll(filepath.Join(dir, ".git"))
+	return dir, cleanup, nil
+}

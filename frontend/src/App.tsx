@@ -18,6 +18,8 @@ import { Audit } from './pages/Audit'
 import { AuditHardening } from './pages/AuditHardening'
 import { AuditCluster } from './pages/AuditCluster'
 import { AuditResources } from './pages/AuditResources'
+import { AuditCode } from './pages/AuditCode'
+import { AuditDast } from './pages/AuditDast'
 import { IacSync } from './pages/IacSync'
 import { InfraMap } from './pages/InfraMap'
 import { useAuthStore } from './store/authStore'
@@ -56,6 +58,8 @@ export default function App() {
           <Route path="audit/hardening" element={<AuditHardening />} />
           <Route path="audit/cluster" element={<AuditCluster />} />
           <Route path="audit/resources" element={<AuditResources />} />
+          <Route path="audit/code" element={<AuditCode />} />
+          <Route path="audit/dast" element={<AuditDast />} />
         </Route>
       </Routes>
     </BrowserRouter>

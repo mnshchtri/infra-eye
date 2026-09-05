@@ -12,6 +12,7 @@ export type PermissionAction =
   | 'manage-resources'
   | 'manage-users'
   | 'manage-gitsync'
+  | 'manage-code-audit'
   | 'view-alerts'
   | 'view-settings'
   | 'view-audit'
@@ -41,6 +42,8 @@ export function usePermission() {
       case 'manage-resources':
         return ['admin', 'devops'].includes(role)
       case 'manage-gitsync':
+        return ['admin', 'devops'].includes(role)
+      case 'manage-code-audit':
         return ['admin', 'devops'].includes(role)
       case 'view-alerts':
         return ['admin', 'devops', 'trainee'].includes(role)
