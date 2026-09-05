@@ -2422,12 +2422,20 @@ p {
 
 /* ===== MOBILE RESPONSIVE FIXES ===== */
 
-/* Scrollable tab bars on mobile */
+/* Scrollable tab bars on mobile. flex-shrink: 0 (not 1, despite the name) —
+   this sits inside a column-flex page layout on every page that uses it, so
+   "shrink" there means height, not the horizontal overflow this class is
+   actually for. Paired with overflow-x: auto, a flex item's default
+   min-height:auto is treated as 0 for shrink purposes, so a tall enough
+   sibling (e.g. Observability's stat cards + trend charts) could squeeze
+   this down to ~1px and make the entire tab bar disappear — reproduced live
+   on ResourceDetail.tsx, a pre-existing bug independent of any one page's
+   content. */
 .tabs-scroll-x {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  flex-shrink: 1;
+  flex-shrink: 0;
 }
 .tabs-scroll-x::-webkit-scrollbar {
   display: none;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Database, Shield, CheckCircle2, ShieldCheck, Trash2, Plus, Clock3,
-  Play, Table, Loader2, Globe, Activity, User, Lock, History, Code, RefreshCw,
+  ArrowLeft, Database, Shield, ShieldCheck, Trash2, Plus, Clock3,
+  Table, Loader2, Globe, Activity, User, Lock, History, Code, RefreshCw,
   Gauge, Zap, Layers, Cpu, CircleDot, AlertTriangle, HardDrive
 } from 'lucide-react'
 import {
@@ -14,6 +14,9 @@ import { useToastStore } from '../store/toastStore'
 import { format } from 'date-fns'
 import { apiError } from '../utils/errors'
 import type { IconComponent } from '../types/k8s'
+import { SchemaTree } from '../components/database/SchemaTree'
+import { DataGrid } from '../components/database/DataGrid'
+import { SqlConsole } from '../components/database/SqlConsole'
 
 interface ResourceDetailData {
   id: number; name: string; description?: string; tags?: string
@@ -25,7 +28,7 @@ interface UserData { id: number; username: string; email?: string; role: string 
 interface AccessEntry { id: number; resource_id: number; user_id: number; access_level: string; user?: UserData; created_at?: string }
 interface AuditEntry { id: number; resource_id: number; user_id: number; action: string; details: string; performed_by: string; created_at: string }
 interface MetricRow { id: number; timestamp: string; status: string; latency_ms: number; error?: string; metrics: string }
-type ResourceTab = 'observability' | 'overview' | 'query' | 'access' | 'audit'
+type ResourceTab = 'observability' | 'overview' | 'database' | 'access' | 'audit'
 
 interface LiveProbe { status: string; latency_ms: number; error?: string; metrics: Record<string, unknown> }
 
@@ -152,12 +155,11 @@ export function ResourceDetail() {
   const [auditUntil, setAuditUntil] = useState('')
   const [loadingAudit, setLoadingAudit] = useState(false)
 
-  // Query state
-  const [sql, setSql] = useState('SELECT * FROM users LIMIT 10;')
-  const [queryResult, setQueryResult] = useState<{ type?: string; columns?: string[]; rows?: Record<string, unknown>[]; rows_affected?: number } | null>(null)
-  const [runningQuery, setRunningQuery] = useState(false)
+  // Database tab state
+  const [selectedTable, setSelectedTable] = useState<{ schema: string; table: string } | null>(null)
+  const [dbView, setDbView] = useState<'browse' | 'console'>('browse')
 
-  const isSqlable = resource?.protocol === 'postgres'
+  const isSqlable = ['postgres', 'postgresql', 'mysql', 'mariadb'].includes(resource?.protocol ?? '')
 
   useEffect(() => { if (id) loadPageData() }, [id])
   useEffect(() => { if (activeTab === 'audit') loadAudit() }, [auditLimit, auditSince, auditUntil, activeTab])
@@ -237,16 +239,6 @@ export function ResourceDetail() {
     } catch (err: unknown) { toast.error('Revoke failed', apiError(err) || 'Unable to revoke access') }
     finally { setRevokingId(null) }
   }
-  async function runQuery() {
-    if (!sql.trim()) return
-    setRunningQuery(true); setQueryResult(null)
-    try {
-      setQueryResult((await api.post(`/api/resources/${id}/query`, { sql })).data)
-      toast.success('Query executed', 'The operation completed.')
-      loadAudit()
-    } catch (err: unknown) { toast.error('Query failed', apiError(err) || 'Unable to execute SQL') }
-    finally { setRunningQuery(false) }
-  }
 
   const assignedUsers = accessRecords.length
   const st = statusMeta(live?.status || resource?.status)
@@ -316,7 +308,7 @@ export function ResourceDetail() {
   const tabs = [
     { id: 'observability', label: 'Observability', icon: Gauge },
     { id: 'overview', label: 'Overview', icon: Database },
-    ...(isSqlable ? [{ id: 'query', label: 'SQL Console', icon: Code }] : []),
+    ...(isSqlable ? [{ id: 'database', label: 'Database', icon: Code }] : []),
     { id: 'access', label: 'Access', icon: Lock },
     { id: 'audit', label: 'Audit Log', icon: History },
   ]
@@ -509,58 +501,57 @@ export function ResourceDetail() {
         </div>
       )}
 
-      {/* ── SQL Console ── */}
-      {activeTab === 'query' && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Code size={16} color="var(--brand-primary)" />
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 700 }}>SQL Console</h3>
-                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Run ad-hoc queries. Every query is recorded in the audit log.</p>
-              </div>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={runQuery} disabled={runningQuery} style={{ height: 34 }}>
-              {runningQuery ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
-              <span style={{ marginLeft: 6 }}>{runningQuery ? 'Running…' : 'Run'}</span>
-            </button>
+      {/* ── Database (schema tree + data grid / SQL console) ── */}
+      {activeTab === 'database' && resource && (
+        <div className="card" style={{ padding: 0, display: 'flex', height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
+          <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
+            <SchemaTree
+              resourceId={resource.id}
+              selected={selectedTable}
+              onSelect={(schema, table) => { setSelectedTable({ schema, table }); setDbView('browse') }}
+            />
           </div>
-          <textarea className="input" style={{ fontFamily: 'var(--font-mono)', fontSize: 13.5, minHeight: 150, background: 'var(--bg-app)', border: '1px solid var(--border)', padding: 14 }}
-            value={sql} onChange={(e) => setSql(e.target.value)} placeholder="SELECT * FROM table LIMIT 10;" />
-
-          {queryResult && (
-            <div style={{ marginTop: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Table size={14} color="var(--brand-primary)" />
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>Result</span>
-                </div>
-                <span className="badge badge-neutral">
-                  {queryResult.type === 'select' ? `${queryResult.rows?.length || 0} rows` : `${queryResult.rows_affected || 0} rows affected`}
-                </span>
-              </div>
-              {queryResult.type === 'select' ? (
-                <div className="table-container">
-                  <table className="k-table">
-                    <thead><tr>{queryResult.columns?.map((c: string) => <th key={c}>{c}</th>)}</tr></thead>
-                    <tbody>
-                      {queryResult.rows?.length === 0 ? (
-                        <tr><td colSpan={queryResult.columns?.length} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No rows returned</td></tr>
-                      ) : queryResult.rows?.map((row: Record<string, unknown>, i: number) => (
-                        <tr key={i}>{queryResult.columns?.map((c: string) => <td key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>{String(row[c])}</td>)}</tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <button
+                onClick={() => setDbView('browse')}
+                style={{
+                  border: 'none', background: 'transparent', padding: '9px 16px', cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+                  color: dbView === 'browse' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  borderBottom: dbView === 'browse' ? '2px solid var(--brand-primary)' : '2px solid transparent',
+                }}
+              >
+                Data
+              </button>
+              <button
+                onClick={() => setDbView('console')}
+                style={{
+                  border: 'none', background: 'transparent', padding: '9px 16px', cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+                  color: dbView === 'console' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  borderBottom: dbView === 'console' ? '2px solid var(--brand-primary)' : '2px solid transparent',
+                }}
+              >
+                SQL Console
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              {dbView === 'console' ? (
+                <SqlConsole resourceId={resource.id} />
+              ) : selectedTable ? (
+                <DataGrid
+                  resourceId={resource.id}
+                  schema={selectedTable.schema}
+                  table={selectedTable.table}
+                  canEdit={can('manage-resources')}
+                />
               ) : (
-                <div style={{ padding: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                  <CheckCircle2 size={28} style={{ color: 'var(--success)', margin: '0 auto 10px' }} />
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>Success</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{queryResult.rows_affected} rows modified</div>
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  <Table size={28} style={{ opacity: 0.3, marginBottom: 10 }} />
+                  <div>Select a table from the schema tree to browse its rows.</div>
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
