@@ -12,8 +12,6 @@ import (
 	"github.com/infra-eye/backend/internal/db"
 	"github.com/infra-eye/backend/internal/models"
 	"github.com/infra-eye/backend/internal/resources"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 type queryRequest struct {
@@ -409,6 +407,45 @@ func ListResourceMetrics(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
+// resolveEffectiveAccess returns the caller's effective access level
+// ("read"|"write"|"admin") for a resource. The admin/devops role already
+// gates every resource route today (see routes.go), so those callers always
+// resolve to "admin" here — this doesn't change behavior for them, it's
+// forward-compatible plumbing for the day a less-privileged role (trainee)
+// is allowed onto these routes with real per-resource grants, at which point
+// this already does the right thing: fall back to their ResourceAccess row,
+// or "read" if none exists.
+func resolveEffectiveAccess(c *gin.Context, resourceID uint) string {
+	if role, _ := c.Get("role"); role == "admin" || role == "devops" {
+		return "admin"
+	}
+	userID, _ := c.Get("user_id")
+	uid, ok := userID.(uint)
+	if !ok {
+		return "read"
+	}
+	var access models.ResourceAccess
+	if err := db.DB.Where("resource_id = ? AND user_id = ?", resourceID, uid).First(&access).Error; err != nil {
+		return "read"
+	}
+	return access.AccessLevel
+}
+
+func requireWriteAccess(c *gin.Context, resourceID uint) bool {
+	level := resolveEffectiveAccess(c, resourceID)
+	if level != "write" && level != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "read-only access to this resource"})
+		return false
+	}
+	return true
+}
+
+func currentUserID(c *gin.Context) uint {
+	userID, _ := c.Get("user_id")
+	uid, _ := userID.(uint)
+	return uid
+}
+
 func QueryResource(c *gin.Context) {
 	id := c.Param("id")
 	var resource models.Resource
@@ -423,33 +460,23 @@ func QueryResource(c *gin.Context) {
 		return
 	}
 
-	// Only support Postgres for now
-	if !strings.EqualFold(resource.Protocol, "postgres") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "only postgres protocol is supported for querying currently"})
+	if !resources.IsPostgres(resource.Protocol) && !resources.IsMySQL(resource.Protocol) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only postgres and mysql are supported for querying currently"})
 		return
 	}
 
-	dbName := resource.Database
-	if dbName == "" {
-		dbName = "postgres"
+	query := strings.TrimSpace(req.SQL)
+	isSelect := strings.HasPrefix(strings.ToUpper(query), "SELECT")
+	if !isSelect && !requireWriteAccess(c, uint(resource.ID)) {
+		return
 	}
-	// Build DSN
-	// If the user is using host.docker.internal, it should work from the container.
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		resource.Username, resource.Password, resource.Host, resource.Port, dbName)
 
-	// Use a temporary GORM instance to execute
-	targetDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	sqlDB, err := resources.OpenSQL(c.Request.Context(), resource)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("connect to target: %v", err)})
 		return
 	}
-	sqlDB, _ := targetDB.DB()
 	defer sqlDB.Close()
-
-	// Execute query
-	query := strings.TrimSpace(req.SQL)
-	isSelect := strings.HasPrefix(strings.ToUpper(query), "SELECT")
 
 	if isSelect {
 		rows, err := sqlDB.Query(query)
@@ -497,7 +524,7 @@ func QueryResource(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"type": "exec", "rows_affected": affected})
 	}
 
-	logResourceAudit(c, uint(resource.ID), 0, "query_resource", gin.H{"sql": query, "message": "executed sql query"})
+	logResourceAudit(c, uint(resource.ID), currentUserID(c), "query_resource", gin.H{"sql": query, "message": "executed sql query"})
 }
 
 // MoveResourceFolder — PATCH /api/resources/:id/folder

@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/minio/madmin-go/v3"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -83,14 +81,7 @@ func offline(err error) ProbeResult {
 // ── Postgres ────────────────────────────────────────────────────────────────
 
 func probePostgres(ctx context.Context, r models.Resource) ProbeResult {
-	dbName := r.Database
-	if dbName == "" {
-		dbName = "postgres"
-	}
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&connect_timeout=6",
-		r.Username, r.Password, r.Host, r.Port, dbName)
-
-	conn, err := sql.Open("pgx", dsn)
+	conn, err := OpenSQL(ctx, r)
 	if err != nil {
 		return offline(err)
 	}
@@ -157,11 +148,7 @@ func probePostgres(ctx context.Context, r models.Resource) ProbeResult {
 // ── MySQL ───────────────────────────────────────────────────────────────────
 
 func probeMySQL(ctx context.Context, r models.Resource) ProbeResult {
-	dbName := r.Database
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?timeout=6s",
-		r.Username, r.Password, r.Host, r.Port, dbName)
-
-	conn, err := sql.Open("mysql", dsn)
+	conn, err := OpenSQL(ctx, r)
 	if err != nil {
 		return offline(err)
 	}
