@@ -847,6 +847,23 @@ p {
 .btn-icon {
   padding: var(--space-2);
   aspect-ratio: 1;
+  /* Without an explicit color, this falls back to the browser's fixed
+     default button text color, which stays dark regardless of theme — on a
+     dark --bg-app that reads as an invisible icon (reported live: the
+     disconnect/delete cluster buttons on K8sClusterGrid). */
+  color: var(--text-secondary);
+}
+
+.btn-icon:hover:not(:disabled) {
+  color: var(--brand-primary);
+}
+
+.btn-icon.danger {
+  color: var(--danger);
+}
+
+.btn-icon.danger:hover:not(:disabled) {
+  color: var(--danger-dark);
 }
 
 /* ===== MODERN CARD SYSTEM ===== */
