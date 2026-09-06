@@ -120,8 +120,8 @@ func RunDastScan(ctx context.Context, targetURL, mode string, progress ScanLog) 
 	return result, nil
 }
 
-// zapAlert is ZAP's alert shape, shared by both the JSON report the Docker
-// scripts write and the REST API's core/view/alerts response.
+// zapAlert is the REST API's core/view/alerts response shape: already
+// flattened to one entry per finding instance, with a top-level "url".
 type zapAlert struct {
 	PluginID    string `json:"pluginid"`
 	Alert       string `json:"alert"`
@@ -135,6 +135,52 @@ type zapAlert struct {
 	CWEID       string `json:"cweid"`
 }
 
+// zapReportAlert is the alert shape inside the JSON report file written by
+// zap-baseline.py/zap-full-scan.py (-J flag) — this is NOT the same schema as
+// zapAlert: risk is "riskcode"/"riskdesc" rather than a flat "risk", the
+// description field is "desc" rather than "description", and there is no
+// top-level URL at all — every affected URL lives in "instances", since one
+// alert can (and usually does) match several URLs on the target.
+type zapReportAlert struct {
+	PluginID   string `json:"pluginid"`
+	Alert      string `json:"alert"`
+	Name       string `json:"name"`
+	RiskCode   string `json:"riskcode"`
+	Confidence string `json:"confidence"`
+	Desc       string `json:"desc"`
+	Solution   string `json:"solution"`
+	CWEID      string `json:"cweid"`
+	Instances  []struct {
+		URI      string `json:"uri"`
+		Evidence string `json:"evidence"`
+	} `json:"instances"`
+}
+
+// toZapAlert converts a report-file alert into the shared zapAlert shape
+// consumed by RunDastScan, picking the first instance's URL/evidence (noting
+// how many more there were) since DastFinding models one row per alert type,
+// not per affected URL.
+func (r zapReportAlert) toZapAlert() zapAlert {
+	a := zapAlert{
+		PluginID:    r.PluginID,
+		Alert:       r.Alert,
+		Name:        r.Name,
+		Risk:        normalizeZapRiskCode(r.RiskCode),
+		Confidence:  r.Confidence,
+		Description: r.Desc,
+		Solution:    r.Solution,
+		CWEID:       r.CWEID,
+	}
+	if len(r.Instances) > 0 {
+		a.URL = r.Instances[0].URI
+		a.Evidence = r.Instances[0].Evidence
+		if len(r.Instances) > 1 {
+			a.URL = fmt.Sprintf("%s (+%d more)", a.URL, len(r.Instances)-1)
+		}
+	}
+	return a
+}
+
 func normalizeZapRisk(risk string) string {
 	switch strings.ToLower(risk) {
 	case "high":
@@ -142,6 +188,22 @@ func normalizeZapRisk(risk string) string {
 	case "medium":
 		return "medium"
 	case "low":
+		return "low"
+	default:
+		return "info"
+	}
+}
+
+// normalizeZapRiskCode maps the report file's numeric riskcode (ZAP's own
+// scale: 3=High, 2=Medium, 1=Low, 0=Informational) to the same risk strings
+// normalizeZapRisk produces from the REST API's text form.
+func normalizeZapRiskCode(code string) string {
+	switch code {
+	case "3":
+		return "high"
+	case "2":
+		return "medium"
+	case "1":
 		return "low"
 	default:
 		return "info"
@@ -218,7 +280,7 @@ func runZAPViaDocker(ctx context.Context, dockerPath, targetURL, mode string, pr
 
 	var report struct {
 		Site []struct {
-			Alerts []zapAlert `json:"alerts"`
+			Alerts []zapReportAlert `json:"alerts"`
 		} `json:"site"`
 	}
 	if err := json.Unmarshal(data, &report); err != nil {
@@ -226,7 +288,9 @@ func runZAPViaDocker(ctx context.Context, dockerPath, targetURL, mode string, pr
 	}
 	var alerts []zapAlert
 	for _, site := range report.Site {
-		alerts = append(alerts, site.Alerts...)
+		for _, a := range site.Alerts {
+			alerts = append(alerts, a.toZapAlert())
+		}
 	}
 	return alerts, nil
 }
