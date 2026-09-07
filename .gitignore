@@ -46,3 +46,6 @@ shared_gitsync/
 backend/cmd/desktop/frontenddist/*
 !backend/cmd/desktop/frontenddist/index.html
 backend/cmd/desktop/build/bin/
+
+# Claude Code local session state (per-developer, not shared)
+.claude/
