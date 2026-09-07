@@ -3,12 +3,19 @@ import yaml from 'js-yaml'
 import {
   KeySquare, KeyRound, Clock, ArrowRightLeft, CalendarClock,
   FileJson, Braces, Hash, Copy, Check, AlertCircle, Trash2, Eraser, Route,
-  Network, ShieldCheck, Cpu, GitCompare, Fingerprint, Container, FileCode2, type LucideIcon
+  Network, ShieldCheck, Cpu, GitCompare, Fingerprint, Container, FileCode2, Download,
+  Split, Layers, Globe, Radar, ListTree, Fingerprint as FingerprintIcon, type LucideIcon
 } from 'lucide-react'
-import { cleanManifest, DEFAULT_CLEAN_OPTIONS, type CleanOptions } from '../utils/k8sManifestCleaner'
+import { cleanManifest, DEFAULT_CLEAN_OPTIONS, type CleanOptions, type CleanResult } from '../utils/k8sManifestCleaner'
 import { convertIngressToGateway } from '../utils/ingressToGateway'
 import { calculateCidr } from '../utils/cidrCalculator'
+import { splitCidr, type SplitMode } from '../utils/subnetSplitter'
+import { analyzeCidrs } from '../utils/cidrMatch'
+import { analyzeIpv6 } from '../utils/ipv6'
+import { lookupDns, DNS_RECORD_TYPES, DOH_RESOLVER, type DnsRecordType, type DnsLookupResult } from '../utils/dnsLookup'
 import { decodeCertificate } from '../utils/certDecoder'
+import { analyzeCertChain, type ChainResult, type CertRole } from '../utils/certChain'
+import { inspectSshKeys, type SshKeyResult } from '../utils/sshKey'
 import { parseCron } from '../utils/cronParser'
 import { computeDiff } from '../utils/textDiff'
 import { evaluateJsonnet } from '../utils/jsonnetEvaluator'
@@ -18,9 +25,9 @@ import { errMessage } from '../utils/errors'
 type ToolId =
   | 'json' | 'base64' | 'yaml-json' | 'hash'
   | 'epoch' | 'cron'
-  | 'jwt' | 'jwt-encode' | 'cert-decode'
+  | 'jwt' | 'jwt-encode' | 'cert-decode' | 'cert-chain' | 'ssh-key'
   | 'k8s-clean' | 'ingress2gateway' | 'k8s-units' | 'jsonnet'
-  | 'cidr'
+  | 'cidr' | 'subnet-split' | 'cidr-match' | 'ipv6' | 'dns'
   | 'uuid' | 'diff' | 'docker-image'
 
 type Category = 'Encoding' | 'Time' | 'Security' | 'Kubernetes' | 'Networking' | 'Utilities'
@@ -46,11 +53,17 @@ const TOOLS: ToolMeta[] = [
   { id: 'jwt', label: 'JWT Decoder', subtitle: 'Decode base64url-encoded JSON Web Tokens instantly.', icon: KeySquare, color: 'var(--danger)', group: 'Security' },
   { id: 'jwt-encode', label: 'JWT Encoder', subtitle: 'Sign a header/payload pair into an HS256 JWT for local testing.', icon: KeyRound, color: 'var(--danger)', group: 'Security' },
   { id: 'cert-decode', label: 'TLS Certificate Decoder', subtitle: 'Paste a PEM certificate to see its Subject, Issuer, validity window, and SANs.', icon: ShieldCheck, color: 'var(--danger)', group: 'Security' },
+  { id: 'cert-chain', label: 'Certificate Chain Inspector', subtitle: 'Check a PEM bundle the way a TLS server loads it — order, missing intermediates, expiry.', icon: ListTree, color: 'var(--danger)', group: 'Security' },
+  { id: 'ssh-key', label: 'SSH Key Inspector', subtitle: 'Fingerprints and key strength for a public key or a whole authorized_keys file.', icon: FingerprintIcon, color: 'var(--warning)', group: 'Security' },
   { id: 'k8s-clean', label: 'K8s Manifest Cleaner', subtitle: 'Strip server-generated fields from a live manifest so it can be re-applied to any cluster.', icon: Eraser, color: 'var(--success)', group: 'Kubernetes' },
   { id: 'ingress2gateway', label: 'Ingress → Gateway API', subtitle: 'Convert an Ingress into a Gateway and HTTPRoute (Gateway API). Best-effort — review annotation-driven behavior manually.', icon: Route, color: 'var(--accent-purple)', group: 'Kubernetes' },
   { id: 'k8s-units', label: 'Resource Units', subtitle: 'Convert CPU (millicores/cores) and memory (Ki/Mi/Gi/Ti, decimal/binary) quantities.', icon: Cpu, color: 'var(--success)', group: 'Kubernetes' },
   { id: 'jsonnet', label: 'Jsonnet Evaluator', subtitle: 'Evaluate Jsonnet — the language Tanka (grafana.com/oss/tanka) uses for Kubernetes config — into JSON or YAML.', icon: FileCode2, color: 'var(--accent-cyan)', group: 'Kubernetes' },
   { id: 'cidr', label: 'CIDR Calculator', subtitle: 'Network/broadcast address, usable host range, and netmask for a CIDR block.', icon: Network, color: 'var(--accent-cyan)', group: 'Networking' },
+  { id: 'subnet-split', label: 'Subnet Splitter', subtitle: 'Carve an IPv4 block into equal subnets — by target prefix, or by how many subnets you need.', icon: Split, color: 'var(--accent-cyan)', group: 'Networking' },
+  { id: 'cidr-match', label: 'CIDR Overlap & Match', subtitle: 'Test addresses against a list of CIDRs and flag blocks that collide — for debugging security groups, NetworkPolicy, and peering.', icon: Layers, color: 'var(--info)', group: 'Networking' },
+  { id: 'ipv6', label: 'IPv6 Toolkit', subtitle: 'Expand/compress an IPv6 address, plus prefix range, address type, and PTR name.', icon: Globe, color: 'var(--accent-purple)', group: 'Networking' },
+  { id: 'dns', label: 'DNS Lookup', subtitle: 'Resolve A/AAAA/CNAME/MX/TXT and more over DNS-over-HTTPS. Sends the queried name to an external resolver.', icon: Radar, color: 'var(--warning)', group: 'Networking' },
   { id: 'uuid', label: 'UUID / Secret Generator', subtitle: 'Generate UUIDv4s or cryptographically random secrets.', icon: Fingerprint, color: 'var(--accent-purple)', group: 'Utilities' },
   { id: 'diff', label: 'Diff Checker', subtitle: 'Compare two blocks of text line by line.', icon: GitCompare, color: 'var(--accent-pink)', group: 'Utilities' },
   { id: 'docker-image', label: 'Image Reference Parser', subtitle: 'Break a container image reference into registry, repository, tag, and digest.', icon: Container, color: 'var(--accent-lime)', group: 'Utilities' },
@@ -111,11 +124,17 @@ export function DevTools() {
         {activeTab === 'jwt' && <JwtDecoderTool />}
         {activeTab === 'jwt-encode' && <JwtEncoderTool />}
         {activeTab === 'cert-decode' && <CertDecoderTool />}
+        {activeTab === 'cert-chain' && <CertChainTool />}
+        {activeTab === 'ssh-key' && <SshKeyTool />}
         {activeTab === 'k8s-clean' && <K8sManifestCleanerTool />}
         {activeTab === 'ingress2gateway' && <Ingress2GatewayTool />}
         {activeTab === 'k8s-units' && <ResourceUnitsTool />}
         {activeTab === 'jsonnet' && <JsonnetEvaluatorTool />}
         {activeTab === 'cidr' && <CidrCalculatorTool />}
+        {activeTab === 'subnet-split' && <SubnetSplitterTool />}
+        {activeTab === 'cidr-match' && <CidrMatchTool />}
+        {activeTab === 'ipv6' && <Ipv6Tool />}
+        {activeTab === 'dns' && <DnsLookupTool />}
         {activeTab === 'uuid' && <UuidGeneratorTool />}
         {activeTab === 'diff' && <DiffCheckerTool />}
         {activeTab === 'docker-image' && <DockerImageParserTool />}
@@ -136,6 +155,23 @@ export function DevTools() {
         .devtools-textarea { width: 100%; min-height: 420px; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; padding: 18px 20px; resize: vertical; box-sizing: border-box; }
         .devtools-options { display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 16px; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); }
         .devtools-option { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+        .devtools-option-group { display: flex; flex-direction: column; padding: 2px 16px; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); }
+        .devtools-option-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 11px 0; }
+        .devtools-option-row + .devtools-option-row { border-top: 1px dashed var(--border); }
+        .devtools-option-row-label { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); min-width: 92px; }
+        .devtools-chip { font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-radius: var(--radius-full); background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); }
+        .devtools-chip.edit { background: var(--warning-glow); border-color: var(--warning); color: var(--warning-dark); }
+        .devtools-chip.warn { background: var(--danger-glow); border-color: var(--danger); color: var(--danger); font-weight: 700; }
+        .devtools-chip.ok { background: var(--success-glow); border-color: var(--success); color: var(--success); }
+        .devtools-namespace-bar { padding: 12px 16px; background: var(--bg-app); border: 1px solid var(--border); border-left: 3px solid var(--brand-primary); border-radius: var(--radius-md); }
+        .devtools-doc-card { padding: 10px 14px; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); }
+        .devtools-doc-card.dropped { border-left: 3px solid var(--text-muted); opacity: 0.75; }
+        .devtools-doc-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .devtools-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+        .devtools-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; }
+        .devtools-table th { text-align: left; padding: 10px 14px; background: var(--bg-elevated); color: var(--text-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+        .devtools-table td { padding: 9px 14px; border-top: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+        .devtools-table tbody tr:hover td { background: var(--bg-elevated); }
         @media (max-width: 960px) {
           .devtools-split { grid-template-columns: 1fr; }
         }
@@ -519,52 +555,292 @@ function JwtDecoderTool() {
   )
 }
 
-// ── K8S MANIFEST CLEANER ──
+// ── CERTIFICATE CHAIN INSPECTOR ──
 
-const ALWAYS_STRIPPED_FIELDS = [
-  'status', 'metadata.uid', 'resourceVersion', 'creationTimestamp', 'generation',
-  'managedFields', 'selfLink', 'ownerReferences', 'pod-template creationTimestamp',
-  'cluster-managed annotations',
-]
+const CHAIN_ROLE_COLORS: Record<CertRole, string> = {
+  leaf: 'var(--success)',
+  intermediate: 'var(--info)',
+  root: 'var(--accent-purple)',
+}
 
-function K8sManifestCleanerTool() {
+function CertChainTool() {
   const [input, setInput] = useState('')
-  const [output, setOutput] = useState('')
-  const [error, setError] = useState('')
-  const [removedFields, setRemovedFields] = useState<string[]>([])
-  const [documentCount, setDocumentCount] = useState(0)
-  const [copied, setCopied] = useState(false)
-  const [options, setOptions] = useState<CleanOptions>(DEFAULT_CLEAN_OPTIONS)
+  const [result, setResult] = useState<ChainResult | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  function clean() {
-    if (!input.trim()) return
-    const result = cleanManifest(input, options)
-    if (result.error) {
-      setError(result.error)
-      setOutput('')
-      setRemovedFields([])
-      setDocumentCount(0)
-      return
-    }
-    setError('')
-    setOutput(result.output)
-    setRemovedFields(result.removedFields)
-    setDocumentCount(result.documentCount)
-  }
-
-  function copy() {
-    if (!output) return
-    navigator.clipboard.writeText(output)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  async function inspect() {
+    if (!input.trim() || loading) return
+    setLoading(true)
+    setResult(await analyzeCertChain(input))
+    setLoading(false)
   }
 
   function clearAll() {
     setInput('')
-    setOutput('')
+    setResult(null)
+  }
+
+  return (
+    <div className="devtools-body">
+      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+        <AlertCircle size={16} style={{ flexShrink: 0 }} />
+        Reads the bundle's structure — issuer/subject linkage, order, validity. It does not verify signatures, so it can show a chain is assembled correctly, not that it is authentic.
+      </div>
+
+      <div className="devtools-toolbar">
+        <button className="btn btn-primary" onClick={inspect} disabled={loading || !input.trim()}>
+          {loading ? 'Inspecting…' : 'Inspect Chain'}
+        </button>
+        <div className="devtools-toolbar-spacer">
+          {result && result.links.length > 0 && (
+            <StatBadge>{result.links.length} certificate{result.links.length === 1 ? '' : 's'}</StatBadge>
+          )}
+          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
+        </div>
+      </div>
+
+      {result?.error && <div className="devtools-error"><AlertCircle size={16} /> {result.error}</div>}
+
+      {result && result.problems.map(p => (
+        <div key={p} className="devtools-error">
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {p}
+        </div>
+      ))}
+
+      {result && result.problems.length === 0 && result.links.length > 0 && (
+        <div className="devtools-error" style={{ background: 'var(--success-glow)', color: 'var(--success)' }}>
+          <Check size={16} style={{ flexShrink: 0 }} />
+          Chain is correctly ordered — every certificate is signed by the one after it.
+        </div>
+      )}
+
+      {result && result.notes.map(n => (
+        <div key={n} className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {n}
+        </div>
+      ))}
+
+      <div className="devtools-split">
+        <div className="devtools-pane">
+          <label className="devtools-pane-label">PEM bundle</label>
+          <textarea
+            className="input devtools-textarea"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder={'Paste fullchain.pem / tls.crt — leaf first, then intermediates\n\n-----BEGIN CERTIFICATE-----\n...'}
+            spellCheck={false}
+          />
+        </div>
+
+        <div className="devtools-pane">
+          <label className="devtools-pane-label">Chain</label>
+          {result && result.links.length > 0 ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {result.links.map(link => (
+                <div key={link.index} className="devtools-doc-card">
+                  <div className="devtools-doc-title">
+                    <span style={{ color: 'var(--text-muted)' }}>#{link.index + 1}</span>
+                    <span style={{ color: CHAIN_ROLE_COLORS[link.role], textTransform: 'uppercase', fontSize: 11 }}>{link.role}</span>
+                    <span style={{ wordBreak: 'break-all' }}>{link.cert.subject}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 6, wordBreak: 'break-all' }}>
+                    issued by {link.cert.issuer}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    {link.issues.map(i => <span key={i} className="devtools-chip warn">! {i}</span>)}
+                    {link.cert.notAfter && link.issues.length === 0 && (
+                      <span className="devtools-chip ok">valid to {link.cert.notAfter.toISOString().slice(0, 10)}</span>
+                    )}
+                    <span className="devtools-chip">
+                      {link.cert.publicKeyAlgorithm}
+                      {link.cert.publicKeyBits ? ` ${link.cert.publicKeyBits}` : ''}
+                      {link.cert.publicKeyCurve ? ` ${link.cert.publicKeyCurve}` : ''}
+                    </span>
+                    {link.selfSigned && <span className="devtools-chip">self-signed</span>}
+                    {link.issuedByNext === true && <span className="devtools-chip ok">signed by #{link.index + 2}</span>}
+                    {link.issuedByNext === false && <span className="devtools-chip warn">! not signed by #{link.index + 2}</span>}
+                    {link.cert.sans.slice(0, 6).map(s => (
+                      <span key={`${s.type}:${s.value}`} className="devtools-chip">{s.type}:{s.value}</span>
+                    ))}
+                    {link.cert.sans.length > 6 && <span className="devtools-chip">+{link.cert.sans.length - 6} more SANs</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={ListTree} title="Paste a certificate bundle to inspect its chain" />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── SSH KEY INSPECTOR ──
+
+function SshKeyTool() {
+  const [input, setInput] = useState('')
+  const [result, setResult] = useState<SshKeyResult | null>(null)
+
+  async function inspect() {
+    if (!input.trim()) return
+    setResult(await inspectSshKeys(input))
+  }
+
+  function clearAll() {
+    setInput('')
+    setResult(null)
+  }
+
+  const good = result?.keys.filter(k => !k.error) ?? []
+  const flagged = good.filter(k => k.warnings.length > 0).length
+  const advised = good.filter(k => k.warnings.length === 0 && k.advisories.length > 0).length
+
+  return (
+    <div className="devtools-body">
+      <div className="devtools-toolbar">
+        <button className="btn btn-primary" onClick={inspect} disabled={!input.trim()}>Inspect Keys</button>
+        <div className="devtools-toolbar-spacer">
+          {good.length > 0 && <StatBadge>{good.length} key{good.length === 1 ? '' : 's'}</StatBadge>}
+          {flagged > 0 && <StatBadge>{flagged} flagged</StatBadge>}
+          {advised > 0 && <StatBadge>{advised} with advice</StatBadge>}
+          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
+        </div>
+      </div>
+
+      {result?.error && (
+        <div className="devtools-error">
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {result.error}
+        </div>
+      )}
+
+      <div className="devtools-pane">
+        <label className="devtools-pane-label">Public key or authorized_keys file</label>
+        <textarea
+          className="input devtools-textarea"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... deploy@bastion"
+          spellCheck={false}
+          style={{ minHeight: 180 }}
+        />
+      </div>
+
+      {result && result.keys.length > 0 && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {result.keys.map(key => (
+            <div key={key.line} className={`devtools-doc-card${key.error ? ' dropped' : ''}`}>
+              <div className="devtools-doc-title">
+                <span style={{ color: 'var(--text-muted)' }}>line {key.line}</span>
+                <span style={{ color: 'var(--brand-primary)' }}>{key.type || '(unknown)'}</span>
+                {key.bits !== null && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{key.bits} bits</span>}
+                {key.comment && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{key.comment}</span>}
+              </div>
+
+              {key.error ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+                  {key.error}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, display: 'grid', gap: 3, wordBreak: 'break-all' }}>
+                    <div>{key.fingerprintSha256}</div>
+                    <div style={{ color: 'var(--text-muted)' }}>{key.fingerprintMd5}</div>
+                  </div>
+                  {(key.options || key.warnings.length > 0 || key.advisories.length > 0) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      {key.warnings.map(w => <span key={w} className="devtools-chip warn">! {w}</span>)}
+                      {key.advisories.map(a => <span key={a} className="devtools-chip edit">~ {a}</span>)}
+                      {key.options && <span className="devtools-chip">{key.options}</span>}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!result && <EmptyState icon={KeyRound} title="Paste a public key to see its fingerprints" />}
+    </div>
+  )
+}
+
+// ── K8S MANIFEST CLEANER ──
+
+const ALWAYS_STRIPPED_FIELDS = [
+  'status', 'metadata.uid', 'resourceVersion', 'creationTimestamp', 'generation',
+  'managedFields', 'selfLink', 'ownerReferences', 'deletionTimestamp',
+  'nested creationTimestamp', 'cluster-managed annotations',
+]
+
+function CleanerOption({ checked, onChange, children }: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  children: React.ReactNode
+}) {
+  return (
+    <label className="devtools-option">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      {children}
+    </label>
+  )
+}
+
+function K8sManifestCleanerTool() {
+  const [input, setInput] = useState('')
+  const [result, setResult] = useState<CleanResult | null>(null)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [options, setOptions] = useState<CleanOptions>(DEFAULT_CLEAN_OPTIONS)
+
+  function set<K extends keyof CleanOptions>(key: K, value: CleanOptions[K]) {
+    setOptions(o => ({ ...o, [key]: value }))
+  }
+
+  function clean() {
+    if (!input.trim()) return
+    const res = cleanManifest(input, options)
+    if (res.error) {
+      setError(res.error)
+      setResult(null)
+      return
+    }
     setError('')
-    setRemovedFields([])
-    setDocumentCount(0)
+    setResult(res)
+  }
+
+  function copy() {
+    if (!result?.output) return
+    navigator.clipboard.writeText(result.output)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function download() {
+    if (!result?.output) return
+    const blob = new Blob([result.output], { type: 'text/yaml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'clean-manifests.yaml'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function clearAll() {
+    setInput('')
+    setResult(null)
+    setError('')
+  }
+
+  const summary: string[] = []
+  if (result) {
+    summary.push(`${result.documentCount} document${result.documentCount === 1 ? '' : 's'}`)
+    if (result.generatedNamespaceCount) summary.push(`${result.generatedNamespaceCount} Namespace manifest${result.generatedNamespaceCount === 1 ? '' : 's'} generated`)
+    if (result.scaledCount) summary.push(`${result.scaledCount} workload${result.scaledCount === 1 ? '' : 's'} scaled to 0`)
+    if (result.stampedCount) summary.push(`${result.stampedCount} stamped with namespace "${options.defaultNamespace.trim()}"`)
+    if (result.droppedCount) summary.push(`${result.droppedCount} object${result.droppedCount === 1 ? '' : 's'} dropped`)
   }
 
   return (
@@ -573,64 +849,122 @@ function K8sManifestCleanerTool() {
         <label className="devtools-pane-label">Always stripped</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {ALWAYS_STRIPPED_FIELDS.map(field => (
-            <span
-              key={field}
-              style={{
-                fontFamily: 'var(--font-mono)', fontSize: 12, padding: '3px 8px', borderRadius: 'var(--radius-full)',
-                background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)'
-              }}
-            >
-              {field}
-            </span>
+            <span key={field} className="devtools-chip">{field}</span>
           ))}
         </div>
       </div>
 
-      <div className="devtools-options">
-        <label className="devtools-option">
-          <input
-            type="checkbox"
-            checked={options.stripLastApplied}
-            onChange={e => setOptions(o => ({ ...o, stripLastApplied: e.target.checked }))}
-          />
-          Strip <code>kubectl.kubernetes.io/last-applied-configuration</code> annotation
-        </label>
-        <label className="devtools-option">
-          <input
-            type="checkbox"
-            checked={options.stripNamespace}
-            onChange={e => setOptions(o => ({ ...o, stripNamespace: e.target.checked }))}
-          />
-          Strip <code>metadata.namespace</code> (apply into any namespace)
-        </label>
-        <label className="devtools-option">
-          <input
-            type="checkbox"
-            checked={options.stripFinalizers}
-            onChange={e => setOptions(o => ({ ...o, stripFinalizers: e.target.checked }))}
-          />
-          Strip cluster-managed <code>finalizers</code> (pvc/pv-protection)
-        </label>
-        <label className="devtools-option">
-          <input
-            type="checkbox"
-            checked={options.stripBindingInfo}
-            onChange={e => setOptions(o => ({ ...o, stripBindingInfo: e.target.checked }))}
-          />
-          Strip binding info (Service <code>clusterIP</code>, PVC <code>volumeName</code>, Pod <code>nodeName</code>)
-        </label>
+      <div className="devtools-option-group">
+        <div className="devtools-option-row">
+          <span className="devtools-option-row-label">Strip fields</span>
+          <CleanerOption checked={options.stripLastApplied} onChange={v => set('stripLastApplied', v)}>
+            <code>last-applied-configuration</code>
+          </CleanerOption>
+          <CleanerOption checked={options.stripFinalizers} onChange={v => set('stripFinalizers', v)}>
+            cluster-managed <code>finalizers</code>
+          </CleanerOption>
+          <CleanerOption checked={options.stripBindingInfo} onChange={v => set('stripBindingInfo', v)}>
+            binding info (Service <code>clusterIP</code>/<code>ipFamilies</code>, PVC <code>volumeName</code>, Pod <code>nodeName</code>)
+          </CleanerOption>
+          <CleanerOption checked={options.stripNodePorts} onChange={v => set('stripNodePorts', v)}>
+            Service <code>nodePort</code>s
+          </CleanerOption>
+          <CleanerOption checked={options.stripNamespace} onChange={v => set('stripNamespace', v)}>
+            <code>metadata.namespace</code> (apply into any namespace)
+          </CleanerOption>
+        </div>
+
+        <div className="devtools-option-row">
+          <span className="devtools-option-row-label">Drop objects</span>
+          <CleanerOption checked={options.dropPods} onChange={v => set('dropPods', v)}>
+            Pods (their controller recreates them)
+          </CleanerOption>
+          <CleanerOption checked={options.dropGenerated} onChange={v => set('dropGenerated', v)}>
+            other generated objects (ReplicaSets, CronJob Jobs, Endpoints, Events, SA-token Secrets)
+          </CleanerOption>
+          <CleanerOption checked={options.dropSystemNamespaces} onChange={v => set('dropSystemNamespaces', v)}>
+            <code>kube-system</code> / <code>kube-public</code> / <code>kube-node-lease</code>
+          </CleanerOption>
+        </div>
+
+        <div className="devtools-option-row">
+          <span className="devtools-option-row-label">Ingress</span>
+          <CleanerOption checked={options.fixIngress} onChange={v => set('fixIngress', v)}>
+            fix for newer ingress-nginx (regex paths → <code>ImplementationSpecific</code>, <code>ingress.class</code> → <code>ingressClassName</code>)
+          </CleanerOption>
+          <CleanerOption checked={options.stripIngressSnippets} onChange={v => set('stripIngressSnippets', v)}>
+            strip <code>*-snippet</code> annotations (changes behavior)
+          </CleanerOption>
+        </div>
+
+        <div className="devtools-option-row">
+          <span className="devtools-option-row-label">Migration</span>
+          <CleanerOption checked={options.scaleToZero} onChange={v => set('scaleToZero', v)}>
+            scale workloads to <code>0</code> replicas
+          </CleanerOption>
+          <CleanerOption checked={options.emitNamespaces} onChange={v => set('emitNamespaces', v)}>
+            generate Namespace manifests first
+          </CleanerOption>
+          <label className="devtools-option">
+            stamp namespace when missing:
+            <input
+              type="text"
+              className="input"
+              value={options.defaultNamespace}
+              onChange={e => set('defaultNamespace', e.target.value)}
+              placeholder="e.g. payments-prod"
+              spellCheck={false}
+              style={{ width: 180, padding: '4px 10px', fontSize: 12, fontFamily: 'var(--font-mono)' }}
+            />
+          </label>
+        </div>
       </div>
 
       <div className="devtools-toolbar">
         <button className="btn btn-primary" onClick={clean}>Clean Manifest</button>
         <div className="devtools-toolbar-spacer">
           {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
+          {result?.output && (
+            <button className="btn btn-secondary btn-sm" onClick={download} title="Download .yaml">
+              <Download size={14} /><span style={{ marginLeft: 6 }}>Download</span>
+            </button>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
         </div>
       </div>
 
       {error && (
         <div className="devtools-error"><AlertCircle size={16} /> {error}</div>
+      )}
+
+      {result && summary.length > 0 && (
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+          {summary.join(' · ')}
+        </div>
+      )}
+
+      {result && result.missingNamespaceCount > 0 && (
+        <div className="devtools-error">
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          {result.missingNamespaceCount} namespaced resource{result.missingNamespaceCount === 1 ? '' : 's'} carr
+          {result.missingNamespaceCount === 1 ? 'ies' : 'y'} no namespace — <code>kubectl apply</code> will send
+          {result.missingNamespaceCount === 1 ? ' it' : ' them'} to whatever namespace your current context points at.
+          Fill in “stamp namespace when missing” and clean again.
+        </div>
+      )}
+
+      {result && result.namespaces.length > 0 && (
+        <div className="devtools-namespace-bar">
+          <label className="devtools-pane-label">Namespaces referenced</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+            {result.namespaces.map(ns => <span key={ns} className="devtools-chip">{ns}</span>)}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            {result.generatedNamespaceCount > 0
+              ? 'Namespace manifests are prepended to the output, so a single kubectl apply -f works.'
+              : `Create them first: ${result.namespaces.map(ns => `kubectl create namespace ${ns}`).join(' && ')}`}
+          </div>
+        </div>
       )}
 
       <div className="devtools-split">
@@ -640,7 +974,7 @@ function K8sManifestCleanerTool() {
             className="input devtools-textarea"
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
-            placeholder="Paste kubectl get -o yaml output here..."
+            placeholder="Paste kubectl get -o yaml output here — multi-document (---) and kind: List both work..."
             spellCheck={false}
           />
         </div>
@@ -648,19 +982,19 @@ function K8sManifestCleanerTool() {
         <div className="devtools-pane">
           <div className="devtools-pane-label-row">
             <label className="devtools-pane-label">
-              Cleaned output {output && <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>&nbsp;({documentCount} document{documentCount === 1 ? '' : 's'})</span>}
+              Cleaned output {result?.output && <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>&nbsp;({result.documentCount} document{result.documentCount === 1 ? '' : 's'})</span>}
             </label>
-            {output && (
+            {result?.output && (
               <button className="btn btn-secondary btn-sm" onClick={copy}>
                 {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
                 <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy Output'}</span>
               </button>
             )}
           </div>
-          {output ? (
+          {result?.output ? (
             <textarea
               className="input devtools-textarea"
-              value={output}
+              value={result.output}
               readOnly
               style={{ background: 'var(--bg-app)' }}
             />
@@ -670,22 +1004,35 @@ function K8sManifestCleanerTool() {
         </div>
       </div>
 
-      {removedFields.length > 0 && (
+      {result && result.documents.length > 0 && (
         <div>
           <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>
-            Fields removed
+            Per-document ledger
           </label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {removedFields.map(field => (
-              <span
-                key={field}
-                style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 8px', borderRadius: 6,
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)'
-                }}
-              >
-                {field}
-              </span>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {result.documents.map((doc, i) => (
+              <div key={`${doc.kind}/${doc.namespace}/${doc.name}/${i}`} className={`devtools-doc-card${doc.dropped ? ' dropped' : ''}`}>
+                <div className="devtools-doc-title">
+                  <span style={{ color: 'var(--brand-primary)' }}>{doc.kind}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>/</span>
+                  <span>{doc.name}</span>
+                  {doc.namespace && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· ns: {doc.namespace}</span>}
+                </div>
+                {doc.dropped ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+                    dropped — {doc.dropped}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {doc.warnings.map(w => <span key={w} className="devtools-chip warn">! {w}</span>)}
+                    {doc.edited.map(e => <span key={e} className="devtools-chip edit">~ {e}</span>)}
+                    {doc.removed.map(r => <span key={r} className="devtools-chip">− {r}</span>)}
+                    {doc.warnings.length === 0 && doc.edited.length === 0 && doc.removed.length === 0 && (
+                      <span className="devtools-chip ok">already clean</span>
+                    )}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1479,6 +1826,423 @@ function CidrCalculatorTool() {
       ) : (
         <div className="devtools-error"><AlertCircle size={16} /> {calc.error}</div>
       )}
+    </div>
+  )
+}
+
+// ── SUBNET SPLITTER ──
+
+function SubnetSplitterTool() {
+  const [block, setBlock] = useState('10.0.0.0/16')
+  const [mode, setMode] = useState<SplitMode>('prefix')
+  const [targetPrefix, setTargetPrefix] = useState(20)
+  const [subnetCount, setSubnetCount] = useState(6)
+  const [copied, setCopied] = useState(false)
+
+  const split = splitCidr(block, mode, mode === 'prefix' ? targetPrefix : subnetCount)
+
+  function copyAll() {
+    if (!split.ok) return
+    navigator.clipboard.writeText(split.result.subnets.map(s => s.cidr).join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="devtools-body">
+      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
+        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>Block to split</label>
+        <input
+          className="input"
+          value={block}
+          onChange={e => setBlock(e.target.value)}
+          placeholder="10.0.0.0/16"
+          style={{ fontSize: 20, fontFamily: 'var(--font-mono)', height: 52, padding: '0 18px' }}
+          spellCheck={false}
+        />
+      </div>
+
+      <div className="devtools-option-group">
+        <div className="devtools-option-row">
+          <span className="devtools-option-row-label">Split by</span>
+          <label className="devtools-option">
+            <input type="radio" checked={mode === 'prefix'} onChange={() => setMode('prefix')} />
+            target prefix
+            <input
+              className="input" type="number" min={0} max={32} value={targetPrefix}
+              onChange={e => { setMode('prefix'); setTargetPrefix(Number(e.target.value)) }}
+              style={{ width: 72, height: 30, fontSize: 13, padding: '0 10px', fontFamily: 'var(--font-mono)' }}
+            />
+          </label>
+          <label className="devtools-option">
+            <input type="radio" checked={mode === 'count'} onChange={() => setMode('count')} />
+            how many subnets
+            <input
+              className="input" type="number" min={1} value={subnetCount}
+              onChange={e => { setMode('count'); setSubnetCount(Number(e.target.value)) }}
+              style={{ width: 72, height: 30, fontSize: 13, padding: '0 10px', fontFamily: 'var(--font-mono)' }}
+            />
+          </label>
+        </div>
+      </div>
+
+      {!split.ok ? (
+        <div className="devtools-error"><AlertCircle size={16} /> {split.error}</div>
+      ) : (
+        <>
+          {split.result.normalizedFrom && (
+            <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <code>{split.result.normalizedFrom}</code> has host bits set — split on its enclosing network <code>{split.result.block}</code>.
+            </div>
+          )}
+
+          <div className="grid-2-col" style={{ gap: 16 }}>
+            <ResultBox label="Subnets Produced" value={split.result.totalSubnets.toLocaleString()} />
+            <ResultBox label="Subnet Size" value={`/${split.result.newPrefix}`} />
+            <ResultBox label="Usable Hosts Each" value={split.result.hostsPerSubnet.toLocaleString()} />
+            <ResultBox
+              label="Spare Subnets"
+              value={split.result.requestedSubnets !== undefined
+                ? `${(split.result.totalSubnets - split.result.requestedSubnets).toLocaleString()} of ${split.result.totalSubnets.toLocaleString()}`
+                : '—'}
+            />
+          </div>
+
+          {split.result.requestedSubnets !== undefined && split.result.totalSubnets !== split.result.requestedSubnets && (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              Subnets divide on power-of-two boundaries, so {split.result.requestedSubnets} subnets means borrowing{' '}
+              {split.result.newPrefix - split.result.blockPrefix} bits and getting {split.result.totalSubnets}.
+            </div>
+          )}
+
+          <div>
+            <div className="devtools-toolbar" style={{ marginBottom: 12 }}>
+              <label className="devtools-pane-label">
+                Subnets
+                {split.result.listTruncated && (
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                    &nbsp;(first {split.result.subnets.length.toLocaleString()} of {split.result.totalSubnets.toLocaleString()})
+                  </span>
+                )}
+              </label>
+              <div className="devtools-toolbar-spacer">
+                <button className="btn btn-secondary btn-sm" onClick={copyAll}>
+                  {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                  <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy CIDRs'}</span>
+                </button>
+              </div>
+            </div>
+            <div className="devtools-table-wrap">
+              <table className="devtools-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 48 }}>#</th>
+                    <th>Subnet</th>
+                    <th>Usable range</th>
+                    <th>Broadcast</th>
+                    <th style={{ textAlign: 'right' }}>Hosts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {split.result.subnets.map(s => (
+                    <tr key={s.cidr}>
+                      <td style={{ color: 'var(--text-muted)' }}>{s.index}</td>
+                      <td style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>{s.cidr}</td>
+                      <td>{s.firstUsable} – {s.lastUsable}</td>
+                      <td style={{ color: 'var(--text-muted)' }}>{s.broadcast}</td>
+                      <td style={{ textAlign: 'right' }}>{s.usableHosts.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── CIDR OVERLAP & MATCH ──
+
+function CidrMatchTool() {
+  const [cidrText, setCidrText] = useState('10.0.0.0/16\n10.1.0.0/16\n10.0.128.0/17')
+  const [testText, setTestText] = useState('10.0.5.20\n10.0.130.9\n10.2.0.0/24')
+
+  const analysis = analyzeCidrs(cidrText, testText)
+  const invalidCidrs = analysis.cidrs.filter(c => c.error)
+
+  return (
+    <div className="devtools-body">
+      <div className="devtools-split">
+        <div className="devtools-pane">
+          <label className="devtools-pane-label">CIDR blocks</label>
+          <textarea
+            className="input devtools-textarea"
+            value={cidrText}
+            onChange={e => setCidrText(e.target.value)}
+            placeholder={'10.0.0.0/16\n192.168.0.0/24\n# comments and commas are fine'}
+            spellCheck={false}
+            style={{ minHeight: 200 }}
+          />
+        </div>
+        <div className="devtools-pane">
+          <label className="devtools-pane-label">Addresses / blocks to test</label>
+          <textarea
+            className="input devtools-textarea"
+            value={testText}
+            onChange={e => setTestText(e.target.value)}
+            placeholder={'10.0.5.20\n10.2.0.0/24'}
+            spellCheck={false}
+            style={{ minHeight: 200 }}
+          />
+        </div>
+      </div>
+
+      {invalidCidrs.length > 0 && (
+        <div className="devtools-error">
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          {invalidCidrs.map(c => `"${c.input}" — ${c.error}`).join('; ')}
+        </div>
+      )}
+
+      {analysis.unnormalized.length > 0 && (
+        <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          Host bits set — the kernel and every cloud provider will silently normalize{' '}
+          {analysis.unnormalized.map(c => `${c.input} → ${c.cidr}`).join(', ')}.
+        </div>
+      )}
+
+      {analysis.overlaps.length > 0 && (
+        <div>
+          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>Overlapping blocks</label>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {analysis.overlaps.map(o => (
+              <div key={`${o.a}-${o.b}`} className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                {o.relation === 'identical'
+                  ? <span><strong>{o.a}</strong> and <strong>{o.b}</strong> are the same block</span>
+                  : o.relation === 'contains'
+                    ? <span><strong>{o.a}</strong> fully contains <strong>{o.b}</strong></span>
+                    : <span><strong>{o.b}</strong> fully contains <strong>{o.a}</strong></span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis.rows.length > 0 && (
+        <div>
+          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>Match results</label>
+          <div className="devtools-table-wrap">
+            <table className="devtools-table">
+              <thead>
+                <tr>
+                  <th>Tested</th>
+                  <th>Range</th>
+                  <th>Matched by (longest prefix first)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysis.rows.map((row, i) => (
+                  <tr key={`${row.input}-${i}`}>
+                    <td style={{ fontWeight: 700 }}>{row.input}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{row.range ?? '—'}</td>
+                    <td>
+                      {row.error
+                        ? <span className="devtools-chip warn">! {row.error}</span>
+                        : row.matchedBy.length === 0
+                          ? <span style={{ color: 'var(--text-muted)' }}>no match</span>
+                          : (
+                            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {row.matchedBy.map((m, mi) => (
+                                <span key={m} className={mi === 0 ? 'devtools-chip ok' : 'devtools-chip'}>{m}</span>
+                              ))}
+                            </span>
+                          )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── IPV6 TOOLKIT ──
+
+function Ipv6Tool() {
+  const [input, setInput] = useState('2001:db8::1/64')
+  const analysis = analyzeIpv6(input)
+
+  return (
+    <div className="devtools-body">
+      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
+        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>IPv6 address or prefix</label>
+        <input
+          className="input"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="2001:db8::1/64"
+          style={{ fontSize: 20, fontFamily: 'var(--font-mono)', height: 52, padding: '0 18px' }}
+          spellCheck={false}
+        />
+      </div>
+
+      {!analysis.ok ? (
+        <div className="devtools-error"><AlertCircle size={16} /> {analysis.error}</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {analysis.result.hasPrefix && analysis.result.hasHostBits && (
+            <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              The address has bits set below its /{analysis.result.prefix} prefix — it is a host inside{' '}
+              <code>{analysis.result.network}</code>, not the network address.
+            </div>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Click a result to copy it</span>
+          <div className="grid-2-col" style={{ gap: 16 }}>
+            <ResultBox label="Compressed (RFC 5952)" value={analysis.result.compressed} />
+            <ResultBox label="Expanded" value={analysis.result.expanded} />
+            <ResultBox label="Address Type" value={analysis.result.type} />
+            <ResultBox label="Network" value={analysis.result.network} />
+            <ResultBox label="First Address" value={analysis.result.firstAddress} />
+            <ResultBox label="Last Address" value={analysis.result.lastAddress} />
+            <ResultBox
+              label="Total Addresses"
+              value={analysis.result.totalAddressesExact
+                ? `${analysis.result.totalAddresses} (${analysis.result.totalAddressesExact})`
+                : analysis.result.totalAddresses}
+            />
+            {analysis.result.embeddedIpv4 && <ResultBox label="Embedded IPv4" value={analysis.result.embeddedIpv4} />}
+            <ResultBox label="Reverse DNS (PTR)" value={analysis.result.ptrName} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DNS LOOKUP ──
+
+function DnsLookupTool() {
+  const [name, setName] = useState('')
+  const [type, setType] = useState<DnsRecordType>('A')
+  const [result, setResult] = useState<DnsLookupResult | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function lookup() {
+    if (!name.trim() || loading) return
+    setLoading(true)
+    setError('')
+    const res = await lookupDns(name, type)
+    setLoading(false)
+    if (!res.ok) {
+      setError(res.error)
+      setResult(null)
+      return
+    }
+    setResult(res.result)
+  }
+
+  const records = result ? (result.answers.length > 0 ? result.answers : result.authority) : []
+  const showingAuthority = !!result && result.answers.length === 0 && result.authority.length > 0
+
+  return (
+    <div className="devtools-body">
+      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+        <AlertCircle size={16} style={{ flexShrink: 0 }} />
+        Unlike the other tools here, this one leaves your browser — the name you query is sent to {DOH_RESOLVER} over DNS-over-HTTPS.
+      </div>
+
+      <div className="devtools-toolbar">
+        <input
+          className="input"
+          value={name}
+          onChange={e => { setName(e.target.value); setError('') }}
+          onKeyDown={e => { if (e.key === 'Enter') lookup() }}
+          placeholder="api.example.com"
+          spellCheck={false}
+          style={{ flex: 1, minWidth: 240, fontFamily: 'var(--font-mono)', height: 40 }}
+        />
+        <select
+          className="input"
+          value={type}
+          onChange={e => setType(e.target.value as DnsRecordType)}
+          style={{ width: 110, height: 40, fontFamily: 'var(--font-mono)' }}
+        >
+          {DNS_RECORD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <button className="btn btn-primary" onClick={lookup} disabled={loading || !name.trim()}>
+          {loading ? 'Looking up…' : 'Look Up'}
+        </button>
+      </div>
+
+      {error && <div className="devtools-error"><AlertCircle size={16} /> {error}</div>}
+
+      {result?.status && (
+        <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {result.status}
+        </div>
+      )}
+
+      {result && (
+        <div>
+          <div className="devtools-toolbar" style={{ marginBottom: 12 }}>
+            <label className="devtools-pane-label">
+              {showingAuthority ? 'Authority section' : 'Answers'}
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                &nbsp;— {result.type} {result.name}
+              </span>
+            </label>
+            <div className="devtools-toolbar-spacer">
+              {result.authenticated && <span className="devtools-chip ok">DNSSEC validated</span>}
+              <StatBadge>{DOH_RESOLVER}</StatBadge>
+            </div>
+          </div>
+
+          {showingAuthority && (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+              The name resolves but holds no {result.type} record — this is what the zone returned instead.
+            </div>
+          )}
+
+          {records.length === 0 ? (
+            <EmptyState icon={Radar} title={`No ${result.type} records for ${result.name}`} />
+          ) : (
+            <div className="devtools-table-wrap">
+              <table className="devtools-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th style={{ width: 80 }}>TTL</th>
+                    <th style={{ width: 80 }}>Type</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((r, i) => (
+                    <tr key={`${r.name}-${r.type}-${r.data}-${i}`}>
+                      <td style={{ color: 'var(--text-muted)' }}>{r.name}</td>
+                      <td>{r.ttl}</td>
+                      <td style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>{r.type}</td>
+                      <td style={{ wordBreak: 'break-all' }}>{r.data}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!result && !error && <EmptyState icon={Radar} title="Enter a hostname to resolve it" />}
     </div>
   )
 }

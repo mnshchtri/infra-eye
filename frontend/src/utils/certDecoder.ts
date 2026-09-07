@@ -175,19 +175,35 @@ async function digestHex(algo: 'SHA-256' | 'SHA-1', data: Uint8Array): Promise<s
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join(':')
 }
 
-function pemToDer(pem: string): { der: Uint8Array; otherBlocks: number } {
-  const blocks = [...pem.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/g)]
-  if (blocks.length === 0) throw new Error('No "-----BEGIN CERTIFICATE-----" block found in input.')
-  const b64 = blocks[0][1].replace(/\s+/g, '')
-  const binary = atob(b64)
+function b64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64.replace(/\s+/g, ''))
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return { der: bytes, otherBlocks: blocks.length - 1 }
+  return bytes
 }
 
-export async function decodeCertificate(pem: string): Promise<CertResult> {
-  const { der, otherBlocks } = pemToDer(pem)
+// Every CERTIFICATE block in the input, in file order — a bundle/chain file
+// holds several, and the chain inspector needs all of them.
+export function pemBlocksToDer(pem: string): Uint8Array[] {
+  const blocks = [...pem.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/g)]
+  if (blocks.length === 0) throw new Error('No "-----BEGIN CERTIFICATE-----" block found in input.')
+  return blocks.map(b => b64ToBytes(b[1]))
+}
 
+// Decodes the first certificate in the input. Use decodeCertificateChain when
+// the input is a bundle and every certificate matters.
+export async function decodeCertificate(pem: string): Promise<CertResult> {
+  const ders = pemBlocksToDer(pem)
+  return decodeDer(ders[0], ders.length - 1)
+}
+
+// Decodes every certificate in a PEM bundle, in file order.
+export async function decodeCertificateChain(pem: string): Promise<CertResult[]> {
+  const ders = pemBlocksToDer(pem)
+  return Promise.all(ders.map(der => decodeDer(der, 0)))
+}
+
+async function decodeDer(der: Uint8Array, otherBlocks: number): Promise<CertResult> {
   const cert = readTLV(der, 0)
   const [tbs, sigAlgNode] = children(der, cert)
 
