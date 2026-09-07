@@ -1,6 +1,8 @@
+import { intToIp, ipToInt, netmaskForPrefix, usableHostCount, usableRange } from './ipv4'
+
 // IPv4 CIDR math only — covers the day-to-day case (VPC subnets, k8s pod/service
-// CIDRs, firewall rules). IPv6 needs 128-bit arithmetic that doesn't fit
-// comfortably in JS numbers/bitwise ops and isn't worth the added complexity here.
+// CIDRs, firewall rules). IPv6 lives in ipv6.ts, where 128-bit arithmetic needs
+// BigInt rather than the 32-bit bitwise ops these share with ipv4.ts.
 
 export interface CidrResult {
   input: string
@@ -20,23 +22,6 @@ export interface CidrResult {
 }
 
 export type CidrCalcResult = { ok: true; result: CidrResult } | { ok: false; error: string }
-
-function ipToInt(ip: string): number | null {
-  const parts = ip.split('.')
-  if (parts.length !== 4) return null
-  let n = 0
-  for (const p of parts) {
-    if (!/^\d{1,3}$/.test(p)) return null
-    const v = parseInt(p, 10)
-    if (v < 0 || v > 255) return null
-    n = (n << 8) | v
-  }
-  return n >>> 0
-}
-
-function intToIp(n: number): string {
-  return [24, 16, 8, 0].map(shift => (n >>> shift) & 0xff).join('.')
-}
 
 function classify(firstOctet: number): string {
   if (firstOctet < 128) return 'A'
@@ -58,25 +43,16 @@ export function calculateCidr(input: string): CidrCalcResult {
   const ipInt = ipToInt(ip)
   if (ipInt === null) return { ok: false, error: `"${ip}" is not a valid IPv4 address (each octet must be 0-255).` }
 
-  const maskInt = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0
+  const maskInt = netmaskForPrefix(prefix)
   const wildcardInt = (~maskInt) >>> 0
   const networkInt = (ipInt & maskInt) >>> 0
   const broadcastInt = (networkInt | wildcardInt) >>> 0
   const totalAddresses = Math.pow(2, 32 - prefix)
 
-  let firstUsable: string
-  let lastUsable: string
-  let usableHosts: number
-  if (prefix >= 31) {
-    // /31 (RFC 3021 point-to-point) and /32 (single host) — no network/broadcast split
-    firstUsable = intToIp(networkInt)
-    lastUsable = intToIp(broadcastInt)
-    usableHosts = prefix === 32 ? 1 : 2
-  } else {
-    firstUsable = intToIp(networkInt + 1)
-    lastUsable = intToIp(broadcastInt - 1)
-    usableHosts = totalAddresses - 2
-  }
+  // /31 (RFC 3021 point-to-point) and /32 (single host) have no
+  // network/broadcast pair to reserve — usableRange/usableHostCount handle it.
+  const [firstUsable, lastUsable] = usableRange(networkInt, broadcastInt, prefix)
+  const usableHosts = usableHostCount(prefix)
 
   const prevNetworkInt = (networkInt - totalAddresses) >>> 0
   const nextNetworkInt = (networkInt + totalAddresses) >>> 0
