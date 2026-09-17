@@ -85,9 +85,27 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Determine version from tag
+      # A tag build takes its version from the tag. A workflow_dispatch run has
+      # no tag, and GITHUB_REF_NAME is then the branch name — which is not a
+      # valid version anywhere downstream: dpkg-deb rejects a Version: that
+      # doesn't start with a digit, so the Linux job died at packaging on every
+      # dispatch run. Fall back to the frontend's package.json version with a
+      # .dev suffix so dispatch builds package the same way tag builds do.
+      #
+      # The suffix is dot-separated, not "-dev", deliberately: Arch's pkgver
+      # forbids hyphens, so a hyphenated suffix would trade the .deb failure for
+      # a makepkg one.
+      - name: Determine version
         shell: bash
-        run: echo "APP_VERSION=${GITHUB_REF_NAME#desktop-v}" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" == desktop-v* ]]; then
+            APP_VERSION="${GITHUB_REF_NAME#desktop-v}"
+          else
+            APP_VERSION="$(node -p "require('./frontend/package.json').version").dev"
+          fi
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "Building version $APP_VERSION from $GITHUB_REF_NAME"
 
       # wails.json's productVersion is what Wails templates into the bundle's
       # CFBundleShortVersionString / CFBundleVersion. It was pinned at 1.0.0, so
