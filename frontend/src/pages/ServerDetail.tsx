@@ -8,6 +8,8 @@ import {
   Trash2, Maximize2, Minimize2, Network, Users, Plus, Globe
 } from 'lucide-react'
 import { WindowsIcon, AppleIcon, KubernetesIcon, DistroIcon } from '../components/OSIcons'
+import { StoragePanel } from '../components/storage/StoragePanel'
+import { K8sStoragePanel } from '../components/storage/K8sStoragePanel'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -384,8 +386,8 @@ export function ServerDetail() {
   // Accounts tab needs the admin/devops-gated list endpoint — hide it otherwise
   const canSeeAccounts = can('manage-servers')
   const tabs = canSeeAccounts
-    ? ['Overview', 'Networking', 'Accounts', 'Logs', 'Terminal', 'Settings']
-    : ['Overview', 'Networking', 'Logs', 'Terminal', 'Settings']
+    ? ['Overview', 'Networking', 'Storage', 'Accounts', 'Logs', 'Terminal', 'Settings']
+    : ['Overview', 'Networking', 'Storage', 'Logs', 'Terminal', 'Settings']
 
   useEffect(() => {
     loadServer()
@@ -985,6 +987,7 @@ export function ServerDetail() {
           >
             {tab === 'Overview'   && <Gauge size={14} />}
             {tab === 'Networking' && <Network size={14} />}
+            {tab === 'Storage'    && <HardDrive size={14} />}
             {tab === 'Accounts'   && <Users size={14} />}
             {tab === 'Logs'       && <ScrollText size={14} />}
             {tab === 'Terminal'   && <TerminalIcon size={14} />}
@@ -1279,6 +1282,17 @@ export function ServerDetail() {
               <button className="btn btn-secondary" onClick={loadNetworking} style={{ marginTop: 16 }}>Retry</button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Storage mounts its own panel: it owns two independent fetches (a cheap
+          df/lsblk inventory and an on-demand du/find walk) whose state has no
+          overlap with the rest of this page. */}
+      {activeTab === 'Storage' && id && (
+        <div className="fade-up">
+          {server?.is_k8s
+            ? <K8sStoragePanel serverId={id} />
+            : <StoragePanel serverId={id} os={server?.os} />}
         </div>
       )}
 

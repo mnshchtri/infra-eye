@@ -119,6 +119,14 @@ func RegisterRoutes(r *gin.Engine) {
 		api.GET("/servers/:id/networking", handlers.GetServerNetworking)
 		api.GET("/servers/:id/k8s-networking", handlers.GetK8sNetworking)
 
+		// ── Storage ───────────────────────────────────────────────
+		// /storage is the cheap inventory (df/lsblk); /storage/analyze walks a
+		// subtree with du/find and can run for minutes, so it stays a separate,
+		// explicitly-triggered call rather than part of the tab's first load.
+		api.GET("/servers/:id/storage", handlers.GetServerStorage)
+		api.GET("/servers/:id/storage/analyze", handlers.AnalyzeServerStorage)
+		api.GET("/servers/:id/k8s-storage", handlers.GetK8sStorage)
+
 		// ── Audit ─────────────────────────────────────────────────
 		api.GET("/servers/:id/audit/kernel", handlers.ScanServerKernel)
 		api.GET("/servers/:id/audit/hardening", handlers.ScanServerHardening)
