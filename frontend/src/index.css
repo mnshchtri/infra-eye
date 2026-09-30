@@ -668,8 +668,17 @@ p {
   }
 }
 
+/* .page is a scrolling flex column, so its children must keep their natural
+   height — otherwise anything with an explicit min-height (the header) or
+   non-visible overflow is squeezed once content is taller than the viewport
+   and its contents spill over the next section. Zero specificity so a
+   fill-height child's own `flex: 1` still wins. */
+:where(.page > *) {
+  flex-shrink: 0;
+}
+
 .page-header { 
-  display: flex; justify-content: space-between; align-items: center; 
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; 
   margin-bottom: 16px; min-height: 40px;
   gap: 12px;
 }
