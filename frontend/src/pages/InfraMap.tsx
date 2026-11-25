@@ -2,13 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Server, Boxes, Database, Zap, Layers, HardDrive, Globe, Cpu, Eye,
-  Download, RefreshCw, Radar, ZoomIn, ZoomOut, Maximize, Loader2, AlertTriangle,
+  Download, RefreshCw, Radar, ZoomIn, ZoomOut, Maximize, AlertTriangle,
   Network, Folder, ScanSearch, Wifi, Search, X,
 } from 'lucide-react'
+import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
+import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
+import Paper from '@mui/material/Paper'
+import TextField from '@mui/material/TextField'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
+import { darken, lighten, useTheme } from '@mui/material/styles'
 import { api } from '../api/client'
-import { useUIStore } from '../store/uiStore'
 import { useToastStore } from '../store/toastStore'
-import { Button } from '../components/ui'
+import { Button, EmptyState } from '../components/ui'
 import { saveFile } from '../utils/saveFile'
 
 // ── Topology API shapes (mirror backend handlers/topology.go) ──
@@ -61,9 +71,9 @@ type GroupMode = 'network' | 'folder'
 
 // ── Layout geometry ──
 
-interface Box { x: number; y: number; w: number; h: number }
-interface GroupBox extends Box { label: string; color: string; key: string; count: number; collapsed: boolean }
-interface ChipBox { box: Box; key: string; label: string; color: string; count: number }
+interface Rect { x: number; y: number; w: number; h: number }
+interface GroupBox extends Rect { label: string; color: string; key: string; count: number; collapsed: boolean }
+interface ChipBox { box: Rect; key: string; label: string; color: string; count: number }
 
 const SIZE: Record<TNode['kind'], { w: number; h: number }> = {
   core: { w: 230, h: 76 },
@@ -110,44 +120,31 @@ function nodeIcon(n: TNode) {
 }
 
 // The map is drawn with literal colors (not var() references) so the SVG can
-// be exported as a standalone file. Colors are resolved from the CSS variables
-// on the root element.
-function readPalette() {
-  const cs = getComputedStyle(document.documentElement)
-  const v = (name: string, fb: string) => (cs.getPropertyValue(name) || '').trim() || fb
-  return {
-    bg: v('--bg-app', '#f0f0f0'),
-    card: v('--bg-card', '#ffffff'),
-    elevated: v('--bg-elevated', '#f5f5f5'),
-    border: v('--border', '#d2d2d2'),
-    borderLight: v('--border-light', '#ededed'),
-    text: v('--text-primary', '#151515'),
-    textSec: v('--text-secondary', '#6a6e73'),
-    textMuted: v('--text-muted', '#a2a3a4'),
-    brand: v('--brand-primary', '#0066cc'),
-    success: v('--success', '#3e8635'),
-    warning: v('--warning', '#f0ab00'),
-    danger: v('--danger', '#c9190b'),
-    info: v('--info', '#2b9af3'),
-    purple: v('--accent-purple', '#8b5cf6'),
-    cyan: v('--accent-cyan', '#06b6d4'),
-  }
+// be exported as a standalone file. Colors come from the active MUI theme.
+function useMapPalette() {
+  const t = useTheme()
+  const pal = t.palette
+  const dark = pal.mode === 'dark'
+  return useMemo(() => ({
+    bg: pal.background.default,
+    card: pal.background.paper,
+    elevated: dark ? lighten(pal.background.paper, 0.06) : darken(pal.background.paper, 0.03),
+    border: dark ? lighten(pal.background.paper, 0.2) : darken(pal.background.paper, 0.18),
+    borderLight: dark ? lighten(pal.background.default, 0.12) : darken(pal.background.default, 0.1),
+    text: pal.text.primary,
+    textSec: pal.text.secondary,
+    textMuted: dark ? '#8b949e' : '#9aa0a6',
+    brand: pal.primary.main,
+    success: pal.success.main,
+    warning: pal.warning.main,
+    danger: pal.error.main,
+    info: pal.info.main,
+    purple: '#8b5cf6',
+    cyan: '#06b6d4',
+  }), [pal, dark])
 }
 
-function useCssPalette() {
-  const { darkMode } = useUIStore()
-  const [palette, setPalette] = useState(readPalette)
-  // useThemeSync flips the `dark` class on <html> in the parent Layout's
-  // effect, which runs AFTER this component's effects — so re-read the
-  // variables one frame later, once the class change has landed.
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setPalette(readPalette()))
-    return () => cancelAnimationFrame(raf)
-  }, [darkMode])
-  return palette
-}
-
-function statusColor(status: string | undefined, p: ReturnType<typeof useCssPalette>) {
+function statusColor(status: string | undefined, p: ReturnType<typeof useMapPalette>) {
   switch (status) {
     case 'online': return p.success
     case 'degraded': return p.warning
@@ -156,7 +153,7 @@ function statusColor(status: string | undefined, p: ReturnType<typeof useCssPale
   }
 }
 
-function edgeStyle(kind: TEdge['kind'], p: ReturnType<typeof useCssPalette>) {
+function edgeStyle(kind: TEdge['kind'], p: ReturnType<typeof useMapPalette>) {
   switch (kind) {
     case 'manage': return { stroke: p.brand, dash: undefined }
     case 'hosted_on': return { stroke: p.purple, dash: undefined }
@@ -177,7 +174,7 @@ function computeLayout(
   netColors: Record<string, string>,
   collapsedKeys: Set<string>,
 ) {
-  const pos: Record<string, Box> = {}
+  const pos: Record<string, Rect> = {}
   const groups: GroupBox[] = []
   const chips: ChipBox[] = []
   const hidden = new Set<string>()
@@ -234,7 +231,7 @@ function computeLayout(
       const startY = y
       y += GROUP_HEADER + GROUP_PAD
       if (isCollapsed) {
-        const box: Box = { x: colX, y, w, h: COLLAPSED_GROUP_H }
+        const box: Rect = { x: colX, y, w, h: COLLAPSED_GROUP_H }
         for (const n of g.nodes) {
           pos[n.id] = box
           nodeGroupKey[n.id] = key
@@ -304,7 +301,7 @@ function computeLayout(
   return { pos, groups, chips, hidden, nodeGroupKey, contentW, contentH }
 }
 
-function edgePath(s: Box, t: Box): { d: string; mid: [number, number] } {
+function edgePath(s: Rect, t: Rect): { d: string; mid: [number, number] } {
   const sr: [number, number] = [s.x + s.w, s.y + s.h / 2]
   const sl: [number, number] = [s.x, s.y + s.h / 2]
   const tr: [number, number] = [t.x + t.w, t.y + t.h / 2]
@@ -335,7 +332,7 @@ function edgePath(s: Box, t: Box): { d: string; mid: [number, number] } {
 export function InfraMap() {
   const navigate = useNavigate()
   const toast = useToastStore()
-  const p = useCssPalette()
+  const p = useMapPalette()
 
   const [topo, setTopo] = useState<Topology | null>(null)
   const [loading, setLoading] = useState(true)
@@ -605,7 +602,7 @@ export function InfraMap() {
   if (loading) {
     return (
       <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader2 size={28} className="spinner" />
+        <CircularProgress size={28} aria-label="Loading infrastructure map" />
       </div>
     )
   }
@@ -613,11 +610,12 @@ export function InfraMap() {
   if (error) {
     return (
       <div className="page">
-        <div className="empty-state">
-          <AlertTriangle size={28} />
-          <p>{error}</p>
-          <Button variant="secondary" onClick={() => fetchTopology(liveMode, discoverMode)}>Retry</Button>
-        </div>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Could not load the infrastructure map"
+          description={error}
+          action={<Button variant="secondary" onClick={() => fetchTopology(liveMode, discoverMode)}>Retry</Button>}
+        />
       </div>
     )
   }
@@ -642,62 +640,51 @@ export function InfraMap() {
 
   return (
     <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', paddingBottom: 0 }}>
-      {/* Header — kept to a single compact row so the canvas gets the page */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, minWidth: 0 }}>
-          <h1 className="page-title" style={{ fontSize: 22, margin: 0 }}>Infra Map</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            servers, clusters, resources & the networks that join them
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <Search size={13} style={{ position: 'absolute', left: 9, color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Find a server…"
-              title="Highlight a node and its direct connections — matches also auto-expand a collapsed zone"
-              style={{
-                padding: '5px 26px 5px 27px', fontSize: 12, borderRadius: 7, width: 150,
-                border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-                outline: 'none',
-              }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                title="Clear search"
-                style={{
-                  position: 'absolute', right: 6, display: 'flex', background: 'none', border: 'none',
-                  color: 'var(--text-muted)', cursor: 'pointer', padding: 2,
-                }}
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-            <Button
-              variant={groupMode === 'network' ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => setGroupMode('network')}
-              title="Zone machines by the network segment they sit on"
-            >
+      {/* Header — kept to a compact row so the canvas gets the page */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap', mb: 1.5 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" component="h1">Infra map</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
+            Servers, clusters, resources and the networks that join them
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Find a server…"
+            title="Highlight a node and its direct connections — matches also auto-expand a collapsed zone"
+            sx={{ width: 190 }}
+            slotProps={{
+              htmlInput: { 'aria-label': 'Find a server' },
+              input: {
+                startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment>,
+                endAdornment: search ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearch('')} aria-label="Clear search"><X size={13} /></IconButton>
+                  </InputAdornment>
+                ) : undefined,
+              },
+            }}
+          />
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={groupMode}
+            onChange={(_, v: GroupMode | null) => { if (v) setGroupMode(v) }}
+            aria-label="Group zones by"
+          >
+            <ToggleButton value="network" title="Zone machines by the network segment they sit on" sx={{ gap: 0.75 }}>
               <Network size={14} /> Networks
-            </Button>
-            <Button
-              variant={groupMode === 'folder' ? 'primary' : 'ghost'}
-              size="sm"
-              onClick={() => setGroupMode('folder')}
-              title="Zone machines by their InfraEye folder"
-            >
+            </ToggleButton>
+            <ToggleButton value="folder" title="Zone machines by their InfraEye folder" sx={{ gap: 0.75 }}>
               <Folder size={14} /> Folders
-            </Button>
-          </div>
+            </ToggleButton>
+          </ToggleButtonGroup>
           <Button
             variant={collapsedGroups.size > 0 ? 'primary' : 'secondary'}
             size="sm"
+            icon={<Layers size={14} />}
             onClick={() => (collapsedGroups.size > 0 ? setCollapsedGroups(new Set()) : compactView())}
             title={
               collapsedGroups.size > 0
@@ -705,11 +692,12 @@ export function InfraMap() {
                 : `Collapse zones with more than ${AUTO_COLLAPSE_THRESHOLD} nodes into summary chips`
             }
           >
-            <Layers size={14} /> {collapsedGroups.size > 0 ? 'Expand all' : 'Compact'}
+            {collapsedGroups.size > 0 ? 'Expand all' : 'Compact'}
           </Button>
           <Button
             variant={liveMode ? 'primary' : 'secondary'}
             size="sm"
+            icon={scanning ? <CircularProgress size={14} color="inherit" /> : <Radar size={14} />}
             onClick={() => {
               const next = !liveMode
               setLiveMode(next)
@@ -719,12 +707,12 @@ export function InfraMap() {
             disabled={scanning}
             title="SSH into each server to map live TCP connections and enumerate cluster nodes"
           >
-            {scanning ? <Loader2 size={14} className="spinner" /> : <Radar size={14} />}
             {scanning ? 'Scanning…' : liveMode ? 'Live scan: on' : 'Live scan'}
           </Button>
           <Button
             variant={discoverMode ? 'primary' : 'secondary'}
             size="sm"
+            icon={<ScanSearch size={14} />}
             disabled={scanning || !liveMode}
             onClick={() => {
               const next = !discoverMode
@@ -734,39 +722,38 @@ export function InfraMap() {
             }}
             title={liveMode ? 'Ping-sweep each real network segment with nmap to find devices InfraEye doesn\'t manage' : 'Turn on Live scan first'}
           >
-            <ScanSearch size={14} /> {discoverMode ? 'Discover: on' : 'Discover'}
+            {discoverMode ? 'Discover: on' : 'Discover'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => fetchTopology(liveMode, discoverMode)} disabled={scanning} title="Refresh">
-            <RefreshCw size={14} />
-          </Button>
-          <Button variant="secondary" size="sm" onClick={downloadPng} title="Download blueprint as PNG image">
-            <Download size={14} /> PNG
-          </Button>
-          <Button variant="secondary" size="sm" onClick={downloadSvg} title="Download blueprint as SVG vector">
-            <Download size={14} /> SVG
-          </Button>
-          <Button variant="secondary" size="sm" onClick={downloadJson} title="Download raw topology as JSON">
-            <Download size={14} /> JSON
-          </Button>
+          <Tooltip title="Refresh">
+            <span>
+              <IconButton size="small" aria-label="Refresh" onClick={() => fetchTopology(liveMode, discoverMode)} disabled={scanning} sx={{ border: 1, borderColor: 'divider' }}>
+                <RefreshCw size={14} />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={downloadPng} title="Download blueprint as PNG image">PNG</Button>
+          <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={downloadSvg} title="Download blueprint as SVG vector">SVG</Button>
+          <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={downloadJson} title="Download raw topology as JSON">JSON</Button>
           {(topo?.notes?.length ?? 0) > 0 && (
             <Button
               variant="secondary" size="sm"
+              icon={<AlertTriangle size={14} />}
               onClick={() => setNotesOpen(o => !o)}
-              style={{ borderColor: 'var(--warning)', color: 'var(--warning-dark)', position: 'relative' }}
+              style={{ borderColor: 'var(--warning)' }}
               title="Scan issues"
             >
-              <AlertTriangle size={14} /> {topo!.notes!.length} issue{topo!.notes!.length > 1 ? 's' : ''}
+              {topo!.notes!.length} issue{topo!.notes!.length > 1 ? 's' : ''}
             </Button>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {/* Canvas */}
-      <div
+      <Box
         ref={containerRef}
-        style={{
-          position: 'relative', flex: 1, minHeight: 0, borderRadius: 10, overflow: 'hidden',
-          border: '1px solid var(--border)', background: 'var(--bg-app)',
+        sx={{
+          position: 'relative', flex: 1, minHeight: 0, borderRadius: 1, overflow: 'hidden',
+          border: 1, borderColor: 'divider', bgcolor: 'background.default',
           cursor: dragging ? 'grabbing' : 'grab',
         }}
         onMouseDown={onMouseDown}
@@ -775,10 +762,13 @@ export function InfraMap() {
         onMouseLeave={onMouseUp}
       >
         {!hasInfra ? (
-          <div className="empty-state" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <Server size={28} />
-            <p>No infrastructure yet — add servers, clusters or resources to see the blueprint.</p>
-          </div>
+          <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <EmptyState
+              icon={Server}
+              title="No infrastructure yet"
+              description="Add servers, clusters or resources to see the blueprint."
+            />
+          </Box>
         ) : layout && (
           <svg
             ref={svgRef}
@@ -984,84 +974,76 @@ export function InfraMap() {
             interface CIDR or just an unmapped bucket, so nothing here reads
             as more precise than it is. */}
         {groupMode === 'network' && (topo?.networks?.length ?? 0) > 0 && (
-          <div style={{
-            position: 'absolute', top: 12, left: 12, maxWidth: 300,
-            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-            padding: '10px 12px', fontSize: 11, boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-          }}>
-            <div style={{ fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: 0.4, marginBottom: 6, textTransform: 'uppercase', fontSize: 10 }}>
-              Network segments
-            </div>
+          <Paper variant="outlined" sx={{ position: 'absolute', top: 12, left: 12, maxWidth: 300, px: 1.5, py: 1.25, boxShadow: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.75 }}>Network segments</Typography>
             {topo!.networks.map(nw => {
               const real = nw.id !== 'net-unmapped-private' && !!nw.cidr
               return (
-                <div key={nw.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 5 }} title={nw.source}>
-                  <span style={{
-                    width: 9, height: 9, borderRadius: 3, marginTop: 2, flexShrink: 0,
-                    background: netColors[nw.id] ?? 'var(--text-muted)',
-                  }} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontWeight: 600 }}>
+                <Box key={nw.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.75 }} title={nw.source}>
+                  <Box component="span" sx={{ width: 9, height: 9, borderRadius: '3px', mt: '4px', flexShrink: 0, bgcolor: netColors[nw.id] ?? 'text.disabled' }} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" component="div" sx={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'text.primary' }}>
                       {nw.cidr || nw.label}
-                    </div>
-                    <div style={{ color: real ? 'var(--success)' : 'var(--text-muted)', fontSize: 10 }}>
+                    </Typography>
+                    <Typography variant="caption" component="div" sx={{ color: real ? 'success.main' : 'text.secondary' }}>
                       {real ? 'scanned via SSH' : nw.kind === 'vpn' ? 'CGNAT / VPN range' : nw.kind === 'public' ? 'public internet' : 'not yet scanned'}
-                    </div>
-                  </div>
-                </div>
+                    </Typography>
+                  </Box>
+                </Box>
               )
             })}
-          </div>
+          </Paper>
         )}
 
         {/* Scan issues panel — floats over the canvas instead of pushing it
             down, so the map keeps the full page regardless of issue count. */}
         {notesOpen && (topo?.notes?.length ?? 0) > 0 && (
-          <div style={{
-            position: 'absolute', top: 12, right: 12, maxWidth: 420, maxHeight: '60%', overflowY: 'auto',
-            border: '1px solid var(--warning)', background: 'var(--bg-card)', borderRadius: 10,
-            padding: '10px 14px', fontSize: 'var(--text-xs)', color: 'var(--text-primary)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 2,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <AlertTriangle size={13} color="var(--warning)" /> Live scan issues
-              </strong>
-              <button className="sidebar-toggle-btn" onClick={() => setNotesOpen(false)} title="Close">×</button>
-            </div>
-            <ul style={{ margin: '4px 0 0 20px', fontFamily: 'var(--font-mono)' }}>
+          <Paper variant="outlined" sx={{ position: 'absolute', top: 12, right: 12, maxWidth: 420, maxHeight: '60%', overflowY: 'auto', borderColor: 'warning.main', px: 2, py: 1.25, boxShadow: 4, zIndex: 2 }}
+            onMouseDown={e => e.stopPropagation()}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Box component="span" sx={{ color: 'warning.main', display: 'inline-flex' }}><AlertTriangle size={14} /></Box> Live scan issues
+              </Typography>
+              <Tooltip title="Close">
+                <IconButton size="small" onClick={() => setNotesOpen(false)} aria-label="Close scan issues"><X size={14} /></IconButton>
+              </Tooltip>
+            </Box>
+            <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
               {topo!.notes!.map((n, i) => <li key={i} style={{ marginBottom: 4 }}>{n}</li>)}
-            </ul>
-          </div>
+            </Box>
+          </Paper>
         )}
 
         {/* Pan/zoom controls */}
         {hasInfra && (
-          <div style={{
-            position: 'absolute', right: 12, bottom: 12, display: 'flex', flexDirection: 'column', gap: 4,
-            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 4,
-          }}>
-            <button className="sidebar-toggle-btn" onClick={() => zoomBy(1.25)} title="Zoom in"><ZoomIn size={14} /></button>
-            <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', padding: '1px 0' }}>
+          <Paper variant="outlined" onMouseDown={e => e.stopPropagation()}
+            sx={{ position: 'absolute', right: 12, bottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25, p: 0.5 }}>
+            <Tooltip title="Zoom in" placement="left">
+              <IconButton size="small" onClick={() => zoomBy(1.25)} aria-label="Zoom in"><ZoomIn size={14} /></IconButton>
+            </Tooltip>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'var(--font-mono)' }}>
               {Math.round(view.k * 100)}%
-            </div>
-            <button className="sidebar-toggle-btn" onClick={() => zoomBy(0.8)} title="Zoom out"><ZoomOut size={14} /></button>
-            <button className="sidebar-toggle-btn" onClick={fitView} title="Fit to view"><Maximize size={14} /></button>
-          </div>
+            </Typography>
+            <Tooltip title="Zoom out" placement="left">
+              <IconButton size="small" onClick={() => zoomBy(0.8)} aria-label="Zoom out"><ZoomOut size={14} /></IconButton>
+            </Tooltip>
+            <Tooltip title="Fit to view" placement="left">
+              <IconButton size="small" onClick={fitView} aria-label="Fit to view"><Maximize size={14} /></IconButton>
+            </Tooltip>
+          </Paper>
         )}
 
         {/* Pan/zoom hint */}
         {hasInfra && (
-          <div style={{
-            position: 'absolute', left: 12, bottom: 12, display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 8px',
-            pointerEvents: 'none', opacity: 0.75,
+          <Typography variant="caption" color="text.secondary" sx={{
+            position: 'absolute', left: 12, bottom: 12, fontFamily: 'var(--font-mono)',
+            bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1, px: 1, py: 0.5,
+            pointerEvents: 'none', opacity: 0.85,
           }}>
             drag to pan · scroll or pinch to zoom
-          </div>
+          </Typography>
         )}
-      </div>
+      </Box>
     </div>
   )
 }
