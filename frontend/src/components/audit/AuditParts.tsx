@@ -9,8 +9,8 @@ import type { IconComponent } from '../../types/k8s'
 import { Button, EmptyState } from '../ui'
 
 /** Page chrome shared by the audit pages: icon + title + description, then an info notice. */
-export function AuditPage({ icon: Icon, title, description, notice, loading, children }: {
-  icon: IconComponent; title: string; description: string; notice?: ReactNode; loading?: boolean; children: ReactNode
+export function AuditPage({ icon: Icon, title, description, notice, loading, actions, children }: {
+  icon: IconComponent; title: string; description: string; notice?: ReactNode; loading?: boolean; actions?: ReactNode; children: ReactNode
 }) {
   if (loading) {
     return (
@@ -25,10 +25,11 @@ export function AuditPage({ icon: Icon, title, description, notice, loading, chi
         <Box sx={{ width: 44, height: 44, borderRadius: 1, border: 1, borderColor: 'divider', bgcolor: 'background.paper', display: 'grid', placeItems: 'center', flexShrink: 0, color: 'primary.main' }}>
           <Icon size={22} />
         </Box>
-        <Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h4" component="h1">{title}</Typography>
           <Typography variant="body1" color="text.secondary">{description}</Typography>
         </Box>
+        {actions}
       </Box>
       {notice && (
         <Alert severity="info" icon={<Info size={16} />} variant="outlined" sx={{ mb: 2, '& .MuiAlert-message': { fontSize: 12 } }}>
@@ -70,13 +71,20 @@ export function ScanBadge({ tone, icon, children }: { tone: Tone; icon?: ReactNo
 }
 
 /** One scannable target: identity, status badges, Scan/Rescan, and an expandable findings area. */
-export function ScanTargetCard({ icon, name, subtitle, meta, badge, scanning, hasResult, expanded, onScan, onToggle, children }: {
+export function ScanTargetCard({ icon, name, subtitle, meta, badge, scanning, scanDisabled, hasResult, expanded, onScan, onToggle, actions, trailing, console: liveConsole, children }: {
   icon: ReactNode
   name: string
   subtitle: ReactNode
   meta?: ReactNode
   badge?: ReactNode
   scanning: boolean
+  scanDisabled?: boolean
+  /** Extra controls shown before the Scan button (edit, delete…). */
+  actions?: ReactNode
+  /** Extra controls shown after the Scan button (export…). */
+  trailing?: ReactNode
+  /** Live output shown under the header while scanning. */
+  console?: ReactNode
   hasResult: boolean
   expanded: boolean
   onScan: () => void
@@ -97,9 +105,11 @@ export function ScanTargetCard({ icon, name, subtitle, meta, badge, scanning, ha
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>{meta}{badge}</Box>
         )}
         <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-          <Button variant="secondary" size="sm" loading={scanning} icon={<RefreshCw size={14} />} onClick={onScan}>
+          {actions}
+          <Button variant="secondary" size="sm" loading={scanning} disabled={scanDisabled} icon={<RefreshCw size={14} />} onClick={onScan}>
             {hasResult ? 'Rescan' : 'Scan'}
           </Button>
+          {trailing}
           {hasResult && (
             <IconButton onClick={onToggle} aria-label={expanded ? 'Collapse findings' : 'Expand findings'} aria-expanded={expanded}>
               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -107,6 +117,7 @@ export function ScanTargetCard({ icon, name, subtitle, meta, badge, scanning, ha
           )}
         </Box>
       </Box>
+      {liveConsole}
       <Collapse in={hasResult && expanded} unmountOnExit>
         <Box sx={{ borderTop: 1, borderColor: 'divider' }}>{children}</Box>
       </Collapse>

@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
-  FileCode2, Loader2, RefreshCw, ChevronDown, ChevronUp, Info, AlertTriangle,
-  Plus, Trash2, Pencil, GitBranch, KeyRound, CheckCircle2, XCircle, Wrench, Download
+  FileCode2, AlertTriangle, Plus, Trash2, Pencil, GitBranch, KeyRound, CheckCircle2, XCircle, Wrench,
 } from 'lucide-react'
+import {
+  Alert, Box, Checkbox, FormControlLabel, IconButton, TableRow, TextField, Tooltip, Typography,
+} from '@mui/material'
 import { api } from '../api/client'
-import { Modal } from '../components/ui'
+import { Modal, Button } from '../components/ui'
+import { AuditPage, ScanTargetCard, ScanBadge, MetaText, FindingsTable, Cell, TargetList } from '../components/audit/AuditParts'
+import { fmtAgo } from '../utils/fmtAgo'
 import { ToolPathModal } from '../components/audit/ToolPathModal'
 import { ExportMenu } from '../components/audit/ExportMenu'
 import { ScanConsole } from '../components/audit/ScanConsole'
@@ -15,25 +19,12 @@ import { useScanConsole } from '../hooks/useScanConsole'
 import { errMessage } from '../utils/errors'
 import type { CodeRepo, CodeScanResult, ScanTool } from '../types/audit'
 
-function fmtAgo(iso: string) {
-  const ms = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(ms / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
-
-const severityColor: Record<string, string> = {
-  critical: 'var(--danger)', high: 'var(--danger)', medium: 'var(--warning)',
-  low: 'var(--text-muted)', info: 'var(--text-muted)',
+const severityPalette: Record<string, string> = {
+  critical: 'error.main', high: 'error.main', medium: 'warning.main', low: 'text.secondary', info: 'text.secondary',
 }
 
 const emptyForm = { name: '', repo_url: '', branch: 'main', pat: '' }
 
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }
-const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
 
 export function AuditCode() {
   const toast = useToastStore()
@@ -147,218 +138,127 @@ export function AuditCode() {
 
   const toolsAvailableCount = tools.filter(t => t.available).length
 
-  if (loading) return (
-    <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  )
-
   return (
-    <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', paddingBottom: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 0, background: 'var(--bg-app)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <FileCode2 size={22} color="var(--brand-primary)" />
-          </div>
-          <div>
-            <h1 className="page-title" style={{ fontSize: 22, marginBottom: 4 }}>Code Security</h1>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              SAST, secrets, dependency (SCA) and CodeQL scanning for any Git repository.
-            </div>
-          </div>
-        </div>
-        {canManage && (
-          <button className="btn btn-primary" onClick={openCreate} style={{ gap: 8 }}>
-            <Plus size={14} /> Add repository
-          </button>
-        )}
-      </div>
-
-      {/* Tool availability */}
-      <div style={{ marginBottom: 24, flexShrink: 0, border: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px' }}>
-          <Info size={13} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-            InfraEye orchestrates scanners already on this backend host — nothing is bundled. {toolsAvailableCount} of {tools.length} detected.
-            Select which to run per scan below; a repo is shallow-cloned into an isolated temp checkout and deleted immediately after.
-            {canManage && <> Not found on a machine it's installed on? Click the wrench to point InfraEye at the exact binary.</>}
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 16px 14px' }}>
-          {tools.map(t => (
-            <div key={t.id}
-              title={t.available ? t.path : t.using_override ? `Custom path "${t.custom_path}" not found` : `${t.purpose} — ${t.install_hint}`}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 6px 5px 10px', fontSize: 12, fontFamily: 'var(--font-mono)',
-                border: '1px solid var(--border)',
-                opacity: t.available ? 1 : 0.5, background: selectedTools.includes(t.id) && t.available ? 'var(--brand-primary)18' : 'transparent',
-              }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: t.available ? 'pointer' : 'not-allowed' }}>
-                <input type="checkbox" disabled={!t.available} checked={selectedTools.includes(t.id)} onChange={() => toggleTool(t.id)} />
-                {t.available ? <CheckCircle2 size={12} color="var(--success)" /> : <XCircle size={12} color={t.using_override ? 'var(--warning)' : 'var(--text-muted)'} />}
-                {t.name}
-              </label>
+    <AuditPage
+      loading={loading}
+      icon={FileCode2}
+      title="Code Security"
+      description="SAST, secrets, dependency (SCA) and CodeQL scanning for any Git repository."
+      actions={canManage && <Button icon={<Plus size={14} />} onClick={openCreate}>Add repository</Button>}
+      notice={<>
+        InfraEye orchestrates scanners already on this backend host — nothing is bundled. {toolsAvailableCount} of {tools.length} detected.
+        Select which to run per scan below; a repo is shallow-cloned into an isolated temp checkout and deleted immediately after.
+        {canManage && <> Not found on a machine it's installed on? Click the wrench to point InfraEye at the exact binary.</>}
+      </>}
+    >
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+        {tools.map(t => (
+          <Tooltip key={t.id} title={t.available ? t.path : t.using_override ? `Custom path "${t.custom_path}" not found` : `${t.purpose} — ${t.install_hint}`}>
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 0.5, pl: 0.5, pr: 0.5, border: 1, borderColor: 'divider', borderRadius: 1,
+              opacity: t.available ? 1 : 0.55, bgcolor: selectedTools.includes(t.id) && t.available ? 'action.selected' : 'transparent',
+            }}>
+              <FormControlLabel
+                disabled={!t.available}
+                sx={{ m: 0, '& .MuiFormControlLabel-label': { fontFamily: 'var(--font-mono)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 0.75 } }}
+                control={<Checkbox checked={selectedTools.includes(t.id)} onChange={() => toggleTool(t.id)} />}
+                label={<>
+                  {t.available ? <CheckCircle2 size={12} color="var(--success)" /> : <XCircle size={12} color={t.using_override ? 'var(--warning)' : 'var(--text-muted)'} />}
+                  {t.name}
+                </>}
+              />
               {t.using_override && <KeyRound size={11} color="var(--warning)" />}
               {canManage && (
-                <button onClick={() => setPathEditTool(t)} title="Set custom path" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', display: 'flex' }}>
-                  <Wrench size={12} />
-                </button>
+                <Tooltip title="Set custom path">
+                  <IconButton onClick={() => setPathEditTool(t)} aria-label={`Set custom path for ${t.name}`}><Wrench size={12} /></IconButton>
+                </Tooltip>
               )}
-            </div>
-          ))}
-        </div>
-      </div>
+            </Box>
+          </Tooltip>
+        ))}
+      </Box>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 60 }} className="fade-up">
-        {repos.length === 0 ? (
-          <div className="empty-state" style={{ padding: 60, textAlign: 'center' }}>
-            <FileCode2 size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
-            <p>No repositories added yet.</p>
-            {canManage && <button className="btn btn-secondary" onClick={openCreate} style={{ marginTop: 12 }}>Add repository</button>}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {repos.map(r => {
-              const result = results[r.id]
-              const isScanning = !!scanning[r.id]
-              const isExpanded = !!expanded[r.id]
-              const highTotal = result ? result.critical_count + result.high_count : 0
-
-              return (
-                <div key={r.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 0, flexShrink: 0, background: 'var(--bg-app)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <GitBranch size={16} />
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 200 }}>
-                      <div style={{ fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-mono)' }}>{r.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{r.repo_url}</span>
-                        <span>·</span>
-                        <span>{r.branch}</span>
-                        {r.pat_set && <span title="Private repo (PAT configured)" style={{ display: 'flex' }}><KeyRound size={11} /></span>}
-                      </div>
-                    </div>
-
-                    {result && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                          SCANNED {fmtAgo(result.scanned_at)}
-                        </span>
-                        {highTotal > 0 ? (
-                          <span style={{ padding: '3px 10px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)', background: 'var(--danger)18', color: 'var(--danger)', border: '1px solid var(--danger)30', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <AlertTriangle size={12} /> {highTotal} CRITICAL/HIGH
-                          </span>
-                        ) : result.finding_count > 0 ? (
-                          <span style={{ padding: '3px 10px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)', background: 'var(--warning)18', color: 'var(--warning)', border: '1px solid var(--warning)30', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {result.finding_count} FINDINGS
-                          </span>
-                        ) : (
-                          <span style={{ padding: '3px 10px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)', background: 'var(--success)18', color: 'var(--success)', border: '1px solid var(--success)30', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            CLEAN
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                      {canManage && (
-                        <>
-                          <button onClick={() => openEdit(r)} style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', padding: '8px 10px' }}>
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={() => setDeleteId(r.id)} style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--danger)', padding: '8px 10px' }}>
-                            <Trash2 size={14} />
-                          </button>
-                        </>
-                      )}
-                      <button className="btn btn-secondary" onClick={() => scan(r.id)} disabled={isScanning || selectedTools.length === 0} style={{ gap: 8, padding: '8px 14px' }}>
-                        {isScanning ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
-                        <span>{result ? 'Rescan' : 'Scan'}</span>
-                      </button>
-                      {result && (
-                        <ExportMenu
-                          meta={{
-                            title: `Code Security Report — ${r.name}`, subject: r.repo_url, extra: `Branch: ${r.branch}`,
-                            scannedAt: result.scanned_at, toolsRun: result.tools_run, toolErrors: result.tool_errors,
-                            counts: { critical: result.critical_count, high: result.high_count, medium: result.medium_count, low: result.low_count },
-                          }}
-                          rows={codeFindingsToRows(result.findings)}
-                          raw={result}
-                        />
-                      )}
-                      {result && (
-                        <button onClick={() => setExpanded(prev => ({ ...prev, [r.id]: !prev[r.id] }))} style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', padding: '8px 10px' }}>
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {isScanning && <ScanConsole lines={scanLogs[r.id] || []} />}
-
-                  {result && isExpanded && (
-                    <div style={{ borderTop: '1px solid var(--border)' }}>
-                      {result.tool_errors && Object.keys(result.tool_errors).length > 0 && (
-                        <div style={{ padding: '10px 20px', fontSize: 12, color: 'var(--warning)', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {Object.entries(result.tool_errors).map(([tool, msg]) => (
-                            <div key={tool}><b>{tool}:</b> {msg}</div>
-                          ))}
-                        </div>
-                      )}
-                      {(result.findings ?? []).length === 0 ? (
-                        <div style={{ padding: '16px 20px', fontSize: 12, color: 'var(--text-muted)' }}>No findings.</div>
-                      ) : (
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                            <colgroup>
-                              <col style={{ width: 90 }} />
-                              <col style={{ width: 90 }} />
-                              <col style={{ width: 110 }} />
-                              <col style={{ width: 160 }} />
-                              <col style={{ width: 220 }} />
-                              <col />
-                            </colgroup>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                {['Severity', 'Tool', 'Category', 'Rule', 'Location', 'Detail'].map(h => (
-                                  <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', textAlign: 'left', background: 'var(--bg-elevated)' }}>
-                                    {h}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(result.findings ?? []).map((f, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                  <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 800, color: severityColor[f.severity] || 'var(--text-muted)', verticalAlign: 'top' }}>{f.severity}</td>
-                                  <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', verticalAlign: 'top' }}>{f.tool}</td>
-                                  <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', verticalAlign: 'top' }}>{f.category}</td>
-                                  <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: 'var(--font-mono)', verticalAlign: 'top', wordBreak: 'break-word' }}>{f.rule_id}</td>
-                                  <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', verticalAlign: 'top', wordBreak: 'break-word' }}>
-                                    {f.file}{f.line ? `:${f.line}` : ''}{f.package ? ` (${f.package})` : ''}
-                                  </td>
-                                  <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--text-secondary)', verticalAlign: 'top', wordBreak: 'break-word' }}>
-                                    {f.title}
-                                    {f.description && <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>{f.description}</div>}
-                                    {f.fixed_in && <div style={{ color: 'var(--success)', marginTop: 4 }}>Fixed in {f.fixed_in}</div>}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
+      <TargetList empty={repos.length === 0 ? { icon: FileCode2, text: 'No repositories added yet.' } : null}>
+        {repos.map(r => {
+          const result = results[r.id]
+          const highTotal = result ? result.critical_count + result.high_count : 0
+          return (
+            <ScanTargetCard
+              key={r.id}
+              icon={<GitBranch size={16} />}
+              name={r.name}
+              subtitle={<Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                {r.repo_url} · {r.branch}
+                {r.pat_set && <Tooltip title="Private repo (PAT configured)"><span style={{ display: 'flex' }}><KeyRound size={11} /></span></Tooltip>}
+              </Box>}
+              scanning={!!scanning[r.id]}
+              scanDisabled={selectedTools.length === 0}
+              hasResult={!!result}
+              expanded={!!expanded[r.id]}
+              onScan={() => scan(r.id)}
+              onToggle={() => setExpanded(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+              meta={result && <MetaText>SCANNED {fmtAgo(result.scanned_at)}</MetaText>}
+              badge={result && (highTotal > 0
+                ? <ScanBadge tone="error" icon={<AlertTriangle size={12} />}>{highTotal} critical/high</ScanBadge>
+                : result.finding_count > 0
+                ? <ScanBadge tone="warning">{result.finding_count} findings</ScanBadge>
+                : <ScanBadge tone="success">Clean</ScanBadge>)}
+              actions={canManage && (
+                <>
+                  <Tooltip title="Edit"><IconButton onClick={() => openEdit(r)} aria-label="Edit repository"><Pencil size={14} /></IconButton></Tooltip>
+                  <Tooltip title="Remove"><IconButton color="error" onClick={() => setDeleteId(r.id)} aria-label="Remove repository"><Trash2 size={14} /></IconButton></Tooltip>
+                </>
+              )}
+              trailing={result && (
+                <ExportMenu
+                  meta={{
+                    title: `Code Security Report — ${r.name}`, subject: r.repo_url, extra: `Branch: ${r.branch}`,
+                    scannedAt: result.scanned_at, toolsRun: result.tools_run, toolErrors: result.tool_errors,
+                    counts: { critical: result.critical_count, high: result.high_count, medium: result.medium_count, low: result.low_count },
+                  }}
+                  rows={codeFindingsToRows(result.findings)}
+                  raw={result}
+                />
+              )}
+              console={scanning[r.id] ? <ScanConsole lines={scanLogs[r.id] || []} /> : undefined}
+            >
+              {result && (
+                <>
+                  {result.tool_errors && Object.keys(result.tool_errors).length > 0 && (
+                    <Alert severity="warning" sx={{ borderRadius: 0 }}>
+                      {Object.entries(result.tool_errors).map(([tool, msg]) => (
+                        <div key={tool}><b>{tool}:</b> {msg}</div>
+                      ))}
+                    </Alert>
                   )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                  {(result.findings ?? []).length === 0 ? (
+                    <Box sx={{ px: 2.5, py: 2 }}><Typography variant="body2" color="text.secondary">No findings.</Typography></Box>
+                  ) : (
+                    <FindingsTable columns={['Severity', 'Tool', 'Category', 'Rule', 'Location', 'Detail']}>
+                      {(result.findings ?? []).map((f, i) => (
+                        <TableRow key={i} hover sx={{ verticalAlign: 'top' }}>
+                          <Cell mono sx={{ textTransform: 'uppercase', fontWeight: 700, color: severityPalette[f.severity] || 'text.secondary' }}>{f.severity}</Cell>
+                          <Cell sx={{ color: 'text.secondary' }}>{f.tool}</Cell>
+                          <Cell sx={{ color: 'text.secondary', textTransform: 'uppercase' }}>{f.category}</Cell>
+                          <Cell mono sx={{ wordBreak: 'break-word' }}>{f.rule_id}</Cell>
+                          <Cell mono sx={{ color: 'text.secondary', wordBreak: 'break-word' }}>
+                            {f.file}{f.line ? `:${f.line}` : ''}{f.package ? ` (${f.package})` : ''}
+                          </Cell>
+                          <Cell sx={{ color: 'text.secondary', wordBreak: 'break-word' }}>
+                            {f.title}
+                            {f.description && <Box sx={{ mt: 0.5 }}>{f.description}</Box>}
+                            {f.fixed_in && <Box sx={{ mt: 0.5, color: 'success.main' }}>Fixed in {f.fixed_in}</Box>}
+                          </Cell>
+                        </TableRow>
+                      ))}
+                    </FindingsTable>
+                  )}
+                </>
+              )}
+            </ScanTargetCard>
+          )
+        })}
+      </TargetList>
 
       <Modal
         isOpen={showForm}
@@ -367,45 +267,39 @@ export function AuditCode() {
         icon={GitBranch}
         footer={
           <>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-            <button type="submit" form="code-repo-form" className="btn btn-primary">{editId ? 'Save changes' : 'Add repository'}</button>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button type="submit" form="code-repo-form">{editId ? 'Save changes' : 'Add repository'}</Button>
           </>
         }
       >
-        <form id="code-repo-form" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onSubmit={e => { e.preventDefault(); saveRepo() }}>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Name</label>
-            <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. infra-eye" autoFocus />
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Repository URL</label>
-            <input className="input" value={form.repo_url} onChange={e => setForm({ ...form, repo_url: e.target.value })} placeholder="https://github.com/org/repo.git" />
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Branch</label>
-            <input className="input" value={form.branch} onChange={e => setForm({ ...form, branch: e.target.value })} placeholder="main" />
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Personal access token {editId ? '(leave blank to keep current)' : '(optional — only needed for private repos)'}</label>
-            <input className="input" type="password" value={form.pat} onChange={e => setForm({ ...form, pat: e.target.value })} placeholder={editId ? '••••••••' : ''} />
-          </div>
-        </form>
+        <Box component="form" id="code-repo-form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+          onSubmit={(e: React.FormEvent) => { e.preventDefault(); saveRepo() }}>
+          <TextField label="Name" autoFocus fullWidth value={form.name} placeholder="e.g. infra-eye" onChange={e => setForm({ ...form, name: e.target.value })} />
+          <TextField label="Repository URL" fullWidth value={form.repo_url} placeholder="https://github.com/org/repo.git" onChange={e => setForm({ ...form, repo_url: e.target.value })} />
+          <TextField label="Branch" fullWidth value={form.branch} placeholder="main" onChange={e => setForm({ ...form, branch: e.target.value })} />
+          <TextField
+            label={`Personal access token ${editId ? '(leave blank to keep current)' : '(optional — only needed for private repos)'}`}
+            type="password" fullWidth value={form.pat} placeholder={editId ? '••••••••' : ''}
+            onChange={e => setForm({ ...form, pat: e.target.value })}
+          />
+        </Box>
       </Modal>
 
       <Modal
         isOpen={deleteId !== null}
         onClose={() => setDeleteId(null)}
         title="Remove repository"
+        size="sm"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setDeleteId(null)}>Cancel</button>
-            <button className="btn btn-danger" onClick={() => deleteId !== null && deleteRepo(deleteId)}>Remove</button>
+            <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => deleteId !== null && deleteRepo(deleteId)}>Remove</Button>
           </>
         }
       >
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+        <Typography variant="body1" color="text.secondary">
           This removes the saved repository and its scan history. It does not affect the actual Git repository.
-        </p>
+        </Typography>
       </Modal>
 
       <ToolPathModal
@@ -413,8 +307,6 @@ export function AuditCode() {
         onClose={() => setPathEditTool(null)}
         onSaved={updated => setTools(prev => prev.map(t => t.id === updated.id ? updated : t))}
       />
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+    </AuditPage>
   )
 }
