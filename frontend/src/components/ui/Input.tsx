@@ -1,8 +1,12 @@
 import type { InputHTMLAttributes, ReactNode } from 'react'
-import { forwardRef } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { forwardRef, useId } from 'react'
+import TextField from '@mui/material/TextField'
+import InputAdornment from '@mui/material/InputAdornment'
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+// All three fields render native elements (native <select>, plain <input>) so
+// callers keep receiving ordinary React change events with e.target.value.
+
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string
   error?: string
   helper?: string
@@ -11,65 +15,28 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    {
-      label,
-      error,
-      helper,
-      icon,
-      required,
-      className = '',
-      id,
-      ...props
-    },
-    ref
-  ) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
-    const hasError = !!error
-
+  ({ label, error, helper, icon, required, id, className, style, ...props }, ref) => {
+    const autoId = useId()
     return (
-      <div className="input-group">
-        {label && (
-          <label
-            htmlFor={inputId}
-            className={`input-label ${required ? 'input-label-required' : ''}`}
-          >
-            {label}
-          </label>
-        )}
-
-        {icon ? (
-          <div className="input-icon-wrapper">
-            <div className="input-icon">{icon}</div>
-            <input
-              ref={ref}
-              id={inputId}
-              className={`input ${hasError ? 'input-error' : ''} ${className}`}
-              {...props}
-            />
-          </div>
-        ) : (
-          <input
-            ref={ref}
-            id={inputId}
-            className={`input ${hasError ? 'input-error' : ''} ${className}`}
-            {...props}
-          />
-        )}
-
-        {error && (
-          <div className="input-error-text">
-            <AlertCircle size={13} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {helper && !error && <div className="input-helper">{helper}</div>}
-      </div>
+      <TextField
+        id={id ?? autoId}
+        label={label}
+        required={required}
+        error={!!error}
+        helperText={error || helper}
+        fullWidth
+        className={className}
+        style={style}
+        inputRef={ref}
+        slotProps={{
+          input: icon ? { startAdornment: <InputAdornment position="start">{icon}</InputAdornment> } : undefined,
+          htmlInput: props,
+          inputLabel: { shrink: props.type === 'date' || props.type === 'time' || undefined },
+        }}
+      />
     )
-  }
+  },
 )
-
 Input.displayName = 'Input'
 
 export interface TextareaProps extends InputHTMLAttributes<HTMLTextAreaElement> {
@@ -81,57 +48,29 @@ export interface TextareaProps extends InputHTMLAttributes<HTMLTextAreaElement> 
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  (
-    {
-      label,
-      error,
-      helper,
-      required,
-      className = '',
-      id,
-      rows = 4,
-      ...props
-    },
-    ref
-  ) => {
-    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`
-    const hasError = !!error
-
+  ({ label, error, helper, required, id, rows = 4, className, style, ...props }, ref) => {
+    const autoId = useId()
     return (
-      <div className="input-group">
-        {label && (
-          <label
-            htmlFor={textareaId}
-            className={`input-label ${required ? 'input-label-required' : ''}`}
-          >
-            {label}
-          </label>
-        )}
-
-        <textarea
-          ref={ref}
-          id={textareaId}
-          rows={rows}
-          className={`textarea ${hasError ? 'input-error' : ''} ${className}`}
-          {...props}
-        />
-
-        {error && (
-          <div className="input-error-text">
-            <AlertCircle size={13} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {helper && !error && <div className="input-helper">{helper}</div>}
-      </div>
+      <TextField
+        id={id ?? autoId}
+        label={label}
+        required={required}
+        error={!!error}
+        helperText={error || helper}
+        fullWidth
+        multiline
+        minRows={rows}
+        className={className}
+        style={style}
+        inputRef={ref}
+        slotProps={{ htmlInput: props }}
+      />
     )
-  }
+  },
 )
-
 Textarea.displayName = 'Textarea'
 
-export interface SelectProps extends InputHTMLAttributes<HTMLSelectElement> {
+export interface SelectProps extends Omit<InputHTMLAttributes<HTMLSelectElement>, 'size'> {
   label?: string
   error?: string
   helper?: string
@@ -140,57 +79,25 @@ export interface SelectProps extends InputHTMLAttributes<HTMLSelectElement> {
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  (
-    {
-      label,
-      error,
-      helper,
-      required,
-      options,
-      className = '',
-      id,
-      ...props
-    },
-    ref
-  ) => {
-    const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`
-    const hasError = !!error
-
+  ({ label, error, helper, required, options, id, className, style, ...props }, ref) => {
+    const autoId = useId()
     return (
-      <div className="input-group">
-        {label && (
-          <label
-            htmlFor={selectId}
-            className={`input-label ${required ? 'input-label-required' : ''}`}
-          >
-            {label}
-          </label>
-        )}
-
-        <select
-          ref={ref}
-          id={selectId}
-          className={`select ${hasError ? 'input-error' : ''} ${className}`}
-          {...props}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-
-        {error && (
-          <div className="input-error-text">
-            <AlertCircle size={13} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {helper && !error && <div className="input-helper">{helper}</div>}
-      </div>
+      <TextField
+        id={id ?? autoId}
+        label={label}
+        required={required}
+        error={!!error}
+        helperText={error || helper}
+        fullWidth
+        select
+        className={className}
+        style={style}
+        inputRef={ref}
+        slotProps={{ select: { native: true }, htmlInput: props, inputLabel: { shrink: true } }}
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </TextField>
     )
-  }
+  },
 )
-
 Select.displayName = 'Select'
