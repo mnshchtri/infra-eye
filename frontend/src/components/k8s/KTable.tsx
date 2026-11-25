@@ -1,5 +1,17 @@
 import { memo } from 'react'
 import { Inbox } from 'lucide-react'
+import Box from '@mui/material/Box'
+import Checkbox from '@mui/material/Checkbox'
+import Chip from '@mui/material/Chip'
+import Paper from '@mui/material/Paper'
+import Skeleton from '@mui/material/Skeleton'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableContainer from '@mui/material/TableContainer'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import Typography from '@mui/material/Typography'
 import type { K8sRow } from '../../types/k8s'
 
 interface KTableProps {
@@ -17,16 +29,23 @@ interface KTableProps {
   onToggleAll?: () => void;
 }
 
+// Healthy / finished-OK states are green, transitional states amber, everything else red.
+// (Succeeded and Bound are good outcomes, and Pending is not a failure.)
+const OK_STATES = new Set(['Running', 'Ready', 'Active', 'Succeeded', 'Completed', 'Bound', 'Available', 'Established'])
+const TRANSITIONAL_STATES = new Set(['Pending', 'ContainerCreating', 'PodInitializing', 'Terminating', 'Progressing', 'Released'])
+const statusTone = (val: string): 'success' | 'warning' | 'error' =>
+  OK_STATES.has(val) ? 'success' : TRANSITIONAL_STATES.has(val) ? 'warning' : 'error'
+
 const getVal = (item: K8sRow, col: string) => {
   switch(col.toLowerCase()) {
     case 'name': return item.metadata.name;
     case 'namespace': return item.metadata.namespace;
     case 'status': {
       const val = item.status?.phase || (item.status?.conditions?.find((c: K8sRow) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
-      return <span className={`badge ${val === 'Running' || val === 'Ready' || val === 'Active' ? 'badge-online' : 'badge-offline'}`} style={{ borderRadius: 0, textTransform: 'uppercase', fontSize: 11, minWidth: 80 }}>{val}</span>;
+      return <Chip size="small" label={val} color={statusTone(val)} />;
     }
     case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
-    case 'role': return <span style={{ color: 'var(--brand-primary)', fontWeight: 800 }}>{item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'CTRL-PLANE' : 'WORKER')}</span>;
+    case 'role': return <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'control-plane' : 'worker')}</Box>;
     case 'version': return item.status?.nodeInfo?.kubeletVersion;
     case 'ready': return `${item.status?.readyReplicas || item.status?.numberReady || 0}/${item.spec?.replicas || item.status?.desiredNumberScheduled || 0}`;
     case 'available': return item.status?.availableReplicas || item.status?.numberAvailable || 0;
@@ -78,34 +97,35 @@ const getVal = (item: K8sRow, col: string) => {
 
 const KTableRow = memo(({ item, columns, isSelected, actions, onNameClick, checked, onToggleChecked }: { item: K8sRow; columns: string[]; isSelected: boolean; actions?: (item: K8sRow) => React.ReactNode; onNameClick?: (item: K8sRow) => void; checked?: boolean; onToggleChecked?: (item: K8sRow) => void }) => {
   return (
-    <tr className={isSelected ? 'k-row-selected' : ''}>
+    <TableRow hover selected={isSelected}>
       {onToggleChecked && (
-        <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', width: 36 }}>
-          <input type="checkbox" checked={!!checked} onChange={() => onToggleChecked(item)} style={{ cursor: 'pointer' }} />
-        </td>
+        <TableCell padding="checkbox">
+          <Checkbox size="small" checked={!!checked} onChange={() => onToggleChecked(item)} slotProps={{ input: { 'aria-label': `Select ${item.metadata?.name ?? 'row'}` } }} />
+        </TableCell>
       )}
       {columns.map((c: string) => (
-        <td
+        <TableCell
           key={c}
-          className={c === 'Name' ? 'k-name-cell' : undefined}
-          style={{
-            ...(c === 'Name' ? { cursor: onNameClick ? 'pointer' : 'default' } : { color: 'var(--text-secondary)' }),
-            fontFamily: 'var(--font-mono)', fontSize: 12.5,
-            padding: '12px 16px', borderBottom: '1px solid var(--border)'
-          }}
+          align={c === 'Status' ? 'center' : 'left'}
           onClick={() => { if (c === 'Name' && onNameClick) onNameClick(item) }}
+          sx={{
+            fontFamily: 'var(--font-mono)', fontSize: 12.5, lineHeight: 1.5,
+            ...(c === 'Name'
+              ? { cursor: onNameClick ? 'pointer' : 'default', fontWeight: 600, color: onNameClick ? 'primary.main' : 'text.primary', wordBreak: 'break-all', '&:hover': onNameClick ? { textDecoration: 'underline' } : undefined }
+              : { color: 'text.secondary' }),
+          }}
         >
           {getVal(item, c)}
-        </td>
+        </TableCell>
       ))}
       {actions && (
-        <td style={{ borderLeft: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <TableCell align="right" sx={{ borderLeft: 1, borderLeftColor: 'divider' }}>
+          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
             {actions(item)}
-          </div>
-        </td>
+          </Box>
+        </TableCell>
       )}
-    </tr>
+    </TableRow>
   );
 });
 
@@ -142,60 +162,59 @@ export const KTable = memo(({ columns, data, actions, selectedIndex, loading, on
   }
 
   return (
-    <div className="table-container fade-up" style={{ borderRadius: 'var(--radius-md)', marginBottom: 20 }}>
-       <table className="k-table" style={{ width: '100%', minWidth: 800 }}>
-          <colgroup>
-            {selectable && <col style={{ width: 36 }} />}
-            {columns.map(c => <col key={c} style={{ width: getColWidth(c) }} />)}
-            {actions && <col style={{ width: '120px' }} />}
-          </colgroup>
-          <thead>
-             <tr style={{ background: 'var(--bg-elevated)' }}>
-                {selectable && (
-                  <th style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                    <input type="checkbox" checked={!!allChecked} onChange={onToggleAll} style={{ cursor: 'pointer' }} />
-                  </th>
-                )}
-                {columns.map((c: string) => <th key={c} style={{
-                  ...(c === 'Status' ? { textAlign: 'center' } : {}),
-                  fontFamily: 'var(--font-sans)', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', letterSpacing: '0.06em'
-                }}>{c}</th>)}
-                {actions && <th style={{ textAlign: 'right', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', fontSize: 11, fontWeight: 700, padding: '12px 16px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)', letterSpacing: '0.06em' }}>Actions</th>}
-             </tr>
-          </thead>
-          <tbody>
-             {loading ? (
-               Array.from({ length: 8 }).map((_, i) => (
-                 <tr key={`skel-${i}`}>
-                   {Array.from({ length: colCount }).map((_, j) => (
-                     <td key={j} style={{ padding: '16px' }}><div style={{ height: 12, background: 'var(--bg-elevated)', borderRadius: 0, width: '60%', animation: 'pulse-skeleton 1.5s ease infinite' }} /></td>
-                   ))}
-                 </tr>
-               ))
-             ) : data.length === 0 ? (
-               <tr>
-                 <td colSpan={colCount} style={{ textAlign: 'center', padding: '56px 24px', color: 'var(--text-muted)' }}>
-                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                     <Inbox size={22} color="var(--text-muted)" opacity={0.6} />
-                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>No resources found</span>
-                   </div>
-                 </td>
-               </tr>
-             ) : data.map((item: K8sRow, i: number) => (
-                <KTableRow 
-                  key={item.metadata?.uid || `${item.metadata?.name}-${i}`} 
-                  item={item} 
-                  columns={columns} 
-                  isSelected={selectedIndex === i}
-                  actions={actions}
-                  onNameClick={onNameClick}
-                  checked={selectable ? isRowChecked?.(item) : undefined}
-                  onToggleChecked={selectable ? onToggleRow : undefined}
-                />
-             ))}
-          </tbody>
-       </table>
-    </div>
+    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2.5 }}>
+      <Table size="small" sx={{ minWidth: 800, tableLayout: 'fixed' }}>
+        <colgroup>
+          {selectable && <col style={{ width: 44 }} />}
+          {columns.map(c => <col key={c} style={{ width: getColWidth(c) }} />)}
+          {actions && <col style={{ width: '120px' }} />}
+        </colgroup>
+        <TableHead>
+          <TableRow>
+            {selectable && (
+              <TableCell padding="checkbox">
+                <Checkbox size="small" checked={!!allChecked} onChange={onToggleAll} slotProps={{ input: { 'aria-label': 'Select all rows' } }} />
+              </TableCell>
+            )}
+            {columns.map((c: string) => (
+              <TableCell key={c} align={c === 'Status' ? 'center' : 'left'} sx={{ fontWeight: 600, color: 'text.secondary' }}>{c}</TableCell>
+            ))}
+            {actions && <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary', borderLeft: 1, borderLeftColor: 'divider' }}>Actions</TableCell>}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {loading ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <TableRow key={`skel-${i}`}>
+                {Array.from({ length: colCount }).map((_, j) => (
+                  <TableCell key={j}><Skeleton width="60%" /></TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : data.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={colCount} align="center" sx={{ py: 7, color: 'text.secondary' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                  <Inbox size={22} />
+                  <Typography variant="body2">No resources found</Typography>
+                </Box>
+              </TableCell>
+            </TableRow>
+          ) : data.map((item: K8sRow, i: number) => (
+            <KTableRow
+              key={item.metadata?.uid || `${item.metadata?.name}-${i}`}
+              item={item}
+              columns={columns}
+              isSelected={selectedIndex === i}
+              actions={actions}
+              onNameClick={onNameClick}
+              checked={selectable ? isRowChecked?.(item) : undefined}
+              onToggleChecked={selectable ? onToggleRow : undefined}
+            />
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 })
 

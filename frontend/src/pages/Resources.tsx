@@ -1,9 +1,12 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Database, Play, Trash2, X, Search, Loader2, Globe, Cpu,
-  Layers, Zap, Server, Pencil, ArrowRight, CircleDot, HardDrive
+  Plus, Database, Play, Trash2, Globe, Cpu, Layers, Zap, Server, Pencil, ArrowRight, HardDrive,
 } from 'lucide-react'
+import {
+  Box, Card, Chip, CircularProgress, IconButton, MenuItem, TextField, Tooltip, Typography,
+} from '@mui/material'
+import { Modal, Button, PageHeader, SearchInput, EmptyState } from '../components/ui'
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
 import { usePermission } from '../hooks/usePermission'
@@ -13,7 +16,7 @@ import { FolderTag } from '../components/ui/FolderTag'
 import { apiError } from '../utils/errors'
 import type { FolderItem } from '../hooks/useFolders'
 import type { IconComponent } from '../types/k8s'
-import type { ReactNode, CSSProperties, Dispatch, SetStateAction } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 
 interface ResourceData {
   id: number
@@ -59,12 +62,12 @@ const emptyForm = {
 
 type ResourceFormState = typeof emptyForm
 
-function statusMeta(status: string) {
+function statusMeta(status: string): { color: 'success' | 'warning' | 'error' | 'default'; label: string; dot: string } {
   switch (status) {
-    case 'online': return { color: 'var(--success)', label: 'Online', badge: 'badge-online' }
-    case 'degraded': return { color: 'var(--warning)', label: 'Degraded', badge: 'badge-warning' }
-    case 'offline': return { color: 'var(--danger)', label: 'Offline', badge: 'badge-offline' }
-    default: return { color: 'var(--text-muted)', label: 'Unknown', badge: 'badge-neutral' }
+    case 'online': return { color: 'success', label: 'Online', dot: 'success.main' }
+    case 'degraded': return { color: 'warning', label: 'Degraded', dot: 'warning.main' }
+    case 'offline': return { color: 'error', label: 'Offline', dot: 'error.main' }
+    default: return { color: 'default', label: 'Unknown', dot: 'text.disabled' }
   }
 }
 
@@ -79,6 +82,7 @@ export function Resources() {
   const [form, setForm] = useState<ResourceFormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [testingId, setTestingId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ResourceData | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const { folders, createFolder, deleteFolder } = useFolders()
   const [selectedFolder, setSelectedFolder] = useState<FolderSelection>('all')
@@ -176,13 +180,14 @@ export function Resources() {
   }
 
   async function deleteResource(id: number) {
-    if (!window.confirm('Delete this resource? Access grants and history will be removed.')) return
     try {
       await api.delete(`/api/resources/${id}`)
       toast.success('Resource removed', 'The resource was deleted.')
+      setDeleteTarget(null)
       loadResources()
     } catch (err: unknown) {
       toast.error('Delete failed', apiError(err) || 'Unable to delete resource')
+      setDeleteTarget(null)
     }
   }
 
@@ -200,55 +205,38 @@ export function Resources() {
     } finally { setTestingId(null) }
   }
 
+  const openAdd = () => { setShowForm(true); setEditId(null); setForm(emptyForm) }
+
   if (!canManage) {
     return (
       <div className="page">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Resources</h1>
-            <p className="page-subtitle">You don't have permission to view resource management.</p>
-          </div>
-        </div>
+        <PageHeader title="Resources" subtitle="You don't have permission to view resource management." />
       </div>
     )
   }
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Resources</h1>
-          <p className="page-subtitle hidden-mobile">Monitor and audit secure database, cache, and service connections.</p>
-        </div>
-        <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
-          <div className="search-container">
-            <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-            <input type="text" placeholder="Search resources..." className="input" value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)} style={{ paddingLeft: 38, height: 40 }} />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <button className="btn btn-primary" onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }} style={{ height: 40 }}>
-            <Plus size={14} />
-            <span className="hidden-mobile">Add Resource</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Resources"
+        subtitle="Monitor and audit secure database, cache, and service connections."
+        actions={
+          <>
+            <Box sx={{ width: 260 }}><SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search resources..." /></Box>
+            <Button icon={<Plus size={14} />} onClick={openAdd}>Add Resource</Button>
+          </>
+        }
+      />
 
-      {/* Summary bar */}
       {!loading && resources.length > 0 && (
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
-          <SummaryPill label="Total" value={summary.total} color="var(--text-primary)" />
-          <SummaryPill label="Online" value={summary.online} color="var(--success)" dot />
-          <SummaryPill label="Degraded" value={summary.degraded} color="var(--warning)" dot />
-          <SummaryPill label="Offline" value={summary.offline} color="var(--danger)" dot />
-        </div>
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 2 }}>
+          <SummaryPill label="Total" value={summary.total} />
+          <SummaryPill label="Online" value={summary.online} dot="success.main" />
+          <SummaryPill label="Degraded" value={summary.degraded} dot="warning.main" />
+          <SummaryPill label="Offline" value={summary.offline} dot="error.main" />
+        </Box>
       )}
 
-      {/* Folder filter bar */}
       {!loading && resources.length > 0 && (
         <FolderBar
           folders={folders}
@@ -267,218 +255,188 @@ export function Resources() {
       )}
 
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 80 }}>
-          <Loader2 size={24} className="spin" color="var(--brand-primary)" />
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading resources…</span>
-        </div>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 10 }}>
+          <CircularProgress />
+          <Typography variant="body2" color="text.secondary">Loading resources…</Typography>
+        </Box>
       ) : filtered.length === 0 ? (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)', padding: 60 }}>
-          <Layers size={44} style={{ marginBottom: 16, opacity: 0.25 }} />
-          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-secondary)' }}>No resources yet</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Add a database, cache, or service to start monitoring it.</div>
-          {searchQuery
-            ? <button className="btn btn-secondary" style={{ marginTop: 20, height: 34 }} onClick={() => setSearchQuery('')}>Clear search</button>
-            : <button className="btn btn-primary" style={{ marginTop: 20, height: 34 }} onClick={() => { setShowForm(true); setEditId(null); setForm(emptyForm) }}><Plus size={14} /> Add Resource</button>}
-        </div>
+        <Card>
+          <EmptyState
+            icon={Layers}
+            title="No resources yet"
+            description="Add a database, cache, or service to start monitoring it."
+            action={searchQuery
+              ? <Button variant="secondary" onClick={() => setSearchQuery('')}>Clear search</Button>
+              : <Button icon={<Plus size={14} />} onClick={openAdd}>Add Resource</Button>}
+          />
+        </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 16 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 2 }}>
           {filtered.map(r => {
             const meta = protoMeta(r.protocol)
             const Icon = meta.icon
             const st = statusMeta(r.status)
             return (
-              <div key={r.id} className="card fade-up resource-card" onClick={() => navigate(`/resources/${r.id}`)}
-                style={{ cursor: 'pointer', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '18px 18px 14px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Icon size={20} color="var(--brand-primary)" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{meta.label} · {r.resource_type}</div>
-                  </div>
-                  <span className={`badge ${st.badge}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                    <CircleDot size={11} /> {st.label}
-                  </span>
-                </div>
+              <Card key={r.id} onClick={() => navigate(`/resources/${r.id}`)}
+                sx={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', '&:hover': { borderColor: 'primary.main' } }}>
+                <Box sx={{ p: 2, pb: 1.5, display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                  <Box sx={{ width: 40, height: 40, borderRadius: 1, border: 1, borderColor: 'divider', display: 'grid', placeItems: 'center', flexShrink: 0, color: 'primary.main' }}>
+                    <Icon size={20} />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="subtitle1" noWrap>{r.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">{meta.label} · {r.resource_type}</Typography>
+                  </Box>
+                  <Chip label={st.label} color={st.color} size="small" variant={st.color === 'default' ? 'outlined' : 'filled'} />
+                </Box>
 
-                <div style={{ padding: '0 18px 14px' }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <Box sx={{ px: 2, pb: 1.5 }}>
+                  <Typography variant="body1" noWrap sx={{ fontFamily: 'var(--font-mono)', color: 'text.secondary' }}>
                     <span style={{ opacity: 0.55 }}>{r.protocol}://</span>{r.host}:{r.port}
-                  </div>
+                  </Typography>
                   {r.tags && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-                      {r.tags.split(',').filter(Boolean).slice(0, 4).map(t => (
-                        <span key={t} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--text-muted)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '2px 7px' }}>{t.trim()}</span>
-                      ))}
-                    </div>
+                    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 1.25 }}>
+                      {r.tags.split(',').filter(Boolean).slice(0, 4).map(t => <Chip key={t} label={t.trim()} size="small" variant="outlined" />)}
+                    </Box>
                   )}
-                </div>
+                </Box>
 
-                <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px 8px 18px', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: r.use_gateway ? 'var(--brand-primary)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                <Box sx={{ mt: 'auto', borderTop: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pl: 2, pr: 1, py: 1, gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 0.5, flexShrink: 0, color: r.use_gateway ? 'primary.main' : 'text.secondary' }}>
                       <Server size={12} /> {r.use_gateway ? 'Gateway' : 'Direct'}
-                    </span>
-                    <FolderTag
-                      folders={folders}
-                      value={r.folder_id ?? null}
-                      onChange={fid => moveResourceFolder(r.id, fid)}
-                      disabled={!canManage}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon-sm" title="Test connection" onClick={() => testResource(r.id)} disabled={testingId === r.id}>
-                      {testingId === r.id ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
-                    </button>
-                    <button className="btn-icon-sm" title="Edit" onClick={() => openEdit(r)}><Pencil size={14} /></button>
-                    <button className="btn-icon-sm danger" title="Delete" onClick={() => deleteResource(r.id)}><Trash2 size={14} /></button>
-                    <button className="btn-icon-sm primary" title="Open" onClick={() => navigate(`/resources/${r.id}`)}><ArrowRight size={14} /></button>
-                  </div>
-                </div>
-              </div>
+                    </Typography>
+                    <FolderTag folders={folders} value={r.folder_id ?? null} onChange={fid => moveResourceFolder(r.id, fid)} disabled={!canManage} />
+                  </Box>
+                  <Box sx={{ display: 'flex', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <Tooltip title="Test connection">
+                      <span>
+                        <IconButton onClick={() => testResource(r.id)} disabled={testingId === r.id} aria-label="Test connection">
+                          {testingId === r.id ? <CircularProgress size={14} /> : <Play size={14} />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Edit"><IconButton onClick={() => openEdit(r)} aria-label="Edit"><Pencil size={14} /></IconButton></Tooltip>
+                    <Tooltip title="Delete"><IconButton color="error" onClick={() => setDeleteTarget(r)} aria-label="Delete"><Trash2 size={14} /></IconButton></Tooltip>
+                    <Tooltip title="Open"><IconButton color="primary" onClick={() => navigate(`/resources/${r.id}`)} aria-label="Open"><ArrowRight size={14} /></IconButton></Tooltip>
+                  </Box>
+                </Box>
+              </Card>
             )
           })}
-        </div>
+        </Box>
       )}
 
-      {showForm && (
-        <ResourceForm
-          form={form} setForm={setForm} editId={editId} saving={saving} folders={folders}
-          onProtocolChange={onProtocolChange} onSave={saveResource} onClose={() => setShowForm(false)}
-        />
-      )}
+      <ResourceForm
+        open={showForm}
+        form={form} setForm={setForm} editId={editId} saving={saving} folders={folders}
+        onProtocolChange={onProtocolChange} onSave={saveResource} onClose={() => setShowForm(false)}
+      />
 
-      <style>{`
-        .resource-card { transition: border-color .15s, transform .15s; }
-        .resource-card:hover { border-color: var(--border-bright); transform: translateY(-2px); }
-      `}</style>
+      <Modal
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete resource"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => deleteTarget && deleteResource(deleteTarget.id)}>Delete</Button>
+          </>
+        }
+      >
+        <Typography variant="body1" color="text.secondary">
+          Delete <b>{deleteTarget?.name}</b>? Access grants and history will be removed.
+        </Typography>
+      </Modal>
     </div>
   )
 }
 
-function SummaryPill({ label, value, color, dot }: { label: string; value: number; color: string; dot?: boolean }) {
+function SummaryPill({ label, value, dot }: { label: string; value: number; dot?: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />}
-      <span style={{ fontSize: 20, fontWeight: 800, color, fontFamily: 'var(--font-mono)' }}>{value}</span>
-      <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-    </div>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {dot && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: dot, flexShrink: 0 }} />}
+      <Typography variant="h5" component="span" sx={{ fontFamily: 'var(--font-mono)' }}>{value}</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</Typography>
+    </Box>
   )
 }
 
-function ResourceForm({ form, setForm, editId, saving, folders, onProtocolChange, onSave, onClose }: {
+function ResourceForm({ open, form, setForm, editId, saving, folders, onProtocolChange, onSave, onClose }: {
+  open: boolean
   form: ResourceFormState; setForm: Dispatch<SetStateAction<ResourceFormState>>;
   editId: number | null; saving: boolean; folders: FolderItem[];
   onProtocolChange: (p: string) => void; onSave: () => void; onClose: () => void;
 }) {
   const isDb = form.protocol === 'postgres' || form.protocol === 'mysql'
+  const set = <K extends keyof ResourceFormState>(k: K, v: ResourceFormState[K]) => setForm({ ...form, [k]: v })
+  const two = { display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 } as const
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-modal-backdrop)', background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
-      <div className="card fade-up modal-content" style={{ width: '100%', maxWidth: 680, maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(20px, 5vw, 32px)' }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, background: 'var(--brand-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Database size={22} color="var(--text-inverse)" />
-            </div>
-            <div>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>{editId ? 'Edit resource' : 'Add resource'}</h2>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{editId ? 'Update the connection settings.' : 'Connect a database, cache, or service to monitor.'}</p>
-            </div>
-          </div>
-          <button className="btn-icon-sm" onClick={onClose}><X size={14} /></button>
-        </div>
-
-        <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
-          <Field label="Name">
-            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="production-db" />
-          </Field>
-          <Field label="Type">
-            <select className="input" value={form.protocol} onChange={(e) => onProtocolChange(e.target.value)}>
-              {Object.entries(PROTOCOLS).map(([key, m]) => <option key={key} value={key}>{m.label}</option>)}
-            </select>
-          </Field>
-        </div>
-
-        <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
-          <Field label="Host">
-            <input className="input" value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} placeholder="db.internal.local" />
-          </Field>
-          <Field label="Port">
-            <input className="input" type="number" value={form.port} onChange={(e) => setForm({ ...form, port: Number(e.target.value) })} />
-          </Field>
-        </div>
-
-        <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
-          <Field label={form.protocol === 'minio' ? 'Access key' : 'Username'}>
-            <input className="input" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder={form.protocol === 'minio' ? 'minioadmin' : 'app_user'} />
-          </Field>
-          <Field label="Auth">
-            <select className="input" value={form.auth_type} onChange={(e) => setForm({ ...form, auth_type: e.target.value })}>
-              <option value="none">None</option>
-              <option value="password">Password</option>
-              <option value="token">Token / API key</option>
-            </select>
-          </Field>
-        </div>
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      size="lg"
+      icon={Database}
+      title={editId ? 'Edit resource' : 'Add resource'}
+      subtitle={editId ? 'Update the connection settings.' : 'Connect a database, cache, or service to monitor.'}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={onSave} loading={saving}>{editId ? 'Save changes' : 'Add resource'}</Button>
+        </>
+      }
+    >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={two}>
+          <TextField label="Name" value={form.name} onChange={e => set('name', e.target.value)} placeholder="production-db" />
+          <TextField select label="Type" value={form.protocol} onChange={e => onProtocolChange(e.target.value)}>
+            {Object.entries(PROTOCOLS).map(([key, m]) => <MenuItem key={key} value={key}>{m.label}</MenuItem>)}
+          </TextField>
+        </Box>
+        <Box sx={two}>
+          <TextField label="Host" value={form.host} onChange={e => set('host', e.target.value)} placeholder="db.internal.local" />
+          <TextField label="Port" type="number" value={form.port} onChange={e => set('port', Number(e.target.value))} />
+        </Box>
+        <Box sx={two}>
+          <TextField label={form.protocol === 'minio' ? 'Access key' : 'Username'} value={form.username}
+            onChange={e => set('username', e.target.value)} placeholder={form.protocol === 'minio' ? 'minioadmin' : 'app_user'} />
+          <TextField select label="Auth" value={form.auth_type} onChange={e => set('auth_type', e.target.value)}>
+            <MenuItem value="none">None</MenuItem>
+            <MenuItem value="password">Password</MenuItem>
+            <MenuItem value="token">Token / API key</MenuItem>
+          </TextField>
+        </Box>
 
         {isDb && (
-          <Field label="Database" style={{ marginBottom: 16 }}>
-            <input className="input" value={form.database || ''} onChange={(e) => setForm({ ...form, database: e.target.value })} placeholder={form.protocol === 'postgres' ? 'postgres' : 'app'} />
-          </Field>
+          <TextField label="Database" value={form.database || ''} onChange={e => set('database', e.target.value)}
+            placeholder={form.protocol === 'postgres' ? 'postgres' : 'app'} />
         )}
         {(form.auth_type === 'password' || form.protocol === 'postgres' || form.protocol === 'mysql' || form.protocol === 'redis' || form.protocol === 'minio') && form.auth_type !== 'token' && (
-          <Field label={form.protocol === 'minio' ? 'Secret key' : 'Password'} style={{ marginBottom: 16 }}>
-            <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editId ? 'Leave blank to keep current' : ''} />
-          </Field>
+          <TextField label={form.protocol === 'minio' ? 'Secret key' : 'Password'} type="password" value={form.password}
+            onChange={e => set('password', e.target.value)} placeholder={editId ? 'Leave blank to keep current' : ''} />
         )}
         {form.auth_type === 'token' && (
-          <Field label="Token / secret" style={{ marginBottom: 16 }}>
-            <input className="input" type="password" value={form.secret} onChange={(e) => setForm({ ...form, secret: e.target.value })} placeholder={editId ? 'Leave blank to keep current' : ''} />
-          </Field>
+          <TextField label="Token / secret" type="password" value={form.secret}
+            onChange={e => set('secret', e.target.value)} placeholder={editId ? 'Leave blank to keep current' : ''} />
         )}
 
-        <Field label="Connection method" style={{ marginBottom: 16 }}>
-          <select className="input" value={form.use_gateway ? 'true' : 'false'} onChange={(e) => setForm({ ...form, use_gateway: e.target.value === 'true' })}>
-            <option value="true">Via gateway (secure)</option>
-            <option value="false">Direct</option>
-          </select>
-        </Field>
+        <TextField select label="Connection method" value={form.use_gateway ? 'true' : 'false'} onChange={e => set('use_gateway', e.target.value === 'true')}>
+          <MenuItem value="true">Via gateway (secure)</MenuItem>
+          <MenuItem value="false">Direct</MenuItem>
+        </TextField>
 
-        <Field label="Description" style={{ marginBottom: 16 }}>
-          <textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What is this resource for?" style={{ height: 60, resize: 'none' }} />
-        </Field>
+        <TextField label="Description" multiline minRows={2} value={form.description}
+          onChange={e => set('description', e.target.value)} placeholder="What is this resource for?" />
 
-        <div className="grid-2-col" style={{ gap: 16, marginBottom: 24 }}>
-          <Field label="Tags">
-            <input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="prod, critical" />
-          </Field>
-          <Field label="Folder">
-            <select className="input" value={form.folder_id ?? ''} onChange={(e) => setForm({ ...form, folder_id: e.target.value ? Number(e.target.value) : null })}>
-              <option value="">No folder</option>
-              {folders.map((f: FolderItem) => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          </Field>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" style={{ flex: 2 }} onClick={onSave} disabled={saving}>
-            {saving ? <><Loader2 size={14} className="spin" /> Saving…</> : editId ? 'Save changes' : 'Add resource'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, children, style }: { label: string; children: ReactNode; style?: CSSProperties }) {
-  return (
-    <div className="input-group" style={{ marginBottom: 0, ...style }}>
-      <label className="input-label">{label}</label>
-      {children}
-    </div>
+        <Box sx={two}>
+          <TextField label="Tags" value={form.tags} onChange={e => set('tags', e.target.value)} placeholder="prod, critical" />
+          <TextField select label="Folder" value={form.folder_id ?? ''} onChange={e => set('folder_id', e.target.value ? Number(e.target.value) : null)}>
+            <MenuItem value="">No folder</MenuItem>
+            {folders.map((f: FolderItem) => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
+          </TextField>
+        </Box>
+      </Box>
+    </Modal>
   )
 }

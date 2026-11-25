@@ -2,10 +2,19 @@ import { memo } from 'react'
 import {
   Server, Boxes, LayoutGrid, Globe,
   FileCode, Key, Database, Activity,
-  Shield, HardDrive, Box, Clock,
+  Shield, HardDrive, Box as BoxIcon, Clock,
   Binary, AlertTriangle, RefreshCw, Zap,
   Activity as PulseIcon
 } from 'lucide-react'
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import Card from '@mui/material/Card'
+import CardActionArea from '@mui/material/CardActionArea'
+import Chip from '@mui/material/Chip'
+import LinearProgress from '@mui/material/LinearProgress'
+import Typography from '@mui/material/Typography'
+import { Button } from '../ui/Button'
+import { PageHeader } from '../ui/PageHeader'
 import type { ResourceType } from './K8sResourceExplorer'
 import type { IconComponent } from '../../types/k8s'
 
@@ -44,126 +53,98 @@ interface PulseDashboardProps {
    onResync: () => void;
 }
 
+type Tone = 'primary' | 'info' | 'success' | 'warning' | 'error'
+
 const Meta = ({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-    <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-    <b style={{ color: 'var(--text-secondary)', fontFamily: mono ? 'var(--font-mono)' : undefined, fontWeight: 700 }}>{value}</b>
-  </span>
+  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+    <Typography component="span" variant="body2" color="text.secondary">{label}</Typography>
+    <Typography component="span" variant="body2" sx={{ fontWeight: 600, fontFamily: mono ? 'var(--font-mono)' : undefined }}>{value}</Typography>
+  </Box>
 )
 
 const StatusBadge = ({ connecting, error, degraded }: { connecting: boolean; error: boolean; degraded: boolean }) => {
   // Reachability outranks everything: reporting "Online" next to a screen of
   // zeroes, when the zeroes exist because the cluster never answered, is the
   // one state this badge must never show.
-  const cls = error ? 'badge badge-danger' : connecting ? 'badge badge-warning' : degraded ? 'badge badge-warning' : 'badge badge-success'
+  const color = error ? 'error' : connecting || degraded ? 'warning' : 'success'
   const label = error ? 'Unreachable' : connecting ? 'Connecting…' : degraded ? 'Partial access' : 'Online'
-  return (
-    <span className={cls} style={{ gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.03em' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
-      {label}
-    </span>
-  )
+  return <Chip size="small" color={color} label={label} />
 }
 
 const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-    <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>{children}</h3>
-    <div style={{ flex: 1, height: 1, background: 'var(--border)', opacity: 0.5 }} />
-  </div>
+  <Typography variant="subtitle2" component="h3" color="text.secondary" sx={{ mb: 1.5 }}>{children}</Typography>
 )
 
 export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialErrors, connecting, onJump, onResync }: PulseDashboardProps) => {
    const failed = partialErrors ? Object.keys(partialErrors) : []
    const degraded = failed.length > 0
    return (
-      <div className="fade-in" style={{ padding: '0 6px', maxWidth: '100%' }}>
-         {/* Header */}
-         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 26 }}>
-            <div style={{ minWidth: 0 }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <StatusBadge connecting={connecting} error={!!error} degraded={degraded} />
-                  {stats?.k8sVersion && <span className="badge badge-neutral" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>{stats.k8sVersion}</span>}
-                  <span className="badge badge-neutral hidden-mobile" style={{ fontSize: 11 }}>Kubernetes engine</span>
-               </div>
-               <h1 style={{ fontSize: 23, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.25, margin: '0 0 10px' }}>
-                  {cluster.name}
-               </h1>
-               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12.5, lineHeight: 1.4 }}>
-                  <Meta label="Host:" value={cluster.host || 'auto'} />
-                  <span style={{ opacity: 0.35 }}>•</span>
-                  <Meta label="Scope:" value={namespace === 'All' ? 'Cluster scope' : namespace} />
-                  <span className="hidden-mobile" style={{ opacity: 0.35 }}>•</span>
-                  <span className="hidden-mobile" style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <Clock size={12} /> Live streaming
-                  </span>
-               </div>
-            </div>
-            <button
-              className="btn btn-secondary"
-              onClick={onResync}
-              title="Reconnect the live data stream"
-              style={{ height: 34, padding: '0 14px', fontWeight: 700, fontSize: 12.5, flexShrink: 0 }}
-            >
-              <RefreshCw size={13} /> Refresh
-            </button>
-         </div>
+      <Box sx={{ maxWidth: '100%' }}>
+         <PageHeader
+            title={cluster.name}
+            actions={
+               <Button variant="secondary" size="sm" icon={<RefreshCw size={13} />} onClick={onResync} title="Reconnect the live data stream">Refresh</Button>
+            }
+         />
+         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: -1, mb: 3, flexWrap: 'wrap' }}>
+            <StatusBadge connecting={connecting} error={!!error} degraded={degraded} />
+            {stats?.k8sVersion && <Chip size="small" variant="outlined" label={stats.k8sVersion} sx={{ fontFamily: 'var(--font-mono)' }} />}
+            <Meta label="Host" value={cluster.host || 'auto'} />
+            <Meta label="Scope" value={namespace === 'All' ? 'Cluster scope' : namespace} />
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline-flex' }, alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+               <Clock size={12} /> <Typography component="span" variant="body2">Live streaming</Typography>
+            </Box>
+         </Box>
 
          {error ? (
-            <div style={{ border: '1px solid var(--danger)30', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '48px 32px', textAlign: 'center' }}>
-               <Zap size={22} color="var(--danger)" style={{ marginBottom: 14 }} />
-               <h2 style={{ fontWeight: 800, fontSize: 16, margin: '0 0 6px' }}>Could not reach the cluster</h2>
-               <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 18px' }}>The real-time stream failed. Check the cluster connection and try again.</p>
-               <div style={{ margin: '0 auto 20px', maxWidth: 560, padding: 12, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--danger)', fontFamily: 'var(--font-mono)', textAlign: 'left', wordBreak: 'break-word' }}>
+            <Card variant="outlined" sx={{ p: 5, textAlign: 'center' }}>
+               <Box sx={{ color: 'error.main', mb: 1.5 }}><Zap size={22} /></Box>
+               <Typography variant="h6" component="h2">Could not reach the cluster</Typography>
+               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>The real-time stream failed. Check the cluster connection and try again.</Typography>
+               <Alert severity="error" sx={{ mx: 'auto', mb: 2.5, maxWidth: 560, textAlign: 'left', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
                   {error}
-               </div>
-               <button className="btn btn-primary" onClick={onResync} style={{ fontWeight: 700 }}>
-                  <RefreshCw size={14} /> Reconnect
-               </button>
-            </div>
+               </Alert>
+               <Button icon={<RefreshCw size={14} />} onClick={onResync}>Reconnect</Button>
+            </Card>
          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                {degraded && (
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', border: '1px solid var(--warning)40', background: 'var(--warning)10', borderRadius: 'var(--radius-md)' }}>
-                     <AlertTriangle size={15} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
-                     <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, minWidth: 0 }}>
-                        <b style={{ color: 'var(--text-primary)' }}>Some resources could not be read.</b>{' '}
-                        Counts below show 0 for {failed.join(', ')} because the lookup failed, not because none exist.
-                        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
-                           {partialErrors && partialErrors[failed[0]]}
-                        </div>
-                     </div>
-                  </div>
+                  <Alert severity="warning" icon={<AlertTriangle size={16} />}>
+                     <b>Some resources could not be read.</b>{' '}
+                     Counts below show 0 for {failed.join(', ')} because the lookup failed, not because none exist.
+                     <Box sx={{ mt: 0.75, fontSize: 11.5, color: 'text.secondary', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
+                        {partialErrors && partialErrors[failed[0]]}
+                     </Box>
+                  </Alert>
                )}
                {stats && (
                   <>
-                     {/* Tier 1: Core metrics */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 14 }}>
+                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 1.5 }}>
                         <PulseStat
                            label="Nodes" main={stats.nodesReady || 0} total={stats.nodes || 0} sub="Ready"
-                           icon={Server} color="var(--info)" onClick={() => onJump('nodes')} loading={connecting}
+                           icon={Server} tone="info" onClick={() => onJump('nodes')} loading={connecting}
                         />
                         <PulseStat
                            label="Pods" main={stats.podsRunning || 0} total={stats.pods || 0} sub="Running"
-                           icon={Boxes} color="var(--brand-primary)" onClick={() => onJump('pods')} loading={connecting}
+                           icon={Boxes} tone="primary" onClick={() => onJump('pods')} loading={connecting}
                         />
                         <PulseStat
                            label="Deployments" main={stats.deploymentsReady || 0} total={stats.deployments || 0} sub="Healthy"
-                           icon={LayoutGrid} color="var(--success)" onClick={() => onJump('deployments')} loading={connecting}
+                           icon={LayoutGrid} tone="success" onClick={() => onJump('deployments')} loading={connecting}
                         />
-                     </div>
+                     </Box>
 
-                     {/* Tier 2: Consumption */}
                      {(stats.cpuTotal > 0 || stats.memTotal > 0) && (
                         <section>
                            <SectionTitle>Resource metrics</SectionTitle>
-                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 14 }}>
+                           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 1.5 }}>
                               <CapacityCard
                                  label="CPU resources"
                                  allocatable={stats.cpuAllocatable}
                                  usage={stats.cpuUsage}
                                  total={stats.cpuTotal}
                                  unit="m"
-                                 color="#2b9af3"
+                                 tone="info"
                                  icon={Activity}
                               />
                               <CapacityCard
@@ -172,17 +153,16 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialE
                                  usage={stats.memUsage}
                                  total={stats.memTotal}
                                  unit="B"
-                                 color="#5ba352"
-                                 icon={Box}
+                                 tone="success"
+                                 icon={BoxIcon}
                               />
-                           </div>
+                           </Box>
                         </section>
                      )}
 
-                     {/* Tier 3: Resource counts */}
                      <section>
                         <SectionTitle>Resource counts</SectionTitle>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 10 }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 1.25 }}>
                            <MiniStat label="Services" count={stats.services} icon={Globe} onClick={() => onJump('services')} />
                            <MiniStat label="Endpoints" count={stats.endpoints} icon={Boxes} onClick={() => onJump('endpoints')} />
                            <MiniStat label="Ingresses" count={stats.ingresses} icon={Globe} onClick={() => onJump('ingresses')} />
@@ -192,82 +172,80 @@ export const PulseDashboard = memo(({ cluster, stats, namespace, error, partialE
                            <MiniStat label="HPA" count={stats.hpa} icon={PulseIcon} onClick={() => onJump('hpa')} />
                            <MiniStat label="PVCs" count={stats.pvcs} icon={HardDrive} onClick={() => onJump('pvcs')} />
                            <MiniStat label="PVs" count={stats.pvs} icon={Database} onClick={() => onJump('pvs')} />
-                           <MiniStat label="StorageClasses" count={stats.storageclasses} icon={Box} onClick={() => onJump('storageclasses')} />
+                           <MiniStat label="StorageClasses" count={stats.storageclasses} icon={BoxIcon} onClick={() => onJump('storageclasses')} />
                            <MiniStat label="Jobs" count={stats.jobs} icon={Zap} onClick={() => onJump('jobs')} />
                            <MiniStat label="CronJobs" count={stats.cronjobs} icon={Binary} onClick={() => onJump('cronjobs')} />
                            <MiniStat
                              label="Warning events" count={stats.eventsWarning} icon={AlertTriangle}
-                             color={stats.eventsWarning > 0 ? 'var(--warning)' : undefined}
+                             tone={stats.eventsWarning > 0 ? 'warning' : undefined}
                              onClick={() => onJump('events')}
                            />
-                        </div>
+                        </Box>
                      </section>
                   </>
                )}
-            </div>
+            </Box>
          )}
-      </div>
+      </Box>
    )
 })
 
-const PulseStat = memo(({ label, main, total, sub, icon: Icon, color, onClick, loading }: {
+const PulseStat = memo(({ label, main, total, sub, icon: Icon, tone, onClick, loading }: {
    label: string; main: number; total: number; sub: string;
-   icon: IconComponent; color: string; onClick: () => void; loading: boolean;
+   icon: IconComponent; tone: Tone; onClick: () => void; loading: boolean;
  }) => {
    const hasTotal = total > 0;
    const isWarning = hasTotal && main < total;
-   const statusColor = isWarning ? 'var(--warning)' : color;
+   const statusTone: Tone = isWarning ? 'warning' : tone;
 
    return (
-      <div className="card hover-lift" onClick={onClick} style={{ cursor: 'pointer', padding: 18, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-               <div style={{ width: 30, height: 30, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: statusColor, flexShrink: 0 }}>
-                  <Icon size={14} strokeWidth={2.2} />
-               </div>
-               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-            </div>
-            {hasTotal && (
-               <span className={`badge ${isWarning ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                  {isWarning ? 'Attention' : 'Healthy'}
-               </span>
-            )}
-         </div>
+      <Card variant="outlined">
+         <CardActionArea onClick={onClick} sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                  <Box sx={{ width: 30, height: 30, borderRadius: 1, bgcolor: 'action.selected', display: 'grid', placeItems: 'center', color: `${statusTone}.main`, flexShrink: 0 }}>
+                     <Icon size={15} />
+                  </Box>
+                  <Typography variant="subtitle2" noWrap>{label}</Typography>
+               </Box>
+               {hasTotal && <Chip size="small" color={isWarning ? 'warning' : 'success'} label={isWarning ? 'Attention' : 'Healthy'} />}
+            </Box>
 
-         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
-               {loading ? '—' : (main || 0)}
-            </span>
-            {hasTotal && (
-               <span style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>/ {loading ? '—' : (total || 0)}</span>
-            )}
-            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{sub}</span>
-         </div>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+               <Typography component="span" sx={{ fontSize: 26, fontWeight: 700, fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
+                  {loading ? '—' : (main || 0)}
+               </Typography>
+               {hasTotal && (
+                  <Typography component="span" variant="body2" color="text.secondary" sx={{ fontFamily: 'var(--font-mono)' }}>/ {loading ? '—' : (total || 0)}</Typography>
+               )}
+               <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>{sub}</Typography>
+            </Box>
 
-         {hasTotal && (
-            <div style={{ height: 4, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
-               <div style={{ height: '100%', width: `${Math.min((main / total) * 100, 100)}%`, background: statusColor, transition: 'width 1s ease' }} />
-            </div>
-         )}
-      </div>
+            {hasTotal && (
+               <LinearProgress variant="determinate" color={statusTone} value={Math.min((main / total) * 100, 100)} sx={{ height: 4, borderRadius: 2 }} />
+            )}
+         </CardActionArea>
+      </Card>
    )
 })
 
-const MiniStat = memo(({ label, count, icon: Icon, onClick, color }: {
-   label: string; count: number; icon: IconComponent; onClick: () => void; color?: string;
+const MiniStat = memo(({ label, count, icon: Icon, onClick, tone }: {
+   label: string; count: number; icon: IconComponent; onClick: () => void; tone?: Tone;
  }) => (
-   <div className="card hover-lift" style={{ cursor: 'pointer', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 10 }} onClick={onClick}>
-      <div style={{ width: 28, height: 28, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: color || 'var(--brand-primary)', flexShrink: 0 }}>
-         <Icon size={13} strokeWidth={2.2} />
-      </div>
-      <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 800, color: color || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count || 0}</span>
-   </div>
+   <Card variant="outlined">
+      <CardActionArea onClick={onClick} sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1.25 }}>
+         <Box sx={{ width: 28, height: 28, borderRadius: 1, bgcolor: 'action.selected', display: 'grid', placeItems: 'center', color: `${tone ?? 'primary'}.main`, flexShrink: 0 }}>
+            <Icon size={14} />
+         </Box>
+         <Typography variant="body2" noWrap sx={{ flex: 1 }}>{label}</Typography>
+         <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: tone ? `${tone}.main` : 'text.primary' }}>{count || 0}</Typography>
+      </CardActionArea>
+   </Card>
 ))
 
-const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon: Icon }: {
+const CapacityCard = memo(({ label, allocatable, usage, total, unit, tone, icon: Icon }: {
    label: string; allocatable: number; usage: number; total: number;
-   unit: string; color: string; icon: IconComponent;
+   unit: string; tone: Tone; icon: IconComponent;
  }) => {
    const formatValue = (v: number, u: string) => {
       if (u === 'B') {
@@ -285,23 +263,21 @@ const CapacityCard = memo(({ label, allocatable, usage, total, unit, color, icon
    const displayUsage = (usage && usage > 0) ? usage : ((total - allocatable) || 0);
 
    return (
-      <div className="card" style={{ padding: 18, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-               <Icon size={14} color={color} strokeWidth={2.2} />
-               <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>{label}</span>
-            </div>
-            <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'var(--font-mono)' }}>{safePct.toFixed(0)}%</span>
-         </div>
+      <Card variant="outlined" sx={{ p: 2 }}>
+         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: `${tone}.main` }}>
+               <Icon size={15} />
+               <Typography variant="subtitle2" color="text.primary">{label}</Typography>
+            </Box>
+            <Typography variant="subtitle1" sx={{ fontFamily: 'var(--font-mono)', color: `${tone}.main` }}>{safePct.toFixed(0)}%</Typography>
+         </Box>
 
-         <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {formatValue(displayUsage || 0, unit)} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>/ {formatValue(total || 0, unit)}</span>
-         </div>
+         <Typography sx={{ fontSize: 19, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+            {formatValue(displayUsage || 0, unit)} <Typography component="span" variant="body2" color="text.secondary">/ {formatValue(total || 0, unit)}</Typography>
+         </Typography>
 
-         <div style={{ height: 5, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden', marginTop: 14 }}>
-            <div style={{ height: '100%', width: `${Math.min(safePct, 100)}%`, background: color, borderRadius: 'var(--radius-full)', transition: 'width 1s ease' }} />
-         </div>
-      </div>
+         <LinearProgress variant="determinate" color={tone} value={Math.min(safePct, 100)} sx={{ height: 5, borderRadius: 3, mt: 1.5 }} />
+      </Card>
    )
 })
 

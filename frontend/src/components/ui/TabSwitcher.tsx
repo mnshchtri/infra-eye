@@ -1,3 +1,6 @@
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Chip from '@mui/material/Chip'
 import type { LucideIcon } from 'lucide-react'
 
 export interface TabSwitcherTab {
@@ -14,21 +17,30 @@ export interface TabSwitcherProps {
   className?: string
 }
 
-export function TabSwitcher({ tabs, active, onChange, className = '' }: TabSwitcherProps) {
+export function TabSwitcher({ tabs, active, onChange, className }: TabSwitcherProps) {
   return (
-    <div className={`tab-switcher ${className}`}>
+    <Tabs
+      className={className}
+      value={tabs.some(t => t.id === active) ? active : false}
+      onChange={(_, id: string) => onChange(id)}
+      variant="scrollable"
+      scrollButtons="auto"
+      sx={{ minHeight: 36, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 36, py: 0.5 } }}
+    >
       {tabs.map(t => (
-        <button
+        <Tab
           key={t.id}
-          type="button"
-          onClick={() => onChange(t.id)}
-          className={`tab-switcher-btn${active === t.id ? ' active' : ''}`}
-        >
-          {t.icon && <t.icon size={14} />}
-          {t.label}
-          {t.count !== undefined && <span className="tab-switcher-count">{t.count}</span>}
-        </button>
+          value={t.id}
+          icon={t.icon ? <t.icon size={14} /> : undefined}
+          iconPosition="start"
+          label={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {t.label}
+              {t.count !== undefined && <Chip label={t.count} size="small" sx={{ height: 16, fontSize: '0.625rem' }} />}
+            </span>
+          }
+        />
       ))}
-    </div>
+    </Tabs>
   )
 }

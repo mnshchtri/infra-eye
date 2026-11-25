@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
-import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, ArrowRight, Bell, Send, Eye, EyeOff } from 'lucide-react'
+import { User, Shield, Mail, Lock, Plus, Pencil, Trash2, Bell, Send, Eye, EyeOff } from 'lucide-react'
+import {
+  Alert, Avatar, Box, Card, Checkbox, Chip, CircularProgress, FormControlLabel, IconButton, InputAdornment,
+  MenuItem, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
+} from '@mui/material'
+import type { IconComponent } from '../types/k8s'
+import { Button, Modal, PageHeader, TabSwitcher, EmptyState } from '../components/ui'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { usePermission } from '../hooks/usePermission'
@@ -17,16 +23,35 @@ interface UserData {
 function ApiKeyField({ label, value, onChange, placeholder, hint }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; hint?: string }) {
   const [show, setShow] = useState(false)
   return (
-    <div className="input-group">
-      <label className="input-label">{label}</label>
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-        <input className="input" type={show ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ paddingRight: 40 }} />
-        <button type="button" onClick={() => setShow(s => !s)} aria-label={show ? 'Hide API key' : 'Show API key'} className="pw-toggle">
-          {show ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
-      {hint && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{hint}</p>}
-    </div>
+    <TextField
+      label={label} fullWidth value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      type={show ? 'text' : 'password'} helperText={hint} autoComplete="off"
+      slotProps={{
+        input: {
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton edge="end" onClick={() => setShow(s => !s)} aria-label={show ? `Hide ${label}` : `Show ${label}`}>
+                {show ? <EyeOff size={16} /> : <Eye size={16} />}
+              </IconButton>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  )
+}
+
+function PanelHeader({ icon: Icon, title, subtitle }: { icon: IconComponent; title: string; subtitle: string }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+      <Box sx={{ width: 40, height: 40, borderRadius: 1, display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: 'action.selected', color: 'primary.main' }}>
+        <Icon size={20} />
+      </Box>
+      <Box>
+        <Typography variant="h6" component="h2">{title}</Typography>
+        <Typography variant="body1" color="text.secondary">{subtitle}</Typography>
+      </Box>
+    </Box>
   )
 }
 
@@ -68,6 +93,7 @@ export function Settings() {
   const [userForm, setUserForm] = useState(emptyUserForm)
   const [editUserId, setEditUserId] = useState<number | null>(null)
   const [userSaving, setUserSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<UserData | null>(null)
 
   useEffect(() => {
     if (activeTab === 'users' && can('manage-users')) {
@@ -184,9 +210,11 @@ export function Settings() {
     try {
       await api.delete(`/api/users/${id}`)
       toast.success('User removed', `${username} has been deleted.`)
+      setDeleteTarget(null)
       loadUsers()
     } catch (err: unknown) {
       toast.error('Delete failed', apiError(err) || 'Could not delete user.')
+      setDeleteTarget(null)
     }
   }
 
@@ -196,354 +224,256 @@ export function Settings() {
     setShowUserForm(true)
   }
 
-  const roleColors: Record<string, string> = {
-    admin: '#ef4444',   // var(--danger)
-    devops: '#4f46e5',  // var(--brand-primary)
-    trainee: '#f59e0b', // var(--warning)
-    intern: '#3b82f6'   // var(--info)
-  }
+  const roleChip = (role: string) => (
+    <Chip label={role.charAt(0).toUpperCase() + role.slice(1)} size="small"
+      color={role === 'admin' ? 'error' : role === 'devops' ? 'primary' : role === 'trainee' ? 'warning' : 'info'} />
+  )
+  const two = { display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.5 } as const
+  const tabs = [
+    { id: 'profile', label: 'My account', icon: User },
+    { id: 'ai', label: 'AI credentials', icon: Lock },
+    ...(can('manage-users') ? [{ id: 'notifications', label: 'Notifications', icon: Bell }, { id: 'users', label: 'User management', icon: Shield }] : []),
+  ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }} className="page">
-      {/* Fixed top: title + tab switcher */}
-      <div style={{ flexShrink: 0 }}>
-        <div className="page-header" style={{ marginBottom: 16 }}>
-          <div>
-            <h1 className="page-title">Settings</h1>
-            <p className="page-subtitle hidden-mobile">Manage your account and platform preferences</p>
-          </div>
-        </div>
+    <div className="page">
+      <PageHeader title="Settings" subtitle="Manage your account and platform preferences" />
 
-        <div className="tabs-container tabs-scroll-x" style={{ 
-          display: 'flex', gap: 0, marginBottom: 32, borderBottom: '1px solid var(--border)', width: '100%'
-        }}>
-          <button
-            onClick={() => setActiveTab('profile')}
-            style={{
-              padding: '12px 24px', fontSize: 12, fontWeight: 900,
-              transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-              background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
-              display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-mono)',
-              position: 'relative',
-              color: activeTab === 'profile' ? 'var(--brand-primary)' : 'var(--text-muted)'
-            }}
-          >
-            <User size={14} /> MY ACCOUNT
-            {activeTab === 'profile' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
-          </button>
+      <Box sx={{ mb: 3 }}>
+        <TabSwitcher tabs={tabs} active={activeTab} onChange={id => setActiveTab(id as typeof activeTab)} />
+      </Box>
 
-          <button
-            onClick={() => setActiveTab('ai')}
-            style={{
-              padding: '12px 24px', fontSize: 12, fontWeight: 900,
-              transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-              background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
-              display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-mono)',
-              position: 'relative',
-              color: activeTab === 'ai' ? 'var(--brand-primary)' : 'var(--text-muted)'
-            }}
-          >
-            <Lock size={14} /> AI_CREDENTIALS
-            {activeTab === 'ai' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
-          </button>
+      {activeTab === 'profile' && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px 1fr' }, gap: 3, alignItems: 'start' }}>
+          <Card sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            <Avatar sx={{ width: 64, height: 64, fontSize: 26, fontWeight: 700, bgcolor: 'primary.main', mb: 2 }}>
+              {currentUser?.username.charAt(0).toUpperCase()}
+            </Avatar>
+            <Typography variant="h5" component="h2">{currentUser?.username}</Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 2.5 }}>Tier {currentUser?.id} platform member</Typography>
+            <Box sx={{ width: '100%', pt: 2.5, borderTop: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">Security role</Typography>
+                {roleChip(currentUser?.role || 'intern')}
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">Status</Typography>
+                <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: 'success.main' }} /> Authorized
+                </Typography>
+              </Box>
+            </Box>
+          </Card>
 
-          {can('manage-users') && (
-            <button
-              onClick={() => setActiveTab('notifications')}
-              style={{
-                padding: '12px 24px', fontSize: 12, fontWeight: 900,
-                transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-                background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
-                display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
-                fontFamily: 'var(--font-mono)',
-                position: 'relative',
-                color: activeTab === 'notifications' ? 'var(--brand-primary)' : 'var(--text-muted)'
-              }}
-            >
-              <Bell size={14} /> NOTIFICATIONS
-              {activeTab === 'notifications' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
-            </button>
-          )}
-
-          {can('manage-users') && (
-            <button
-              onClick={() => setActiveTab('users')}
-              style={{
-                padding: '12px 24px', fontSize: 12, fontWeight: 900,
-                transition: 'all 0.2s', cursor: 'pointer', border: 'none',
-                background: 'transparent', textTransform: 'uppercase', letterSpacing: '0.1em',
-                display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
-                fontFamily: 'var(--font-mono)',
-                position: 'relative',
-                color: activeTab === 'users' ? 'var(--brand-primary)' : 'var(--text-muted)'
-              }}
-            >
-              <Shield size={14} /> USER MANAGEMENT
-              {activeTab === 'users' && <div style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--brand-primary)' }} />}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Scrollable tab content */}
-      <div className="fade-up" style={{ flex: 1, overflowY: 'auto', paddingBottom: 40 }}>
-        {activeTab === 'profile' && (
-          <div className="grid-2-col" style={{ gap: 24, alignItems: 'start' }}>
-            <div className="card" style={{ padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-               <div style={{ 
-                 width: 64, height: 64, background: 'var(--bg-elevated)',
-                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 900, color: 'var(--brand-primary)',
-                 marginBottom: 20, textTransform: 'uppercase', border: '1px solid var(--border)', borderTop: '4px solid var(--brand-primary)'
-               }}>
-                 {currentUser?.username.charAt(0)}
-               </div>
-               <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{currentUser?.username}</h2>
-               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Tier {currentUser?.id} Platform Member</p>
-               <div style={{ width: '100%', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Security Role</span>
-                     <span className="badge" style={{ background: `${roleColors[currentUser?.role || 'intern']}15`, color: roleColors[currentUser?.role || 'intern'], border: `1px solid ${roleColors[currentUser?.role || 'intern']}25`, padding: '4px 8px', fontSize: 12 }}>{currentUser?.role.toUpperCase()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px var(--success)' }} /> Authorized
-                      </span>
-                  </div>
-               </div>
-            </div>
-
-            <div className="card" style={{ padding: '32px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><User size={20} color="var(--brand-primary)" /></div>
-                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal Information</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Update contact email and security credentials</p></div>
-              </div>
-              <form onSubmit={updateProfile}>
-                <div className="grid-2-col" style={{ gap: 20, marginBottom: 32 }}>
-                  <div className="input-group"><label className="input-label">Username</label><input className="input" value={currentUser?.username} disabled style={{ opacity: 0.6, background: 'var(--bg-elevated)' }} /></div>
-                  <div className="input-group"><label className="input-label">Public Email Address</label><div style={{ position: 'relative' }}><Mail size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} /><input className="input" style={{ paddingLeft: 42 }} value={profileEmail} onChange={e => setProfileEmail(e.target.value)} placeholder="you@example.com" /></div></div>
-                </div>
-                <div className="danger-zone" style={{ marginTop: 0, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}><Lock size={18} color="var(--text-muted)" /><h3 style={{ fontSize: 14, fontWeight: 700 }}>Security Rotation</h3></div>
-                   <div className="input-group"><label className="input-label">New Password</label><div style={{ position: 'relative' }}><Lock size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-muted)' }} /><input className="input" type="password" style={{ paddingLeft: 42 }} value={profilePassword} onChange={e => setProfilePassword(e.target.value)} placeholder="Keep current or enter new" minLength={6} /></div><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Rotate password regularly to ensure platform safety.</p></div>
-                </div>
-                <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ width: '100%', maxWidth: 200, height: 44, fontSize: 14, fontWeight: 700 }}>{profileSaving ? 'Saving...' : 'Save Settings'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'ai' && (
-          <div className="fade-up" style={{ maxWidth: 800 }}>
-             <div className="card" style={{ padding: '32px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Lock size={20} color="var(--brand-primary)" /></div>
-                <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Personal AI Infrastructure</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Configure individual API keys to power your Netra AI interactions.</p></div>
-              </div>
-
-              <form onSubmit={updateProfile}>
-                <div style={{ display: 'grid', gap: 24 }}>
-                  <ApiKeyField label="OpenRouter API Key" value={openRouterKey} onChange={setOpenRouterKey} placeholder="sk-or-v1-..." hint="Used as primary fallback for most models." />
-
-                  <div className="grid-2-col" style={{ gap: 20 }}>
-                    <ApiKeyField label="DeepSeek API Key" value={deepSeekKey} onChange={setDeepSeekKey} placeholder="sk-..." />
-                    <ApiKeyField label="Anthropic (Claude) API Key" value={claudeKey} onChange={setClaudeKey} placeholder="sk-ant-..." />
-                  </div>
-
-                  <div className="grid-2-col" style={{ gap: 20 }}>
-                    <ApiKeyField label="Google (Gemini) API Key" value={geminiKey} onChange={setGeminiKey} placeholder="AIza..." />
-                    <ApiKeyField label="Mistral API Key" value={mistralKey} onChange={setMistralKey} placeholder="sk-..." />
-                  </div>
-
-                  <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                    <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: '20px 0 4px' }}>Local LLM</h3>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Point Netra at a self-hosted, OpenAI-compatible endpoint — Ollama, LM Studio, llama.cpp server, or vLLM. No API key needed; runs entirely on infrastructure you control.</p>
-                    <div className="grid-2-col" style={{ gap: 20 }}>
-                      <div className="input-group">
-                        <label className="input-label">Endpoint URL</label>
-                        <input className="input" type="text" value={localLLMURL} onChange={e => setLocalLLMURL(e.target.value)} placeholder="http://localhost:11434" />
-                      </div>
-                      <div className="input-group">
-                        <label className="input-label">Model Name</label>
-                        <input className="input" type="text" value={localLLMModel} onChange={e => setLocalLLMModel(e.target.value)} placeholder="llama3.2" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="submit" className="btn btn-primary" disabled={profileSaving} style={{ width: '100%', maxWidth: 200, height: 44, fontSize: 14, fontWeight: 700 }}>{profileSaving ? 'Saving...' : 'Sync AI Keys'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'notifications' && can('manage-users') && (
-          <div className="fade-up" style={{ maxWidth: 800 }}>
-            <div className="card" style={{ padding: '32px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Bell size={20} color="var(--brand-primary)" /></div>
-                <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Alert Notifications</h2>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Where alert rules and self-healing events send notifications. Applies platform-wide.</p>
-                </div>
-              </div>
-
-              <form onSubmit={saveNotificationSettings}>
-                <div style={{ display: 'grid', gap: 28 }}>
-                  {/* Google Chat */}
-                  <div className="input-group">
-                    <label className="input-label">Google Chat webhook URL</label>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <input
-                        className="input"
-                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 13 }}
-                        value={gchatUrl}
-                        onChange={e => setGchatUrl(e.target.value)}
-                        placeholder="https://chat.googleapis.com/v1/spaces/…/messages?key=…&token=…"
-                        spellCheck={false}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => testWebhook('google_chat')}
-                        disabled={testingChannel !== null || (!gchatUrl.trim() && !gchatEnvSet)}
-                        title="Send a test message to this webhook"
-                        style={{ gap: 6, whiteSpace: 'nowrap' }}
-                      >
-                        <Send size={14} /> {testingChannel === 'google_chat' ? 'Sending…' : 'Test'}
-                      </button>
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
-                      In Google Chat: open the space → space name → <strong>Apps &amp; integrations</strong> → <strong>Webhooks</strong> → add one and paste its URL here. Must be an https URL on <code style={{ fontFamily: 'var(--font-mono)' }}>chat.googleapis.com</code>.
-                    </p>
-                    {gchatEnvSet && !gchatUrl.trim() && (
-                      <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
-                        Currently using the URL from the GOOGLE_CHAT_WEBHOOK_URL environment variable — saving a value here overrides it.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Slack */}
-                  <div className="input-group">
-                    <label className="input-label">Slack webhook URL <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(optional)</span></label>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <input
-                        className="input"
-                        style={{ flex: '1 1 240px', fontFamily: 'var(--font-mono)', fontSize: 13 }}
-                        value={slackUrl}
-                        onChange={e => setSlackUrl(e.target.value)}
-                        placeholder="https://hooks.slack.com/services/T…/B…/…"
-                        spellCheck={false}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => testWebhook('slack')}
-                        disabled={testingChannel !== null || (!slackUrl.trim() && !slackEnvSet)}
-                        title="Send a test message to this webhook"
-                        style={{ gap: 6, whiteSpace: 'nowrap' }}
-                      >
-                        <Send size={14} /> {testingChannel === 'slack' ? 'Sending…' : 'Test'}
-                      </button>
-                    </div>
-                    {slackEnvSet && !slackUrl.trim() && (
-                      <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
-                        Currently using the URL from the SLACK_WEBHOOK_URL environment variable — saving a value here overrides it.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 420, lineHeight: 1.5 }}>
-                    Leave a field empty and save to clear it. Webhook URLs are credentials — anyone with the URL can post to the space.
-                  </p>
-                  <button type="submit" className="btn btn-primary" disabled={notifSaving} style={{ minWidth: 160, height: 44, fontSize: 14, fontWeight: 700 }}>
-                    {notifSaving ? 'Saving…' : 'Save webhooks'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'users' && can('manage-users') && (
-          <div className="fade-in">
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Shield size={22} color="var(--brand-primary)" /></div>
-                  <div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Access Control</h2><p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Manage administrative users</p></div>
-                </div>
-                <button className="btn btn-primary btn-sm" onClick={() => { setShowUserForm(true); setEditUserId(null); setUserForm(emptyUserForm) }}><Plus size={16} /> <span className="hidden-mobile">Add User</span><span className="show-mobile-only">Add</span></button>
-              </div>
-              <div className="table-container" style={{ border: 'none' }}>
-                <table className="k-table">
-                  <thead>
-                    <tr>
-                      {['User', 'Role', 'Status', 'Actions'].map(h => (<th key={h}>{h}</th>))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '60px' }}><div className="spinner" style={{ margin: '0 auto' }}></div></td></tr>
-                    ) : users.length === 0 ? (
-                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>No users registered.</td></tr>
-                    ) : users.map((u) => (
-                      <tr key={u.id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={{ width: 28, height: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: 'var(--brand-primary)', fontSize: 12 }}>{u.username.charAt(0).toUpperCase()}</div>
-                            <div>
-                              <div style={{ fontWeight: 900, color: 'var(--text-primary)', fontSize: 13, textTransform: 'uppercase' }}>{u.username}</div>
-                              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{u.email || 'SYSTEM@INFRAEYE.LOCAL'}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td><span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>{u.role.toUpperCase()}</span></td>
-                        <td>{u.is_active ? <span className="badge badge-online">ACTIVE</span> : <span className="badge badge-offline">INACTIVE</span>}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn-icon-sm" onClick={() => editUser(u)}><Pencil size={13} /></button>
-                            {currentUser?.id !== u.id && (<button className="btn-icon-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteUser(u.id, u.username)}><Trash2 size={13} /></button>)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>{/* end scrollable content */}
-
-      {showUserForm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-modal-backdrop)', background: 'var(--glass-bg)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="card fade-up" style={{ width: '100%', maxWidth: 460, padding: '24px 20px', boxShadow: 'var(--shadow-lg)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}><div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={20} color="var(--brand-primary)" /></div><h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{editUserId ? 'Update User' : 'Provision User'}</h2></div>
-            <form onSubmit={saveUser}>
-              <div className="input-group"><label className="input-label">Username</label><input className="input" required value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} disabled={!!editUserId} placeholder="e.g. jdoe" /></div>
-              <div className="input-group"><label className="input-label">Email</label><input className="input" type="email" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} placeholder="user@infraeye.local" /></div>
-              <div className="input-group"><label className="input-label">{editUserId ? 'New Password (Optional)' : 'Password'}</label><input className="input" type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required={!editUserId} minLength={6} placeholder="Enter password" /></div>
-              <div className="input-group"><label className="input-label">Role</label><div style={{ position: 'relative' }}><select className="input" value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} style={{ WebkitAppearance: 'none', appearance: 'none' }}><option value="intern">Intern tier</option><option value="trainee">Trainee tier</option><option value="devops">DevOps tier</option><option value="admin">Administrator tier</option></select><ArrowRight size={14} style={{ position: 'absolute', right: 14, top: 14, transform: 'rotate(90deg)', color: 'var(--text-muted)' }} /></div></div>
-              {!!editUserId && (<div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, padding: '12px', background: 'var(--bg-elevated)', borderRadius: 12, border: '1px solid var(--border)' }}><input type="checkbox" id="activeCheckbox" checked={userForm.is_active} onChange={e => setUserForm({...userForm, is_active: e.target.checked})} /><label htmlFor="activeCheckbox" style={{ fontSize: 13, fontWeight: 700, marginBottom: 0 }}>Authorization Active</label></div>)}
-              <div style={{ display: 'flex', gap: 12, marginTop: 28 }}><button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowUserForm(false)}>Cancel</button><button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={userSaving}>{userSaving ? 'Saving...' : 'Confirm'}</button></div>
-            </form>
-          </div>
-        </div>
+          <Card sx={{ p: 3 }}>
+            <PanelHeader icon={User} title="Personal information" subtitle="Update contact email and security credentials" />
+            <Box component="form" onSubmit={updateProfile}>
+              <Box sx={{ ...two, mb: 3 }}>
+                <TextField label="Username" value={currentUser?.username ?? ''} disabled fullWidth />
+                <TextField
+                  label="Public email address" type="email" fullWidth value={profileEmail} onChange={e => setProfileEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start"><Mail size={16} /></InputAdornment> } }}
+                />
+              </Box>
+              <Box sx={{ pt: 3, borderTop: 1, borderColor: 'divider' }}>
+                <Typography variant="subtitle1" sx={{ mb: 2 }}>Security rotation</Typography>
+                <TextField
+                  label="New password" type="password" fullWidth value={profilePassword} onChange={e => setProfilePassword(e.target.value)}
+                  placeholder="Keep current or enter new" autoComplete="new-password"
+                  helperText="Rotate password regularly to ensure platform safety."
+                  slotProps={{ htmlInput: { minLength: 6 }, input: { startAdornment: <InputAdornment position="start"><Lock size={16} /></InputAdornment> } }}
+                />
+              </Box>
+              <Box sx={{ mt: 3, pt: 3, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end' }}>
+                <Button type="submit" loading={profileSaving}>Save settings</Button>
+              </Box>
+            </Box>
+          </Card>
+        </Box>
       )}
-      
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .spinner { border: 2px solid var(--border); border-top-color: var(--brand-primary); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-      `}</style>
+
+      {activeTab === 'ai' && (
+        <Card sx={{ p: 3, maxWidth: 800 }}>
+          <PanelHeader icon={Lock} title="Personal AI infrastructure" subtitle="Configure individual API keys to power your Netra AI interactions." />
+          <Box component="form" onSubmit={updateProfile} sx={{ display: 'grid', gap: 3 }}>
+            <ApiKeyField label="OpenRouter API key" value={openRouterKey} onChange={setOpenRouterKey} placeholder="sk-or-v1-..." hint="Used as primary fallback for most models." />
+            <Box sx={two}>
+              <ApiKeyField label="DeepSeek API key" value={deepSeekKey} onChange={setDeepSeekKey} placeholder="sk-..." />
+              <ApiKeyField label="Anthropic (Claude) API key" value={claudeKey} onChange={setClaudeKey} placeholder="sk-ant-..." />
+            </Box>
+            <Box sx={two}>
+              <ApiKeyField label="Google (Gemini) API key" value={geminiKey} onChange={setGeminiKey} placeholder="AIza..." />
+              <ApiKeyField label="Mistral API key" value={mistralKey} onChange={setMistralKey} placeholder="sk-..." />
+            </Box>
+
+            <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
+              <Typography variant="subtitle1">Local LLM</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Point Netra at a self-hosted, OpenAI-compatible endpoint — Ollama, LM Studio, llama.cpp server, or vLLM. No API key needed; runs entirely on infrastructure you control.
+              </Typography>
+              <Box sx={two}>
+                <TextField label="Endpoint URL" value={localLLMURL} onChange={e => setLocalLLMURL(e.target.value)} placeholder="http://localhost:11434" />
+                <TextField label="Model name" value={localLLMModel} onChange={e => setLocalLLMModel(e.target.value)} placeholder="llama3.2" />
+              </Box>
+            </Box>
+
+            <Box sx={{ pt: 3, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end' }}>
+              <Button type="submit" loading={profileSaving}>Sync AI keys</Button>
+            </Box>
+          </Box>
+        </Card>
+      )}
+
+      {activeTab === 'notifications' && can('manage-users') && (
+        <Card sx={{ p: 3, maxWidth: 800 }}>
+          <PanelHeader icon={Bell} title="Alert notifications" subtitle="Where alert rules and self-healing events send notifications. Applies platform-wide." />
+          <Box component="form" onSubmit={saveNotificationSettings}>
+            <Box sx={{ display: 'grid', gap: 3.5 }}>
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
+                  <TextField
+                    label="Google Chat webhook URL" value={gchatUrl} onChange={e => setGchatUrl(e.target.value)}
+                    placeholder="https://chat.googleapis.com/v1/spaces/…/messages?key=…&token=…"
+                    sx={{ flex: '1 1 240px' }} slotProps={{ htmlInput: { spellCheck: false, style: { fontFamily: 'var(--font-mono)', fontSize: 13 } } }}
+                  />
+                  <Button type="button" variant="secondary" icon={<Send size={14} />} loading={testingChannel === 'google_chat'}
+                    disabled={testingChannel !== null || (!gchatUrl.trim() && !gchatEnvSet)} onClick={() => testWebhook('google_chat')}
+                    title="Send a test message to this webhook" style={{ height: 40 }}>
+                    Test
+                  </Button>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                  In Google Chat: open the space → space name → <strong>Apps &amp; integrations</strong> → <strong>Webhooks</strong> → add one and paste its URL here. Must be an https URL on <code style={{ fontFamily: 'var(--font-mono)' }}>chat.googleapis.com</code>.
+                </Typography>
+                {gchatEnvSet && !gchatUrl.trim() && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>Currently using the URL from the GOOGLE_CHAT_WEBHOOK_URL environment variable — saving a value here overrides it.</Alert>
+                )}
+              </Box>
+
+              <Box>
+                <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
+                  <TextField
+                    label="Slack webhook URL (optional)" value={slackUrl} onChange={e => setSlackUrl(e.target.value)}
+                    placeholder="https://hooks.slack.com/services/T…/B…/…"
+                    sx={{ flex: '1 1 240px' }} slotProps={{ htmlInput: { spellCheck: false, style: { fontFamily: 'var(--font-mono)', fontSize: 13 } } }}
+                  />
+                  <Button type="button" variant="secondary" icon={<Send size={14} />} loading={testingChannel === 'slack'}
+                    disabled={testingChannel !== null || (!slackUrl.trim() && !slackEnvSet)} onClick={() => testWebhook('slack')}
+                    title="Send a test message to this webhook" style={{ height: 40 }}>
+                    Test
+                  </Button>
+                </Box>
+                {slackEnvSet && !slackUrl.trim() && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>Currently using the URL from the SLACK_WEBHOOK_URL environment variable — saving a value here overrides it.</Alert>
+                )}
+              </Box>
+            </Box>
+
+            <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420 }}>
+                Leave a field empty and save to clear it. Webhook URLs are credentials — anyone with the URL can post to the space.
+              </Typography>
+              <Button type="submit" loading={notifSaving}>Save webhooks</Button>
+            </Box>
+          </Box>
+        </Card>
+      )}
+
+      {activeTab === 'users' && can('manage-users') && (
+        <Card sx={{ overflow: 'hidden' }}>
+          <Box sx={{ p: 2.5, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ '& > div': { mb: 0 } }}>
+              <PanelHeader icon={Shield} title="Access control" subtitle="Manage administrative users" />
+            </Box>
+            <Button size="sm" icon={<Plus size={16} />} onClick={() => { setShowUserForm(true); setEditUserId(null); setUserForm(emptyUserForm) }}>Add user</Button>
+          </Box>
+          <TableContainer>
+            <Table size="small">
+              <TableHead><TableRow><TableCell>User</TableCell><TableCell>Role</TableCell><TableCell>Status</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
+              <TableBody>
+                {loading ? (
+                  <TableRow><TableCell colSpan={4} align="center" sx={{ py: 6 }}><CircularProgress size={24} /></TableCell></TableRow>
+                ) : users.length === 0 ? (
+                  <TableRow><TableCell colSpan={4}><EmptyState icon={User} title="No users registered." /></TableCell></TableRow>
+                ) : users.map(u => (
+                  <TableRow key={u.id} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Avatar sx={{ width: 28, height: 28, fontSize: 12, bgcolor: 'action.selected', color: 'primary.main', fontWeight: 700 }}>{u.username.charAt(0).toUpperCase()}</Avatar>
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 600 }}>{u.username}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'var(--font-mono)' }}>{u.email || 'system@infraeye.local'}</Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{roleChip(u.role)}</TableCell>
+                    <TableCell><Chip label={u.is_active ? 'Active' : 'Inactive'} size="small" color={u.is_active ? 'success' : 'default'} variant={u.is_active ? 'filled' : 'outlined'} /></TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit"><IconButton onClick={() => editUser(u)} aria-label={`Edit ${u.username}`}><Pencil size={14} /></IconButton></Tooltip>
+                      {currentUser?.id !== u.id && (
+                        <Tooltip title="Delete"><IconButton color="error" onClick={() => setDeleteTarget(u)} aria-label={`Delete ${u.username}`}><Trash2 size={14} /></IconButton></Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
+      )}
+
+      <Modal
+        isOpen={showUserForm}
+        onClose={() => setShowUserForm(false)}
+        size="sm"
+        icon={Plus}
+        title={editUserId ? 'Update user' : 'Provision user'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowUserForm(false)}>Cancel</Button>
+            <Button type="submit" form="user-form" loading={userSaving}>Confirm</Button>
+          </>
+        }
+      >
+        <Box component="form" id="user-form" onSubmit={saveUser} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <TextField label="Username" required fullWidth value={userForm.username} disabled={!!editUserId} placeholder="e.g. jdoe"
+            onChange={e => setUserForm({ ...userForm, username: e.target.value })} />
+          <TextField label="Email" type="email" fullWidth value={userForm.email} placeholder="user@infraeye.local"
+            onChange={e => setUserForm({ ...userForm, email: e.target.value })} />
+          <TextField label={editUserId ? 'New password (optional)' : 'Password'} type="password" fullWidth value={userForm.password}
+            required={!editUserId} placeholder="Enter password" autoComplete="new-password" slotProps={{ htmlInput: { minLength: 6 } }}
+            onChange={e => setUserForm({ ...userForm, password: e.target.value })} />
+          <TextField select label="Role" fullWidth value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })}>
+            <MenuItem value="intern">Intern tier</MenuItem>
+            <MenuItem value="trainee">Trainee tier</MenuItem>
+            <MenuItem value="devops">DevOps tier</MenuItem>
+            <MenuItem value="admin">Administrator tier</MenuItem>
+          </TextField>
+          {!!editUserId && (
+            <Paper variant="outlined" sx={{ px: 1.5 }}>
+              <FormControlLabel control={<Checkbox checked={userForm.is_active} onChange={e => setUserForm({ ...userForm, is_active: e.target.checked })} />} label="Authorization active" />
+            </Paper>
+          )}
+        </Box>
+      </Modal>
+
+      <Modal
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        size="sm"
+        title="Delete user"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => deleteTarget && deleteUser(deleteTarget.id, deleteTarget.username)}>Delete</Button>
+          </>
+        }
+      >
+        <Typography variant="body1" color="text.secondary">
+          Delete <b>{deleteTarget?.username}</b>? Their account and access grants will be removed.
+        </Typography>
+      </Modal>
     </div>
   )
 }

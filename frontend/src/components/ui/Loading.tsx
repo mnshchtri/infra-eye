@@ -1,17 +1,15 @@
 import type { HTMLAttributes } from 'react'
+import CircularProgress from '@mui/material/CircularProgress'
+import MuiSkeleton from '@mui/material/Skeleton'
+import Backdrop from '@mui/material/Backdrop'
+import Typography from '@mui/material/Typography'
 
-export interface SpinnerProps extends HTMLAttributes<HTMLDivElement> {
+export interface SpinnerProps extends Omit<HTMLAttributes<HTMLDivElement>, 'color'> {
   size?: number
 }
 
-export function Spinner({ size = 20, className = '', ...props }: SpinnerProps) {
-  return (
-    <div
-      className={`spinner ${className}`}
-      style={{ width: size, height: size }}
-      {...props}
-    />
-  )
+export function Spinner({ size = 20, ...props }: SpinnerProps) {
+  return <CircularProgress size={size} {...props} />
 }
 
 export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
@@ -20,27 +18,9 @@ export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
   height?: string | number
 }
 
-export function Skeleton({
-  variant = 'rect',
-  width,
-  height,
-  className = '',
-  style,
-  ...props
-}: SkeletonProps) {
-  const variantClass = variant !== 'rect' ? `skeleton-${variant}` : ''
-
-  return (
-    <div
-      className={`skeleton ${variantClass} ${className}`}
-      style={{
-        width,
-        height,
-        ...style,
-      }}
-      {...props}
-    />
-  )
+export function Skeleton({ variant = 'rect', width, height, ...props }: SkeletonProps) {
+  const muiVariant = variant === 'text' ? 'text' : variant === 'avatar' ? 'circular' : 'rectangular'
+  return <MuiSkeleton variant={muiVariant} width={width} height={height} {...props} />
 }
 
 export interface LoadingOverlayProps {
@@ -49,24 +29,9 @@ export interface LoadingOverlayProps {
 
 export function LoadingOverlay({ message = 'Loading...' }: LoadingOverlayProps) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'var(--overlay-scrim)',
-        backdropFilter: 'var(--blur-sm)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 'var(--space-4)',
-        zIndex: 'var(--z-modal)',
-      }}
-    >
-      <Spinner size={40} />
-      {message && (
-        <p style={{ color: 'white', fontSize: 'var(--text-base)' }}>{message}</p>
-      )}
-    </div>
+    <Backdrop open sx={{ zIndex: 1400, flexDirection: 'column', gap: 2, color: '#fff' }}>
+      <CircularProgress size={40} color="inherit" />
+      {message && <Typography>{message}</Typography>}
+    </Backdrop>
   )
 }

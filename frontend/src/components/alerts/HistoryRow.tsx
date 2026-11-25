@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import { format } from 'date-fns'
 import { CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Box, TableCell, TableRow, Typography } from '@mui/material'
 import { Badge } from '../ui'
 
 interface HistoryAction {
@@ -27,55 +28,47 @@ export const HistoryRow = memo(({ history, serverName }: HistoryRowProps) => {
   const isLong = output.length > 120 || output.includes('\n')
 
   return (
-    <tr style={{ verticalAlign: 'top' }}>
-      <td style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+    <TableRow hover sx={{ verticalAlign: 'top' }}>
+      <TableCell sx={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', color: 'text.secondary' }}>
         {format(new Date(history.created_at), 'MMM d, HH:mm:ss')}
-      </td>
-      <td style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-        {serverName}
-      </td>
-      <td>
-        <Badge
-          variant="warning"
-          title={history.trigger_info}
-          style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}
-        >
+      </TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{serverName}</TableCell>
+      <TableCell>
+        <Badge variant="warning" title={history.trigger_info} style={{ maxWidth: 260, fontFamily: 'var(--font-mono)' }}>
           {history.trigger_info}
         </Badge>
-      </td>
-      <td style={{ whiteSpace: 'nowrap' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: status.color }}>
+      </TableCell>
+      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+        <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, fontWeight: 600, color: status.color }}>
           <StatusIcon size={14} /> {status.label}
-        </span>
-      </td>
-      <td>
+        </Typography>
+      </TableCell>
+      <TableCell>
         {history.command && (
-          <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={history.command}>
+          <Typography variant="caption" noWrap title={history.command} sx={{ display: 'block', fontFamily: 'var(--font-mono)', color: 'text.secondary', mb: 0.75, maxWidth: 460 }}>
             $ {history.command}
-          </div>
+          </Typography>
         )}
         {output ? (
-          <pre
+          <Box
+            component="pre"
             onClick={() => isLong && setExpanded(v => !v)}
             title={isLong ? (expanded ? 'Click to collapse' : 'Click to expand') : undefined}
-            style={{
-              margin: 0, background: 'var(--bg-app)', color: 'var(--text-secondary)',
-              padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: 12, fontFamily: 'var(--font-mono)',
-              maxWidth: 460, border: '1px solid var(--border)', lineHeight: 1.6,
-              whiteSpace: expanded ? 'pre-wrap' : 'nowrap',
-              overflow: 'hidden', textOverflow: 'ellipsis',
-              wordBreak: 'break-word',
-              maxHeight: expanded ? 300 : undefined, overflowY: expanded ? 'auto' : undefined,
+            sx={{
+              m: 0, px: 1.5, py: 1, borderRadius: 1, border: 1, borderColor: 'divider', bgcolor: 'action.hover',
+              color: 'text.secondary', fontSize: 12, fontFamily: 'var(--font-mono)', lineHeight: 1.6, maxWidth: 460,
+              whiteSpace: expanded ? 'pre-wrap' : 'nowrap', overflow: expanded ? 'auto' : 'hidden',
+              textOverflow: 'ellipsis', wordBreak: 'break-word', maxHeight: expanded ? 300 : undefined,
               cursor: isLong ? 'pointer' : 'default',
             }}
           >
             {expanded || !isLong ? output : output.split('\n')[0].slice(0, 120) + '…'}
-          </pre>
+          </Box>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No output</span>
+          <Typography variant="caption" color="text.secondary">No output</Typography>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 })
 

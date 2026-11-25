@@ -1,3 +1,6 @@
+import TextField from '@mui/material/TextField'
+import InputAdornment from '@mui/material/InputAdornment'
+import IconButton from '@mui/material/IconButton'
 import { Search, X } from 'lucide-react'
 
 export interface SearchInputProps {
@@ -7,21 +10,25 @@ export interface SearchInputProps {
   className?: string
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Search...', className = '' }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder = 'Search...', className }: SearchInputProps) {
   return (
-    <div className={`input-icon-wrapper${value ? ' has-clear' : ''} ${className}`}>
-      <div className="input-icon"><Search size={14} /></div>
-      <input
-        className="input"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-      {value && (
-        <button type="button" className="input-clear-btn" onClick={() => onChange('')} aria-label="Clear search">
-          <X size={14} />
-        </button>
-      )}
-    </div>
+    <TextField
+      className={className}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      fullWidth
+      slotProps={{
+        htmlInput: { 'aria-label': placeholder },
+        input: {
+          startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment>,
+          endAdornment: value ? (
+            <InputAdornment position="end">
+              <IconButton onClick={() => onChange('')} aria-label="Clear search"><X size={14} /></IconButton>
+            </InputAdornment>
+          ) : undefined,
+        },
+      }}
+    />
   )
 }

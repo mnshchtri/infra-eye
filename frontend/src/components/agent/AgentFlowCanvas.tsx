@@ -7,6 +7,7 @@ import { GoalFlowNode, StepFlowNode, ThinkingFlowNode } from './AgentFlowNodes'
 import { FlowBlueprintBackground, FlowZoomControls, FlowPanHint } from './FlowChrome'
 import type { AgentRun } from '../../pages/agentTypes'
 import { nodeColor } from './agentFlowMeta'
+import { useTheme } from '@mui/material'
 
 const nodeTypes: NodeTypes = {
   goal: GoalFlowNode,
@@ -27,6 +28,7 @@ interface AgentFlowCanvasProps {
 
 function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, busyStepId }: AgentFlowCanvasProps) {
   const { fitView } = useReactFlow()
+  const theme = useTheme()
   const isRunning = run.status === 'running'
   const steps = run.steps ?? []
   // Hovering a node dims everything not adjacent to it, matching the Infra
@@ -46,11 +48,12 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
     ]
     const rawEdges: Edge[] = []
     let prevId = 'goal'
-    let prevColor = 'var(--brand-primary)'
+    const accent = theme.palette.primary.main
+    let prevColor = accent
 
     steps.forEach((step, i) => {
       const id = `step-${step.id}`
-      const color = nodeColor(step)
+      const color = nodeColor(step, theme)
       rawNodes.push({
         id,
         type: 'step',
@@ -64,7 +67,7 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
         target: id,
         type: 'smoothstep',
         animated: step.status === 'pending_approval',
-        style: { stroke: prevColor === 'var(--brand-primary)' ? 'var(--border)' : prevColor, strokeWidth: 2 },
+        style: { stroke: prevColor === accent ? theme.palette.divider : prevColor, strokeWidth: 2 },
       })
       prevId = id
       prevColor = color
@@ -86,7 +89,7 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
         target: id,
         type: 'smoothstep',
         animated: true,
-        style: { stroke: 'var(--brand-primary)', strokeWidth: 2, strokeDasharray: '4 3' },
+        style: { stroke: accent, strokeWidth: 2, strokeDasharray: '4 3' },
       })
     }
 
@@ -103,7 +106,7 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
       return { ...e, style: { ...e.style, opacity: active ? 1 : 0.15 }, zIndex: active ? 1 : 0 }
     })
     return { nodes, edges }
-  }, [run.goal, steps, isRunning, selectedStepId, busyStepId, onApprove, onReject, hoverId])
+  }, [run.goal, steps, isRunning, selectedStepId, busyStepId, onApprove, onReject, hoverId, theme])
 
   useEffect(() => {
     fitView({ padding: 0.25, duration: 400, maxZoom: 1 })
@@ -123,6 +126,7 @@ function FlowInner({ run, selectedStepId, onSelectStep, onApprove, onReject, bus
       proOptions={{ hideAttribution: true }}
       minZoom={0.15}
       maxZoom={3}
+      colorMode={theme.palette.mode}
       fitView
     >
       <FlowBlueprintBackground />

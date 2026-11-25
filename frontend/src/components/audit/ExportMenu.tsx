@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material'
 import { Download, FileText, FileSpreadsheet, FileJson, FileCode } from 'lucide-react'
 import { downloadCSV, downloadJSON, downloadMarkdown, downloadPDF, type ReportMeta, type ReportRow } from '../../utils/reportExport'
+import { Button } from '../ui'
 
 interface ExportMenuProps {
   meta: ReportMeta
@@ -16,17 +18,7 @@ interface ExportMenuProps {
  * client-side from data already on the page, so there's no server round trip.
  */
 export function ExportMenu({ meta, rows, raw }: ExportMenuProps) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [open])
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
 
   const items: { label: string; icon: typeof Download; run: () => void }[] = [
     { label: 'PDF report', icon: FileText, run: () => downloadPDF(meta, rows) },
@@ -36,28 +28,22 @@ export function ExportMenu({ meta, rows, raw }: ExportMenuProps) {
   ]
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button className="btn btn-secondary" onClick={() => setOpen(o => !o)} style={{ gap: 8, padding: '8px 14px' }}>
-        <Download size={14} /><span>Export</span>
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 20, minWidth: 180,
-          background: 'var(--bg-elevated)', border: '1px solid var(--border)', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-        }}>
-          {items.map(item => (
-            <button key={item.label} onClick={() => { item.run(); setOpen(false) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px',
-                background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                color: 'var(--text-primary)', fontSize: 12.5, textAlign: 'left',
-              }}>
-              <item.icon size={14} color="var(--text-muted)" />
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <>
+      <Button
+        variant="secondary" size="sm" icon={<Download size={14} />}
+        onClick={e => setAnchor(e.currentTarget)}
+        aria-haspopup="menu" aria-expanded={!!anchor}
+      >
+        Export
+      </Button>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
+        {items.map(item => (
+          <MenuItem key={item.label} onClick={() => { item.run(); setAnchor(null) }}>
+            <ListItemIcon><item.icon size={14} /></ListItemIcon>
+            <ListItemText>{item.label}</ListItemText>
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
   )
 }

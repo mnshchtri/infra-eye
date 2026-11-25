@@ -2,6 +2,12 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal, X, Maximize2, Minimize2, GripHorizontal } from 'lucide-react'
+import Box from '@mui/material/Box'
+import Chip from '@mui/material/Chip'
+import IconButton from '@mui/material/IconButton'
+import Paper from '@mui/material/Paper'
+import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
 import { buildWsUrl } from '../../api/client'
 import '@xterm/xterm/css/xterm.css'
 
@@ -117,41 +123,46 @@ export function TerminalPortal({ serverID, pod, namespace, container, node, targ
   }
 
   return (
-    <div className="fade-up" style={{
-      position: 'fixed', left: 0, right: 0, bottom: 0,
-      height: fullscreen ? '100vh' : height,
-      background: '#fff', borderTop: '1px solid var(--border)', zIndex: 1200,
-      display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)',
-    }}>
-       {!fullscreen && (
-         <div
-           onMouseDown={startDrag}
-           title="Drag to resize"
-           style={{
-             height: 10, marginTop: -5, cursor: 'ns-resize', display: 'flex',
-             alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1,
-           }}
-         >
-           <GripHorizontal size={14} color="var(--text-muted)" />
-         </div>
-       )}
-       <div style={{ height: 46, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#f8fafc', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-             <Terminal size={14} color="var(--brand-primary)" />
-             <span style={{ fontSize: 13, fontWeight: 700 }}>
-               {target === 'node' ? `NODE SHELL • ${node}` : `POD ${mode.toUpperCase()} • ${namespace}/${pod}`}
-             </span>
-             <span className="badge badge-online" style={{ fontSize: 12 }}>LIVE</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Esc to close</span>
-            <button onClick={() => setFullscreen(f => !f)} title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-              {fullscreen ? <Minimize2 size={15} color="var(--text-muted)" /> : <Maximize2 size={15} color="var(--text-muted)" />}
-            </button>
-            <button onClick={onClose} title="Close"><X size={16} color="var(--text-muted)" /></button>
-          </div>
-       </div>
-       <div ref={terminalRef} style={{ flex: 1, padding: 10, background: '#0f172a', minHeight: 0 }} />
-    </div>
+    <Paper
+      square
+      elevation={8}
+      sx={{
+        position: 'fixed', left: 0, right: 0, bottom: 0,
+        height: fullscreen ? '100vh' : height,
+        borderTop: 1, borderColor: 'divider', zIndex: (t) => t.zIndex.drawer + 2,
+        display: 'flex', flexDirection: 'column',
+      }}
+    >
+      {!fullscreen && (
+        <Box
+          onMouseDown={startDrag}
+          title="Drag to resize"
+          sx={{ height: 10, mt: '-5px', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1, color: 'text.secondary' }}
+        >
+          <GripHorizontal size={14} />
+        </Box>
+      )}
+      <Box sx={{ height: 46, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          <Terminal size={14} />
+          <Typography variant="subtitle2">
+            {target === 'node' ? `Node shell • ${node}` : `Pod ${mode} • ${namespace}/${pod}`}
+          </Typography>
+          <Chip size="small" color="success" label="Live" />
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>Esc to close</Typography>
+          <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+            <IconButton size="small" onClick={() => setFullscreen(f => !f)} aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+              {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Close">
+            <IconButton size="small" onClick={onClose} aria-label="Close terminal"><X size={16} /></IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+      <div ref={terminalRef} style={{ flex: 1, padding: 10, background: '#0f172a', minHeight: 0 }} />
+    </Paper>
   )
 }

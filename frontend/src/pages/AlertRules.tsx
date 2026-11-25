@@ -3,12 +3,17 @@ import { Plus, Bell, History, Zap, FileCode, ShieldAlert, AlertTriangle } from '
 import { api } from '../api/client'
 import { usePermission } from '../hooks/usePermission'
 import { useToastStore } from '../store/toastStore'
-import { Modal, SectionHeader, EmptyState, SearchInput, TabSwitcher } from '../components/ui'
+import {
+  Alert, Box, CircularProgress, MenuItem, Paper, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TextField, Typography,
+} from '@mui/material'
+import { Modal, SectionHeader, EmptyState, SearchInput, TabSwitcher, PageHeader, Button } from '../components/ui'
 
 // Sub-components
 import { RuleCard } from '../components/alerts/RuleCard'
 import { HistoryRow } from '../components/alerts/HistoryRow'
 import { apiError, errMessage } from '../utils/errors'
+import { parseAlertRulesXml } from '../utils/alertRulesXml'
 
 interface Rule {
   id: number; name: string; server_id: number;
@@ -142,23 +147,7 @@ export function AlertRules() {
   const parseXml = useCallback(async () => {
     setLoading(true)
     try {
-      const parser = new DOMParser()
-      const xmlDoc = parser.parseFromString(xmlContent, 'text/xml')
-      if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-        throw new Error('The XML is not well-formed — check for unescaped characters like < or & in rule values.')
-      }
-      const ruleNodes = xmlDoc.getElementsByTagName('Rule')
-
-      const newRules = Array.from(ruleNodes).map(node => ({
-        name: node.getAttribute('name') || 'Rule',
-        server_id: parseInt(node.getAttribute('serverId') || '0'),
-        enabled: node.getAttribute('enabled') !== 'false',
-        condition_type: node.getElementsByTagName('Condition')[0]?.getAttribute('type') || 'cpu',
-        condition_op: node.getElementsByTagName('Condition')[0]?.getAttribute('op') || 'gt',
-        condition_value: node.getElementsByTagName('Condition')[0]?.getAttribute('value') || '80',
-        action_type: node.getElementsByTagName('Action')[0]?.getAttribute('type') || 'ssh_command',
-        action_command: node.getElementsByTagName('Action')[0]?.textContent || '',
-      }))
+      const newRules = parseAlertRulesXml(xmlContent)
 
       if (newRules.length === 0) throw new Error('No <Rule> elements found in the XML')
       await api.post('/api/alert-rules/batch', newRules)
@@ -193,51 +182,36 @@ export function AlertRules() {
   const selectedMetric = METRICS.find(m => m.value === form.condition_type)
   const needsThreshold = form.condition_type !== 'pod_status'
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)',
-  }
-  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
+  const openCreate = () => { setShowForm(true); setForm(emptyForm); setEditId(null) }
+  const canManage = can('manage-alerts')
 
   return (
     <div className="page">
-      {/* ── Header ── */}
-      <div className="page-header" style={{ marginBottom: 20 }}>
-        <div>
-          <h1 className="page-title">Alert Rules</h1>
-          <p className="page-subtitle" style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 4 }}>
-            Self-healing automation — notify or run an SSH remediation when a condition fires. Checked every 60s.
-          </p>
-        </div>
-        {can('manage-alerts') && (
-          <button
-            className="btn btn-primary"
-            onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}
-            style={{ gap: 8 }}
-          >
-            <Plus size={15} /> <span className="hidden-mobile">New Rule</span>
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Alert Rules"
+        subtitle="Self-healing automation — notify or run an SSH remediation when a condition fires. Checked every 60s."
+        actions={canManage && <Button icon={<Plus size={15} />} onClick={openCreate}>New Rule</Button>}
+      />
 
-      {/* ── Tabs ── */}
-      <div className="tabs-scroll-x" style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
-        <TabSwitcher
-          tabs={[
-            { id: 'rules', label: 'Rules', icon: Bell, count: rules.length },
-            { id: 'history', label: 'History', icon: History, count: history.length },
-            { id: 'xml', label: 'Import / Export', icon: FileCode },
-          ]}
-          active={tab}
-          onChange={(id) => { if (id === 'xml') generateXml(); setTab(id as typeof tab) }}
-        />
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <TabSwitcher
+            tabs={[
+              { id: 'rules', label: 'Rules', icon: Bell, count: rules.length },
+              { id: 'history', label: 'History', icon: History, count: history.length },
+              { id: 'xml', label: 'Import / Export', icon: FileCode },
+            ]}
+            active={tab}
+            onChange={(id) => { if (id === 'xml') generateXml(); setTab(id as typeof tab) }}
+          />
+        </Box>
         {tab === 'rules' && rules.length > 0 && (
-          <span className="hidden-mobile" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ ml: 2, whiteSpace: 'nowrap', display: { xs: 'none', sm: 'block' } }}>
             {enabledCount} of {rules.length} active
-          </span>
+          </Typography>
         )}
-      </div>
+      </Box>
 
-      {/* ── Create / Edit modal ── */}
       <Modal
         isOpen={showForm}
         onClose={() => setShowForm(false)}
@@ -247,212 +221,161 @@ export function AlertRules() {
         subtitle="When a condition fires, notify or remediate automatically"
         footer={
           <>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-            <button type="submit" form="alert-rule-form" className="btn btn-primary">{editId ? 'Save changes' : 'Create rule'}</button>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button type="submit" form="alert-rule-form">{editId ? 'Save changes' : 'Create rule'}</Button>
           </>
         }
       >
-        {editId && (form as Rule).git_managed && (
-          <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
-            This rule was created by Git sync — saving changes here will stop future syncs from managing it.
-          </p>
-        )}
+        <Box
+          component="form" id="alert-rule-form"
+          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+          onSubmit={(e: React.FormEvent) => { e.preventDefault(); saveRule() }}
+        >
+          {editId && (form as Rule).git_managed && (
+            <Alert severity="warning">This rule was created by Git sync — saving changes here will stop future syncs from managing it.</Alert>
+          )}
 
-        <form id="alert-rule-form" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} onSubmit={e => { e.preventDefault(); saveRule() }}>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Name</label>
-            <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. High CPU on web servers" autoFocus />
-          </div>
+          <TextField label="Name" autoFocus fullWidth value={form.name} placeholder="e.g. High CPU on web servers"
+            onChange={e => setForm({ ...form, name: e.target.value })} />
 
-          <div className="alert-form-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Applies to</label>
-              <select className="input" value={form.server_id} onChange={e => setForm({ ...form, server_id: Number(e.target.value) })}>
-                <option value={0}>All servers</option>
-                {servers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.host})</option>)}
-              </select>
-            </div>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Severity</label>
-              <select className="input" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
-                <option value="warning">Warning</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
-          </div>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1.4fr 1fr' }, gap: 2 }}>
+            <TextField select label="Applies to" value={form.server_id} onChange={e => setForm({ ...form, server_id: Number(e.target.value) })}>
+              <MenuItem value={0}>All servers</MenuItem>
+              {servers.map(s => <MenuItem key={s.id} value={s.id}>{s.name} ({s.host})</MenuItem>)}
+            </TextField>
+            <TextField select label="Severity" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
+              <MenuItem value="warning">Warning</MenuItem>
+              <MenuItem value="critical">Critical</MenuItem>
+            </TextField>
+          </Box>
 
-          {/* Trigger */}
-          <div style={{ padding: 16, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Trigger</div>
-            <div className="alert-form-grid" style={{ display: 'grid', gridTemplateColumns: needsThreshold ? '1.4fr 1fr 0.8fr' : '1fr', gap: 12 }}>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Metric</label>
-                <select className="input" value={form.condition_type} onChange={e => setForm({ ...form, condition_type: e.target.value })}>
-                  {METRICS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
-              </div>
+          <Paper variant="outlined" sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography variant="overline" color="text.secondary">Trigger</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: needsThreshold ? '1.4fr 1fr 0.8fr' : '1fr' }, gap: 1.5 }}>
+              <TextField select label="Metric" value={form.condition_type} onChange={e => setForm({ ...form, condition_type: e.target.value })}>
+                {METRICS.map(m => <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>)}
+              </TextField>
               {needsThreshold && (
                 <>
-                  <div style={fieldStyle}>
-                    <label style={labelStyle}>Operator</label>
-                    <select className="input" value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}>
-                      {OPERATORS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </div>
-                  <div style={fieldStyle}>
-                    <label style={labelStyle}>Threshold</label>
-                    <input className="input" value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} placeholder="80" />
-                  </div>
+                  <TextField select label="Operator" value={form.condition_op} onChange={e => setForm({ ...form, condition_op: e.target.value })}>
+                    {OPERATORS.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+                  </TextField>
+                  <TextField label="Threshold" placeholder="80" value={form.condition_value} onChange={e => setForm({ ...form, condition_value: e.target.value })} />
                 </>
               )}
-            </div>
+            </Box>
             {selectedMetric && (
-              <p style={{ fontSize: 12.5, color: selectedMetric.value === 'log_keyword' ? 'var(--warning)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: selectedMetric.value === 'log_keyword' ? 'warning.main' : 'text.secondary' }}>
                 {selectedMetric.value === 'log_keyword' && <AlertTriangle size={13} />}
                 {selectedMetric.hint}
-              </p>
+              </Typography>
             )}
-          </div>
+          </Paper>
 
-          {/* Response */}
-          <div style={{ padding: 16, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response</div>
-            <div className="alert-form-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Action</label>
-                <select className="input" value={form.action_type} onChange={e => setForm({ ...form, action_type: e.target.value })}>
-                  <option value="notify">Notify only</option>
-                  <option value="ssh_command">Run SSH command</option>
-                </select>
-              </div>
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Cooldown (minutes)</label>
-                <input className="input" type="number" min={1} value={form.cooldown_minutes} onChange={e => setForm({ ...form, cooldown_minutes: Number(e.target.value) })} />
-              </div>
-            </div>
+          <Paper variant="outlined" sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography variant="overline" color="text.secondary">Response</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1.4fr 1fr' }, gap: 1.5 }}>
+              <TextField select label="Action" value={form.action_type} onChange={e => setForm({ ...form, action_type: e.target.value })}>
+                <MenuItem value="notify">Notify only</MenuItem>
+                <MenuItem value="ssh_command">Run SSH command</MenuItem>
+              </TextField>
+              <TextField label="Cooldown (minutes)" type="number" slotProps={{ htmlInput: { min: 1 } }}
+                value={form.cooldown_minutes} onChange={e => setForm({ ...form, cooldown_minutes: Number(e.target.value) })} />
+            </Box>
             {form.action_type === 'ssh_command' && (
-              <div style={fieldStyle}>
-                <label style={labelStyle}>Command</label>
-                <textarea
-                  className="input" rows={3}
-                  style={{ fontFamily: 'var(--font-mono)', fontSize: 13, resize: 'vertical' }}
-                  value={form.action_command}
-                  onChange={e => setForm({ ...form, action_command: e.target.value })}
-                  placeholder="systemctl restart nginx"
+              <>
+                <TextField
+                  label="Command" multiline minRows={3} fullWidth placeholder="systemctl restart nginx"
+                  value={form.action_command} onChange={e => setForm({ ...form, action_command: e.target.value })}
+                  slotProps={{ htmlInput: { style: { fontFamily: 'var(--font-mono)', fontSize: 13 } } }}
                 />
-                <p style={{ fontSize: 12.5, color: 'var(--warning)', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.5 }}>
-                  <ShieldAlert size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                <Alert severity="warning" icon={<ShieldAlert size={16} />}>
                   Runs automatically over SSH with the connection user's privileges every time the rule fires (rate-limited by the cooldown). Prefer idempotent, non-destructive commands.
-                </p>
-              </div>
+                </Alert>
+              </>
             )}
-          </div>
-        </form>
+          </Paper>
+        </Box>
       </Modal>
 
-      {/* ── XML import / export ── */}
       {tab === 'xml' && (
-        <div className="fade-in">
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
-              <SectionHeader
-                className="section-header-flush"
-                icon={FileCode}
-                title="Rules as XML"
-                subtitle="Export the current rules, edit them, and apply to bulk-import."
-                action={
-                  <>
-                    <button className="btn btn-secondary btn-sm" onClick={generateXml}>Regenerate</button>
-                    <button className="btn btn-primary btn-sm" onClick={parseXml}>Apply XML</button>
-                  </>
-                }
-              />
-            </div>
-            <textarea
-              className="input"
-              value={xmlContent}
-              onChange={e => setXmlContent(e.target.value)}
-              style={{ width: '100%', height: 480, border: 'none', borderRadius: 0, fontFamily: 'var(--font-mono)', fontSize: 13, padding: 20, background: 'var(--term-bg-subtle)', color: 'var(--term-text)', lineHeight: 1.6, resize: 'none' }}
-              spellCheck={false}
+        <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+          <Box sx={{ px: 2.5, pt: 2, pb: 0.5, borderBottom: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+            <SectionHeader
+              icon={FileCode}
+              title="Rules as XML"
+              subtitle="Export the current rules, edit them, and apply to bulk-import."
+              action={
+                <>
+                  <Button variant="secondary" size="sm" onClick={generateXml}>Regenerate</Button>
+                  <Button size="sm" onClick={parseXml}>Apply XML</Button>
+                </>
+              }
             />
-          </div>
-        </div>
+          </Box>
+          <TextField
+            multiline fullWidth minRows={20} maxRows={20} value={xmlContent}
+            onChange={e => setXmlContent(e.target.value)}
+            slotProps={{
+              htmlInput: { spellCheck: false, style: { fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.6 } },
+              input: { sx: { borderRadius: 0, p: 2.5, '& fieldset': { border: 'none' } } },
+            }}
+          />
+        </Paper>
       )}
 
-      {/* ── Rules grid ── */}
       {tab === 'rules' && (
-        <>
-          {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '120px 0' }}>
-              <div className="loader-spin" style={{ width: 36, height: 36, border: '2px solid var(--border)', borderTopColor: 'var(--brand-primary)' }} />
-            </div>
-          ) : rules.length === 0 ? (
-            <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius-lg)' }}>
-              <EmptyState
-                icon={Bell}
-                title="No alert rules yet"
-                description="Rules watch your servers' metrics every minute and react automatically — send a notification, or run an SSH command to self-heal before anyone is paged."
-                action={can('manage-alerts') && (
-                  <button className="btn btn-primary" style={{ gap: 8 }} onClick={() => { setShowForm(true); setForm(emptyForm); setEditId(null) }}>
-                    <Plus size={14} /> Create your first rule
-                  </button>
-                )}
-              />
-            </div>
-          ) : (
-            <div className="alert-rules-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 16, paddingBottom: 40 }}>
-              {rules.map(rule => (
-                <RuleCard key={rule.id} rule={rule} serverName={getServerName(rule.server_id)} canManage={can('manage-alerts')} onEdit={handleEdit} onDelete={deleteRule} onToggle={toggleEnable} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} />
-              ))}
-            </div>
-          )}
-        </>
+        loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 15 }}><CircularProgress /></Box>
+        ) : rules.length === 0 ? (
+          <Paper variant="outlined" sx={{ borderStyle: 'dashed' }}>
+            <EmptyState
+              icon={Bell}
+              title="No alert rules yet"
+              description="Rules watch your servers' metrics every minute and react automatically — send a notification, or run an SSH command to self-heal before anyone is paged."
+              action={canManage && <Button icon={<Plus size={14} />} onClick={openCreate}>Create your first rule</Button>}
+            />
+          </Paper>
+        ) : (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: 2, pb: 5 }}>
+            {rules.map(rule => (
+              <RuleCard key={rule.id} rule={rule} serverName={getServerName(rule.server_id)} canManage={canManage} onEdit={handleEdit} onDelete={deleteRule} onToggle={toggleEnable} confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete} />
+            ))}
+          </Box>
+        )
       )}
 
-      {/* ── History ── */}
       {tab === 'history' && (
-        <div className="fade-in">
-          <div style={{ marginBottom: 16, maxWidth: 420 }}>
-            <SearchInput
-              value={searchHistory}
-              onChange={setSearchHistory}
-              placeholder="Search history — server, trigger, output…"
-            />
-          </div>
-
-          <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Box>
+          <Box sx={{ mb: 2, maxWidth: 420 }}>
+            <SearchInput value={searchHistory} onChange={setSearchHistory} placeholder="Search history — server, trigger, output…" />
+          </Box>
+          <Paper variant="outlined">
             {filteredHistory.length === 0 ? (
               <EmptyState
                 icon={History}
                 title={history.length === 0 ? 'No remediations have fired yet' : 'Nothing matches the search'}
-                description={history.length === 0 ? 'That\'s a good sign — it means nothing has needed automatic remediation.' : undefined}
+                description={history.length === 0 ? "That's a good sign — it means nothing has needed automatic remediation." : undefined}
               />
             ) : (
-              <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 340px)', overflowY: 'auto' }}>
-                <table className="k-table" style={{ minWidth: 860 }}>
-                  <thead>
-                    <tr>
-                      {['Time', 'Server', 'Trigger', 'Status', 'Output'].map(h => (
-                        <th key={h}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+              <TableContainer sx={{ maxHeight: 'calc(100vh - 340px)' }}>
+                <Table stickyHeader size="small" sx={{ minWidth: 860 }}>
+                  <TableHead>
+                    <TableRow>
+                      {['Time', 'Server', 'Trigger', 'Status', 'Output'].map(h => <TableCell key={h}>{h}</TableCell>)}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {filteredHistory.map(h => (
                       <HistoryRow key={h.id} history={h} serverName={getServerName(h.server_id)} />
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
-          </div>
-        </div>
+          </Paper>
+        </Box>
       )}
-
-      <style>{`
-        .loader-spin { border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   )
 }

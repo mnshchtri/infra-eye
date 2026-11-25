@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Box } from '@mui/material'
 
 interface ScanConsoleProps {
   lines: string[]
@@ -13,12 +14,14 @@ export function ScanConsole({ lines }: ScanConsoleProps) {
   }, [lines.length])
 
   return (
-    <div
+    <Box
       ref={ref}
-      style={{
-        background: '#0a0e14', color: '#9fe6a0', fontFamily: 'var(--font-mono)', fontSize: 12,
-        lineHeight: 1.6, padding: '12px 16px', maxHeight: 260, overflowY: 'auto',
-        borderTop: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+      role="log"
+      aria-live="polite"
+      sx={{
+        bgcolor: '#0a0e14', color: '#9fe6a0', fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6,
+        px: 2, py: 1.5, maxHeight: 260, overflowY: 'auto', borderTop: 1, borderColor: 'divider',
+        whiteSpace: 'pre-wrap', wordBreak: 'break-all',
       }}
     >
       {lines.length === 0 ? (
@@ -26,6 +29,6 @@ export function ScanConsole({ lines }: ScanConsoleProps) {
       ) : (
         lines.map((line, i) => <div key={i}>{line}</div>)
       )}
-    </div>
+    </Box>
   )
 }

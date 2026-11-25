@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react'
 import {
-  Loader2, Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, AlertTriangle,
+  Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, AlertTriangle,
 } from 'lucide-react'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import TextField from '@mui/material/TextField'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import { alpha } from '@mui/material/styles'
+import { Button, Spinner } from '../ui'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { errMessage } from '../../utils/errors'
@@ -36,6 +48,24 @@ function cellText(v: unknown): string {
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
 }
+
+function RowAction({ label, onClick, disabled, color, children }: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  color?: 'success' | 'error'
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip title={label}>
+      <span>
+        <IconButton size="small" aria-label={label} onClick={onClick} disabled={disabled} color={color ?? 'default'}>{children}</IconButton>
+      </span>
+    </Tooltip>
+  )
+}
+
+const cellInputSx = { '& input': { fontFamily: 'var(--font-mono)', fontSize: 12.5, py: 0.5, px: 1 }, minWidth: 100 }
 
 /**
  * Paginated table for one schema.table, with inline row editing when the
@@ -168,121 +198,122 @@ export function DataGrid({ resourceId, schema, table, canEdit }: DataGridProps) 
   }
 
   if (loading && !data) return (
-    <div style={{ padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-muted)' }}>
-      <Loader2 size={16} className="spin" /> Loading {schema}.{table}…
-    </div>
+    <Box sx={{ p: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
+      <Spinner size={16} /> Loading {schema}.{table}…
+    </Box>
   )
   if (error) return (
-    <div style={{ padding: 24, fontSize: 13, color: 'var(--danger)' }}>{error}</div>
+    <Typography variant="body2" color="error" sx={{ p: 3 }}>{error}</Typography>
   )
   if (!columns || !data) return null
 
   const page = Math.floor(offset / PAGE_SIZE) + 1
   const pageCount = Math.max(1, Math.ceil(data.total / PAGE_SIZE))
+  const showActions = canEdit && hasPrimaryKey
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{schema}.{table}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.total} row{data.total === 1 ? '' : 's'}</span>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', gap: 1.25 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+          <Typography component="span" sx={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600 }}>{schema}.{table}</Typography>
+          <Typography component="span" variant="caption" color="text.secondary">{data.total} row{data.total === 1 ? '' : 's'}</Typography>
           {!hasPrimaryKey && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--warning)' }}>
+            <Typography component="span" variant="caption" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'warning.main' }}>
               <AlertTriangle size={11} /> read-only (no primary key)
-            </span>
+            </Typography>
           )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
           {canEdit && hasPrimaryKey && !addingNew && (
-            <button className="btn btn-secondary btn-sm" onClick={startAdd} style={{ gap: 6 }}>
-              <Plus size={13} /> Add row
-            </button>
+            <Button variant="secondary" size="sm" onClick={startAdd} icon={<Plus size={13} />}>Add row</Button>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-            <button className="btn-icon" disabled={offset === 0} onClick={() => setOffset(o => Math.max(0, o - PAGE_SIZE))} style={{ width: 26, height: 26 }}>
-              <ChevronLeft size={13} />
-            </button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: 'text.secondary', fontSize: 12 }}>
+            <RowAction label="Previous page" disabled={offset === 0} onClick={() => setOffset(o => Math.max(0, o - PAGE_SIZE))}><ChevronLeft size={14} /></RowAction>
             <span>{page} / {pageCount}</span>
-            <button className="btn-icon" disabled={offset + PAGE_SIZE >= data.total} onClick={() => setOffset(o => o + PAGE_SIZE)} style={{ width: 26, height: 26 }}>
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
+            <RowAction label="Next page" disabled={offset + PAGE_SIZE >= data.total} onClick={() => setOffset(o => o + PAGE_SIZE)}><ChevronRight size={14} /></RowAction>
+          </Box>
+        </Box>
+      </Box>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
+        <Table size="small" stickyHeader>
+          <TableHead>
+            <TableRow>
               {columns.map(col => (
-                <th key={col.name} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--bg-elevated)', position: 'sticky', top: 0, whiteSpace: 'nowrap' }}>
+                <TableCell key={col.name} sx={{ whiteSpace: 'nowrap', fontWeight: 600, color: 'text.secondary', lineHeight: 1.5 }}>
                   {col.name}{col.primary_key && ' 🔑'}
-                  <span style={{ fontWeight: 500, textTransform: 'none', marginLeft: 6, color: 'var(--text-muted)' }}>{col.type}</span>
-                </th>
+                  <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.75, fontWeight: 400 }}>{col.type}</Typography>
+                </TableCell>
               ))}
-              {canEdit && hasPrimaryKey && <th style={{ width: 70, background: 'var(--bg-elevated)', position: 'sticky', top: 0 }} />}
-            </tr>
-          </thead>
-          <tbody>
+              {showActions && <TableCell sx={{ width: 90 }} />}
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {addingNew && (
-              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--brand-glow)' }}>
+              <TableRow sx={{ bgcolor: t => alpha(t.palette.primary.main, 0.08) }}>
                 {columns.map(col => (
-                  <td key={col.name} style={{ padding: '4px 8px' }}>
-                    <input className="input" value={newRow[col.name] ?? ''} placeholder={col.nullable ? 'NULL' : ''}
+                  <TableCell key={col.name} sx={{ py: 0.5 }}>
+                    <TextField
+                      size="small" value={newRow[col.name] ?? ''} placeholder={col.nullable ? 'NULL' : ''}
                       onChange={e => setNewRow(prev => ({ ...prev, [col.name]: e.target.value }))}
-                      style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', padding: '4px 8px', height: 30 }} />
-                  </td>
+                      sx={cellInputSx}
+                      slotProps={{ htmlInput: { 'aria-label': `New ${col.name}` } }}
+                    />
+                  </TableCell>
                 ))}
-                <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
-                  <button onClick={saveNew} disabled={saving} className="btn-icon" title="Save" style={{ color: 'var(--success)', width: 28, height: 28 }}><Check size={14} /></button>
-                  <button onClick={() => setAddingNew(false)} className="btn-icon" title="Cancel" style={{ width: 28, height: 28 }}><X size={14} /></button>
-                </td>
-              </tr>
+                <TableCell sx={{ py: 0.5, whiteSpace: 'nowrap' }}>
+                  <RowAction label="Save" color="success" onClick={saveNew} disabled={saving}><Check size={14} /></RowAction>
+                  <RowAction label="Cancel" onClick={() => setAddingNew(false)}><X size={14} /></RowAction>
+                </TableCell>
+              </TableRow>
             )}
             {data.rows.length === 0 && !addingNew ? (
-              <tr><td colSpan={columns.length + 1} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No rows.</td></tr>
+              <TableRow><TableCell colSpan={columns.length + 1} sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>No rows.</TableCell></TableRow>
             ) : data.rows.map((row, i) => {
               const key = keyFor(row)
               const isEditing = editingKey === key
               return (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                <TableRow key={i} hover>
                   {columns.map(col => (
-                    <td key={col.name} style={{ padding: isEditing ? '4px 8px' : '8px 12px', fontSize: 12.5, fontFamily: 'var(--font-mono)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isEditing ? 'normal' : 'nowrap' }}>
+                    <TableCell key={col.name} sx={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isEditing ? 'normal' : 'nowrap', py: isEditing ? 0.5 : undefined, lineHeight: 1.5 }}>
                       {isEditing ? (
-                        <input className="input" value={draft[col.name] ?? ''}
+                        <TextField
+                          size="small" value={draft[col.name] ?? ''}
                           onChange={e => setDraft(prev => ({ ...prev, [col.name]: e.target.value }))}
-                          style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', padding: '4px 8px', height: 30 }} />
+                          sx={cellInputSx}
+                          slotProps={{ htmlInput: { 'aria-label': `Edit ${col.name}` } }}
+                        />
                       ) : (
-                        row[col.name] === null ? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>NULL</span> : cellText(row[col.name])
+                        row[col.name] === null ? <Box component="span" sx={{ color: 'text.disabled', fontStyle: 'italic' }}>NULL</Box> : cellText(row[col.name])
                       )}
-                    </td>
+                    </TableCell>
                   ))}
-                  {canEdit && hasPrimaryKey && (
-                    <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                  {showActions && (
+                    <TableCell sx={{ py: 0.5, whiteSpace: 'nowrap' }}>
                       {isEditing ? (
                         <>
-                          <button onClick={() => saveEdit(row)} disabled={saving} className="btn-icon" title="Save" style={{ color: 'var(--success)', width: 28, height: 28 }}><Check size={14} /></button>
-                          <button onClick={() => setEditingKey(null)} className="btn-icon" title="Cancel" style={{ width: 28, height: 28 }}><X size={14} /></button>
+                          <RowAction label="Save" color="success" onClick={() => saveEdit(row)} disabled={saving}><Check size={14} /></RowAction>
+                          <RowAction label="Cancel" onClick={() => setEditingKey(null)}><X size={14} /></RowAction>
                         </>
                       ) : confirmDeleteKey === key ? (
                         <>
-                          <button onClick={() => deleteRow(row)} disabled={saving} className="btn-icon danger" title="Confirm delete" style={{ width: 28, height: 28 }}><Check size={14} /></button>
-                          <button onClick={() => setConfirmDeleteKey(null)} className="btn-icon" title="Cancel" style={{ width: 28, height: 28 }}><X size={14} /></button>
+                          <RowAction label="Confirm delete" color="error" onClick={() => deleteRow(row)} disabled={saving}><Check size={14} /></RowAction>
+                          <RowAction label="Cancel" onClick={() => setConfirmDeleteKey(null)}><X size={14} /></RowAction>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(row)} className="btn-icon" title="Edit row" style={{ width: 28, height: 28 }}><Pencil size={13} /></button>
-                          <button onClick={() => setConfirmDeleteKey(key)} className="btn-icon danger" title="Delete row" style={{ width: 28, height: 28 }}><Trash2 size={13} /></button>
+                          <RowAction label="Edit row" onClick={() => startEdit(row)}><Pencil size={13} /></RowAction>
+                          <RowAction label="Delete row" color="error" onClick={() => setConfirmDeleteKey(key)}><Trash2 size={13} /></RowAction>
                         </>
                       )}
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               )
             })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </TableBody>
+        </Table>
+      </Box>
+    </Box>
   )
 }

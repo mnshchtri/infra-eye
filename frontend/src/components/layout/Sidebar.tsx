@@ -1,80 +1,24 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
+import { ChevronRight, ChevronLeft, Menu, ChevronDown, Download } from 'lucide-react'
 import {
-  LayoutDashboard, Server,   Bot, Bell, Settings, LogOut, ChevronRight,
-  ChevronLeft, Menu, Code2, Sun, Moon, ChevronDown, Shield, Database, X,
-  ShieldAlert, Lock, Network, KeyRound, GitBranch, Download, Workflow, Map,
-  FileCode2, Radar
-} from 'lucide-react'
-import { useAuthStore } from '../../store/authStore'
+  Box, Button, Collapse, Divider, Drawer, IconButton, List, ListItemButton,
+  ListItemIcon, ListItemText, ListSubheader, Tooltip, Typography, useMediaQuery,
+} from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import { navGroups } from './navConfig'
+import { SIDEBAR_WIDTH, SIDEBAR_WIDTH_COLLAPSED } from '../../theme/theme'
 import { useUIStore } from '../../store/uiStore'
 import { useToastStore } from '../../store/toastStore'
-import { usePermission, type PermissionAction } from '../../hooks/usePermission'
+import { usePermission } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
-import { KubernetesIcon } from '../OSIcons'
 import { api } from '../../api/client'
-import { Modal, ModalBody, ModalFooter, Button } from '../ui'
+import { Modal, ModalBody, ModalFooter, Button as LegacyButton } from '../ui'
 import { useState, useEffect, Fragment } from 'react'
 import { errMessage } from '../../utils/errors'
-import type { IconComponent } from '../../types/k8s'
-
-type NavItem = {
-  to: string
-  icon: IconComponent
-  label: string
-  action?: PermissionAction
-}
-
-const navGroups: { label: string; items: NavItem[] }[] = [
-  {
-    label: 'Overview',
-    items: [
-      { to: '/',           icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/servers',    icon: Server,          label: 'Servers' },
-    ]
-  },
-  {
-    label: 'Infrastructure',
-    items: [
-      { to: '/infra-map',  icon: Map,             label: 'Infra Map' },
-      { to: '/kubernetes', icon: KubernetesIcon,  label: 'Kubernetes',  action: 'use-kubectl' },
-      { to: '/resources',  icon: Database,        label: 'Resources',   action: 'manage-resources' },
-      { to: '/alerts',     icon: Bell,            label: 'Alert Rules', action: 'view-alerts' },
-      { to: '/vpn',        icon: Shield,          label: 'VPN Tunnel' },
-    ]
-  },
-  {
-    label: 'Operations',
-    items: [
-      { to: '/ai',         icon: Bot,             label: 'AI Assistant', action: 'use-ai' },
-      { to: '/agent',      icon: Workflow,        label: 'Agent',        action: 'use-agent' },
-    ]
-  },
-  {
-    label: 'Audit',
-    items: [
-      { to: '/audit/kernel',    icon: ShieldAlert, label: 'Kernel Scanner',    action: 'view-audit' },
-      { to: '/audit/hardening', icon: Lock,        label: 'Server Hardening', action: 'view-audit' },
-      { to: '/audit/cluster',   icon: Network,     label: 'Cluster Security', action: 'view-audit' },
-      { to: '/audit/resources', icon: KeyRound,    label: 'Resource Security', action: 'view-audit' },
-      { to: '/audit/code',      icon: FileCode2,   label: 'Code Security',    action: 'view-audit' },
-      { to: '/audit/dast',      icon: Radar,       label: 'DAST Scanner',     action: 'view-audit' },
-    ]
-  },
-  {
-    label: 'Engineering',
-    items: [
-      { to: '/devtools',   icon: Code2,           label: 'Developer Hub', action: 'manage-users' },
-      { to: '/iac-sync',   icon: GitBranch,       label: 'IaC Sync',      action: 'manage-gitsync' },
-      { to: '/settings',   icon: Settings,        label: 'System Settings' },
-    ]
-  },
-]
 
 export function Sidebar() {
-  const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, toggleSidebar, darkMode, toggleDarkMode, mobileNavOpen, toggleMobileNav } = useUIStore()
+  const { sidebarCollapsed, toggleSidebar, darkMode, mobileNavOpen, setMobileNavOpen } = useUIStore()
   const { can } = usePermission()
-  const navigate = useNavigate()
   const toast = useToastStore()
 
   const [servers, setServers] = useState<{ id: number; name: string; is_k8s?: boolean; status?: string }[]>([])
@@ -152,152 +96,163 @@ export function Sidebar() {
     }
   }
 
-  function handleLogout() {
-    logout()
-    navigate('/login')
-  }
+  const theme = useTheme()
+  const isDesktopWidth = useMediaQuery(theme.breakpoints.up('md'))
+  // On narrow screens the drawer is always full-width labelled; "collapsed"
+  // (icon rail) only applies to the permanent desktop drawer.
+  const collapsed = isDesktopWidth && sidebarCollapsed
+  const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH
 
-  return (
-    <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileNavOpen ? 'mobile-open' : ''}`}>
-      {/* Header / Logo */}
-      <div className="sidebar-header">
-        <div className="sidebar-logo">
+  const content = (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: collapsed ? 1.5 : 2, height: 48, flexShrink: 0 }}>
+        <Box sx={{ width: 32, height: 32, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
           <img
             src={logo}
-            alt="L"
-            style={{ height: 32, width: 'auto', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }}
+            alt="InfraEye"
+            style={{ width: '100%', height: '100%', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }}
           />
-          {!sidebarCollapsed && <span className="sidebar-logo-text">InfraEye</span>}
-        </div>
-
-        {!sidebarCollapsed && (
-          <button className="sidebar-toggle-btn" onClick={toggleSidebar} title="Collapse Sidebar">
-            <ChevronLeft size={14} />
-          </button>
+        </Box>
+        {!collapsed && (
+          <Typography variant="h6" sx={{ flex: 1, fontWeight: 700, letterSpacing: '-0.01em' }}>InfraEye</Typography>
         )}
-        {mobileNavOpen && (
-          <button className="sidebar-close-btn" onClick={toggleMobileNav} title="Close menu">
-            <X size={14} />
-          </button>
+        {isDesktopWidth && !collapsed && (
+          <Tooltip title="Collapse sidebar">
+            <IconButton onClick={toggleSidebar} aria-label="Collapse sidebar"><ChevronLeft size={16} /></IconButton>
+          </Tooltip>
         )}
-      </div>
+      </Box>
+      <Divider />
 
-      {/* Nav Groups */}
-      <nav className="sidebar-nav">
-        {sidebarCollapsed && (
-          <button
-            className="sidebar-toggle-btn sidebar-toggle-btn-collapsed"
-            onClick={toggleSidebar}
-            title="Expand Sidebar"
-          >
-            <Menu size={18} />
-          </button>
+      <Box component="nav" aria-label="Primary" sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 0.5 }}>
+        {collapsed && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
+            <Tooltip title="Expand sidebar" placement="right">
+              <IconButton onClick={toggleSidebar} aria-label="Expand sidebar"><Menu size={18} /></IconButton>
+            </Tooltip>
+          </Box>
         )}
 
         {navGroups.map(group => {
           const visibleItems = group.items.filter(item => !item.action || can(item.action))
           if (visibleItems.length === 0) return null
-
           return (
-          <div key={group.label} className="sidebar-nav-group">
-            {!sidebarCollapsed && (
-              <div className="sidebar-nav-group-label">{group.label}</div>
-            )}
-            {visibleItems.map(({ to, icon: Icon, label }) => (
-              <Fragment key={to}>
-                <NavLink
-                  to={to}
-                  end={to === '/'}
-                  className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                  title={sidebarCollapsed ? label : undefined}
-                >
-                  <div className="sidebar-link-icon">
-                    <Icon size={16} strokeWidth={2.5} />
-                  </div>
-                  {!sidebarCollapsed && <span className="sidebar-link-text">{label}</span>}
-                 {label === 'Servers' && !sidebarCollapsed && (
-                  <div
-                    className="sidebar-nested-toggle"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setServersExpanded(!serversExpanded); }}
-                  >
-                    {serversExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  </div>
-                 )}
-                 {label !== 'Servers' && !sidebarCollapsed && <ChevronRight size={12} className="sidebar-link-arrow" />}
-                </NavLink>
+            <List
+              key={group.label}
+              dense
+              disablePadding
+              subheader={
+                collapsed ? <Divider sx={{ my: 0.5 }} /> : (
+                  <ListSubheader disableSticky sx={{
+                    bgcolor: 'transparent', lineHeight: '28px', mt: 0.5, fontSize: '0.6875rem',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                  }}>
+                    {group.label}
+                  </ListSubheader>
+                )
+              }
+            >
+              {visibleItems.map(({ to, icon: Icon, label }) => {
+                const isServers = label === 'Servers'
+                const showSub = isServers && !collapsed && servers.length > 0
+                return (
+                  <Fragment key={to}>
+                    <Box sx={{ position: 'relative' }}>
+                      <Tooltip title={collapsed ? label : ''} placement="right">
+                        <ListItemButton
+                          component={NavLink}
+                          to={to}
+                          end={to === '/'}
+                          sx={{
+                            mx: 1, my: 0.25, borderRadius: 1, minHeight: 34, px: 1.25,
+                            justifyContent: collapsed ? 'center' : 'flex-start',
+                            '&.active': {
+                              bgcolor: 'action.selected', color: 'primary.main',
+                              '& .MuiListItemIcon-root': { color: 'primary.main' },
+                            },
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, color: 'text.secondary' }}>
+                            <Icon size={16} />
+                          </ListItemIcon>
+                          {!collapsed && (
+                            <ListItemText primary={label} slotProps={{ primary: { variant: 'body1', sx: { fontWeight: 500 } } }} />
+                          )}
+                        </ListItemButton>
+                      </Tooltip>
+                      {/* Sibling of the link, not a child: a button inside an anchor is invalid HTML
+                          and pollutes the link's accessible name. */}
+                      {showSub && (
+                        <IconButton
+                          aria-label={serversExpanded ? 'Collapse servers' : 'Expand servers'}
+                          aria-expanded={serversExpanded}
+                          onClick={() => setServersExpanded(!serversExpanded)}
+                          sx={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}
+                        >
+                          {serversExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </IconButton>
+                      )}
+                    </Box>
+                    {showSub && (
+                      <Collapse in={serversExpanded} unmountOnExit>
+                        <List dense disablePadding sx={{ maxHeight: 240, overflowY: 'auto' }}>
+                          {servers.map(s => (
+                            <ListItemButton
+                              key={s.id}
+                              component={NavLink}
+                              to={`/servers/${s.id}`}
+                              sx={{
+                                mx: 1, ml: 4.5, borderRadius: 1, minHeight: 28, py: 0,
+                                '&.active': { bgcolor: 'action.selected', color: 'primary.main' },
+                              }}
+                            >
+                              <Box
+                                aria-label={s.status === 'online' ? 'online' : 'offline'}
+                                sx={{
+                                  width: 7, height: 7, borderRadius: '50%', mr: 1, flexShrink: 0,
+                                  bgcolor: s.status === 'online' ? 'success.main' : 'text.disabled',
+                                }}
+                              />
+                              <ListItemText primary={s.name} slotProps={{ primary: { variant: 'body2', noWrap: true } }} />
+                            </ListItemButton>
+                          ))}
+                        </List>
+                      </Collapse>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </List>
+          )
+        })}
+      </Box>
 
-                {/* Nested list for Servers (Scrollable) */}
-                {label === 'Servers' && !sidebarCollapsed && serversExpanded && servers.length > 0 && (
-                  <div className="sidebar-sublist">
-                    {servers.map(s => (
-                      <NavLink
-                        key={s.id}
-                        to={`/servers/${s.id}`}
-                        className={({ isActive }) => `nav-sublink ${isActive ? 'active' : ''}`}
-                      >
-                        <span className={`nav-sublink-dot ${s.status === 'online' ? 'online' : ''}`} />
-                        <span className="nav-sublink-name">{s.name}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </Fragment>
-            ))}
-          </div>
-        )
-      })}
-      </nav>
-
-
-      {/* Theme Toggle & User Footer */}
-      <div className="sidebar-footer">
-        <div className="sidebar-theme-row">
-          {!sidebarCollapsed && <span className="sidebar-theme-label">System Theme</span>}
-          <button
-            className="sidebar-toggle-btn"
-            onClick={toggleDarkMode}
-            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {darkMode ? <Sun size={13} color="var(--warning)" /> : <Moon size={13} color="var(--brand-primary)" />}
-          </button>
-        </div>
-
-        {!sidebarCollapsed && (
+      <Divider />
+      <Box sx={{ p: 1, flexShrink: 0 }}>
+        {!collapsed && (
           __IS_DESKTOP__ ? (
-            <button
-              className={`sidebar-update-btn ${updateInfo ? 'available' : ''}`}
+            <Button
+              fullWidth
+              size="small"
+              variant={updateInfo ? 'contained' : 'outlined'}
+              color={updateInfo ? 'success' : 'inherit'}
+              startIcon={<Download size={13} />}
               onClick={handleUpdateClick}
               disabled={updateState !== 'idle'}
               title={updateInfo ? `Update available: v${updateInfo.version}` : `Running v${__APP_VERSION__} — click to check for updates`}
             >
-              <Download size={12} style={{ flexShrink: 0 }} />
-              <span className="sidebar-update-btn-label">
-                {updateState === 'checking' ? 'Checking…'
-                  : updateState === 'updating' ? 'Updating…'
-                  : updateInfo ? `Update to v${updateInfo.version}`
-                  : 'Check for Updates'}
-              </span>
-            </button>
+              {updateState === 'checking' ? 'Checking…'
+                : updateState === 'updating' ? 'Updating…'
+                : updateInfo ? `Update to v${updateInfo.version}`
+                : 'Check for Updates'}
+            </Button>
           ) : (
-            <div className="sidebar-version">v{__APP_VERSION__}</div>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+              v{__APP_VERSION__}
+            </Typography>
           )
         )}
-
-        <div className="sidebar-user">
-          <div className="sidebar-user-avatar" title={sidebarCollapsed ? user?.username : undefined}>
-            {user?.username?.[0]?.toUpperCase() ?? 'A'}
-          </div>
-          {!sidebarCollapsed && (
-            <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{user?.username ?? 'Admin'}</span>
-              <span className="sidebar-user-role">{user?.role ?? 'operator'}</span>
-            </div>
-          )}
-          <button className="sidebar-logout" onClick={handleLogout} title="Sign out">
-            <LogOut size={sidebarCollapsed ? 14 : 12} />
-          </button>
-        </div>
-      </div>
+      </Box>
 
       {updateInfo && (
         <Modal
@@ -307,8 +262,8 @@ export function Sidebar() {
           size="sm"
           footer={
             <ModalFooter>
-              <Button variant="ghost" onClick={() => setConfirmUpdateOpen(false)}>Cancel</Button>
-              <Button variant="primary" onClick={runUpdate}>Update & Restart</Button>
+              <LegacyButton variant="ghost" onClick={() => setConfirmUpdateOpen(false)}>Cancel</LegacyButton>
+              <LegacyButton variant="primary" onClick={runUpdate}>Update & Restart</LegacyButton>
             </ModalFooter>
           }
         >
@@ -317,6 +272,31 @@ export function Sidebar() {
           </ModalBody>
         </Modal>
       )}
-    </aside>
+    </Box>
+  )
+
+  return isDesktopWidth ? (
+    <Drawer
+      variant="permanent"
+      sx={{
+        width, flexShrink: 0, transition: theme.transitions.create('width', { duration: 150 }),
+        '& .MuiDrawer-paper': {
+          width, boxSizing: 'border-box', overflowX: 'hidden',
+          transition: theme.transitions.create('width', { duration: 150 }),
+        },
+      }}
+    >
+      {content}
+    </Drawer>
+  ) : (
+    <Drawer
+      variant="temporary"
+      open={mobileNavOpen}
+      onClose={() => setMobileNavOpen(false)}
+      ModalProps={{ keepMounted: true }}
+      sx={{ '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH, boxSizing: 'border-box' } }}
+    >
+      {content}
+    </Drawer>
   )
 }

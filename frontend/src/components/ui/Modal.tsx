@@ -1,5 +1,11 @@
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import IconButton from '@mui/material/IconButton'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import { X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -14,82 +20,33 @@ export interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
-export function Modal({
-  isOpen,
-  onClose,
-  title,
-  icon: Icon,
-  subtitle,
-  children,
-  footer,
-  size = 'md',
-}: ModalProps) {
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
+const MAX_WIDTH = { sm: 'xs', md: 'sm', lg: 'md', xl: 'lg' } as const
 
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [isOpen])
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
-
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
-
-  const sizeClasses = {
-    sm: 'modal-sm',
-    md: 'modal-md',
-    lg: 'modal-lg',
-    xl: 'modal-xl',
-  }
-
+export function Modal({ isOpen, onClose, title, icon: Icon, subtitle, children, footer, size = 'md' }: ModalProps) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className={`modal ${sizeClasses[size]}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {title && (
-          <div className="modal-header">
-            <div className="modal-header-heading">
-              {Icon && (
-                <div className="modal-icon-box">
-                  <Icon size={18} />
-                </div>
-              )}
-              <div>
-                <h2 className="modal-title">{title}</h2>
-                {subtitle && <p className="modal-subtitle">{subtitle}</p>}
-              </div>
-            </div>
-            <button
-              className="modal-close"
-              onClick={onClose}
-              aria-label="Close modal"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        )}
-
-        <div className="modal-body">{children}</div>
-
-        {footer && <div className="modal-footer">{footer}</div>}
-      </div>
-    </div>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      maxWidth={MAX_WIDTH[size]}
+      fullWidth
+    >
+      {title && (
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.25, pr: 1 }}>
+          {Icon && (
+            <Box sx={{ display: 'grid', placeItems: 'center', width: 32, height: 32, borderRadius: 1, bgcolor: 'action.selected', color: 'primary.main' }}>
+              <Icon size={18} />
+            </Box>
+          )}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="h6" component="span" sx={{ display: 'block' }}>{title}</Typography>
+            {subtitle && <Typography variant="body2" color="text.secondary">{subtitle}</Typography>}
+          </Box>
+          <IconButton onClick={onClose} aria-label="Close modal"><X size={18} /></IconButton>
+        </DialogTitle>
+      )}
+      <DialogContent dividers={!!title}>{children}</DialogContent>
+      {footer && <DialogActions sx={{ px: 2, py: 1.25 }}>{footer}</DialogActions>}
+    </Dialog>
   )
 }
 
@@ -100,33 +57,19 @@ export interface ModalHeaderProps {
 
 export function ModalHeader({ children, onClose }: ModalHeaderProps) {
   return (
-    <div className="modal-header">
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
       {children}
-      {onClose && (
-        <button
-          className="modal-close"
-          onClick={onClose}
-          aria-label="Close modal"
-        >
-          <X size={20} />
-        </button>
-      )}
-    </div>
+      {onClose && <IconButton onClick={onClose} aria-label="Close modal"><X size={18} /></IconButton>}
+    </Box>
   )
 }
 
-export interface ModalBodyProps {
-  children: ReactNode
+// Modal already pads its content; these only group children, so callers that
+// nest them inside <Modal> don't get doubled padding.
+export function ModalBody({ children }: { children: ReactNode }) {
+  return <Box>{children}</Box>
 }
 
-export function ModalBody({ children }: ModalBodyProps) {
-  return <div className="modal-body">{children}</div>
-}
-
-export interface ModalFooterProps {
-  children: ReactNode
-}
-
-export function ModalFooter({ children }: ModalFooterProps) {
-  return <div className="modal-footer">{children}</div>
+export function ModalFooter({ children }: { children: ReactNode }) {
+  return <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, width: '100%' }}>{children}</Box>
 }

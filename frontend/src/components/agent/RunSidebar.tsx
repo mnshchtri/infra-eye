@@ -1,4 +1,6 @@
 import { memo, useState, useEffect, useCallback } from 'react'
+import { Box, ButtonBase, IconButton, Button as MuiButton, Tooltip, Typography } from '@mui/material'
+import { Modal, Button } from '../ui'
 import { X, ChevronLeft, ChevronRight, Plus, Workflow, Trash2 } from 'lucide-react'
 
 export interface AgentRunSummary {
@@ -32,11 +34,11 @@ function timeAgo(iso: string): string {
 }
 
 const STATUS_COLOR: Record<AgentRunSummary['status'], string> = {
-  running: 'var(--brand-primary)',
-  awaiting_approval: 'var(--warning, #d97706)',
-  completed: 'var(--success)',
-  failed: 'var(--danger)',
-  cancelled: 'var(--text-muted)',
+  running: 'primary.main',
+  awaiting_approval: 'warning.main',
+  completed: 'success.main',
+  failed: 'error.main',
+  cancelled: 'text.disabled',
 }
 
 const STATUS_LABEL: Record<AgentRunSummary['status'], string> = {
@@ -80,175 +82,158 @@ export const RunSidebar = memo(({
   const sidebarWidth = isCollapsed ? 64 : width
 
   return (
-    <div
-      className={`ai-sidebar ${isCollapsed ? 'collapsed' : ''}`}
-      style={{
+    <Box
+      component="aside"
+      aria-label="Agent runs"
+      sx={(t) => ({
         width: sidebarWidth,
-        borderRight: '1px solid var(--border)',
-        background: 'var(--bg-sidebar)', display: 'flex', flexDirection: 'column',
-        flexShrink: 0, transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflow: 'hidden', position: 'relative', zIndex: 100,
-      }}
+        borderRight: 1, borderColor: 'divider',
+        bgcolor: 'background.paper', display: 'flex', flexDirection: 'column',
+        flexShrink: 0, transition: isResizing ? 'none' : 'width 0.2s ease',
+        overflow: 'hidden', position: 'relative', zIndex: 2,
+        [t.breakpoints.down('md')]: {
+          position: 'fixed', top: 0, bottom: 0, left: isCollapsed ? '-100%' : 0,
+          width: 280, zIndex: t.zIndex.drawer + 1, transition: 'left 0.25s ease',
+          boxShadow: isCollapsed ? 'none' : t.shadows[8],
+        },
+      })}
     >
       {!isCollapsed && (
-        <button
-          className="show-mobile-only btn-icon"
-          onClick={() => onToggle(true)}
-          style={{ position: 'absolute', right: 12, top: 28, zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-        >
-          <X size={16} />
-        </button>
+        <Tooltip title="Close runs">
+          <IconButton
+            aria-label="Close runs"
+            onClick={() => onToggle(true)}
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, position: 'absolute', right: 8, top: 8, zIndex: 10 }}
+          >
+            <X size={16} />
+          </IconButton>
+        </Tooltip>
       )}
       {!isCollapsed && (
-        <div
+        <Box
           onMouseDown={startResizing}
-          style={{
-            position: 'absolute', right: 0, top: 0, bottom: 0, width: 4,
-            cursor: 'col-resize', zIndex: 10,
-            background: isResizing ? 'var(--brand-primary)' : 'transparent',
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={e => !isResizing && (e.currentTarget.style.background = 'var(--border-bright)')}
-          onMouseLeave={e => !isResizing && (e.currentTarget.style.background = 'transparent')}
+          sx={(t) => ({
+            display: { xs: 'none', md: 'block' },
+            position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'col-resize', zIndex: 10,
+            bgcolor: isResizing ? 'primary.main' : 'transparent', transition: 'background-color 0.2s',
+            '&:hover': { bgcolor: isResizing ? 'primary.main' : t.palette.divider },
+          })}
         />
       )}
 
-      <div style={{ padding: '20px 14px 14px', display: 'flex', flexDirection: 'column', gap: 14, alignItems: isCollapsed ? 'center' : 'stretch' }}>
-        <div style={{ display: 'flex', justifyContent: isCollapsed ? 'center' : 'space-between', alignItems: 'center', gap: 8 }}>
+      <Box sx={{ p: '14px 12px 10px', display: 'flex', flexDirection: 'column', gap: 1.25, alignItems: isCollapsed ? 'center' : 'stretch' }}>
+        <Box sx={{ display: 'flex', justifyContent: isCollapsed ? 'center' : 'space-between', alignItems: 'center', gap: 1 }}>
           {!isCollapsed ? (
             <>
-              <button
-                onClick={onNew}
-                style={{
-                  flex: 1, height: 40, borderRadius: 'var(--radius-md)',
-                  background: 'var(--brand-primary)', border: 'none',
-                  color: 'var(--text-inverse)', fontSize: 13.5, fontWeight: 800,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  transition: 'filter 0.1s', padding: '0 14px',
-                }}
-                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                onMouseLeave={e => e.currentTarget.style.filter = 'none'}
-              >
-                <Plus size={15} strokeWidth={3} />
-                <span>New agent run</span>
-              </button>
-              <button
-                onClick={() => onToggle(true)}
-                title="Collapse sidebar"
-                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: 6, borderRadius: 'var(--radius-md)', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}
-              >
-                <ChevronLeft size={16} />
-              </button>
+              <MuiButton variant="contained" startIcon={<Plus size={15} />} onClick={onNew} sx={{ flex: 1, height: 34 }}>
+                New agent run
+              </MuiButton>
+              <Tooltip title="Collapse runs">
+                <IconButton aria-label="Collapse runs" onClick={() => onToggle(true)} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
+                  <ChevronLeft size={16} />
+                </IconButton>
+              </Tooltip>
             </>
           ) : (
-            <button
-              onClick={onNew}
-              title="New agent run"
-              style={{
-                width: 40, height: 40, borderRadius: 'var(--radius-md)',
-                background: 'var(--brand-primary)', border: 'none',
-                color: 'var(--text-inverse)', cursor: 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Plus size={18} strokeWidth={3} />
-            </button>
+            <Tooltip title="New agent run" placement="right">
+              <IconButton aria-label="New agent run" onClick={onNew} sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>
+                <Plus size={16} />
+              </IconButton>
+            </Tooltip>
           )}
-        </div>
+        </Box>
 
         {isCollapsed && (
-          <button
-            onClick={() => onToggle(false)}
-            title="Expand sidebar"
-            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 6, cursor: 'pointer', color: 'var(--text-muted)' }}
-          >
-            <ChevronRight size={16} />
-          </button>
+          <Tooltip title="Expand runs" placement="right">
+            <IconButton aria-label="Expand runs" onClick={() => onToggle(false)}>
+              <ChevronRight size={16} />
+            </IconButton>
+          </Tooltip>
         )}
 
         {!isCollapsed && runs.length > 0 && (
-          <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '0 4px' }}>
-            Runs
-          </div>
+          <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, fontWeight: 600 }}>Runs</Typography>
         )}
-      </div>
+      </Box>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: isCollapsed ? '0 8px' : '0 10px 20px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', px: isCollapsed ? 1 : 1.25, pb: 2.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
         {!isCollapsed && runs.length === 0 && (
-          <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Box sx={{ py: 3, px: 1.5, textAlign: 'center', color: 'text.secondary' }}>
             <Workflow size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
-            <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>No agent runs yet — describe a goal to start one.</div>
-          </div>
+            <Typography variant="body2">No agent runs yet — describe a goal to start one.</Typography>
+          </Box>
         )}
-        {runs.map(r => (
-          <div
-            key={r.id}
-            onClick={() => onSelect(r.id)}
-            title={isCollapsed ? r.goal : undefined}
-            className="ai-thread-item"
-            style={{
-              padding: isCollapsed ? '12px 0' : '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center',
-              background: activeRunId === r.id ? 'var(--bg-elevated)' : 'transparent',
-              boxShadow: activeRunId === r.id ? 'inset 2px 0 0 var(--brand-primary)' : 'none',
-              transition: 'background 0.15s',
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              gap: 8, position: 'relative', overflow: 'hidden',
-            }}
-            onMouseEnter={e => { if (activeRunId !== r.id) e.currentTarget.style.background = 'var(--bg-elevated)' }}
-            onMouseLeave={e => { if (activeRunId !== r.id) e.currentTarget.style.background = 'transparent' }}
-          >
-            {!isCollapsed ? (
-              <>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{
-                    fontSize: 13.5, color: activeRunId === r.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontWeight: activeRunId === r.id ? 700 : 600,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {r.goal}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLOR[r.status], flexShrink: 0 }} />
-                    <span style={{ fontSize: 11.5, color: STATUS_COLOR[r.status], fontWeight: 700 }}>{STATUS_LABEL[r.status]}</span>
-                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>· {timeAgo(r.created_at)}</span>
-                  </div>
-                </div>
-                {confirmDelete === r.id ? (
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                    <button
-                      title="Confirm delete"
-                      onClick={() => { onDelete(r.id); setConfirmDelete(null) }}
-                      style={{ padding: '4px 8px', borderRadius: 'var(--radius-md)', fontSize: 11, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 800 }}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      title="Cancel"
-                      onClick={() => setConfirmDelete(null)}
-                      style={{ padding: '4px 8px', borderRadius: 'var(--radius-md)', fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
-                    >
-                      Keep
-                    </button>
-                  </div>
+        {runs.map(r => {
+          const active = activeRunId === r.id
+          return (
+            <Box
+              key={r.id}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 0.5,
+                borderRadius: 1, overflow: 'hidden', position: 'relative',
+                bgcolor: active ? 'action.selected' : 'transparent',
+                boxShadow: active ? (th) => `inset 2px 0 0 ${th.palette.primary.main}` : 'none',
+                '&:hover': { bgcolor: active ? 'action.selected' : 'action.hover' },
+              }}
+            >
+              <ButtonBase
+                onClick={() => onSelect(r.id)}
+                aria-label={isCollapsed ? r.goal : undefined}
+                aria-current={active ? 'true' : undefined}
+                title={isCollapsed ? r.goal : undefined}
+                sx={{
+                  flex: 1, minWidth: 0, textAlign: 'left', justifyContent: isCollapsed ? 'center' : 'flex-start',
+                  py: isCollapsed ? 1.5 : 1, pl: isCollapsed ? 0 : 1.5, pr: 0.5, display: 'flex',
+                }}
+              >
+                {!isCollapsed ? (
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography noWrap variant="body1" sx={{ fontWeight: active ? 600 : 500, color: active ? 'text.primary' : 'text.secondary' }}>
+                      {r.goal}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
+                      <Box component="span" sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: STATUS_COLOR[r.status], flexShrink: 0 }} />
+                      <Typography variant="caption" sx={{ color: STATUS_COLOR[r.status], fontWeight: 600 }}>{STATUS_LABEL[r.status]}</Typography>
+                      <Typography variant="caption" color="text.secondary">· {timeAgo(r.created_at)}</Typography>
+                    </Box>
+                  </Box>
                 ) : (
-                  <button
-                    className="btn-icon danger"
-                    title="Delete run"
-                    onClick={e => { e.stopPropagation(); setConfirmDelete(r.id) }}
-                    style={{ width: 26, height: 26, flexShrink: 0 }}
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: STATUS_COLOR[r.status] }} />
+                )}
+              </ButtonBase>
+              {!isCollapsed && (
+                <Tooltip title="Delete run">
+                  <IconButton
+                    aria-label={`Delete run ${r.goal}`}
+                    onClick={() => setConfirmDelete(r.id)}
+                    sx={{ flexShrink: 0, mr: 0.5, '&:hover': { color: 'error.main' } }}
                   >
                     <Trash2 size={13} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[r.status] }} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          )
+        })}
+      </Box>
+
+      <Modal
+        isOpen={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete run"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => { if (confirmDelete !== null) onDelete(confirmDelete); setConfirmDelete(null) }}>Delete</Button>
+          </>
+        }
+      >
+        <Typography variant="body1" color="text.secondary">
+          Delete <b>{runs.find(r => r.id === confirmDelete)?.goal ?? 'this run'}</b>? Its steps and history will be removed.
+        </Typography>
+      </Modal>
+    </Box>
   )
 })
 

@@ -1,19 +1,26 @@
 import type { HTMLAttributes, ReactNode } from 'react'
+import MuiCard from '@mui/material/Card'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Divider from '@mui/material/Divider'
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   interactive?: boolean
   children: ReactNode
 }
 
-export function Card({ interactive = false, className = '', children, ...props }: CardProps) {
-  const classes = ['card', interactive && 'card-interactive', className]
-    .filter(Boolean)
-    .join(' ')
-
+export function Card({ interactive = false, children, ...props }: CardProps) {
   return (
-    <div className={classes} {...props}>
+    <MuiCard
+      {...props}
+      sx={interactive ? {
+        cursor: 'pointer',
+        transition: 'border-color 120ms',
+        '&:hover': { borderColor: 'primary.main' },
+      } : undefined}
+    >
       {children}
-    </div>
+    </MuiCard>
   )
 }
 
@@ -21,11 +28,17 @@ export interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
 }
 
-export function CardHeader({ className = '', children, ...props }: CardHeaderProps) {
+export function CardHeader({ children, ...props }: CardHeaderProps) {
   return (
-    <div className={`card-header ${className}`} {...props}>
-      {children}
-    </div>
+    <>
+      <Box
+        {...props}
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, px: 2, py: 1.25 }}
+      >
+        {children}
+      </Box>
+      <Divider />
+    </>
   )
 }
 
@@ -33,34 +46,29 @@ export interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
   children: ReactNode
 }
 
-export function CardTitle({ className = '', children, ...props }: CardTitleProps) {
-  return (
-    <h3 className={`card-title ${className}`} {...props}>
-      {children}
-    </h3>
-  )
+export function CardTitle({ children, ...props }: CardTitleProps) {
+  return <Typography variant="subtitle1" component="h3" {...props}>{children}</Typography>
 }
 
 export interface CardBodyProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
 }
 
-export function CardBody({ className = '', children, ...props }: CardBodyProps) {
-  return (
-    <div className={`card-body ${className}`} {...props}>
-      {children}
-    </div>
-  )
+export function CardBody({ children, ...props }: CardBodyProps) {
+  return <Box {...props} sx={{ p: 2 }}>{children}</Box>
 }
 
 export interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
 }
 
-export function CardFooter({ className = '', children, ...props }: CardFooterProps) {
+export function CardFooter({ children, ...props }: CardFooterProps) {
   return (
-    <div className={`card-footer ${className}`} {...props}>
-      {children}
-    </div>
+    <>
+      <Divider />
+      <Box {...props} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2, py: 1.25 }}>
+        {children}
+      </Box>
+    </>
   )
 }

@@ -4,7 +4,7 @@ import {
   KeySquare, KeyRound, Clock, ArrowRightLeft, CalendarClock,
   FileJson, Braces, Hash, Copy, Check, AlertCircle, Trash2, Eraser, Route,
   Network, ShieldCheck, Cpu, GitCompare, Fingerprint, Container, FileCode2, Download,
-  Split, Layers, Globe, Radar, ListTree, Fingerprint as FingerprintIcon, type LucideIcon
+  Split as SplitIcon, Layers, Globe, Radar, ListTree, Fingerprint as FingerprintIcon, type LucideIcon
 } from 'lucide-react'
 import { cleanManifest, DEFAULT_CLEAN_OPTIONS, type CleanOptions, type CleanResult } from '../utils/k8sManifestCleaner'
 import { convertIngressToGateway } from '../utils/ingressToGateway'
@@ -19,7 +19,18 @@ import { inspectSshKeys, type SshKeyResult } from '../utils/sshKey'
 import { parseCron } from '../utils/cronParser'
 import { computeDiff } from '../utils/textDiff'
 import { evaluateJsonnet } from '../utils/jsonnetEvaluator'
-import { SectionHeader, EmptyState, TabSwitcher } from '../components/ui'
+import Box from '@mui/material/Box'
+import Card from '@mui/material/Card'
+import ButtonBase from '@mui/material/ButtonBase'
+import Radio from '@mui/material/Radio'
+import Typography from '@mui/material/Typography'
+import { useTheme, type Theme } from '@mui/material/styles'
+import { SectionHeader, EmptyState, TabSwitcher, PageHeader, Button } from '../components/ui'
+import {
+  ToolBody, Toolbar, ToolbarSpacer, ErrorBanner, Pane, PaneLabel, PaneLabelRow, SplitPane, ResultGrid, ToolCard,
+  ToolTextarea, ToolInput, IconAction, StatBadge, ToolChip, OptionGroup, OptionRow, OptionRowLabel, OptionLabel,
+  OptionCheckbox, CopyIcon, ToolSelect, DocCard, DocTitle, NamespaceBar, TableWrap, DevTable,
+} from './devtools/parts'
 import { errMessage } from '../utils/errors'
 
 type ToolId =
@@ -60,7 +71,7 @@ const TOOLS: ToolMeta[] = [
   { id: 'k8s-units', label: 'Resource Units', subtitle: 'Convert CPU (millicores/cores) and memory (Ki/Mi/Gi/Ti, decimal/binary) quantities.', icon: Cpu, color: 'var(--success)', group: 'Kubernetes' },
   { id: 'jsonnet', label: 'Jsonnet Evaluator', subtitle: 'Evaluate Jsonnet — the language Tanka (grafana.com/oss/tanka) uses for Kubernetes config — into JSON or YAML.', icon: FileCode2, color: 'var(--accent-cyan)', group: 'Kubernetes' },
   { id: 'cidr', label: 'CIDR Calculator', subtitle: 'Network/broadcast address, usable host range, and netmask for a CIDR block.', icon: Network, color: 'var(--accent-cyan)', group: 'Networking' },
-  { id: 'subnet-split', label: 'Subnet Splitter', subtitle: 'Carve an IPv4 block into equal subnets — by target prefix, or by how many subnets you need.', icon: Split, color: 'var(--accent-cyan)', group: 'Networking' },
+  { id: 'subnet-split', label: 'Subnet Splitter', subtitle: 'Carve an IPv4 block into equal subnets — by target prefix, or by how many subnets you need.', icon: SplitIcon, color: 'var(--accent-cyan)', group: 'Networking' },
   { id: 'cidr-match', label: 'CIDR Overlap & Match', subtitle: 'Test addresses against a list of CIDRs and flag blocks that collide — for debugging security groups, NetworkPolicy, and peering.', icon: Layers, color: 'var(--info)', group: 'Networking' },
   { id: 'ipv6', label: 'IPv6 Toolkit', subtitle: 'Expand/compress an IPv6 address, plus prefix range, address type, and PTR name.', icon: Globe, color: 'var(--accent-purple)', group: 'Networking' },
   { id: 'dns', label: 'DNS Lookup', subtitle: 'Resolve A/AAAA/CNAME/MX/TXT and more over DNS-over-HTTPS. Sends the queried name to an external resolver.', icon: Radar, color: 'var(--warning)', group: 'Networking' },
@@ -73,6 +84,7 @@ export function DevTools() {
   const [activeTab, setActiveTab] = useState<ToolId>('json')
   const activeTool = TOOLS.find(t => t.id === activeTab)!
   const activeGroup = activeTool.group
+  const theme = useTheme()
 
   function selectGroup(g: Category) {
     const first = TOOLS.find(t => t.group === g)
@@ -81,40 +93,33 @@ export function DevTools() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Developer Tools</h1>
-          <p className="page-subtitle hidden-mobile">Client-side utilities for DevOps, systems configuration, and debugging.</p>
-        </div>
-      </div>
+      <PageHeader title="Developer Tools" subtitle="Client-side utilities for DevOps, systems configuration, and debugging." />
 
-      <div className="tabs-scroll-x" style={{ marginBottom: 10, flexShrink: 0 }}>
+      <Box sx={{ mb: 1, flexShrink: 0 }}>
         <TabSwitcher
-          className="tab-switcher-secondary"
           tabs={CATEGORIES.map(g => ({ id: g, label: g }))}
           active={activeGroup}
           onChange={id => selectGroup(id as Category)}
         />
-      </div>
+      </Box>
 
-      <div className="tabs-scroll-x" style={{ marginBottom: 20, flexShrink: 0 }}>
+      <Box sx={{ mb: 2.5, flexShrink: 0 }}>
         <TabSwitcher
           tabs={TOOLS.filter(t => t.group === activeGroup).map(t => ({ id: t.id, label: t.label, icon: t.icon }))}
           active={activeTab}
           onChange={id => setActiveTab(id as ToolId)}
         />
-      </div>
+      </Box>
 
-      <div className="card devtools-card" style={{ padding: 0, overflow: 'hidden', flexShrink: 0 }}>
-        <div className="devtools-header">
+      <Card variant="outlined" sx={{ overflow: 'hidden', flexShrink: 0 }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, py: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
           <SectionHeader
-            className="section-header-flush"
             icon={activeTool.icon}
-            iconColor={activeTool.color}
+            iconColor={toolColor(activeTool.color, theme)}
             title={activeTool.label}
             subtitle={activeTool.subtitle}
           />
-        </div>
+        </Box>
         {activeTab === 'json' && <JsonFormatterTool />}
         {activeTab === 'base64' && <Base64Tool />}
         {activeTab === 'yaml-json' && <YamlJsonTool />}
@@ -138,61 +143,20 @@ export function DevTools() {
         {activeTab === 'uuid' && <UuidGeneratorTool />}
         {activeTab === 'diff' && <DiffCheckerTool />}
         {activeTab === 'docker-image' && <DockerImageParserTool />}
-      </div>
-
-      <style>{`
-        .devtools-header { padding: 20px 24px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
-        .tab-switcher-secondary .tab-switcher-btn { padding: 5px 12px; font-size: 12px; background: transparent; border-color: transparent; color: var(--text-muted); }
-        .tab-switcher-secondary .tab-switcher-btn.active { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border); }
-        .devtools-body { padding: 24px; display: flex; flex-direction: column; gap: 18px; }
-        .devtools-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-        .devtools-toolbar-spacer { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .devtools-error { padding: 12px 16px; background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 13px; display: flex; align-items: center; gap: 8px; border-radius: var(--radius-md); }
-        .devtools-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-        .devtools-pane-label-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .devtools-pane-label { font-size: 12px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
-        .devtools-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-        .devtools-textarea { width: 100%; min-height: 420px; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; padding: 18px 20px; resize: vertical; box-sizing: border-box; }
-        .devtools-options { display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 16px; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); }
-        .devtools-option { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
-        .devtools-option-group { display: flex; flex-direction: column; padding: 2px 16px; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); }
-        .devtools-option-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 11px 0; }
-        .devtools-option-row + .devtools-option-row { border-top: 1px dashed var(--border); }
-        .devtools-option-row-label { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); min-width: 92px; }
-        .devtools-chip { font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-radius: var(--radius-full); background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); }
-        .devtools-chip.edit { background: var(--warning-glow); border-color: var(--warning); color: var(--warning-dark); }
-        .devtools-chip.warn { background: var(--danger-glow); border-color: var(--danger); color: var(--danger); font-weight: 700; }
-        .devtools-chip.ok { background: var(--success-glow); border-color: var(--success); color: var(--success); }
-        .devtools-namespace-bar { padding: 12px 16px; background: var(--bg-app); border: 1px solid var(--border); border-left: 3px solid var(--brand-primary); border-radius: var(--radius-md); }
-        .devtools-doc-card { padding: 10px 14px; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); }
-        .devtools-doc-card.dropped { border-left: 3px solid var(--text-muted); opacity: 0.75; }
-        .devtools-doc-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--text-primary); }
-        .devtools-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
-        .devtools-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; }
-        .devtools-table th { text-align: left; padding: 10px 14px; background: var(--bg-elevated); color: var(--text-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
-        .devtools-table td { padding: 9px 14px; border-top: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
-        .devtools-table tbody tr:hover td { background: var(--bg-elevated); }
-        @media (max-width: 960px) {
-          .devtools-split { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 640px) {
-          .devtools-textarea { min-height: 260px; }
-          .devtools-body { padding: 18px; }
-          .devtools-header { padding: 16px 18px; }
-        }
-      `}</style>
+      </Card>
     </div>
   )
 }
 
-function StatBadge({ children }: { children: React.ReactNode }) {
-  return (
-    <span style={{
-      fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, padding: '2px 8px',
-      borderRadius: 'var(--radius-full)', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-      color: 'var(--text-muted)', whiteSpace: 'nowrap'
-    }}>{children}</span>
-  )
+/** Map the legacy CSS-variable tool colours onto theme palette colours. */
+function toolColor(v: string, theme: Theme): string {
+  const p = theme.palette
+  if (v.includes('danger')) return p.error.main
+  if (v.includes('warning')) return p.warning.main
+  if (v.includes('success')) return p.success.main
+  if (v.includes('info') || v.includes('cyan')) return p.info.main
+  if (v.includes('purple') || v.includes('pink') || v.includes('lime')) return p.secondary.main
+  return p.primary.main
 }
 
 // ── JSON FORMATTER ──
@@ -243,56 +207,50 @@ function JsonFormatterTool() {
   const lines = input ? input.split('\n').length : 0
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-toolbar">
-        <button className="btn btn-secondary" onClick={minify}>Minify</button>
-        <button className="btn btn-primary" onClick={format}>Format</button>
-        <div className="devtools-toolbar-spacer">
+    <ToolBody>
+      <Toolbar>
+        <Button onClick={minify} variant="secondary">Minify</Button>
+        <Button onClick={format} variant="primary">Format</Button>
+        <ToolbarSpacer>
           {input && <StatBadge>{input.length} chars &middot; {lines} lines</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
       {error && (
-        <div className="devtools-error"><AlertCircle size={16} /> {error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {error}</ErrorBanner>
       )}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Input</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Input</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
             onKeyDown={onKeyDown}
             placeholder='Paste JSON here... e.g. {"name": "infra-eye"}  ·  Ctrl/Cmd + Enter to format'
             spellCheck={false}
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">Output</label>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>Output</PaneLabel>
             {output && (
-              <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
+              <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy'}</Button>
             )}
-          </div>
+          </PaneLabelRow>
           {output ? (
-            <textarea
-              className="input devtools-textarea"
+            <ToolTextarea
               value={output}
               readOnly
-              style={{ background: 'var(--bg-app)' }}
             />
           ) : (
             <EmptyState icon={FileJson} title="Formatted JSON will appear here" />
           )}
-        </div>
-      </div>
-    </div>
+        </Pane>
+      </SplitPane>
+    </ToolBody>
   )
 }
 
@@ -336,52 +294,46 @@ function Base64Tool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={encode}>Encode</button>
-        <button className="btn btn-secondary" onClick={decode}>Decode</button>
-        <div className="devtools-toolbar-spacer">
+    <ToolBody>
+      <Toolbar>
+        <Button onClick={encode} variant="primary">Encode</Button>
+        <Button onClick={decode} variant="secondary">Decode</Button>
+        <ToolbarSpacer>
           {input && <StatBadge>{input.length} chars</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
-      {error && <div className="devtools-error"><AlertCircle size={14} /> {error}</div>}
+      {error && <ErrorBanner><AlertCircle size={14} /> {error}</ErrorBanner>}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Input</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Input</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
             placeholder="Enter text or Base64 payload..."
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">Output</label>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>Output</PaneLabel>
             {output && (
-              <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
+              <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy'}</Button>
             )}
-          </div>
+          </PaneLabelRow>
           {output ? (
-            <textarea
-              className="input devtools-textarea"
+            <ToolTextarea
               value={output}
               readOnly
-              style={{ background: 'var(--bg-app)' }}
             />
           ) : (
             <EmptyState icon={ArrowRightLeft} title="Encoded or decoded output will appear here" />
           )}
-        </div>
-      </div>
-    </div>
+        </Pane>
+      </SplitPane>
+    </ToolBody>
   )
 }
 
@@ -412,38 +364,36 @@ function EpochConverterTool() {
   }
 
   return (
-    <div className="devtools-body" style={{ gap: 24 }}>
-      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-          <label className="devtools-pane-label">Enter timestamp</label>
+    <ToolBody gap={24}>
+      <ToolCard>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <PaneLabel>Enter timestamp</PaneLabel>
           <StatBadge>{isSeconds ? 'seconds' : 'milliseconds'}</StatBadge>
-        </div>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <input
-            className="input"
+        </Box>
+        <Box sx={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <ToolInput big
+          aria-label="Timestamp"
             value={timestamp}
-            onChange={e => setTimestamp(e.target.value)}
-            style={{ fontSize: 22, fontFamily: 'var(--font-mono)', height: 52, flex: 1, minWidth: 240, padding: '0 18px' }}
-          />
-          <button className="btn btn-secondary" style={{ height: 52 }} onClick={() => setTimestamp(Date.now().toString())}>Now (ms)</button>
-          <button className="btn btn-secondary" style={{ height: 52 }} onClick={() => setTimestamp(Math.floor(Date.now() / 1000).toString())}>Now (s)</button>
-        </div>
-      </div>
+            onChange={e => setTimestamp(e.target.value)} />
+          <Button onClick={() => setTimestamp(Date.now().toString())} variant="secondary">Now (ms)</Button>
+          <Button onClick={() => setTimestamp(Math.floor(Date.now() / 1000).toString())} variant="secondary">Now (s)</Button>
+        </Box>
+      </ToolCard>
 
       {isValid ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Click a result to copy it</span>
-          <div className="grid-2-col" style={{ gap: 20 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <Box component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>Click a result to copy it</Box>
+          <ResultGrid gap={20}>
             <ResultBox label="Local Time" value={dateObj.toLocaleString()} />
             <ResultBox label="UTC Time" value={dateObj.toUTCString()} />
             <ResultBox label="ISO 8601" value={dateObj.toISOString()} />
             <ResultBox label="Relative" value={getRelativeTime(dateObj)} />
-          </div>
-        </div>
+          </ResultGrid>
+        </Box>
       ) : (
         <EmptyState icon={Clock} title="Enter a valid Unix timestamp" />
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -455,17 +405,20 @@ function ResultBox({ label, value }: { label: string, value: string }) {
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <button
+    <ButtonBase
       onClick={copy}
-      className="hover-lift"
-      style={{ padding: '16px 20px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', textAlign: 'left', cursor: 'pointer', width: '100%' }}
+      aria-label={`Copy ${label}`}
+      sx={{
+        display: 'block', width: '100%', textAlign: 'left', px: 2, py: 1.5, borderRadius: 1, border: 1, borderColor: 'divider',
+        bgcolor: 'action.hover', '&:hover': { borderColor: 'primary.main' },
+      }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
-        {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} color="var(--text-muted)" />}
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>{value}</div>
-    </button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{label}</Typography>
+        <CopyIcon copied={copied} size={13} />
+      </Box>
+      <Box sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>{value}</Box>
+    </ButtonBase>
   )
 }
 
@@ -507,60 +460,58 @@ function JwtDecoderTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-pane">
-        <div className="devtools-pane-label-row">
-          <label className="devtools-pane-label">Token string</label>
-          {jwt && <button className="btn btn-secondary btn-sm" onClick={() => setJwt('')} title="Clear"><Trash2 size={14} /></button>}
-        </div>
-        <textarea
-          className="input devtools-textarea"
+    <ToolBody>
+      <Pane>
+        <PaneLabelRow>
+          <PaneLabel>Token string</PaneLabel>
+          {jwt && <IconAction label="Clear" onClick={() => setJwt('')}><Trash2 size={14} /></IconAction>}
+        </PaneLabelRow>
+        <ToolTextarea breakAll rows={6}
           value={jwt}
           onChange={e => setJwt(e.target.value)}
           placeholder="eyJhbGciOiJIUz... (paste your token here)"
-          style={{ minHeight: 140, wordBreak: 'break-all' }}
         />
-      </div>
+      </Pane>
 
       {error ? (
-        <div style={{ padding: 16, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: 'var(--radius-md)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <Box sx={{ padding: '16px', bgcolor: 'action.hover', color: 'error.main', borderRadius: 1, display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
           <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
           <div>{error}</div>
-        </div>
+        </Box>
       ) : jwt ? (
-        <div className="devtools-split">
-          <div className="devtools-pane">
-            <div className="devtools-pane-label-row">
-              <label className="devtools-pane-label" style={{ color: 'var(--warning)' }}>Header</label>
-              <button className="btn btn-secondary btn-sm" onClick={() => copyBlock(header)} title="Copy header"><Copy size={13} /></button>
-            </div>
-            <pre className="devtools-textarea" style={{ margin: 0, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--warning)', whiteSpace: 'pre-wrap', minHeight: 260 }}>
+        <SplitPane>
+          <Pane>
+            <PaneLabelRow>
+              <PaneLabel color="warning.main">Header</PaneLabel>
+              <IconAction label="Copy header" onClick={() => copyBlock(header)}><Copy size={13} /></IconAction>
+            </PaneLabelRow>
+            <Box component="pre" sx={{ m: 0, p: 1.75, minHeight: 260, bgcolor: 'background.default', border: 1, borderColor: 'divider', borderRadius: 1, fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.6, color: 'warning.main', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowX: 'auto' }}>
               {header}
-            </pre>
-          </div>
-          <div className="devtools-pane">
-            <div className="devtools-pane-label-row">
-              <label className="devtools-pane-label" style={{ color: 'var(--brand-primary)' }}>Payload</label>
-              <button className="btn btn-secondary btn-sm" onClick={() => copyBlock(payload)} title="Copy payload"><Copy size={13} /></button>
-            </div>
-            <pre className="devtools-textarea" style={{ margin: 0, background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--brand-primary)', overflowX: 'auto', minHeight: 260 }}>
+            </Box>
+          </Pane>
+          <Pane>
+            <PaneLabelRow>
+              <PaneLabel color="primary.main">Payload</PaneLabel>
+              <IconAction label="Copy payload" onClick={() => copyBlock(payload)}><Copy size={13} /></IconAction>
+            </PaneLabelRow>
+            <Box component="pre" sx={{ m: 0, p: 1.75, minHeight: 260, bgcolor: 'background.default', border: 1, borderColor: 'divider', borderRadius: 1, fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.6, color: 'primary.main', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowX: 'auto' }}>
               {payload}
-            </pre>
-          </div>
-        </div>
+            </Box>
+          </Pane>
+        </SplitPane>
       ) : (
         <EmptyState icon={KeySquare} title="Paste a JWT to decode its header and payload" />
       )}
-    </div>
+    </ToolBody>
   )
 }
 
 // ── CERTIFICATE CHAIN INSPECTOR ──
 
 const CHAIN_ROLE_COLORS: Record<CertRole, string> = {
-  leaf: 'var(--success)',
-  intermediate: 'var(--info)',
-  root: 'var(--accent-purple)',
+  leaf: 'success.main',
+  intermediate: 'info.main',
+  root: 'secondary.main',
 }
 
 function CertChainTool() {
@@ -581,98 +532,97 @@ function CertChainTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+    <ToolBody>
+      <ErrorBanner neutral>
         <AlertCircle size={16} style={{ flexShrink: 0 }} />
         Reads the bundle's structure — issuer/subject linkage, order, validity. It does not verify signatures, so it can show a chain is assembled correctly, not that it is authentic.
-      </div>
+      </ErrorBanner>
 
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={inspect} disabled={loading || !input.trim()}>
+      <Toolbar>
+        <Button onClick={inspect} disabled={loading || !input.trim()} variant="primary">
           {loading ? 'Inspecting…' : 'Inspect Chain'}
-        </button>
-        <div className="devtools-toolbar-spacer">
+        </Button>
+        <ToolbarSpacer>
           {result && result.links.length > 0 && (
             <StatBadge>{result.links.length} certificate{result.links.length === 1 ? '' : 's'}</StatBadge>
           )}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
-      {result?.error && <div className="devtools-error"><AlertCircle size={16} /> {result.error}</div>}
+      {result?.error && <ErrorBanner><AlertCircle size={16} /> {result.error}</ErrorBanner>}
 
       {result && result.problems.map(p => (
-        <div key={p} className="devtools-error">
+        <ErrorBanner key={p}>
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {p}
-        </div>
+        </ErrorBanner>
       ))}
 
       {result && result.problems.length === 0 && result.links.length > 0 && (
-        <div className="devtools-error" style={{ background: 'var(--success-glow)', color: 'var(--success)' }}>
+        <ErrorBanner tone="success">
           <Check size={16} style={{ flexShrink: 0 }} />
           Chain is correctly ordered — every certificate is signed by the one after it.
-        </div>
+        </ErrorBanner>
       )}
 
       {result && result.notes.map(n => (
-        <div key={n} className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+        <ErrorBanner key={n} tone="warning">
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {n}
-        </div>
+        </ErrorBanner>
       ))}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">PEM bundle</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>PEM bundle</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder={'Paste fullchain.pem / tls.crt — leaf first, then intermediates\n\n-----BEGIN CERTIFICATE-----\n...'}
             spellCheck={false}
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Chain</label>
+        <Pane>
+          <PaneLabel>Chain</PaneLabel>
           {result && result.links.length > 0 ? (
-            <div style={{ display: 'grid', gap: 8 }}>
+            <Box sx={{ display: 'grid', gap: '8px' }}>
               {result.links.map(link => (
-                <div key={link.index} className="devtools-doc-card">
-                  <div className="devtools-doc-title">
-                    <span style={{ color: 'var(--text-muted)' }}>#{link.index + 1}</span>
-                    <span style={{ color: CHAIN_ROLE_COLORS[link.role], textTransform: 'uppercase', fontSize: 11 }}>{link.role}</span>
-                    <span style={{ wordBreak: 'break-all' }}>{link.cert.subject}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 6, wordBreak: 'break-all' }}>
+                <DocCard key={link.index}>
+                  <DocTitle>
+                    <Box component="span" sx={{ color: 'text.secondary' }}>#{link.index + 1}</Box>
+                    <Box component="span" sx={{ color: CHAIN_ROLE_COLORS[link.role], fontSize: 11 }}>{link.role}</Box>
+                    <Box component="span" sx={{ wordBreak: 'break-all' }}>{link.cert.subject}</Box>
+                  </DocTitle>
+                  <Box sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'var(--font-mono)', marginTop: '6px', wordBreak: 'break-all' }}>
                     issued by {link.cert.issuer}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                    {link.issues.map(i => <span key={i} className="devtools-chip warn">! {i}</span>)}
+                  </Box>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                    {link.issues.map(i => <ToolChip key={i} tone="warn">! {i}</ToolChip>)}
                     {link.cert.notAfter && link.issues.length === 0 && (
-                      <span className="devtools-chip ok">valid to {link.cert.notAfter.toISOString().slice(0, 10)}</span>
+                      <ToolChip tone="ok">valid to {link.cert.notAfter.toISOString().slice(0, 10)}</ToolChip>
                     )}
-                    <span className="devtools-chip">
+                    <ToolChip>
                       {link.cert.publicKeyAlgorithm}
                       {link.cert.publicKeyBits ? ` ${link.cert.publicKeyBits}` : ''}
                       {link.cert.publicKeyCurve ? ` ${link.cert.publicKeyCurve}` : ''}
-                    </span>
-                    {link.selfSigned && <span className="devtools-chip">self-signed</span>}
-                    {link.issuedByNext === true && <span className="devtools-chip ok">signed by #{link.index + 2}</span>}
-                    {link.issuedByNext === false && <span className="devtools-chip warn">! not signed by #{link.index + 2}</span>}
+                    </ToolChip>
+                    {link.selfSigned && <ToolChip>self-signed</ToolChip>}
+                    {link.issuedByNext === true && <ToolChip tone="ok">signed by #{link.index + 2}</ToolChip>}
+                    {link.issuedByNext === false && <ToolChip tone="warn">! not signed by #{link.index + 2}</ToolChip>}
                     {link.cert.sans.slice(0, 6).map(s => (
-                      <span key={`${s.type}:${s.value}`} className="devtools-chip">{s.type}:{s.value}</span>
+                      <ToolChip key={`${s.type}:${s.value}`}>{s.type}:{s.value}</ToolChip>
                     ))}
-                    {link.cert.sans.length > 6 && <span className="devtools-chip">+{link.cert.sans.length - 6} more SANs</span>}
-                  </div>
-                </div>
+                    {link.cert.sans.length > 6 && <ToolChip>+{link.cert.sans.length - 6} more SANs</ToolChip>}
+                  </Box>
+                </DocCard>
               ))}
-            </div>
+            </Box>
           ) : (
             <EmptyState icon={ListTree} title="Paste a certificate bundle to inspect its chain" />
           )}
-        </div>
-      </div>
-    </div>
+        </Pane>
+      </SplitPane>
+    </ToolBody>
   )
 }
 
@@ -697,72 +647,70 @@ function SshKeyTool() {
   const advised = good.filter(k => k.warnings.length === 0 && k.advisories.length > 0).length
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={inspect} disabled={!input.trim()}>Inspect Keys</button>
-        <div className="devtools-toolbar-spacer">
+    <ToolBody>
+      <Toolbar>
+        <Button onClick={inspect} disabled={!input.trim()} variant="primary">Inspect Keys</Button>
+        <ToolbarSpacer>
           {good.length > 0 && <StatBadge>{good.length} key{good.length === 1 ? '' : 's'}</StatBadge>}
           {flagged > 0 && <StatBadge>{flagged} flagged</StatBadge>}
           {advised > 0 && <StatBadge>{advised} with advice</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
       {result?.error && (
-        <div className="devtools-error">
+        <ErrorBanner>
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {result.error}
-        </div>
+        </ErrorBanner>
       )}
 
-      <div className="devtools-pane">
-        <label className="devtools-pane-label">Public key or authorized_keys file</label>
-        <textarea
-          className="input devtools-textarea"
+      <Pane>
+        <PaneLabel>Public key or authorized_keys file</PaneLabel>
+        <ToolTextarea rows={8}
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... deploy@bastion"
           spellCheck={false}
-          style={{ minHeight: 180 }}
         />
-      </div>
+      </Pane>
 
       {result && result.keys.length > 0 && (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <Box sx={{ display: 'grid', gap: '8px' }}>
           {result.keys.map(key => (
-            <div key={key.line} className={`devtools-doc-card${key.error ? ' dropped' : ''}`}>
-              <div className="devtools-doc-title">
-                <span style={{ color: 'var(--text-muted)' }}>line {key.line}</span>
-                <span style={{ color: 'var(--brand-primary)' }}>{key.type || '(unknown)'}</span>
-                {key.bits !== null && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{key.bits} bits</span>}
-                {key.comment && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{key.comment}</span>}
-              </div>
+            <DocCard key={key.line} dropped={!!key.error}>
+              <DocTitle>
+                <Box component="span" sx={{ color: 'text.secondary' }}>line {key.line}</Box>
+                <Box component="span" sx={{ color: 'primary.main' }}>{key.type || '(unknown)'}</Box>
+                {key.bits !== null && <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>{key.bits} bits</Box>}
+                {key.comment && <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>{key.comment}</Box>}
+              </DocTitle>
 
               {key.error ? (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+                <Box sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>
                   {key.error}
-                </div>
+                </Box>
               ) : (
                 <>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, display: 'grid', gap: 3, wordBreak: 'break-all' }}>
+                  <Box sx={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'text.secondary', marginTop: '8px', display: 'grid', gap: '3px', wordBreak: 'break-all' }}>
                     <div>{key.fingerprintSha256}</div>
-                    <div style={{ color: 'var(--text-muted)' }}>{key.fingerprintMd5}</div>
-                  </div>
+                    <Box sx={{ color: 'text.secondary' }}>{key.fingerprintMd5}</Box>
+                  </Box>
                   {(key.options || key.warnings.length > 0 || key.advisories.length > 0) && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                      {key.warnings.map(w => <span key={w} className="devtools-chip warn">! {w}</span>)}
-                      {key.advisories.map(a => <span key={a} className="devtools-chip edit">~ {a}</span>)}
-                      {key.options && <span className="devtools-chip">{key.options}</span>}
-                    </div>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                      {key.warnings.map(w => <ToolChip key={w} tone="warn">! {w}</ToolChip>)}
+                      {key.advisories.map(a => <ToolChip key={a} tone="edit">~ {a}</ToolChip>)}
+                      {key.options && <ToolChip>{key.options}</ToolChip>}
+                    </Box>
                   )}
                 </>
               )}
-            </div>
+            </DocCard>
           ))}
-        </div>
+        </Box>
       )}
 
       {!result && <EmptyState icon={KeyRound} title="Paste a public key to see its fingerprints" />}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -779,12 +727,7 @@ function CleanerOption({ checked, onChange, children }: {
   onChange: (v: boolean) => void
   children: React.ReactNode
 }) {
-  return (
-    <label className="devtools-option">
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
-      {children}
-    </label>
-  )
+  return <OptionCheckbox checked={checked} onChange={onChange}>{children}</OptionCheckbox>
 }
 
 function K8sManifestCleanerTool() {
@@ -844,19 +787,19 @@ function K8sManifestCleanerTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <label className="devtools-pane-label">Always stripped</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <ToolBody>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <PaneLabel>Always stripped</PaneLabel>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           {ALWAYS_STRIPPED_FIELDS.map(field => (
-            <span key={field} className="devtools-chip">{field}</span>
+            <ToolChip key={field}>{field}</ToolChip>
           ))}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      <div className="devtools-option-group">
-        <div className="devtools-option-row">
-          <span className="devtools-option-row-label">Strip fields</span>
+      <OptionGroup>
+        <OptionRow>
+          <OptionRowLabel>Strip fields</OptionRowLabel>
           <CleanerOption checked={options.stripLastApplied} onChange={v => set('stripLastApplied', v)}>
             <code>last-applied-configuration</code>
           </CleanerOption>
@@ -872,10 +815,10 @@ function K8sManifestCleanerTool() {
           <CleanerOption checked={options.stripNamespace} onChange={v => set('stripNamespace', v)}>
             <code>metadata.namespace</code> (apply into any namespace)
           </CleanerOption>
-        </div>
+        </OptionRow>
 
-        <div className="devtools-option-row">
-          <span className="devtools-option-row-label">Drop objects</span>
+        <OptionRow>
+          <OptionRowLabel>Drop objects</OptionRowLabel>
           <CleanerOption checked={options.dropPods} onChange={v => set('dropPods', v)}>
             Pods (their controller recreates them)
           </CleanerOption>
@@ -885,159 +828,149 @@ function K8sManifestCleanerTool() {
           <CleanerOption checked={options.dropSystemNamespaces} onChange={v => set('dropSystemNamespaces', v)}>
             <code>kube-system</code> / <code>kube-public</code> / <code>kube-node-lease</code>
           </CleanerOption>
-        </div>
+        </OptionRow>
 
-        <div className="devtools-option-row">
-          <span className="devtools-option-row-label">Ingress</span>
+        <OptionRow>
+          <OptionRowLabel>Ingress</OptionRowLabel>
           <CleanerOption checked={options.fixIngress} onChange={v => set('fixIngress', v)}>
             fix for newer ingress-nginx (regex paths → <code>ImplementationSpecific</code>, <code>ingress.class</code> → <code>ingressClassName</code>)
           </CleanerOption>
           <CleanerOption checked={options.stripIngressSnippets} onChange={v => set('stripIngressSnippets', v)}>
             strip <code>*-snippet</code> annotations (changes behavior)
           </CleanerOption>
-        </div>
+        </OptionRow>
 
-        <div className="devtools-option-row">
-          <span className="devtools-option-row-label">Migration</span>
+        <OptionRow>
+          <OptionRowLabel>Migration</OptionRowLabel>
           <CleanerOption checked={options.scaleToZero} onChange={v => set('scaleToZero', v)}>
             scale workloads to <code>0</code> replicas
           </CleanerOption>
           <CleanerOption checked={options.emitNamespaces} onChange={v => set('emitNamespaces', v)}>
             generate Namespace manifests first
           </CleanerOption>
-          <label className="devtools-option">
+          <OptionLabel>
             stamp namespace when missing:
-            <input
+            <ToolInput mono width={180}
+          aria-label="Default namespace"
               type="text"
-              className="input"
               value={options.defaultNamespace}
               onChange={e => set('defaultNamespace', e.target.value)}
               placeholder="e.g. payments-prod"
-              spellCheck={false}
-              style={{ width: 180, padding: '4px 10px', fontSize: 12, fontFamily: 'var(--font-mono)' }}
-            />
-          </label>
-        </div>
-      </div>
+              spellCheck={false} />
+          </OptionLabel>
+        </OptionRow>
+      </OptionGroup>
 
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={clean}>Clean Manifest</button>
-        <div className="devtools-toolbar-spacer">
+      <Toolbar>
+        <Button onClick={clean} variant="primary">Clean Manifest</Button>
+        <ToolbarSpacer>
           {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
           {result?.output && (
-            <button className="btn btn-secondary btn-sm" onClick={download} title="Download .yaml">
-              <Download size={14} /><span style={{ marginLeft: 6 }}>Download</span>
-            </button>
+            <Button onClick={download} title="Download .yaml" size="sm" variant="secondary" icon={<Download size={14} />}>Download</Button>
           )}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
       {error && (
-        <div className="devtools-error"><AlertCircle size={16} /> {error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {error}</ErrorBanner>
       )}
 
       {result && summary.length > 0 && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+        <Box sx={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'text.secondary' }}>
           {summary.join(' · ')}
-        </div>
+        </Box>
       )}
 
       {result && result.missingNamespaceCount > 0 && (
-        <div className="devtools-error">
+        <ErrorBanner>
           <AlertCircle size={16} style={{ flexShrink: 0 }} />
           {result.missingNamespaceCount} namespaced resource{result.missingNamespaceCount === 1 ? '' : 's'} carr
           {result.missingNamespaceCount === 1 ? 'ies' : 'y'} no namespace — <code>kubectl apply</code> will send
           {result.missingNamespaceCount === 1 ? ' it' : ' them'} to whatever namespace your current context points at.
           Fill in “stamp namespace when missing” and clean again.
-        </div>
+        </ErrorBanner>
       )}
 
       {result && result.namespaces.length > 0 && (
-        <div className="devtools-namespace-bar">
-          <label className="devtools-pane-label">Namespaces referenced</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
-            {result.namespaces.map(ns => <span key={ns} className="devtools-chip">{ns}</span>)}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+        <NamespaceBar>
+          <PaneLabel>Namespaces referenced</PaneLabel>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0' }}>
+            {result.namespaces.map(ns => <ToolChip key={ns}>{ns}</ToolChip>)}
+          </Box>
+          <Box sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'var(--font-mono)' }}>
             {result.generatedNamespaceCount > 0
               ? 'Namespace manifests are prepended to the output, so a single kubectl apply -f works.'
               : `Create them first: ${result.namespaces.map(ns => `kubectl create namespace ${ns}`).join(' && ')}`}
-          </div>
-        </div>
+          </Box>
+        </NamespaceBar>
       )}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Input manifest</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Input manifest</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
             placeholder="Paste kubectl get -o yaml output here — multi-document (---) and kind: List both work..."
             spellCheck={false}
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">
-              Cleaned output {result?.output && <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>&nbsp;({result.documentCount} document{result.documentCount === 1 ? '' : 's'})</span>}
-            </label>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>
+              Cleaned output {result?.output && <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>&nbsp;({result.documentCount} document{result.documentCount === 1 ? '' : 's'})</Box>}
+            </PaneLabel>
             {result?.output && (
-              <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy Output'}</span>
-              </button>
+              <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy Output'}</Button>
             )}
-          </div>
+          </PaneLabelRow>
           {result?.output ? (
-            <textarea
-              className="input devtools-textarea"
+            <ToolTextarea
               value={result.output}
               readOnly
-              style={{ background: 'var(--bg-app)' }}
             />
           ) : (
             <EmptyState icon={Eraser} title="Cleaned manifest will appear here" />
           )}
-        </div>
-      </div>
+        </Pane>
+      </SplitPane>
 
       {result && result.documents.length > 0 && (
         <div>
-          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>
+          <PaneLabel block>
             Per-document ledger
-          </label>
-          <div style={{ display: 'grid', gap: 8 }}>
+          </PaneLabel>
+          <Box sx={{ display: 'grid', gap: '8px' }}>
             {result.documents.map((doc, i) => (
-              <div key={`${doc.kind}/${doc.namespace}/${doc.name}/${i}`} className={`devtools-doc-card${doc.dropped ? ' dropped' : ''}`}>
-                <div className="devtools-doc-title">
-                  <span style={{ color: 'var(--brand-primary)' }}>{doc.kind}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>/</span>
+              <DocCard key={`${doc.kind}/${doc.namespace}/${doc.name}/${i}`} dropped={!!doc.dropped}>
+                <DocTitle>
+                  <Box component="span" sx={{ color: 'primary.main' }}>{doc.kind}</Box>
+                  <Box component="span" sx={{ color: 'text.secondary' }}>/</Box>
                   <span>{doc.name}</span>
-                  {doc.namespace && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· ns: {doc.namespace}</span>}
-                </div>
+                  {doc.namespace && <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>· ns: {doc.namespace}</Box>}
+                </DocTitle>
                 {doc.dropped ? (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+                  <Box sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>
                     dropped — {doc.dropped}
-                  </div>
+                  </Box>
                 ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                    {doc.warnings.map(w => <span key={w} className="devtools-chip warn">! {w}</span>)}
-                    {doc.edited.map(e => <span key={e} className="devtools-chip edit">~ {e}</span>)}
-                    {doc.removed.map(r => <span key={r} className="devtools-chip">− {r}</span>)}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                    {doc.warnings.map(w => <ToolChip key={w} tone="warn">! {w}</ToolChip>)}
+                    {doc.edited.map(e => <ToolChip key={e} tone="edit">~ {e}</ToolChip>)}
+                    {doc.removed.map(r => <ToolChip key={r}>− {r}</ToolChip>)}
                     {doc.warnings.length === 0 && doc.edited.length === 0 && doc.removed.length === 0 && (
-                      <span className="devtools-chip ok">already clean</span>
+                      <ToolChip tone="ok">already clean</ToolChip>
                     )}
-                  </div>
+                  </Box>
                 )}
-              </div>
+              </DocCard>
             ))}
-          </div>
+          </Box>
         </div>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1083,84 +1016,78 @@ function Ingress2GatewayTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+    <ToolBody>
+      <ErrorBanner neutral>
         <AlertCircle size={16} style={{ flexShrink: 0 }} />
         Best-effort mapping (hosts, paths, backends, TLS) — annotation-driven behavior like nginx rewrite-target or canary weighting has no Gateway API equivalent and is called out below instead of guessed at.
-      </div>
+      </ErrorBanner>
 
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={convert}>Convert</button>
-        <div className="devtools-toolbar-spacer">
+      <Toolbar>
+        <Button onClick={convert} variant="primary">Convert</Button>
+        <ToolbarSpacer>
           {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
       {error && (
-        <div className="devtools-error"><AlertCircle size={16} /> {error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {error}</ErrorBanner>
       )}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Input ingress</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Input ingress</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
             placeholder="Paste kubectl get ingress -o yaml output here..."
             spellCheck={false}
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">
-              Gateway + HTTPRoute {output && <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>&nbsp;({ingressCount} ingress{ingressCount === 1 ? '' : 'es'} converted)</span>}
-            </label>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>
+              Gateway + HTTPRoute {output && <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>&nbsp;({ingressCount} ingress{ingressCount === 1 ? '' : 'es'} converted)</Box>}
+            </PaneLabel>
             {output && (
-              <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy Output'}</span>
-              </button>
+              <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy Output'}</Button>
             )}
-          </div>
+          </PaneLabelRow>
           {output ? (
-            <textarea
-              className="input devtools-textarea"
+            <ToolTextarea
               value={output}
               readOnly
-              style={{ background: 'var(--bg-app)' }}
             />
           ) : (
             <EmptyState icon={Route} title="Converted Gateway + HTTPRoute will appear here" />
           )}
-        </div>
-      </div>
+        </Pane>
+      </SplitPane>
 
       {warnings.length > 0 && (
         <div>
-          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8, color: 'var(--warning)' }}>
+          <PaneLabel block>
             Needs manual review
-          </label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          </PaneLabel>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {warnings.map((w, i) => (
-              <div
+              <Box
                 key={i}
-                style={{
-                  fontSize: 13, padding: '8px 12px', borderRadius: 'var(--radius-md)',
-                  background: 'rgba(240, 171, 0, 0.1)', border: '1px solid rgba(240, 171, 0, 0.3)', color: 'var(--text-secondary)',
-                  display: 'flex', gap: 8, alignItems: 'flex-start'
+                sx={{
+                  fontSize: 13, padding: '8px 12px', borderRadius: 1,
+                  background: 'rgba(240, 171, 0, 0.1)', border: '1px solid rgba(240, 171, 0, 0.3)', color: 'text.secondary',
+                  display: 'flex', gap: '8px', alignItems: 'flex-start'
                 }}
               >
-                <AlertCircle size={14} color="var(--warning)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
                 <span>{w}</span>
-              </div>
+              </Box>
             ))}
-          </div>
+          </Box>
         </div>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1235,61 +1162,57 @@ function JsonnetEvaluatorTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+    <ToolBody>
+      <ErrorBanner neutral>
         <AlertCircle size={16} style={{ flexShrink: 0 }} />
         Standalone snippet only — no <code>import</code> of external files or Tanka's <code>lib/</code>/<code>vendor/</code>. First run downloads a ~2MB WASM evaluator.
-      </div>
+      </ErrorBanner>
 
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={evaluate} disabled={busy || !input.trim()}>
+      <Toolbar>
+        <Button onClick={evaluate} disabled={busy || !input.trim()} variant="primary">
           {busy ? 'Evaluating…' : 'Evaluate'}
-        </button>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className={`btn btn-sm ${outputFormat === 'yaml' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOutputFormat('yaml')}>YAML</button>
-          <button className={`btn btn-sm ${outputFormat === 'json' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setOutputFormat('json')}>JSON</button>
-        </div>
-        <div className="devtools-toolbar-spacer">
+        </Button>
+        <Box sx={{ display: 'flex', gap: '6px' }}>
+          <Button size="sm" variant={outputFormat === 'yaml' ? 'primary' : 'secondary'} onClick={() => setOutputFormat('yaml')}>YAML</Button>
+          <Button size="sm" variant={outputFormat === 'json' ? 'primary' : 'secondary'} onClick={() => setOutputFormat('json')}>JSON</Button>
+        </Box>
+        <ToolbarSpacer>
           {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
       {error && (
-        <div className="devtools-error"><AlertCircle size={16} /> <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>{error}</pre></div>
+        <ErrorBanner><AlertCircle size={16} /> <Box component="pre" sx={{ margin: '0px', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>{error}</Box></ErrorBanner>
       )}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Jsonnet Input</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Jsonnet Input</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
             onKeyDown={onKeyDown}
             placeholder="Paste Jsonnet here... Ctrl/Cmd + Enter to evaluate"
             spellCheck={false}
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">Output ({outputFormat.toUpperCase()})</label>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>Output ({outputFormat.toUpperCase()})</PaneLabel>
             {output && (
-              <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
+              <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy'}</Button>
             )}
-          </div>
+          </PaneLabelRow>
           {output ? (
-            <textarea className="input devtools-textarea" value={output} readOnly style={{ background: 'var(--bg-app)' }} />
+            <ToolTextarea value={output} readOnly />
           ) : (
             <EmptyState icon={FileCode2} title="Evaluated manifest will appear here" />
           )}
-        </div>
-      </div>
-    </div>
+        </Pane>
+      </SplitPane>
+    </ToolBody>
   )
 }
 
@@ -1335,48 +1258,44 @@ function YamlJsonTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={toJson}>YAML → JSON</button>
-        <button className="btn btn-secondary" onClick={toYaml}>JSON → YAML</button>
-        <div className="devtools-toolbar-spacer">
+    <ToolBody>
+      <Toolbar>
+        <Button onClick={toJson} variant="primary">YAML → JSON</Button>
+        <Button onClick={toYaml} variant="secondary">JSON → YAML</Button>
+        <ToolbarSpacer>
           {input && <StatBadge>{input.split('\n').length} lines</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
-      {error && <div className="devtools-error"><AlertCircle size={14} /> {error}</div>}
+      {error && <ErrorBanner><AlertCircle size={14} /> {error}</ErrorBanner>}
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Input</label>
-          <textarea
-            className="input devtools-textarea"
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Input</PaneLabel>
+          <ToolTextarea
             value={input}
             onChange={e => { setInput(e.target.value); setError('') }}
             placeholder="Paste YAML or JSON here..."
             spellCheck={false}
           />
-        </div>
+        </Pane>
 
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">Output</label>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>Output</PaneLabel>
             {output && (
-              <button className="btn btn-secondary btn-sm" onClick={copy}>
-                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
+              <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy'}</Button>
             )}
-          </div>
+          </PaneLabelRow>
           {output ? (
-            <textarea className="input devtools-textarea" value={output} readOnly style={{ background: 'var(--bg-app)' }} />
+            <ToolTextarea value={output} readOnly />
           ) : (
             <EmptyState icon={Braces} title="Converted output will appear here" />
           )}
-        </div>
-      </div>
-    </div>
+        </Pane>
+      </SplitPane>
+    </ToolBody>
   )
 }
 
@@ -1407,35 +1326,33 @@ function HashGeneratorTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-pane">
-        <div className="devtools-pane-label-row">
-          <label className="devtools-pane-label">Input</label>
-          {input && <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>}
-        </div>
-        <textarea
-          className="input devtools-textarea"
+    <ToolBody>
+      <Pane>
+        <PaneLabelRow>
+          <PaneLabel>Input</PaneLabel>
+          {input && <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>}
+        </PaneLabelRow>
+        <ToolTextarea rows={7}
           value={input}
           onChange={e => { setInput(e.target.value); setHashes(null) }}
           placeholder="Enter text to hash..."
-          style={{ minHeight: 160 }}
         />
-      </div>
+      </Pane>
 
-      <button className="btn btn-primary" onClick={compute} disabled={busy || !input} style={{ alignSelf: 'flex-start' }}>
+      <Button onClick={compute} disabled={busy || !input} style={{ alignSelf: 'flex-start' }} variant="primary">
         {busy ? 'Computing…' : 'Compute Hashes'}
-      </button>
+      </Button>
 
       {hashes ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {HASH_ALGOS.map(algo => (
             <ResultBox key={algo} label={algo} value={hashes[algo]} />
           ))}
-        </div>
+        </Box>
       ) : (
         <EmptyState icon={Hash} title="Digests will appear here" />
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1451,44 +1368,42 @@ function CronParserTool() {
   }
 
   return (
-    <div className="devtools-body" style={{ gap: 24 }}>
-      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>Cron expression (minute hour day-of-month month day-of-week)</label>
-        <input
-          className="input"
+    <ToolBody gap={24}>
+      <ToolCard>
+        <PaneLabel block>Cron expression (minute hour day-of-month month day-of-week)</PaneLabel>
+        <ToolInput big
+          aria-label="Cron expression"
           value={expr}
           onChange={e => parse(e.target.value)}
           placeholder="*/15 * * * *"
-          style={{ fontSize: 18, fontFamily: 'var(--font-mono)', height: 48, padding: '0 16px' }}
-          spellCheck={false}
-        />
-      </div>
+          spellCheck={false} />
+      </ToolCard>
 
       {result.error ? (
-        <div className="devtools-error"><AlertCircle size={16} /> {result.error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {result.error}</ErrorBanner>
       ) : (
         <>
-          <div style={{ padding: '16px 20px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+          <Box sx={{ padding: '16px 20px', bgcolor: 'action.hover', border: 1, borderColor: 'divider', borderRadius: 1, fontSize: 15, fontWeight: 700, color: 'text.primary' }}>
             {result.description}
-          </div>
+          </Box>
 
           <div>
-            <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 10 }}>Next {result.nextRuns.length} runs (UTC)</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <PaneLabel block>Next {result.nextRuns.length} runs (UTC)</PaneLabel>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {result.nextRuns.map((d, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', bgcolor: 'action.hover', border: 1, borderColor: 'divider', borderRadius: 1, fontFamily: 'var(--font-mono)', fontSize: 13 }}>
                   <span>{d.toISOString().replace('T', ' ').replace('.000Z', ' UTC')}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{d.toLocaleString()}</span>
-                </div>
+                  <Box component="span" sx={{ color: 'text.secondary' }}>{d.toLocaleString()}</Box>
+                </Box>
               ))}
               {result.nextRuns.length === 0 && (
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>No matching run found in the next 4 years — check the expression (e.g. Feb 30 never occurs).</span>
+                <Box component="span" sx={{ fontSize: 13, color: 'text.secondary' }}>No matching run found in the next 4 years — check the expression (e.g. Feb 30 never occurs).</Box>
               )}
-            </div>
+            </Box>
           </div>
         </>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1538,52 +1453,45 @@ function JwtEncoderTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+    <ToolBody>
+      <ErrorBanner neutral>
         <AlertCircle size={16} style={{ flexShrink: 0 }} />
         HS256 only, signed entirely in the browser — for generating local test tokens, not for issuing production credentials.
-      </div>
+      </ErrorBanner>
 
-      <div className="devtools-pane">
-        <label className="devtools-pane-label">Payload (JSON)</label>
-        <textarea
-          className="input devtools-textarea"
+      <Pane>
+        <PaneLabel>Payload (JSON)</PaneLabel>
+        <ToolTextarea rows={9}
           value={payload}
           onChange={e => { setPayload(e.target.value); setError('') }}
-          style={{ minHeight: 200 }}
           spellCheck={false}
         />
-      </div>
+      </Pane>
 
-      <div className="devtools-toolbar">
-        <input
-          className="input"
+      <Toolbar>
+        <ToolInput mono width={320}
+          aria-label="Signing secret"
           value={secret}
           onChange={e => setSecret(e.target.value)}
           placeholder="Signing secret"
-          style={{ maxWidth: 320, fontFamily: 'var(--font-mono)' }}
-          type="password"
-        />
-        <button className="btn btn-primary" onClick={sign} disabled={!payload.trim() || !secret}>Sign Token</button>
-      </div>
+          type="password" />
+        <Button onClick={sign} disabled={!payload.trim() || !secret} variant="primary">Sign Token</Button>
+      </Toolbar>
 
-      {error && <div className="devtools-error"><AlertCircle size={14} /> {error}</div>}
+      {error && <ErrorBanner><AlertCircle size={14} /> {error}</ErrorBanner>}
 
       {token ? (
-        <div className="devtools-pane">
-          <div className="devtools-pane-label-row">
-            <label className="devtools-pane-label">Token</label>
-            <button className="btn btn-secondary btn-sm" onClick={copy}>
-              {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-              <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-          <textarea className="input devtools-textarea" value={token} readOnly style={{ minHeight: 120, background: 'var(--bg-app)', wordBreak: 'break-all' }} />
-        </div>
+        <Pane>
+          <PaneLabelRow>
+            <PaneLabel>Token</PaneLabel>
+            <Button onClick={copy} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy'}</Button>
+          </PaneLabelRow>
+          <ToolTextarea breakAll rows={5} value={token} readOnly />
+        </Pane>
       ) : (
         <EmptyState icon={KeyRound} title="Signed token will appear here" />
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1591,10 +1499,10 @@ function JwtEncoderTool() {
 
 function CertField({ label, value, mono = true }: { label: string, value: string, mono?: boolean }) {
   return (
-    <div style={{ padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: mono ? 'var(--font-mono)' : 'inherit', wordBreak: 'break-all' }}>{value}</div>
-    </div>
+    <ToolCard sx={{ py: 1.25, px: 1.75, bgcolor: 'action.hover' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>{label}</Typography>
+      <Box sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', fontFamily: mono ? 'var(--font-mono)' : 'inherit', wordBreak: 'break-all' }}>{value}</Box>
+    </ToolCard>
   )
 }
 
@@ -1622,48 +1530,42 @@ function CertDecoderTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-pane">
-        <div className="devtools-pane-label-row">
-          <label className="devtools-pane-label">PEM certificate</label>
-          {input && <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>}
-        </div>
-        <textarea
-          className="input devtools-textarea"
+    <ToolBody>
+      <Pane>
+        <PaneLabelRow>
+          <PaneLabel>PEM certificate</PaneLabel>
+          {input && <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>}
+        </PaneLabelRow>
+        <ToolTextarea rows={10}
           value={input}
           onChange={e => { setInput(e.target.value); setError('') }}
           placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-          style={{ minHeight: 220 }}
           spellCheck={false}
         />
-      </div>
+      </Pane>
 
-      <button className="btn btn-primary" onClick={decode} disabled={busy || !input.trim()} style={{ alignSelf: 'flex-start' }}>
+      <Button onClick={decode} disabled={busy || !input.trim()} style={{ alignSelf: 'flex-start' }} variant="primary">
         {busy ? 'Decoding…' : 'Decode Certificate'}
-      </button>
+      </Button>
 
-      {error && <div className="devtools-error"><AlertCircle size={16} /> {error}</div>}
+      {error && <ErrorBanner><AlertCircle size={16} /> {error}</ErrorBanner>}
 
       {result && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {result.otherCertsInInput > 0 && (
-            <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+            <ErrorBanner neutral>
               <AlertCircle size={14} /> Input contains {result.otherCertsInInput + 1} certificates — showing the first one only.
-            </div>
+            </ErrorBanner>
           )}
 
-          <div style={{
-            padding: '12px 16px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 700,
-            background: result.isExpired ? 'rgba(201, 25, 11, 0.1)' : 'rgba(62, 134, 53, 0.1)',
-            color: result.isExpired ? 'var(--danger)' : 'var(--success)',
-          }}>
+          <ErrorBanner tone={result.isExpired ? undefined : 'success'}>
             <ShieldCheck size={16} />
             {result.isExpired
               ? `Expired ${Math.abs(result.daysRemaining ?? 0)} days ago`
               : `Valid — expires in ${result.daysRemaining} days`}
-          </div>
+          </ErrorBanner>
 
-          <div className="grid-2-col" style={{ gap: 12 }}>
+          <ResultGrid gap={12}>
             <CertField label="Subject" value={result.subject || '(empty)'} mono={false} />
             <CertField label="Issuer" value={result.issuer || '(empty)'} mono={false} />
             <CertField label="Not Before" value={result.notBefore?.toUTCString() || 'unknown'} />
@@ -1676,32 +1578,32 @@ function CertDecoderTool() {
               value={result.publicKeyCurve ? `${result.publicKeyAlgorithm} (${result.publicKeyCurve})` : result.publicKeyBits ? `${result.publicKeyAlgorithm} ${result.publicKeyBits}-bit` : result.publicKeyAlgorithm}
             />
             <CertField label="CA Certificate" value={result.isCA ? 'Yes' : 'No'} />
-          </div>
+          </ResultGrid>
 
           <div>
-            <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>Subject Alternative Names</label>
+            <PaneLabel block>Subject Alternative Names</PaneLabel>
             {result.sans.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {result.sans.map((s, i) => (
-                  <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '4px 8px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                  <ToolChip key={i}>
                     {s.type}:{s.value}
-                  </span>
+                  </ToolChip>
                 ))}
-              </div>
+              </Box>
             ) : (
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>None</span>
+              <Box component="span" sx={{ fontSize: 13, color: 'text.secondary' }}>None</Box>
             )}
           </div>
 
-          <div className="grid-2-col" style={{ gap: 12 }}>
+          <ResultGrid gap={12}>
             <CertField label="SHA-256 Fingerprint" value={result.fingerprintSha256} />
             <CertField label="SHA-1 Fingerprint" value={result.fingerprintSha1} />
-          </div>
-        </div>
+          </ResultGrid>
+        </Box>
       )}
 
       {!result && !error && <EmptyState icon={ShieldCheck} title="Certificate details will appear here" />}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1741,48 +1643,44 @@ function ResourceUnitsTool() {
   const bytes = parseMemoryQuantity(memInput)
 
   return (
-    <div className="devtools-body" style={{ gap: 28 }}>
+    <ToolBody gap={28}>
       <div>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 10 }}>CPU (bare cores or millicores, e.g. 0.5 or 500m)</label>
-        <input
-          className="input"
+        <PaneLabel block>CPU (bare cores or millicores, e.g. 0.5 or 500m)</PaneLabel>
+        <ToolInput big width={320}
+          aria-label="CPU quantity"
           value={cpuInput}
           onChange={e => setCpuInput(e.target.value)}
-          style={{ fontSize: 18, fontFamily: 'var(--font-mono)', height: 48, padding: '0 16px', marginBottom: 16, maxWidth: 320 }}
-          spellCheck={false}
-        />
+          spellCheck={false} />
         {cores !== null ? (
-          <div className="grid-2-col" style={{ gap: 16 }}>
+          <ResultGrid gap={16}>
             <ResultBox label="Cores" value={formatNumber(cores)} />
             <ResultBox label="Millicores" value={`${formatNumber(cores * 1000)}m`} />
             <ResultBox label="Microcores" value={`${formatNumber(cores * 1e6)}u`} />
             <ResultBox label="Nanocores" value={`${formatNumber(cores * 1e9)}n`} />
-          </div>
+          </ResultGrid>
         ) : (
-          <span style={{ fontSize: 13, color: 'var(--danger)' }}>Enter a bare number (cores) or a number with an "m" suffix (millicores).</span>
+          <Box component="span" sx={{ fontSize: 13, color: 'error.main' }}>Enter a bare number (cores) or a number with an "m" suffix (millicores).</Box>
         )}
       </div>
 
       <div>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 10 }}>Memory (Ki/Mi/Gi/Ti binary or k/M/G/T decimal, e.g. 256Mi)</label>
-        <input
-          className="input"
+        <PaneLabel block>Memory (Ki/Mi/Gi/Ti binary or k/M/G/T decimal, e.g. 256Mi)</PaneLabel>
+        <ToolInput big width={320}
+          aria-label="Memory quantity"
           value={memInput}
           onChange={e => setMemInput(e.target.value)}
-          style={{ fontSize: 18, fontFamily: 'var(--font-mono)', height: 48, padding: '0 16px', marginBottom: 16, maxWidth: 320 }}
-          spellCheck={false}
-        />
+          spellCheck={false} />
         {bytes !== null ? (
-          <div className="grid-2-col" style={{ gap: 16 }}>
+          <ResultGrid gap={16}>
             <ResultBox label="Bytes" value={formatNumber(bytes)} />
             <ResultBox label="Ki / Mi / Gi / Ti" value={`${formatNumber(bytes / 2 ** 10)}Ki  ·  ${formatNumber(bytes / 2 ** 20)}Mi  ·  ${formatNumber(bytes / 2 ** 30)}Gi  ·  ${formatNumber(bytes / 2 ** 40)}Ti`} />
             <ResultBox label="k / M / G / T (decimal)" value={`${formatNumber(bytes / 1e3)}k  ·  ${formatNumber(bytes / 1e6)}M  ·  ${formatNumber(bytes / 1e9)}G  ·  ${formatNumber(bytes / 1e12)}T`} />
-          </div>
+          </ResultGrid>
         ) : (
-          <span style={{ fontSize: 13, color: 'var(--danger)' }}>Enter a bare number (bytes) or a number with a valid k8s memory suffix.</span>
+          <Box component="span" sx={{ fontSize: 13, color: 'error.main' }}>Enter a bare number (bytes) or a number with a valid k8s memory suffix.</Box>
         )}
       </div>
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1793,23 +1691,21 @@ function CidrCalculatorTool() {
   const calc = calculateCidr(input)
 
   return (
-    <div className="devtools-body">
-      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>IPv4 CIDR block</label>
-        <input
-          className="input"
+    <ToolBody>
+      <ToolCard>
+        <PaneLabel block>IPv4 CIDR block</PaneLabel>
+        <ToolInput big
+          aria-label="IPv4 CIDR block"
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="10.0.0.0/24"
-          style={{ fontSize: 20, fontFamily: 'var(--font-mono)', height: 52, padding: '0 18px' }}
-          spellCheck={false}
-        />
-      </div>
+          spellCheck={false} />
+      </ToolCard>
 
       {calc.ok ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Click a result to copy it</span>
-          <div className="grid-2-col" style={{ gap: 16 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <Box component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>Click a result to copy it</Box>
+          <ResultGrid gap={16}>
             <ResultBox label="Network Address" value={calc.result.networkAddress} />
             <ResultBox label="Broadcast Address" value={calc.result.broadcastAddress} />
             <ResultBox label="Netmask" value={calc.result.netmask} />
@@ -1821,12 +1717,12 @@ function CidrCalculatorTool() {
             <ResultBox label="IP Class" value={calc.result.ipClass} />
             <ResultBox label="Previous Subnet" value={calc.result.previousSubnet} />
             <ResultBox label="Next Subnet" value={calc.result.nextSubnet} />
-          </div>
-        </div>
+          </ResultGrid>
+        </Box>
       ) : (
-        <div className="devtools-error"><AlertCircle size={16} /> {calc.error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {calc.error}</ErrorBanner>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1849,55 +1745,51 @@ function SubnetSplitterTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>Block to split</label>
-        <input
-          className="input"
+    <ToolBody>
+      <ToolCard>
+        <PaneLabel block>Block to split</PaneLabel>
+        <ToolInput big
+          aria-label="Block to split"
           value={block}
           onChange={e => setBlock(e.target.value)}
           placeholder="10.0.0.0/16"
-          style={{ fontSize: 20, fontFamily: 'var(--font-mono)', height: 52, padding: '0 18px' }}
-          spellCheck={false}
-        />
-      </div>
+          spellCheck={false} />
+      </ToolCard>
 
-      <div className="devtools-option-group">
-        <div className="devtools-option-row">
-          <span className="devtools-option-row-label">Split by</span>
-          <label className="devtools-option">
-            <input type="radio" checked={mode === 'prefix'} onChange={() => setMode('prefix')} />
+      <OptionGroup>
+        <OptionRow>
+          <OptionRowLabel>Split by</OptionRowLabel>
+          <OptionLabel>
+            <Radio size="small" checked={mode === 'prefix'} onChange={() => setMode('prefix')} />
             target prefix
-            <input
-              className="input" type="number" min={0} max={32} value={targetPrefix}
-              onChange={e => { setMode('prefix'); setTargetPrefix(Number(e.target.value)) }}
-              style={{ width: 72, height: 30, fontSize: 13, padding: '0 10px', fontFamily: 'var(--font-mono)' }}
-            />
-          </label>
-          <label className="devtools-option">
-            <input type="radio" checked={mode === 'count'} onChange={() => setMode('count')} />
+            <ToolInput mono width={72}
+          aria-label="Target prefix"
+               type="number" min={0} max={32} value={targetPrefix}
+              onChange={e => { setMode('prefix'); setTargetPrefix(Number(e.target.value)) }} />
+          </OptionLabel>
+          <OptionLabel>
+            <Radio size="small" checked={mode === 'count'} onChange={() => setMode('count')} />
             how many subnets
-            <input
-              className="input" type="number" min={1} value={subnetCount}
-              onChange={e => { setMode('count'); setSubnetCount(Number(e.target.value)) }}
-              style={{ width: 72, height: 30, fontSize: 13, padding: '0 10px', fontFamily: 'var(--font-mono)' }}
-            />
-          </label>
-        </div>
-      </div>
+            <ToolInput mono width={72}
+          aria-label="Number of subnets"
+               type="number" min={1} value={subnetCount}
+              onChange={e => { setMode('count'); setSubnetCount(Number(e.target.value)) }} />
+          </OptionLabel>
+        </OptionRow>
+      </OptionGroup>
 
       {!split.ok ? (
-        <div className="devtools-error"><AlertCircle size={16} /> {split.error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {split.error}</ErrorBanner>
       ) : (
         <>
           {split.result.normalizedFrom && (
-            <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+            <ErrorBanner tone="warning">
               <AlertCircle size={16} style={{ flexShrink: 0 }} />
               <code>{split.result.normalizedFrom}</code> has host bits set — split on its enclosing network <code>{split.result.block}</code>.
-            </div>
+            </ErrorBanner>
           )}
 
-          <div className="grid-2-col" style={{ gap: 16 }}>
+          <ResultGrid gap={16}>
             <ResultBox label="Subnets Produced" value={split.result.totalSubnets.toLocaleString()} />
             <ResultBox label="Subnet Size" value={`/${split.result.newPrefix}`} />
             <ResultBox label="Usable Hosts Each" value={split.result.hostsPerSubnet.toLocaleString()} />
@@ -1907,34 +1799,31 @@ function SubnetSplitterTool() {
                 ? `${(split.result.totalSubnets - split.result.requestedSubnets).toLocaleString()} of ${split.result.totalSubnets.toLocaleString()}`
                 : '—'}
             />
-          </div>
+          </ResultGrid>
 
           {split.result.requestedSubnets !== undefined && split.result.totalSubnets !== split.result.requestedSubnets && (
-            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            <Box sx={{ fontSize: 12.5, color: 'text.secondary', fontFamily: 'var(--font-mono)' }}>
               Subnets divide on power-of-two boundaries, so {split.result.requestedSubnets} subnets means borrowing{' '}
               {split.result.newPrefix - split.result.blockPrefix} bits and getting {split.result.totalSubnets}.
-            </div>
+            </Box>
           )}
 
           <div>
-            <div className="devtools-toolbar" style={{ marginBottom: 12 }}>
-              <label className="devtools-pane-label">
+            <Toolbar sx={{ mb: 1.5 }}>
+              <PaneLabel>
                 Subnets
                 {split.result.listTruncated && (
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                  <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                     &nbsp;(first {split.result.subnets.length.toLocaleString()} of {split.result.totalSubnets.toLocaleString()})
-                  </span>
+                  </Box>
                 )}
-              </label>
-              <div className="devtools-toolbar-spacer">
-                <button className="btn btn-secondary btn-sm" onClick={copyAll}>
-                  {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-                  <span style={{ marginLeft: 6 }}>{copied ? 'Copied' : 'Copy CIDRs'}</span>
-                </button>
-              </div>
-            </div>
-            <div className="devtools-table-wrap">
-              <table className="devtools-table">
+              </PaneLabel>
+              <ToolbarSpacer>
+                <Button onClick={copyAll} size="sm" variant="secondary" icon=<CopyIcon copied={copied} size={14} />>{copied ? 'Copied' : 'Copy CIDRs'}</Button>
+              </ToolbarSpacer>
+            </Toolbar>
+            <TableWrap>
+              <DevTable>
                 <thead>
                   <tr>
                     <th style={{ width: 48 }}>#</th>
@@ -1947,20 +1836,20 @@ function SubnetSplitterTool() {
                 <tbody>
                   {split.result.subnets.map(s => (
                     <tr key={s.cidr}>
-                      <td style={{ color: 'var(--text-muted)' }}>{s.index}</td>
-                      <td style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>{s.cidr}</td>
+                      <Box component="td" sx={{ color: 'text.disabled' }}>{s.index}</Box>
+                      <Box component="td" sx={{ color: 'primary.main', fontWeight: 700 }}>{s.cidr}</Box>
                       <td>{s.firstUsable} – {s.lastUsable}</td>
-                      <td style={{ color: 'var(--text-muted)' }}>{s.broadcast}</td>
+                      <Box component="td" sx={{ color: 'text.disabled' }}>{s.broadcast}</Box>
                       <td style={{ textAlign: 'right' }}>{s.usableHosts.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </DevTable>
+            </TableWrap>
           </div>
         </>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -1974,70 +1863,66 @@ function CidrMatchTool() {
   const invalidCidrs = analysis.cidrs.filter(c => c.error)
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">CIDR blocks</label>
-          <textarea
-            className="input devtools-textarea"
+    <ToolBody>
+      <SplitPane>
+        <Pane>
+          <PaneLabel>CIDR blocks</PaneLabel>
+          <ToolTextarea rows={9}
             value={cidrText}
             onChange={e => setCidrText(e.target.value)}
             placeholder={'10.0.0.0/16\n192.168.0.0/24\n# comments and commas are fine'}
             spellCheck={false}
-            style={{ minHeight: 200 }}
           />
-        </div>
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Addresses / blocks to test</label>
-          <textarea
-            className="input devtools-textarea"
+        </Pane>
+        <Pane>
+          <PaneLabel>Addresses / blocks to test</PaneLabel>
+          <ToolTextarea rows={9}
             value={testText}
             onChange={e => setTestText(e.target.value)}
             placeholder={'10.0.5.20\n10.2.0.0/24'}
             spellCheck={false}
-            style={{ minHeight: 200 }}
           />
-        </div>
-      </div>
+        </Pane>
+      </SplitPane>
 
       {invalidCidrs.length > 0 && (
-        <div className="devtools-error">
+        <ErrorBanner>
           <AlertCircle size={16} style={{ flexShrink: 0 }} />
           {invalidCidrs.map(c => `"${c.input}" — ${c.error}`).join('; ')}
-        </div>
+        </ErrorBanner>
       )}
 
       {analysis.unnormalized.length > 0 && (
-        <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+        <ErrorBanner tone="warning">
           <AlertCircle size={16} style={{ flexShrink: 0 }} />
           Host bits set — the kernel and every cloud provider will silently normalize{' '}
           {analysis.unnormalized.map(c => `${c.input} → ${c.cidr}`).join(', ')}.
-        </div>
+        </ErrorBanner>
       )}
 
       {analysis.overlaps.length > 0 && (
         <div>
-          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>Overlapping blocks</label>
-          <div style={{ display: 'grid', gap: 6 }}>
+          <PaneLabel block>Overlapping blocks</PaneLabel>
+          <Box sx={{ display: 'grid', gap: '6px' }}>
             {analysis.overlaps.map(o => (
-              <div key={`${o.a}-${o.b}`} className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
+              <ErrorBanner key={`${o.a}-${o.b}`} tone="warning" mono>
                 <AlertCircle size={15} style={{ flexShrink: 0 }} />
                 {o.relation === 'identical'
                   ? <span><strong>{o.a}</strong> and <strong>{o.b}</strong> are the same block</span>
                   : o.relation === 'contains'
                     ? <span><strong>{o.a}</strong> fully contains <strong>{o.b}</strong></span>
                     : <span><strong>{o.b}</strong> fully contains <strong>{o.a}</strong></span>}
-              </div>
+              </ErrorBanner>
             ))}
-          </div>
+          </Box>
         </div>
       )}
 
       {analysis.rows.length > 0 && (
         <div>
-          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>Match results</label>
-          <div className="devtools-table-wrap">
-            <table className="devtools-table">
+          <PaneLabel block>Match results</PaneLabel>
+          <TableWrap>
+            <DevTable>
               <thead>
                 <tr>
                   <th>Tested</th>
@@ -2049,28 +1934,28 @@ function CidrMatchTool() {
                 {analysis.rows.map((row, i) => (
                   <tr key={`${row.input}-${i}`}>
                     <td style={{ fontWeight: 700 }}>{row.input}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{row.range ?? '—'}</td>
+                    <Box component="td" sx={{ color: 'text.disabled' }}>{row.range ?? '—'}</Box>
                     <td>
                       {row.error
-                        ? <span className="devtools-chip warn">! {row.error}</span>
+                        ? <ToolChip tone="warn">! {row.error}</ToolChip>
                         : row.matchedBy.length === 0
-                          ? <span style={{ color: 'var(--text-muted)' }}>no match</span>
+                          ? <Box component="span" sx={{ color: 'text.secondary' }}>no match</Box>
                           : (
-                            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <Box component="span" sx={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                               {row.matchedBy.map((m, mi) => (
-                                <span key={m} className={mi === 0 ? 'devtools-chip ok' : 'devtools-chip'}>{m}</span>
+                                <ToolChip key={m} tone={mi === 0 ? 'ok' : undefined}>{m}</ToolChip>
                               ))}
-                            </span>
+                            </Box>
                           )}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </DevTable>
+          </TableWrap>
         </div>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -2081,32 +1966,30 @@ function Ipv6Tool() {
   const analysis = analyzeIpv6(input)
 
   return (
-    <div className="devtools-body">
-      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>IPv6 address or prefix</label>
-        <input
-          className="input"
+    <ToolBody>
+      <ToolCard>
+        <PaneLabel block>IPv6 address or prefix</PaneLabel>
+        <ToolInput big
+          aria-label="IPv6 address or prefix"
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="2001:db8::1/64"
-          style={{ fontSize: 20, fontFamily: 'var(--font-mono)', height: 52, padding: '0 18px' }}
-          spellCheck={false}
-        />
-      </div>
+          spellCheck={false} />
+      </ToolCard>
 
       {!analysis.ok ? (
-        <div className="devtools-error"><AlertCircle size={16} /> {analysis.error}</div>
+        <ErrorBanner><AlertCircle size={16} /> {analysis.error}</ErrorBanner>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {analysis.result.hasPrefix && analysis.result.hasHostBits && (
-            <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+            <ErrorBanner tone="warning">
               <AlertCircle size={16} style={{ flexShrink: 0 }} />
               The address has bits set below its /{analysis.result.prefix} prefix — it is a host inside{' '}
               <code>{analysis.result.network}</code>, not the network address.
-            </div>
+            </ErrorBanner>
           )}
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Click a result to copy it</span>
-          <div className="grid-2-col" style={{ gap: 16 }}>
+          <Box component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>Click a result to copy it</Box>
+          <ResultGrid gap={16}>
             <ResultBox label="Compressed (RFC 5952)" value={analysis.result.compressed} />
             <ResultBox label="Expanded" value={analysis.result.expanded} />
             <ResultBox label="Address Type" value={analysis.result.type} />
@@ -2121,10 +2004,10 @@ function Ipv6Tool() {
             />
             {analysis.result.embeddedIpv4 && <ResultBox label="Embedded IPv4" value={analysis.result.embeddedIpv4} />}
             <ResultBox label="Reverse DNS (PTR)" value={analysis.result.ptrName} />
-          </div>
-        </div>
+          </ResultGrid>
+        </Box>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -2155,69 +2038,66 @@ function DnsLookupTool() {
   const showingAuthority = !!result && result.answers.length === 0 && result.authority.length > 0
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-error" style={{ background: 'var(--bg-app)', color: 'var(--text-secondary)' }}>
+    <ToolBody>
+      <ErrorBanner neutral>
         <AlertCircle size={16} style={{ flexShrink: 0 }} />
         Unlike the other tools here, this one leaves your browser — the name you query is sent to {DOH_RESOLVER} over DNS-over-HTTPS.
-      </div>
+      </ErrorBanner>
 
-      <div className="devtools-toolbar">
-        <input
-          className="input"
+      <Toolbar>
+        <ToolInput mono
+          aria-label="Hostname"
           value={name}
           onChange={e => { setName(e.target.value); setError('') }}
           onKeyDown={e => { if (e.key === 'Enter') lookup() }}
           placeholder="api.example.com"
-          spellCheck={false}
-          style={{ flex: 1, minWidth: 240, fontFamily: 'var(--font-mono)', height: 40 }}
-        />
-        <select
-          className="input"
+          spellCheck={false} />
+        <ToolSelect
+          aria-label="Record type"
           value={type}
           onChange={e => setType(e.target.value as DnsRecordType)}
-          style={{ width: 110, height: 40, fontFamily: 'var(--font-mono)' }}
         >
           {DNS_RECORD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <button className="btn btn-primary" onClick={lookup} disabled={loading || !name.trim()}>
+        </ToolSelect>
+        <Button onClick={lookup} disabled={loading || !name.trim()} variant="primary">
           {loading ? 'Looking up…' : 'Look Up'}
-        </button>
-      </div>
+        </Button>
+      </Toolbar>
 
-      {error && <div className="devtools-error"><AlertCircle size={16} /> {error}</div>}
+      {error && <ErrorBanner><AlertCircle size={16} /> {error}</ErrorBanner>}
 
       {result?.status && (
-        <div className="devtools-error" style={{ background: 'var(--warning-glow)', color: 'var(--warning-dark)' }}>
+        <ErrorBanner tone="warning">
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {result.status}
-        </div>
+        </ErrorBanner>
       )}
 
       {result && (
         <div>
-          <div className="devtools-toolbar" style={{ marginBottom: 12 }}>
-            <label className="devtools-pane-label">
+          <Toolbar sx={{ mb: 1.5 }}>
+            <PaneLabel>
               {showingAuthority ? 'Authority section' : 'Answers'}
-              <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+              <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                 &nbsp;— {result.type} {result.name}
-              </span>
-            </label>
-            <div className="devtools-toolbar-spacer">
-              {result.authenticated && <span className="devtools-chip ok">DNSSEC validated</span>}
+              </Box>
+            </PaneLabel>
+            <ToolbarSpacer>
+              {result.authenticated && <ToolChip tone="ok">DNSSEC validated</ToolChip>}
               <StatBadge>{DOH_RESOLVER}</StatBadge>
-            </div>
-          </div>
+            </ToolbarSpacer>
+          </Toolbar>
 
           {showingAuthority && (
-            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+            <Box sx={{ fontSize: 12.5, color: 'text.secondary', fontFamily: 'var(--font-mono)', marginBottom: '10px' }}>
               The name resolves but holds no {result.type} record — this is what the zone returned instead.
-            </div>
+            </Box>
           )}
 
           {records.length === 0 ? (
             <EmptyState icon={Radar} title={`No ${result.type} records for ${result.name}`} />
           ) : (
-            <div className="devtools-table-wrap">
-              <table className="devtools-table">
+            <TableWrap>
+              <DevTable>
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -2229,21 +2109,21 @@ function DnsLookupTool() {
                 <tbody>
                   {records.map((r, i) => (
                     <tr key={`${r.name}-${r.type}-${r.data}-${i}`}>
-                      <td style={{ color: 'var(--text-muted)' }}>{r.name}</td>
+                      <Box component="td" sx={{ color: 'text.disabled' }}>{r.name}</Box>
                       <td>{r.ttl}</td>
-                      <td style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>{r.type}</td>
+                      <Box component="td" sx={{ color: 'primary.main', fontWeight: 700 }}>{r.type}</Box>
                       <td style={{ wordBreak: 'break-all' }}>{r.data}</td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </DevTable>
+            </TableWrap>
           )}
         </div>
       )}
 
       {!result && !error && <EmptyState icon={Radar} title="Enter a hostname to resolve it" />}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -2290,53 +2170,49 @@ function UuidGeneratorTool() {
   }
 
   return (
-    <div className="devtools-body" style={{ gap: 28 }}>
+    <ToolBody gap={28}>
       <div>
-        <div className="devtools-toolbar" style={{ marginBottom: 12 }}>
-          <label className="devtools-pane-label">UUIDv4</label>
-          <div className="devtools-toolbar-spacer">
-            <input
-              className="input" type="number" min={1} max={50} value={count}
-              onChange={e => setCount(Number(e.target.value))}
-              style={{ width: 70, height: 32, fontSize: 13, padding: '0 10px' }}
-            />
-            <button className="btn btn-secondary btn-sm" onClick={regenUuids}>Generate</button>
-            <button className="btn btn-secondary btn-sm" onClick={copyAll}>
-              {copiedAll ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
-              <span style={{ marginLeft: 6 }}>{copiedAll ? 'Copied' : 'Copy All'}</span>
-            </button>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <Toolbar sx={{ mb: 1.5 }}>
+          <PaneLabel>UUIDv4</PaneLabel>
+          <ToolbarSpacer>
+            <ToolInput width={70}
+          aria-label="UUID count"
+               type="number" min={1} max={50} value={count}
+              onChange={e => setCount(Number(e.target.value))} />
+            <Button onClick={regenUuids} size="sm" variant="secondary">Generate</Button>
+            <Button onClick={copyAll} size="sm" variant="secondary" icon={<CopyIcon copied={copiedAll} />}>
+              {copiedAll ? 'Copied' : 'Copy All'}
+            </Button>
+          </ToolbarSpacer>
+        </Toolbar>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {uuids.map((u, i) => <ResultBox key={i} label={`#${i + 1}`} value={u} />)}
-        </div>
+        </Box>
       </div>
 
       <div>
-        <div className="devtools-toolbar" style={{ marginBottom: 12 }}>
-          <label className="devtools-pane-label">Random Secret</label>
-          <div className="devtools-toolbar-spacer">
-            <input
-              className="input" type="number" min={4} max={256} value={secretLength}
-              onChange={e => setSecretLength(Number(e.target.value))}
-              style={{ width: 70, height: 32, fontSize: 13, padding: '0 10px' }}
-            />
-            <select
-              className="input"
+        <Toolbar sx={{ mb: 1.5 }}>
+          <PaneLabel>Random Secret</PaneLabel>
+          <ToolbarSpacer>
+            <ToolInput width={70}
+          aria-label="Secret length"
+               type="number" min={4} max={256} value={secretLength}
+              onChange={e => setSecretLength(Number(e.target.value))} />
+            <ToolSelect
+          aria-label="Secret charset"
               value={charsetKey}
               onChange={e => setCharsetKey(e.target.value as keyof typeof SECRET_CHARSETS)}
-              style={{ height: 32, fontSize: 13, width: 190 }}
             >
               <option value="alphanumeric">Alphanumeric</option>
               <option value="alphanumeric+symbols">Alphanumeric + symbols</option>
               <option value="hex">Hex</option>
-            </select>
-            <button className="btn btn-secondary btn-sm" onClick={regenSecret}>Generate</button>
-          </div>
-        </div>
+            </ToolSelect>
+            <Button onClick={regenSecret} size="sm" variant="secondary">Generate</Button>
+          </ToolbarSpacer>
+        </Toolbar>
         <ResultBox label={`${secret.length} characters — click to copy`} value={secret} />
       </div>
-    </div>
+    </ToolBody>
   )
 }
 
@@ -2356,55 +2232,55 @@ function DiffCheckerTool() {
   }
 
   return (
-    <div className="devtools-body">
-      <div className="devtools-toolbar">
-        <button className="btn btn-primary" onClick={compare} disabled={!original && !modified}>Compare</button>
-        <div className="devtools-toolbar-spacer">
+    <ToolBody>
+      <Toolbar>
+        <Button onClick={compare} disabled={!original && !modified} variant="primary">Compare</Button>
+        <ToolbarSpacer>
           {result && !result.error && <StatBadge>+{result.additions} / -{result.removals}</StatBadge>}
-          <button className="btn btn-secondary btn-sm" onClick={clearAll} title="Clear"><Trash2 size={14} /></button>
-        </div>
-      </div>
+          <IconAction label="Clear" onClick={clearAll}><Trash2 size={14} /></IconAction>
+        </ToolbarSpacer>
+      </Toolbar>
 
-      <div className="devtools-split">
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Original</label>
-          <textarea className="input devtools-textarea" value={original} onChange={e => setOriginal(e.target.value)} placeholder="Paste the original text..." spellCheck={false} style={{ minHeight: 280 }} />
-        </div>
-        <div className="devtools-pane">
-          <label className="devtools-pane-label">Modified</label>
-          <textarea className="input devtools-textarea" value={modified} onChange={e => setModified(e.target.value)} placeholder="Paste the modified text..." spellCheck={false} style={{ minHeight: 280 }} />
-        </div>
-      </div>
+      <SplitPane>
+        <Pane>
+          <PaneLabel>Original</PaneLabel>
+          <ToolTextarea rows={13} value={original} onChange={e => setOriginal(e.target.value)} placeholder="Paste the original text..." spellCheck={false} />
+        </Pane>
+        <Pane>
+          <PaneLabel>Modified</PaneLabel>
+          <ToolTextarea rows={13} value={modified} onChange={e => setModified(e.target.value)} placeholder="Paste the modified text..." spellCheck={false} />
+        </Pane>
+      </SplitPane>
 
-      {result?.error && <div className="devtools-error"><AlertCircle size={16} /> {result.error}</div>}
+      {result?.error && <ErrorBanner><AlertCircle size={16} /> {result.error}</ErrorBanner>}
 
       {result && !result.error && (
         <div>
-          <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 8 }}>Diff</label>
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'auto', maxHeight: 480, fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+          <PaneLabel block>Diff</PaneLabel>
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'auto', maxHeight: 480, fontFamily: 'var(--font-mono)', fontSize: 13 }}>
             {result.lines.map((l, i) => (
-              <div
+              <Box
                 key={i}
-                style={{
-                  display: 'flex', gap: 12, padding: '2px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                sx={{
+                  display: 'flex', gap: '12px', padding: '2px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
                   background: l.type === 'add' ? 'rgba(62, 134, 53, 0.12)' : l.type === 'remove' ? 'rgba(201, 25, 11, 0.12)' : 'transparent',
-                  color: l.type === 'add' ? 'var(--success)' : l.type === 'remove' ? 'var(--danger)' : 'var(--text-secondary)',
+                  color: l.type === 'add' ? 'success.main' : l.type === 'remove' ? 'error.main' : 'text.secondary',
                 }}
               >
-                <span style={{ color: 'var(--text-muted)', userSelect: 'none', flexShrink: 0, width: 60 }}>
+                <Box component="span" sx={{ color: 'text.secondary', userSelect: 'none', flexShrink: 0, width: 60 }}>
                   {l.oldLine ?? ''}{l.oldLine && l.newLine ? '·' : ''}{l.newLine ?? ''}
-                </span>
-                <span style={{ flexShrink: 0, userSelect: 'none' }}>{l.type === 'add' ? '+' : l.type === 'remove' ? '-' : ' '}</span>
+                </Box>
+                <Box component="span" sx={{ flexShrink: 0, userSelect: 'none' }}>{l.type === 'add' ? '+' : l.type === 'remove' ? '-' : ' '}</Box>
                 <span>{l.text || ' '}</span>
-              </div>
+              </Box>
             ))}
             {result.lines.length === 0 && (
-              <div style={{ padding: 16, color: 'var(--text-muted)' }}>No differences</div>
+              <Box sx={{ padding: '16px', color: 'text.secondary' }}>No differences</Box>
             )}
-          </div>
+          </Box>
         </div>
       )}
-    </div>
+    </ToolBody>
   )
 }
 
@@ -2461,34 +2337,32 @@ function DockerImageParserTool() {
   const parsed = parseImageReference(input)
 
   return (
-    <div className="devtools-body">
-      <div className="card" style={{ background: 'var(--bg-app)', border: '1px solid var(--border)' }}>
-        <label className="devtools-pane-label" style={{ display: 'block', marginBottom: 12 }}>Image reference</label>
-        <input
-          className="input"
+    <ToolBody>
+      <ToolCard>
+        <PaneLabel block>Image reference</PaneLabel>
+        <ToolInput big
+          aria-label="Image reference"
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="ghcr.io/org/app:v1.2.3  or  nginx@sha256:..."
-          style={{ fontSize: 16, fontFamily: 'var(--font-mono)', height: 48, padding: '0 16px' }}
-          spellCheck={false}
-        />
-      </div>
+          spellCheck={false} />
+      </ToolCard>
 
       {parsed ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="grid-2-col" style={{ gap: 16 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <ResultGrid gap={16}>
             <ResultBox label="Registry" value={parsed.registry} />
             <ResultBox label="Repository" value={parsed.repository} />
             <ResultBox label="Tag" value={parsed.tag || '(none — pinned by digest)'} />
             <ResultBox label="Digest" value={parsed.digest || '(none)'} />
-          </div>
+          </ResultGrid>
           {parsed.registry === 'docker.io' && (
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Docker Hub images with no namespace get the implicit "library/" prefix.</span>
+            <Box component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>Docker Hub images with no namespace get the implicit "library/" prefix.</Box>
           )}
-        </div>
+        </Box>
       ) : (
         <EmptyState icon={Container} title="Parsed image reference will appear here" />
       )}
-    </div>
+    </ToolBody>
   )
 }

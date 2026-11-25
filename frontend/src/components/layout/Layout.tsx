@@ -1,7 +1,8 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { Sidebar } from './Sidebar'
-import { MobileNav } from './MobileNav'
+import { TopBar } from './TopBar'
+import { Box } from '@mui/material'
 import { useUIStore } from '../../store/uiStore'
 import { ToastContainer } from '../Toast'
 import { useToastStore } from '../../store/toastStore'
@@ -53,7 +54,7 @@ function useAlertNotifications() {
 }
 
 export function Layout() {
-  const { sidebarCollapsed, mobileNavOpen, setMobileNavOpen } = useUIStore()
+  const { setMobileNavOpen } = useUIStore()
   const location = useLocation()
   useAlertNotifications()
   useThemeSync()
@@ -64,18 +65,14 @@ export function Layout() {
   }, [location, setMobileNavOpen])
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <div 
-        className={`sidebar-overlay ${mobileNavOpen ? 'mobile-open' : ''}`} 
-        onClick={() => setMobileNavOpen(false)}
-      />
-      
+    <Box sx={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', bgcolor: 'background.default' }}>
       <Sidebar />
+      {/* .app-main keeps the legacy flex/overflow contract that .page relies on */}
       <main className="app-main">
-        <MobileNav />
+        <TopBar />
         <Outlet />
       </main>
       <ToastContainer />
-    </div>
+    </Box>
   )
 }

@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, Loader2, AlertCircle, User, Lock, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, User, Lock, CheckCircle2, ShieldCheck } from 'lucide-react'
+import {
+  Alert, Box, Card, IconButton, InputAdornment, Link, TextField, Typography, useMediaQuery,
+} from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import { Button } from '../components/ui'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/authStore'
 import { useThemeSync } from '../hooks/useThemeSync'
+import { useUIStore } from '../store/uiStore'
 import logo from '../assets/logo.png'
 import { apiError } from '../utils/errors'
 
@@ -23,6 +29,9 @@ export function Login() {
   const [signedIn, setSignedIn] = useState(false)
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
+  const theme = useTheme()
+  const showBrand = useMediaQuery(theme.breakpoints.up('md'))
+  const { darkMode } = useUIStore()
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -39,175 +48,138 @@ export function Login() {
     }
   }
 
+  const onBrand = 'rgba(255,255,255,0.85)'
   return (
-    <div className="login-screen">
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
       {/* Brand panel */}
-      <div className="login-panel-brand">
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src={logo} alt="InfraEye" style={{ height: 38, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
-          <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>InfraEye</span>
-        </div>
+      {showBrand && (
+        <Box sx={{
+          flex: '1 1 55%', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          justifyContent: 'space-between', p: 8, color: '#fff',
+          background: 'linear-gradient(135deg, #004080 0%, #0066cc 100%)',
+          '&::before': {
+            content: '""', position: 'absolute', inset: 0, pointerEvents: 'none',
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.16) 1px, transparent 0)',
+            backgroundSize: '28px 28px',
+            maskImage: 'radial-gradient(ellipse 90% 70% at 30% 30%, #000 0%, transparent 75%)',
+          },
+        }}>
+          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <img src={logo} alt="" style={{ height: 38, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 800, color: '#fff' }}>InfraEye</Typography>
+          </Box>
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <span style={{
-            display: 'inline-block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)',
-            textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.85)',
-            background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
-            padding: '5px 12px', marginBottom: 20, borderRadius: 'var(--radius-sm)',
-          }}>
-            Agentless Infrastructure Platform
-          </span>
-          <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 14px', lineHeight: 1.25 }}>
-            One login for every server and cluster you manage.
-          </h1>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, margin: '0 0 36px', maxWidth: 440, fontWeight: 400 }}>
-            Point it at an SSH key or a kubeconfig and it's connected — metrics, logs, and terminals show up without installing anything on the other end.
-          </p>
+          <Box sx={{ position: 'relative' }}>
+            <Box component="span" sx={{
+              display: 'inline-block', px: 1.5, py: 0.5, mb: 2.5, borderRadius: 1, fontSize: 12, fontWeight: 700,
+              fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.12em', color: onBrand,
+              bgcolor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
+            }}>
+              Agentless Infrastructure Platform
+            </Box>
+            <Typography variant="h1" sx={{ fontSize: 32, fontWeight: 800, lineHeight: 1.25, mb: 1.75, color: '#fff' }}>
+              One login for every server and cluster you manage.
+            </Typography>
+            <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, mb: 4.5, maxWidth: 440 }}>
+              Point it at an SSH key or a kubeconfig and it's connected — metrics, logs, and terminals show up without installing anything on the other end.
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {FEATURES.map(label => (
+                <Box key={label} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.75 }}>
+                  <Box sx={{ width: 28, height: 28, borderRadius: 1, display: 'grid', placeItems: 'center', flexShrink: 0, bgcolor: 'rgba(255,255,255,0.12)' }}>
+                    <CheckCircle2 size={15} />
+                  </Box>
+                  <Typography sx={{ fontSize: 13, color: onBrand, lineHeight: 1.5, pt: 0.75 }}>{label}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {FEATURES.map(label => (
-              <div className="login-feature" key={label}>
-                <div className="login-feature-icon">
-                  <CheckCircle2 size={15} />
-                </div>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 400, lineHeight: 1.5, paddingTop: 6 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,0.55)' }}>
-          <ShieldCheck size={14} />
-          <span style={{ fontSize: 13, fontWeight: 400 }}>
-            JWT sessions, OIDC/SSO, and role-based access control
-          </span>
-        </div>
-      </div>
+          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1, color: 'rgba(255,255,255,0.55)' }}>
+            <ShieldCheck size={14} />
+            <Typography sx={{ fontSize: 13, color: 'inherit' }}>JWT sessions, OIDC/SSO, and role-based access control</Typography>
+          </Box>
+        </Box>
+      )}
 
       {/* Form panel */}
-      <div className="login-panel-form">
-        <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div className="login-card fade-up">
+      <Box sx={{ flex: '1 1 45%', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3, py: 5 }}>
+        <Box sx={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Card sx={{ width: '100%', p: { xs: 3, sm: 5 }, boxShadow: 3 }}>
             {signedIn ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '24px 0' }}>
-                <div className="login-success-icon">
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', py: 3 }} role="status">
+                <Box sx={{ width: 56, height: 56, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'success.main', color: '#fff' }}>
                   <CheckCircle2 size={26} />
-                </div>
-                <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: '20px 0 4px' }}>
-                  Signed in
-                </h1>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-                  Taking you to the console…
-                </p>
-              </div>
+                </Box>
+                <Typography variant="h5" component="h1" sx={{ mt: 2.5, mb: 0.5 }}>Signed in</Typography>
+                <Typography variant="body1" color="text.secondary">Taking you to the console…</Typography>
+              </Box>
             ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-                  <img src={logo} alt="InfraEye" style={{ height: 32, objectFit: 'contain' }} />
-                  <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>InfraEye</span>
-                </div>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 3.5 }}>
+                  <img src={logo} alt="" style={{ height: 32, objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>InfraEye</Typography>
+                </Box>
 
-                <div style={{ marginBottom: 28 }}>
-                  <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px', letterSpacing: '-0.01em' }}>
-                    Sign in
-                  </h1>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-                    Enter your credentials to access the console
-                  </p>
-                </div>
+                <Box sx={{ mb: 3.5 }}>
+                  <Typography variant="h3" component="h1" sx={{ fontSize: 22, mb: 0.75 }}>Sign in</Typography>
+                  <Typography variant="body1" color="text.secondary">Enter your credentials to access the console</Typography>
+                </Box>
 
-                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  <div className="input-group">
-                    <label className="input-label" htmlFor="login-username">Username</label>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <User size={15} style={{ position: 'absolute', left: 12, color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                      <input
-                        id="login-username"
-                        className="input"
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        placeholder="Enter your username"
-                        required
-                        autoFocus
-                        autoComplete="username"
-                        style={{ paddingLeft: 38 }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label" htmlFor="login-password">Password</label>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <Lock size={15} style={{ position: 'absolute', left: 12, color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                      <input
-                        id="login-password"
-                        className="input"
-                        type={showPw ? 'text' : 'password'}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        placeholder="Enter your password"
-                        required
-                        autoComplete="current-password"
-                        style={{ paddingLeft: 38, paddingRight: 40 }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPw(!showPw)}
-                        aria-label={showPw ? 'Hide password' : 'Show password'}
-                        className="login-pw-toggle"
-                      >
-                        {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
+                <Box component="form" onSubmit={handleLogin} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    label="Username" fullWidth required autoFocus autoComplete="username"
+                    value={username} onChange={e => setUsername(e.target.value)} placeholder="Enter your username"
+                    slotProps={{
+                      input: { startAdornment: <InputAdornment position="start"><User size={15} /></InputAdornment> },
+                    }}
+                    id="login-username"
+                  />
+                  <TextField
+                    label="Password" fullWidth required autoComplete="current-password"
+                    type={showPw ? 'text' : 'password'}
+                    value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password"
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start"><Lock size={15} /></InputAdornment>,
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton onClick={() => setShowPw(!showPw)} aria-label={showPw ? 'Hide password' : 'Show password'} edge="end">
+                              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                    id="login-password"
+                  />
 
                   {error && (
-                    <div className="login-error">
-                      <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
-                    </div>
+                    <Alert severity="error" icon={<AlertCircle size={16} />} role="alert">{error}</Alert>
                   )}
 
-                  <button
-                    id="login-submit"
-                    type="submit"
-                    disabled={loading}
-                    className="btn btn-primary"
-                    style={{ width: '100%', padding: '13px', fontSize: 14, marginTop: 8, fontWeight: 700 }}
-                  >
-                    {loading ? (
-                      <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Signing in…</>
-                    ) : (
-                      'Sign in'
-                    )}
-                  </button>
-                </form>
+                  <Button type="submit" size="lg" loading={loading} id="login-submit" style={{ width: '100%', marginTop: 4 }}>
+                    {loading ? 'Signing in…' : 'Sign in'}
+                  </Button>
+                </Box>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, pt: 2.5, borderTop: 1, borderColor: 'divider', color: 'text.secondary' }}>
                   <ShieldCheck size={14} style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 12.5 }}>JWT-based sessions that expire after 24 hours</span>
-                </div>
+                  <Typography variant="body2">JWT-based sessions that expire after 24 hours</Typography>
+                </Box>
               </>
             )}
-          </div>
+          </Card>
 
-          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
             <span>© {new Date().getFullYear()} InfraEye. All rights reserved.</span>
             <span style={{ opacity: 0.5 }}>·</span>
-            <a
-              href="https://infraeye.manishkarki7.com.np"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'var(--text-muted)', textDecoration: 'underline', textUnderlineOffset: 2 }}
-            >
+            <Link href="https://infraeye.manishkarki7.com.np" target="_blank" rel="noopener noreferrer" color="inherit" underline="always">
               Documentation
-            </a>
-          </p>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
-    </div>
+            </Link>
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
   )
 }

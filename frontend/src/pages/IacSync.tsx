@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   GitBranch, RefreshCw, Send, History, Power, PowerOff, Eye, EyeOff,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertTriangle, Clock, User as UserIcon,
 } from 'lucide-react'
 import { api } from '../api/client'
 import { useToastStore } from '../store/toastStore'
-import { Badge } from '../components/ui/Badge'
+import {
+  Alert, Box, Chip, FormControlLabel, IconButton, InputAdornment, Paper, Switch, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
+} from '@mui/material'
+import { Button, Card, CardBody, EmptyState, PageHeader, SectionHeader, Spinner, StatCard } from '../components/ui'
 import { apiError } from '../utils/errors'
-import type { IconComponent } from '../types/k8s'
+import type { LucideIcon } from 'lucide-react'
 
 interface GitSyncRun {
   id: number
@@ -25,14 +29,14 @@ interface GitSyncRun {
   rules_deleted: number
 }
 
-const statusMeta: Record<string, { variant: 'success' | 'warning' | 'danger' | 'neutral'; icon: IconComponent; label: string; color: string }> = {
+const statusMeta: Record<string, { variant: 'success' | 'warning' | 'error' | 'default'; icon: LucideIcon; label: string; color: string }> = {
   success: { variant: 'success', icon: CheckCircle2, label: 'Success', color: 'var(--success)' },
   partial: { variant: 'warning', icon: AlertTriangle, label: 'Partial', color: 'var(--warning)' },
-  failed: { variant: 'danger', icon: XCircle, label: 'Failed', color: 'var(--danger)' },
-  running: { variant: 'neutral', icon: RefreshCw, label: 'Running', color: 'var(--text-muted)' },
+  failed: { variant: 'error', icon: XCircle, label: 'Failed', color: 'var(--danger)' },
+  running: { variant: 'default', icon: RefreshCw, label: 'Running', color: 'var(--text-muted)' },
 }
 
-const triggerMeta: Record<string, { icon: IconComponent; label: string }> = {
+const triggerMeta: Record<string, { icon: LucideIcon; label: string }> = {
   scheduled: { icon: Clock, label: 'Scheduled' },
   manual: { icon: UserIcon, label: 'Manual' },
 }
@@ -46,23 +50,6 @@ function fmtAgo(iso: string) {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
-}
-
-function StatTile({ label, value, sub, icon: Icon, color }: { label: string; value: string; sub?: string; icon: IconComponent; color: string }) {
-  return (
-    <div className="card stat-card fade-up">
-      <div className="stat-icon-wrapper" style={{ color }}>
-        <Icon size={16} color={color} />
-      </div>
-      <div className="stat-val-group">
-        <div className="stat-label">{label}</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <div className="stat-value">{value}</div>
-          {sub && <span style={{ fontSize: 12, color, fontWeight: 700 }}>{sub}</span>}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export function IacSync() {
@@ -195,9 +182,8 @@ export function IacSync() {
 
   if (!loaded) {
     return (
-      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div className="page">
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><Spinner size={36} /></Box>
       </div>
     )
   }
@@ -210,186 +196,175 @@ export function IacSync() {
 
   return (
     <div className="page">
-      <div className="page-header" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-title">Infrastructure-as-Code Sync</h1>
-          <p className="page-subtitle hidden-mobile">Sync server lists and alert rules from a Git repository</p>
-        </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={syncNow}
-          disabled={syncing || !repoUrl.trim()}
-          style={{ gap: 8 }}
-        >
-          <RefreshCw size={15} className={syncing ? 'loader-spin' : ''} /> {syncing ? 'Syncing…' : 'Sync Now'}
-        </button>
-      </div>
+      <PageHeader
+        title="Infrastructure-as-Code Sync"
+        subtitle="Sync server lists and alert rules from a Git repository"
+        actions={
+          <Button
+            variant="primary"
+            onClick={syncNow}
+            disabled={syncing || !repoUrl.trim()}
+            loading={syncing}
+            icon={<RefreshCw size={15} />}
+          >
+            {syncing ? 'Syncing…' : 'Sync Now'}
+          </Button>
+        }
+      />
 
-      <div className="grid-stats-4" style={{ marginBottom: 28 }}>
-        <StatTile
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+        <StatCard
           label="Schedule"
           value={enabled ? 'Enabled' : 'Disabled'}
-          sub={enabled ? `every ${intervalMinutes}m` : undefined}
+          delta={enabled ? `every ${intervalMinutes}m` : undefined}
           icon={enabled ? Power : PowerOff}
           color={enabled ? 'var(--success)' : 'var(--text-muted)'}
         />
-        <StatTile
-          label="Last Sync"
+        <StatCard
+          label="Last sync"
           value={lastRunMeta ? lastRunMeta.label : 'Never run'}
-          sub={lastRun ? fmtAgo(lastRun.started_at) : undefined}
+          delta={lastRun ? fmtAgo(lastRun.started_at) : undefined}
           icon={lastRunMeta ? lastRunMeta.icon : History}
           color={lastRunMeta ? lastRunMeta.color : 'var(--text-muted)'}
         />
-        <StatTile
-          label="Last Sync Changes"
+        <StatCard
+          label="Last sync changes"
           value={lastRun ? String(lastRunTotal) : '—'}
-          sub={lastRun ? `+${lastRun.servers_created + lastRun.rules_created} ~${lastRun.servers_updated + lastRun.rules_updated} -${lastRun.servers_deleted + lastRun.rules_deleted}` : undefined}
+          delta={lastRun ? `+${lastRun.servers_created + lastRun.rules_created} ~${lastRun.servers_updated + lastRun.rules_updated} -${lastRun.servers_deleted + lastRun.rules_deleted}` : undefined}
           icon={GitBranch}
           color="var(--brand-primary)"
         />
-      </div>
+      </Box>
 
-      <div className="card" style={{ padding: '32px 24px', maxWidth: 800, marginBottom: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(79, 70, 229, 0.08)', border: '1px solid var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <GitBranch size={20} color="var(--brand-primary)" />
-          </div>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Repository</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              InfraEye reads <code style={{ fontFamily: 'var(--font-mono)' }}>servers.yaml</code> and <code style={{ fontFamily: 'var(--font-mono)' }}>alert-rules.yaml</code> from this repo. Credentials (SSH keys/passwords, kubeconfigs) are never read from Git — synced servers still need those set here afterward.
-            </p>
-          </div>
-        </div>
+      <Card style={{ maxWidth: 800, marginBottom: 24 }}>
+        <CardBody>
+          <SectionHeader
+            icon={GitBranch}
+            iconColor="var(--brand-primary)"
+            title="Repository"
+            subtitle="InfraEye reads servers.yaml and alert-rules.yaml from this repo. Credentials (SSH keys/passwords, kubeconfigs) are never read from Git — synced servers still need those set here afterward."
+          />
+          <Box component="form" onSubmit={saveSettings} sx={{ display: 'grid', gap: 2.5, mt: 2 }}>
+            <TextField
+              label="Repository URL"
+              value={repoUrl}
+              onChange={e => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/your-org/infra-config.git"
+              helperText="HTTPS only — SSH/local-path repos aren't supported yet."
+              fullWidth
+              slotProps={{ htmlInput: { spellCheck: false, style: { fontFamily: 'var(--font-mono)' } }, inputLabel: { shrink: true } }}
+            />
 
-        <form onSubmit={saveSettings}>
-          <div style={{ display: 'grid', gap: 24 }}>
-            <div className="input-group">
-              <label className="input-label">Repository URL</label>
-              <input
-                className="input"
-                style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}
-                value={repoUrl}
-                onChange={e => setRepoUrl(e.target.value)}
-                placeholder="https://github.com/your-org/infra-config.git"
-                spellCheck={false}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+              <TextField
+                label="Branch"
+                value={branch}
+                onChange={e => setBranch(e.target.value)}
+                placeholder="main"
+                slotProps={{ htmlInput: { spellCheck: false }, inputLabel: { shrink: true } }}
               />
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                HTTPS only — SSH/local-path repos aren't supported yet.
-              </p>
-            </div>
+              <TextField
+                label="Subdirectory (optional)"
+                value={subdir}
+                onChange={e => setSubdir(e.target.value)}
+                placeholder="e.g. infraeye"
+                slotProps={{ htmlInput: { spellCheck: false }, inputLabel: { shrink: true } }}
+              />
+            </Box>
 
-            <div className="grid-2-col" style={{ gap: 20 }}>
-              <div className="input-group">
-                <label className="input-label">Branch</label>
-                <input className="input" value={branch} onChange={e => setBranch(e.target.value)} placeholder="main" spellCheck={false} />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Subdirectory <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(optional)</span></label>
-                <input className="input" value={subdir} onChange={e => setSubdir(e.target.value)} placeholder="e.g. infraeye" spellCheck={false} />
-              </div>
-            </div>
+            <TextField
+              label="Personal access token (private repos only)"
+              type={showPat ? 'text' : 'password'}
+              value={pat}
+              onChange={e => setPat(e.target.value)}
+              placeholder={patSet ? '••••••••  (leave blank to keep current)' : 'ghp_… / glpat-…'}
+              helperText={patSet && !pat.trim() ? 'A token is already configured (hidden) — entering a new one replaces it.' : undefined}
+              fullWidth
+              slotProps={{
+                htmlInput: { spellCheck: false, autoComplete: 'off' },
+                inputLabel: { shrink: true },
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title={showPat ? 'Hide token' : 'Show token'}>
+                        <IconButton size="small" onClick={() => setShowPat(v => !v)} aria-label={showPat ? 'Hide token' : 'Show token'}>
+                          {showPat ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
 
-            <div className="input-group">
-              <label className="input-label">Personal Access Token <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(private repos only)</span></label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  className="input"
-                  style={{ paddingRight: 42 }}
-                  type={showPat ? 'text' : 'password'}
-                  value={pat}
-                  onChange={e => setPat(e.target.value)}
-                  placeholder={patSet ? '••••••••  (leave blank to keep current)' : 'ghp_… / glpat-…'}
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPat(v => !v)}
-                  tabIndex={-1}
-                  title={showPat ? 'Hide token' : 'Show token'}
-                  style={{ position: 'absolute', right: 10, top: 0, bottom: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
-                >
-                  {showPat ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              {patSet && !pat.trim() && (
-                <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6 }}>
-                  A token is already configured (hidden) — entering a new one replaces it.
-                </p>
-              )}
-            </div>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
+              <TextField
+                label="Sync interval (minutes)"
+                type="number"
+                value={intervalMinutes}
+                onChange={e => setIntervalMinutes(e.target.value)}
+                helperText="Applies on next backend restart — use “Sync Now” to run immediately."
+                slotProps={{ htmlInput: { min: 1 }, inputLabel: { shrink: true } }}
+              />
+              <FormControlLabel
+                sx={{ mt: 0.5 }}
+                control={<Switch checked={enabled} onChange={e => setEnabled(e.target.checked)} />}
+                label="Enable scheduled sync"
+              />
+            </Box>
 
-            <div className="grid-2-col" style={{ gap: 20, alignItems: 'start' }}>
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Sync interval (minutes)</label>
-                <input className="input" type="number" min={1} value={intervalMinutes} onChange={e => setIntervalMinutes(e.target.value)} />
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                  Applies on next backend restart — use “Sync Now” to run immediately.
-                </p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 44, padding: '0 14px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                <input type="checkbox" id="gitsync-enabled" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-                <label htmlFor="gitsync-enabled" style={{ fontSize: 13, fontWeight: 700, marginBottom: 0 }}>Enable scheduled sync</label>
-              </div>
-            </div>
-          </div>
+            {testResult && !testResult.success && (
+              <Alert severity="error" icon={<XCircle size={18} />}>
+                <Typography variant="subtitle2">Connection test failed</Typography>
+                <Box component="pre" sx={{ m: 0, mt: 0.5, fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre-wrap' }}>{testResult.error}</Box>
+              </Alert>
+            )}
+            {testResult && testResult.success && (
+              <Alert severity="success">Connection OK — repository and branch are reachable.</Alert>
+            )}
 
-          {testResult && !testResult.success && (
-            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--bg-elevated)', border: '1px solid var(--danger)40', borderRadius: 'var(--radius-md)', display: 'flex', gap: 10 }}>
-              <XCircle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--danger)', textTransform: 'uppercase', marginBottom: 4 }}>Connection test failed</p>
-                <pre style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', margin: 0 }}>{testResult.error}</pre>
-              </div>
-            </div>
-          )}
-          {testResult && testResult.success && (
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <CheckCircle2 size={15} color="var(--success)" />
-              <p style={{ fontSize: 12, color: 'var(--success)', fontWeight: 700 }}>Connection OK — repository and branch are reachable.</p>
-            </div>
-          )}
+            <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              <Button type="submit" variant="primary" loading={saving}>
+                {saving ? 'Saving…' : 'Save Settings'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={testConnection}
+                disabled={testing || !repoUrl.trim()}
+                loading={testing}
+                icon={<Send size={14} />}
+              >
+                {testing ? 'Testing…' : 'Test Connection'}
+              </Button>
+            </Box>
+          </Box>
+        </CardBody>
+      </Card>
 
-          <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <button type="submit" className="btn btn-primary" disabled={saving} style={{ minWidth: 140 }}>
-              {saving ? 'Saving…' : 'Save Settings'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={testConnection}
-              disabled={testing || !repoUrl.trim()}
-              style={{ gap: 6 }}
-            >
-              <Send size={14} /> {testing ? 'Testing…' : 'Test Connection'}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div style={{ maxWidth: 1000 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <History size={16} color="var(--text-muted)" />
-          <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sync History</h2>
-        </div>
+      <Box sx={{ maxWidth: 1000 }}>
+        <SectionHeader icon={History} title="Sync history" />
 
         {runs.length === 0 ? (
-          <div className="card empty-state">
-            <p>No sync runs yet.</p>
-            <span>Run “Sync Now” above, or enable the schedule to sync automatically.</span>
-          </div>
+          <Card>
+            <EmptyState
+              icon={History}
+              title="No sync runs yet."
+              description="Run “Sync Now” above, or enable the schedule to sync automatically."
+            />
+          </Card>
         ) : (
-          <div className="table-container">
-            <table className="k-table">
-              <thead>
-                <tr>
-                  {['Status', 'Started', 'Trigger', 'Servers Δ', 'Rules Δ', ''].map(h => (
-                    <th key={h}>{h}</th>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {['Status', 'Started', 'Trigger', 'Servers Δ', 'Rules Δ'].map(h => (
+                    <TableCell key={h}>{h}</TableCell>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                  <TableCell padding="checkbox" />
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {runs.map(run => {
                   const meta = statusMeta[run.status] || statusMeta.running
                   const StatusIcon = meta.icon
@@ -404,58 +379,63 @@ export function IacSync() {
                   const hasDetail = !!run.error_text || conflicts.length > 0
                   const isExpanded = expandedRuns.has(run.id)
                   return (
-                    <>
-                      <tr key={run.id} onClick={() => hasDetail && toggleExpand(run.id)} style={{ cursor: hasDetail ? 'pointer' : 'default' }}>
-                        <td>
-                          <Badge variant={meta.variant} style={{ gap: 5 }}>
-                            <StatusIcon size={11} className={run.status === 'running' ? 'loader-spin' : ''} /> {meta.label}
-                          </Badge>
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap' }} title={new Date(run.started_at).toLocaleString()}>
+                    <Fragment key={run.id}>
+                      <TableRow
+                        hover={hasDetail}
+                        onClick={() => hasDetail && toggleExpand(run.id)}
+                        sx={{ cursor: hasDetail ? 'pointer' : 'default', '& td': { lineHeight: 1.5 } }}
+                      >
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            color={meta.variant}
+                            variant={meta.variant === 'default' ? 'outlined' : 'filled'}
+                            icon={<StatusIcon size={12} />}
+                            label={meta.label}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }} title={new Date(run.started_at).toLocaleString()}>
                           {fmtAgo(run.started_at)}
-                        </td>
-                        <td>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
+                        </TableCell>
+                        <TableCell>
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: 'text.secondary' }}>
                             <TrigIcon size={12} /> {trig.label}
-                          </span>
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
                           +{run.servers_created} / ~{run.servers_updated} / -{run.servers_deleted}
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>
+                        </TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
                           +{run.rules_created} / ~{run.rules_updated} / -{run.rules_deleted}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
+                        </TableCell>
+                        <TableCell align="right" padding="checkbox">
                           {hasDetail && (
-                            isExpanded ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />
+                            <Box component="span" sx={{ display: 'inline-flex', color: 'text.secondary', pr: 1 }} aria-hidden>
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </Box>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                       {hasDetail && isExpanded && (
-                        <tr key={`${run.id}-detail`} style={{ cursor: 'default' }}>
-                          <td colSpan={6} style={{ background: 'var(--bg-elevated)', padding: '14px 20px' }}>
+                        <TableRow>
+                          <TableCell colSpan={6} sx={{ bgcolor: 'action.hover' }}>
                             {run.error_text && (
-                              <pre style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--danger)', whiteSpace: 'pre-wrap', margin: conflicts.length ? '0 0 8px' : 0 }}>{run.error_text}</pre>
+                              <Box component="pre" sx={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'error.main', whiteSpace: 'pre-wrap', m: 0, mb: conflicts.length ? 1 : 0 }}>{run.error_text}</Box>
                             )}
                             {conflicts.map((line, i) => (
-                              <p key={i} style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--warning)', margin: '2px 0' }}>{line}</p>
+                              <Typography key={i} sx={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'warning.main', my: 0.25 }}>{line}</Typography>
                             ))}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
-      </div>
-
-      <style>{`
-        .loader-spin { border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      </Box>
     </div>
   )
 }

@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Layers, Users, Loader2, RefreshCw, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
+import { Layers, Users, RefreshCw, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import TextField from '@mui/material/TextField'
+import List from '@mui/material/List'
+import ListItemButton from '@mui/material/ListItemButton'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import { Spinner } from '../ui'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { errMessage } from '../../utils/errors'
@@ -14,8 +27,20 @@ interface KafkaBrowserProps {
 
 type Selection = { kind: 'topic'; name: string } | { kind: 'group'; id: string } | null
 
-const cellStyle: React.CSSProperties = { padding: '6px 10px', fontSize: 12.5, fontFamily: 'var(--font-mono)', borderBottom: '1px solid var(--border)' }
-const headStyle: React.CSSProperties = { padding: '6px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)' }
+const monoCell = { fontSize: 12.5, fontFamily: 'var(--font-mono)', lineHeight: 1.5 }
+const headCell = { fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }
+
+function Loading({ children }: { children: React.ReactNode }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontSize: 13 }}>
+      <Spinner size={14} /> {children}
+    </Box>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontWeight: 600, color: 'text.secondary' }}>{children}</Typography>
+}
 
 function fmtTime(ts: string): string {
   const d = new Date(ts)
@@ -100,176 +125,164 @@ export function KafkaBrowser({ resourceId }: KafkaBrowserProps) {
   const selectedGroup = selection?.kind === 'group' ? groups.find(g => g.group_id === selection.id) : undefined
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>Kafka</span>
-          <button className="btn-icon" onClick={loadLists} title="Refresh" style={{ width: 26, height: 26 }}><RefreshCw size={12} /></button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+    <Box sx={{ display: 'flex', height: '100%' }}>
+      <Box sx={{ width: 260, flexShrink: 0, borderRight: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Kafka</Typography>
+          <Tooltip title="Refresh">
+            <IconButton size="small" aria-label="Refresh" onClick={loadLists}><RefreshCw size={12} /></IconButton>
+          </Tooltip>
+        </Box>
+        <Box sx={{ flex: 1, overflowY: 'auto' }}>
           {loadingList ? (
-            <div style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12.5 }}>
-              <Loader2 size={14} className="spin" /> Loading…
-            </div>
+            <Box sx={{ p: 2.5 }}><Loading>Loading…</Loading></Box>
           ) : (
-            <>
-              <button onClick={() => setTopicsOpen(o => !o)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '8px 10px', background: 'none',
-                border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)',
-              }}>
+            <List dense disablePadding>
+              <ListItemButton onClick={() => setTopicsOpen(o => !o)} aria-expanded={topicsOpen} sx={{ gap: 0.75, px: 1.5, py: 0.75 }}>
                 {topicsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Layers size={13} /> Topics ({topics.length})
-              </button>
-              {topicsOpen && topics.map(t => (
-                <button key={t.name} onClick={() => selectTopic(t.name)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '6px 12px 6px 30px',
-                    background: selection?.kind === 'topic' && selection.name === t.name ? 'var(--brand-glow)' : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                    fontSize: 12.5, fontFamily: 'var(--font-mono)', color: selection?.kind === 'topic' && selection.name === t.name ? 'var(--brand-primary)' : 'var(--text-secondary)',
-                  }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
-                  <span style={{ fontSize: 10.5, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 6 }}>{t.partitions}p</span>
-                </button>
-              ))}
+                <Layers size={13} />
+                <Typography component="span" sx={{ fontSize: 13, fontWeight: 600 }}>Topics ({topics.length})</Typography>
+              </ListItemButton>
+              {topicsOpen && topics.map(t => {
+                const sel = selection?.kind === 'topic' && selection.name === t.name
+                return (
+                  <ListItemButton key={t.name} selected={sel} onClick={() => selectTopic(t.name)}
+                    sx={{ justifyContent: 'space-between', py: 0.5, pl: 4, pr: 1.5, ...monoCell, color: sel ? 'primary.main' : 'text.secondary' }}>
+                    <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</Box>
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ flexShrink: 0, ml: 0.75 }}>{t.partitions}p</Typography>
+                  </ListItemButton>
+                )
+              })}
               {topics.length === 0 && topicsOpen && (
-                <div style={{ padding: '4px 12px 8px 30px', fontSize: 12, color: 'var(--text-muted)' }}>No topics.</div>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 4, pb: 1 }}>No topics.</Typography>
               )}
 
-              <button onClick={() => setGroupsOpen(o => !o)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '8px 10px', background: 'none',
-                border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6,
-              }}>
+              <ListItemButton onClick={() => setGroupsOpen(o => !o)} aria-expanded={groupsOpen} sx={{ gap: 0.75, px: 1.5, py: 0.75, mt: 0.75 }}>
                 {groupsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <Users size={13} /> Consumer groups ({groups.length})
-              </button>
-              {groupsOpen && groups.map(g => (
-                <button key={g.group_id} onClick={() => setSelection({ kind: 'group', id: g.group_id })}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '6px 12px 6px 30px',
-                    background: selection?.kind === 'group' && selection.id === g.group_id ? 'var(--brand-glow)' : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                    fontSize: 12.5, fontFamily: 'var(--font-mono)', color: selection?.kind === 'group' && selection.id === g.group_id ? 'var(--brand-primary)' : 'var(--text-secondary)',
-                  }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.group_id}</span>
-                  {g.total_lag > 0 && (
-                    <span style={{ fontSize: 10.5, color: 'var(--warning)', flexShrink: 0, marginLeft: 6 }}>lag {g.total_lag}</span>
-                  )}
-                </button>
-              ))}
+                <Users size={13} />
+                <Typography component="span" sx={{ fontSize: 13, fontWeight: 600 }}>Consumer groups ({groups.length})</Typography>
+              </ListItemButton>
+              {groupsOpen && groups.map(g => {
+                const sel = selection?.kind === 'group' && selection.id === g.group_id
+                return (
+                  <ListItemButton key={g.group_id} selected={sel} onClick={() => setSelection({ kind: 'group', id: g.group_id })}
+                    sx={{ justifyContent: 'space-between', py: 0.5, pl: 4, pr: 1.5, ...monoCell, color: sel ? 'primary.main' : 'text.secondary' }}>
+                    <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.group_id}</Box>
+                    {g.total_lag > 0 && (
+                      <Typography component="span" variant="caption" sx={{ color: 'warning.main', flexShrink: 0, ml: 0.75 }}>lag {g.total_lag}</Typography>
+                    )}
+                  </ListItemButton>
+                )
+              })}
               {groups.length === 0 && groupsOpen && (
-                <div style={{ padding: '4px 12px 8px 30px', fontSize: 12, color: 'var(--text-muted)' }}>No consumer groups.</div>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 4, pb: 1 }}>No consumer groups.</Typography>
               )}
-            </>
+            </List>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: selection ? 20 : 0 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: selection ? 2.5 : 0 }}>
         {!selection ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            <Layers size={28} style={{ opacity: 0.3, marginBottom: 10 }} />
+          <Box sx={{ p: 5, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>
+            <Layers size={28} style={{ opacity: 0.4, marginBottom: 10 }} />
             <div>Select a topic or consumer group.</div>
-          </div>
+          </Box>
         ) : selection.kind === 'topic' ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700 }}>{selection.name}</span>
-            </div>
+            <Typography sx={{ ...monoCell, fontSize: 14, fontWeight: 600, mb: 2 }}>{selection.name}</Typography>
 
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Partitions</div>
+            <Box sx={{ mb: 0.75 }}><SectionLabel>Partitions</SectionLabel></Box>
             {loadingOffsets ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12.5, marginBottom: 16 }}>
-                <Loader2 size={13} className="spin" /> Loading offsets…
-              </div>
+              <Box sx={{ mb: 2 }}><Loading>Loading offsets…</Loading></Box>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-                <thead><tr>
-                  <th style={headStyle}>Partition</th><th style={headStyle}>Low</th><th style={headStyle}>High</th><th style={headStyle}>Count</th><th style={headStyle}></th>
-                </tr></thead>
-                <tbody>
+              <Table size="small" sx={{ mb: 2.5 }}>
+                <TableHead><TableRow>
+                  <TableCell sx={headCell}>Partition</TableCell><TableCell sx={headCell}>Low</TableCell><TableCell sx={headCell}>High</TableCell><TableCell sx={headCell}>Count</TableCell><TableCell />
+                </TableRow></TableHead>
+                <TableBody>
                   {offsets.map(o => (
-                    <tr key={o.partition} style={{ cursor: 'pointer', background: partition === o.partition ? 'var(--brand-glow)' : 'none' }}
-                      onClick={() => setPartition(o.partition)}>
-                      <td style={cellStyle}>{o.partition}</td>
-                      <td style={cellStyle}>{o.low}</td>
-                      <td style={cellStyle}>{o.high}</td>
-                      <td style={cellStyle}>{o.high - o.low}</td>
-                      <td style={cellStyle}>{partition === o.partition && <span style={{ color: 'var(--brand-primary)', fontSize: 11 }}>viewing ▸</span>}</td>
-                    </tr>
+                    <TableRow key={o.partition} hover selected={partition === o.partition} sx={{ cursor: 'pointer' }} onClick={() => setPartition(o.partition)}>
+                      <TableCell sx={monoCell}>{o.partition}</TableCell>
+                      <TableCell sx={monoCell}>{o.low}</TableCell>
+                      <TableCell sx={monoCell}>{o.high}</TableCell>
+                      <TableCell sx={monoCell}>{o.high - o.low}</TableCell>
+                      <TableCell sx={monoCell}>{partition === o.partition && <Box component="span" sx={{ color: 'primary.main', fontSize: 11 }}>viewing ▸</Box>}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <MessageSquare size={12} /> Recent messages — partition {partition}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input className="input" type="number" min={1} max={200} value={messageLimit}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+              <SectionLabel><MessageSquare size={12} /> Recent messages — partition {partition}</SectionLabel>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <TextField size="small" type="number" value={messageLimit}
                   onChange={e => setMessageLimit(Number(e.target.value) || 20)}
-                  style={{ width: 64, fontSize: 12, padding: '4px 8px', height: 26 }} />
-                <button className="btn-icon" onClick={() => loadMessages(selection.name, partition, messageLimit)} title="Refresh" style={{ width: 26, height: 26 }}>
-                  <RefreshCw size={12} />
-                </button>
-              </div>
-            </div>
+                  sx={{ width: 76, '& input': { py: 0.5, px: 1, fontSize: 12 } }}
+                  slotProps={{ htmlInput: { min: 1, max: 200, 'aria-label': 'Message limit' } }} />
+                <Tooltip title="Refresh messages">
+                  <IconButton size="small" aria-label="Refresh messages" onClick={() => loadMessages(selection.name, partition, messageLimit)}>
+                    <RefreshCw size={12} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
             {loadingMessages ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12.5 }}>
-                <Loader2 size={13} className="spin" /> Loading messages…
-              </div>
+              <Loading>Loading messages…</Loading>
             ) : messages.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>No messages on this partition.</div>
+              <Typography variant="body2" color="text.secondary">No messages on this partition.</Typography>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>
-                  <th style={headStyle}>Offset</th><th style={headStyle}>Key</th><th style={headStyle}>Value</th><th style={headStyle}>Time</th>
-                </tr></thead>
-                <tbody>
+              <Table size="small">
+                <TableHead><TableRow>
+                  <TableCell sx={headCell}>Offset</TableCell><TableCell sx={headCell}>Key</TableCell><TableCell sx={headCell}>Value</TableCell><TableCell sx={headCell}>Time</TableCell>
+                </TableRow></TableHead>
+                <TableBody>
                   {messages.map(m => (
-                    <tr key={m.offset}>
-                      <td style={cellStyle}>{m.offset}</td>
-                      <td style={{ ...cellStyle, color: 'var(--text-muted)' }}>{m.key || <em>—</em>}</td>
-                      <td style={{ ...cellStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{m.value}</td>
-                      <td style={{ ...cellStyle, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtTime(m.timestamp)}</td>
-                    </tr>
+                    <TableRow key={m.offset}>
+                      <TableCell sx={monoCell}>{m.offset}</TableCell>
+                      <TableCell sx={{ ...monoCell, color: 'text.secondary' }}>{m.key || <em>—</em>}</TableCell>
+                      <TableCell sx={{ ...monoCell, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{m.value}</TableCell>
+                      <TableCell sx={{ ...monoCell, color: 'text.secondary', whiteSpace: 'nowrap' }}>{fmtTime(m.timestamp)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
           </div>
         ) : (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700 }}>{selection.id}</span>
-              {selectedGroup && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selectedGroup.protocol_type}</span>}
-            </div>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 0.5 }}>
+              <Typography sx={{ ...monoCell, fontSize: 14, fontWeight: 600 }}>{selection.id}</Typography>
+              {selectedGroup && <Typography variant="caption" color="text.secondary">{selectedGroup.protocol_type}</Typography>}
+            </Box>
             {selectedGroup && (
-              <div style={{ fontSize: 12.5, color: selectedGroup.total_lag > 0 ? 'var(--warning)' : 'var(--success)', marginBottom: 16 }}>
+              <Typography variant="body2" sx={{ color: selectedGroup.total_lag > 0 ? 'warning.main' : 'success.main', mb: 2 }}>
                 Total lag: {selectedGroup.total_lag}
-              </div>
+              </Typography>
             )}
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>
-                <th style={headStyle}>Topic</th><th style={headStyle}>Partition</th><th style={headStyle}>Committed</th><th style={headStyle}>High watermark</th><th style={headStyle}>Lag</th>
-              </tr></thead>
-              <tbody>
+            <Table size="small">
+              <TableHead><TableRow>
+                <TableCell sx={headCell}>Topic</TableCell><TableCell sx={headCell}>Partition</TableCell><TableCell sx={headCell}>Committed</TableCell><TableCell sx={headCell}>High watermark</TableCell><TableCell sx={headCell}>Lag</TableCell>
+              </TableRow></TableHead>
+              <TableBody>
                 {(selectedGroup?.partitions ?? []).map((p, i) => (
-                  <tr key={i}>
-                    <td style={cellStyle}>{p.topic}</td>
-                    <td style={cellStyle}>{p.partition}</td>
-                    <td style={cellStyle}>{p.committed_offset}</td>
-                    <td style={cellStyle}>{p.high_watermark}</td>
-                    <td style={{ ...cellStyle, color: p.lag > 0 ? 'var(--warning)' : 'var(--text-secondary)' }}>{p.lag}</td>
-                  </tr>
+                  <TableRow key={i}>
+                    <TableCell sx={monoCell}>{p.topic}</TableCell>
+                    <TableCell sx={monoCell}>{p.partition}</TableCell>
+                    <TableCell sx={monoCell}>{p.committed_offset}</TableCell>
+                    <TableCell sx={monoCell}>{p.high_watermark}</TableCell>
+                    <TableCell sx={{ ...monoCell, color: p.lag > 0 ? 'warning.main' : 'text.secondary' }}>{p.lag}</TableCell>
+                  </TableRow>
                 ))}
                 {(!selectedGroup || selectedGroup.partitions.length === 0) && (
-                  <tr><td style={cellStyle} colSpan={5}>No committed offsets for this group.</td></tr>
+                  <TableRow><TableCell sx={monoCell} colSpan={5}>No committed offsets for this group.</TableCell></TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }

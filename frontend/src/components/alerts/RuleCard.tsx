@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { Zap, Pencil, Trash2, Bell, Terminal, Server, Clock } from 'lucide-react'
+import { Box, Button, Card, IconButton, Switch, Tooltip, Typography } from '@mui/material'
 import { Badge } from '../ui'
 
 interface Rule {
@@ -40,124 +41,83 @@ export const RuleCard = memo(({
 }: RuleCardProps) => {
   const isCritical = rule.severity === 'critical'
   return (
-    <div className="card fade-up hover-lift" style={{
-      padding: 18, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)',
-      background: 'var(--bg-card)', position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', gap: 14,
+    <Card sx={{
+      p: 2, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 1.5,
       opacity: rule.enabled ? 1 : 0.75,
+      // Neutral by default; a red edge only marks a critical rule.
+      borderLeft: isCritical ? 3 : undefined, borderLeftColor: isCritical ? 'error.main' : undefined,
     }}>
-      {/* Accent bar: neutral by default, red only for a critical rule — a
-          color worth noticing, not a rainbow keyed to which metric it watches */}
-      {isCritical && (
-        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 3, background: 'var(--danger)' }} />
-      )}
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)',
-            border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <Zap size={16} color="var(--text-secondary)" />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13.5, lineHeight: 1.3, wordBreak: 'break-word' }}>{rule.name}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 700 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, minWidth: 0 }}>
+          <Box sx={{ width: 34, height: 34, borderRadius: 1, border: 1, borderColor: 'divider', display: 'grid', placeItems: 'center', flexShrink: 0, color: 'text.secondary' }}>
+            <Zap size={16} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2" sx={{ wordBreak: 'break-word' }}>{rule.name}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5, flexWrap: 'wrap' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                 <Server size={12} /> {serverName}
-              </span>
+              </Typography>
               <Badge variant={isCritical ? 'danger' : 'warning'}>{rule.severity || 'warning'}</Badge>
               {rule.git_managed && (
-                <Badge variant="neutral" title="Created/updated by Git sync — editing this rule will stop future syncs from managing it">
-                  Git
-                </Badge>
+                <Badge variant="neutral" title="Created/updated by Git sync — editing this rule will stop future syncs from managing it">Git</Badge>
               )}
-            </div>
-          </div>
-        </div>
+            </Box>
+          </Box>
+        </Box>
         {canManage && (
-          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-            <button className="btn-icon" title="Edit rule" onClick={() => onEdit(rule)} style={{ width: 30, height: 30 }}><Pencil size={14} /></button>
+          <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0, alignItems: 'center' }}>
+            <Tooltip title="Edit rule"><IconButton onClick={() => onEdit(rule)} aria-label="Edit rule"><Pencil size={14} /></IconButton></Tooltip>
             {confirmDelete === rule.id ? (
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button
-                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 12, background: 'var(--danger)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 800 }}
-                  onClick={() => onDelete(rule.id)}
-                >
-                  Delete
-                </button>
-                <button
-                  style={{ padding: '4px 10px', borderRadius: 'var(--radius-md)', fontSize: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
-                  onClick={() => setConfirmDelete(null)}
-                >
-                  Keep
-                </button>
-              </div>
+              <>
+                <Button size="small" color="error" variant="contained" onClick={() => onDelete(rule.id)}>Delete</Button>
+                <Button size="small" color="inherit" onClick={() => setConfirmDelete(null)}>Keep</Button>
+              </>
             ) : (
-              <button className="btn-icon danger" title="Delete rule" onClick={() => setConfirmDelete(rule.id)} style={{ width: 30, height: 30 }}><Trash2 size={14} /></button>
+              <Tooltip title="Delete rule"><IconButton color="error" onClick={() => setConfirmDelete(rule.id)} aria-label="Delete rule"><Trash2 size={14} /></IconButton></Tooltip>
             )}
-          </div>
+          </Box>
         )}
-      </div>
+      </Box>
 
-      {/* Condition → action */}
-      <div style={{
-        background: 'var(--bg-app)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)', padding: '10px 14px',
-        display: 'flex', flexDirection: 'column', gap: 8,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>If</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {conditionText(rule)}
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: 34, flexShrink: 0 }}>Then</span>
+      <Box sx={{ bgcolor: 'action.hover', border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, py: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ width: 34, flexShrink: 0, fontWeight: 700, textTransform: 'uppercase' }}>If</Typography>
+          <Typography variant="body1" sx={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{conditionText(rule)}</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ width: 34, flexShrink: 0, fontWeight: 700, textTransform: 'uppercase' }}>Then</Typography>
           {rule.action_type === 'ssh_command' && rule.action_command ? (
-            <span title={rule.action_command} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
-              fontSize: 12.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)',
-            }}>
-              <Terminal size={12} style={{ flexShrink: 0, color: 'var(--warning)' }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rule.action_command}</span>
-            </span>
+            <Tooltip title={rule.action_command}>
+              <Typography variant="body2" noWrap sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, minWidth: 0, fontFamily: 'var(--font-mono)' }}>
+                <Terminal size={12} style={{ flexShrink: 0, color: 'var(--warning)' }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{rule.action_command}</span>
+              </Typography>
+            </Tooltip>
           ) : (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 600 }}>
-              <Bell size={12} style={{ color: 'var(--text-muted)' }} /> Notify only
-            </span>
+            <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+              <Bell size={12} /> Notify only
+            </Typography>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      {/* Footer: toggle + cooldown */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-        <button
-          onClick={() => onToggle(rule)}
-          title={rule.enabled ? 'Click to pause this rule' : 'Click to activate this rule'}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
-        >
-          <span style={{
-            width: 32, height: 18, borderRadius: 99, position: 'relative', flexShrink: 0,
-            background: rule.enabled ? 'var(--success)' : 'var(--border-bright, var(--border))',
-            transition: 'background 0.15s',
-          }}>
-            <span style={{
-              position: 'absolute', top: 2, left: rule.enabled ? 16 : 2,
-              width: 14, height: 14, borderRadius: '50%', background: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left 0.15s',
-            }} />
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: rule.enabled ? 'var(--success)' : 'var(--text-muted)' }}>
-            {rule.enabled ? 'Active' : 'Paused'}
-          </span>
-        </button>
-        <span title="Minimum time between firings" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
-          <Clock size={12} /> {rule.cooldown_minutes || 5}m cooldown
-        </span>
-      </div>
-    </div>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 'auto' }}>
+        <Tooltip title={rule.enabled ? 'Pause this rule' : 'Activate this rule'}>
+          <Box component="label" sx={{ display: 'flex', alignItems: 'center', cursor: canManage ? 'pointer' : 'default' }}>
+            <Switch checked={rule.enabled} onChange={() => onToggle(rule)} color="success" disabled={!canManage} />
+            <Typography variant="body2" sx={{ fontWeight: 600, color: rule.enabled ? 'success.main' : 'text.secondary' }}>
+              {rule.enabled ? 'Active' : 'Paused'}
+            </Typography>
+          </Box>
+        </Tooltip>
+        <Tooltip title="Minimum time between firings">
+          <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+            <Clock size={12} /> {rule.cooldown_minutes || 5}m cooldown
+          </Typography>
+        </Tooltip>
+      </Box>
+    </Card>
   )
 })
 

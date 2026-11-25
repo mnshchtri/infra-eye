@@ -1,5 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { X, KeyRound, Download, Copy, Trash2, ShieldCheck, AlertTriangle, Eye } from 'lucide-react'
+import { KeyRound, Download, Copy, Trash2, ShieldCheck, AlertTriangle, Eye } from 'lucide-react'
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import IconButton from '@mui/material/IconButton'
+import Paper from '@mui/material/Paper'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableContainer from '@mui/material/TableContainer'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
+import { Modal } from '../ui/Modal'
+import { Button } from '../ui/Button'
+import { Input, Select } from '../ui/Input'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { errMessage } from '../../utils/errors'
@@ -43,11 +58,6 @@ const EXPIRY_CHOICES = [
   { label: '1 year', days: 365 },
   { label: 'Never expires', days: 0 },
 ]
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 900, color: 'var(--text-muted)',
-  textTransform: 'uppercase', letterSpacing: '0.1em',
-}
 
 export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Props) {
   const toastError = useToastStore(s => s.error)
@@ -152,206 +162,162 @@ export function ReadOnlyKubeconfigModal({ serverID, clusterName, onClose }: Prop
     }
   }
 
+  const mono = { fontFamily: 'var(--font-mono)' }
+  const th = { fontWeight: 600, color: 'text.secondary' }
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8, 10, 15, 0.7)', backdropFilter: 'blur(12px)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="card fade-up" style={{ width: 900, maxWidth: '95vw', maxHeight: '90vh', overflow: 'hidden', padding: 0, display: 'flex', flexDirection: 'column', borderRadius: 12, border: '1px solid var(--border-bright)', boxShadow: '0 30px 60px -12px rgba(0, 0, 0, 0.7)' }}>
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="xl"
+      icon={KeyRound}
+      title="Read-only kubeconfig"
+      subtitle={`${clusterName} · ${identities.length} issued`}
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+    >
+      {/* What the holder can and cannot do — stated up front, since this
+          grants secret access and that is easy to hand out carelessly. */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2.5 }}>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'success.main' }}>
+            <Eye size={14} />
+            <Typography variant="subtitle2">Can read</Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ ...mono, lineHeight: 1.7 }}>
+            All resources in all namespaces<br />
+            Secrets &amp; ConfigMaps<br />
+            Pod logs (<code>kubectl logs</code>)<br />
+            Nodes, PVs, CRDs, events
+          </Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
+            <ShieldCheck size={14} />
+            <Typography variant="subtitle2">Cannot</Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ ...mono, lineHeight: 1.7 }}>
+            Create, apply or deploy<br />
+            Edit, patch or scale<br />
+            Delete anything<br />
+            <code>exec</code> or <code>port-forward</code> into pods
+          </Typography>
+        </Paper>
+      </Box>
 
-        <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 44, height: 44, background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)30', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <KeyRound size={22} color="var(--brand-primary)" />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Read-Only Kubeconfig</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>{clusterName}</span>
-                <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--text-muted)' }} />
-                <span style={{ fontSize: 12, color: 'var(--brand-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-mono)' }}>{identities.length} Issued</span>
-              </div>
-            </div>
-          </div>
-          <button className="btn-icon" onClick={onClose} style={{ width: 40, height: 40 }}><X size={20} /></button>
-        </div>
+      {loadError ? (
+        <Alert severity="error" icon={<AlertTriangle size={16} />} sx={{ mb: 2.5 }}>
+          Could not reach this cluster, so access cannot be issued or revoked here.
+          <Box sx={{ mt: 0.75, ...mono, fontSize: 11.5, wordBreak: 'break-word' }}>{loadError}</Box>
+        </Alert>
+      ) : !canManage ? (
+        <Alert severity="error" icon={<AlertTriangle size={16} />} sx={{ mb: 2.5 }}>
+          InfraEye connects to this cluster
+          {connectedAs ? <> as <code>{connectedAs}</code></> : null}, which cannot manage RBAC — so access
+          cannot be issued or revoked here. This is expected if the cluster was registered with a read-only
+          kubeconfig. Register it with an admin kubeconfig to manage access from this panel.
+        </Alert>
+      ) : (
+        <Alert severity="warning" icon={<AlertTriangle size={16} />} sx={{ mb: 2.5 }}>
+          Secret read access is cluster-wide. Whoever holds this file can read every credential stored in the
+          cluster, so treat it as sensitive and prefer a short expiry.
+        </Alert>
+      )}
 
-        <div style={{ padding: 32, flex: 1, overflowY: 'auto', background: 'var(--bg-app)' }}>
+      <Box component="form" onSubmit={generate} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.4fr 1fr auto' }, gap: 2, mb: 2, alignItems: 'start' }}>
+        <Input label="Issue to" placeholder="e.g. alice or backend-team" value={name} onChange={e => setName(e.target.value)} required />
+        <Select
+          label="Expires"
+          value={String(expiryDays)}
+          onChange={e => setExpiryDays(Number(e.target.value))}
+          options={EXPIRY_CHOICES.map(c => ({ value: String(c.days), label: c.label }))}
+        />
+        <Button type="submit" loading={generating} disabled={!name.trim() || !canManage || !!loadError}
+          title={canManage ? undefined : 'This cluster is registered with a credential that cannot manage RBAC'} style={{ height: 40 }}>
+          {generating ? 'Generating...' : 'Generate'}
+        </Button>
+      </Box>
 
-          {/* What the holder can and cannot do — stated up front, since this
-              grants secret access and that is easy to hand out carelessly. */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 320px', border: '1px solid var(--border)', background: 'var(--bg-card)', padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Eye size={14} color="var(--success)" />
-                <span style={{ ...labelStyle, color: 'var(--success)' }}>Can read</span>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, fontFamily: 'var(--font-mono)' }}>
-                All resources in all namespaces<br />
-                Secrets &amp; ConfigMaps<br />
-                Pod logs (<code>kubectl logs</code>)<br />
-                Nodes, PVs, CRDs, events
-              </div>
-            </div>
-            <div style={{ flex: '1 1 320px', border: '1px solid var(--border)', background: 'var(--bg-card)', padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <ShieldCheck size={14} color="var(--danger)" />
-                <span style={{ ...labelStyle, color: 'var(--danger)' }}>Cannot</span>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, fontFamily: 'var(--font-mono)' }}>
-                Create, apply or deploy<br />
-                Edit, patch or scale<br />
-                Delete anything<br />
-                <code>exec</code> or <code>port-forward</code> into pods
-              </div>
-            </div>
-          </div>
+      <Box sx={{ mb: 3 }}>
+        <Input
+          label="API server the developer will connect to"
+          value={apiServer}
+          onChange={e => setApiServer(e.target.value)}
+          placeholder="https://cluster.example.com:6443"
+          helper={detectedServer
+            ? "Detected from this cluster's stored config. Change it if that address is only reachable from the InfraEye host."
+            : 'Could not detect an address from the stored config — enter one the developer can reach.'}
+        />
+      </Box>
 
-          {loadError ? (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--danger)40', background: 'var(--danger)10' }}>
-              <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Could not reach this cluster, so access cannot be issued or revoked here.
-                <div style={{ marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--danger)', wordBreak: 'break-word' }}>{loadError}</div>
-              </span>
-            </div>
-          ) : !canManage ? (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--danger)40', background: 'var(--danger)10' }}>
-              <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                InfraEye connects to this cluster
-                {connectedAs ? <> as <code>{connectedAs}</code></> : null}, which cannot manage RBAC — so access
-                cannot be issued or revoked here. This is expected if the cluster was registered with a read-only
-                kubeconfig. Register it with an admin kubeconfig to manage access from this panel.
-              </span>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', marginBottom: 24, border: '1px solid var(--warning)40', background: 'var(--warning)10' }}>
-              <AlertTriangle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                Secret read access is cluster-wide. Whoever holds this file can read every credential stored in the
-                cluster, so treat it as sensitive and prefer a short expiry.
-              </span>
-            </div>
-          )}
+      {result && (
+        <Paper variant="outlined" sx={{ mb: 3, borderColor: 'primary.main' }}>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle2" sx={mono}>{result.filename}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={mono}>
+                {result.service_account} · {result.expires_at
+                  ? `expires ${new Date(result.expires_at).toLocaleString()}`
+                  : 'never expires'}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button type="button" variant="secondary" size="sm" icon={<Copy size={14} />} onClick={copy}>Copy</Button>
+              <Button type="button" size="sm" icon={<Download size={14} />} onClick={download}>Download</Button>
+            </Box>
+          </Box>
+          <Box component="pre" sx={{ m: 0, p: 2, maxHeight: 240, overflow: 'auto', fontSize: 11, lineHeight: 1.6, ...mono, color: 'text.secondary', bgcolor: 'action.hover' }}>
+            {result.kubeconfig}
+          </Box>
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
+            Save as <code>~/.kube/config</code>, or keep it separate and use{' '}
+            <code>kubectl --kubeconfig {result.filename} get pods -A</code>.
+          </Typography>
+        </Paper>
+      )}
 
-          <form onSubmit={generate} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 16, marginBottom: 12, background: 'var(--bg-card)', padding: 24, border: '1px solid var(--border-bright)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={labelStyle}>Issue to</label>
-              <input
-                className="input" placeholder="e.g. alice or backend-team" value={name}
-                onChange={e => setName(e.target.value)} required
-                style={{ height: 42, background: 'var(--bg-input)' }}
-              />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={labelStyle}>Expires</label>
-              <select
-                className="input" value={expiryDays} onChange={e => setExpiryDays(Number(e.target.value))}
-                style={{ height: 42, background: 'var(--bg-input)' }}
-              >
-                {EXPIRY_CHOICES.map(c => <option key={c.days} value={c.days}>{c.label}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button className="btn btn-primary" disabled={generating || !name.trim() || !canManage || !!loadError}
-                title={canManage ? undefined : 'This cluster is registered with a credential that cannot manage RBAC'} style={{ height: 42, padding: '0 24px', fontWeight: 900, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {generating ? 'Generating...' : 'Generate'}
-              </button>
-            </div>
-          </form>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
-            <label style={labelStyle}>API server the developer will connect to</label>
-            <input
-              className="input" value={apiServer} onChange={e => setApiServer(e.target.value)}
-              placeholder="https://cluster.example.com:6443"
-              style={{ height: 42, background: 'var(--bg-input)', fontFamily: 'var(--font-mono)', fontSize: 12 }}
-            />
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              {detectedServer
-                ? <>Detected from this cluster&apos;s stored config. Change it if that address is only reachable from the InfraEye host.</>
-                : <>Could not detect an address from the stored config — enter one the developer can reach.</>}
-            </span>
-          </div>
-
-          {result && (
-            <div style={{ marginBottom: 32, border: '1px solid var(--brand-primary)40', background: 'var(--bg-card)' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 900, fontFamily: 'var(--font-mono)' }}>{result.filename}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-                    {result.service_account} · {result.expires_at
-                      ? `expires ${new Date(result.expires_at).toLocaleString()}`
-                      : 'never expires'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn-secondary" onClick={copy} style={{ height: 38, padding: '0 16px', gap: 8, display: 'flex', alignItems: 'center', fontWeight: 900, fontSize: 12 }}>
-                    <Copy size={14} /> COPY
-                  </button>
-                  <button type="button" className="btn btn-primary" onClick={download} style={{ height: 38, padding: '0 16px', gap: 8, display: 'flex', alignItems: 'center', fontWeight: 900, fontSize: 12 }}>
-                    <Download size={14} /> DOWNLOAD
-                  </button>
-                </div>
-              </div>
-              <pre style={{ margin: 0, padding: 20, maxHeight: 240, overflow: 'auto', fontSize: 11, lineHeight: 1.6, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', background: 'var(--bg-input)' }}>
-                {result.kubeconfig}
-              </pre>
-              <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                Save as <code>~/.kube/config</code>, or keep it separate and use{' '}
-                <code>kubectl --kubeconfig {result.filename} get pods -A</code>.
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div style={{ ...labelStyle, marginBottom: 12 }}>Issued access</div>
-            <div style={{ border: '1px solid var(--border)', overflowX: 'auto', background: 'var(--bg-card)' }}>
-              <table className="k-table" style={{ minWidth: 560 }}>
-                <thead style={{ background: 'var(--bg-elevated)' }}>
-                  <tr>
-                    <th style={{ padding: '14px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Issued to</th>
-                    <th style={{ padding: '14px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Service Account</th>
-                    <th style={{ padding: '14px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Created</th>
-                    <th style={{ padding: '14px 20px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Revoke</th>
-                  </tr>
-                </thead>
-                <tbody style={{ fontSize: 13 }}>
-                  {identities.length === 0 ? (
-                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 12 }}>
-                      No read-only access issued for this cluster yet
-                    </td></tr>
-                  ) : identities.map(idn => (
-                    <tr key={idn.service_account}>
-                      <td style={{ padding: '14px 20px', fontWeight: 700 }}>{idn.name}</td>
-                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>
-                        {idn.service_account}
-                        {idn.has_static_token && <span style={{ marginLeft: 8, color: 'var(--warning)', fontSize: 11 }}>no expiry</span>}
-                      </td>
-                      <td style={{ padding: '14px 20px', fontSize: 12, color: 'var(--text-muted)' }}>
-                        {new Date(idn.created_at).toLocaleDateString()}
-                      </td>
-                      <td style={{ padding: '14px 20px' }}>
-                        <button
-                          className="btn-icon"
-                          disabled={!canManage || !!loadError}
-                          title={canManage ? `Revoke ${idn.name}'s access` : 'This cluster is registered with a credential that cannot manage RBAC'}
-                          onClick={() => revoke(idn)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.6 }}>
-              Revoking deletes the ServiceAccount, which kills every token ever issued for it — including
-              unexpired ones. Generating again for the same name issues an additional token; it does not
-              invalidate the previous one.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>Issued access</Typography>
+      <TableContainer component={Paper} variant="outlined">
+        <Table size="small" sx={{ minWidth: 560 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={th}>Issued to</TableCell>
+              <TableCell sx={th}>Service account</TableCell>
+              <TableCell sx={th}>Created</TableCell>
+              <TableCell sx={th} align="right">Revoke</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {identities.length === 0 ? (
+              <TableRow><TableCell colSpan={4} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                No read-only access issued for this cluster yet
+              </TableCell></TableRow>
+            ) : identities.map(idn => (
+              <TableRow key={idn.service_account} hover>
+                <TableCell sx={{ fontWeight: 600 }}>{idn.name}</TableCell>
+                <TableCell sx={{ ...mono, fontSize: 12, color: 'text.secondary' }}>
+                  {idn.service_account}
+                  {idn.has_static_token && <Box component="span" sx={{ ml: 1, color: 'warning.main', fontSize: 11 }}>no expiry</Box>}
+                </TableCell>
+                <TableCell sx={{ color: 'text.secondary' }}>{new Date(idn.created_at).toLocaleDateString()}</TableCell>
+                <TableCell align="right">
+                  <Tooltip title={canManage ? `Revoke ${idn.name}'s access` : 'This cluster is registered with a credential that cannot manage RBAC'}>
+                    <span>
+                      <IconButton size="small" color="error" disabled={!canManage || !!loadError}
+                        aria-label={`Revoke ${idn.name}'s access`} onClick={() => revoke(idn)}>
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
+        Revoking deletes the ServiceAccount, which kills every token ever issued for it — including
+        unexpired ones. Generating again for the same name issues an additional token; it does not
+        invalidate the previous one.
+      </Typography>
+    </Modal>
   )
 }
