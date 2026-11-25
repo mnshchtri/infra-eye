@@ -527,7 +527,8 @@ export function Dashboard() {
 
   const [currentTime, setCurrentTime] = useState(new Date())
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    // The header only shows the date, so a per-minute tick is plenty (a 1s tick re-rendered every chart).
+    const timer = setInterval(() => setCurrentTime(new Date()), 60_000)
     return () => clearInterval(timer)
   }, [])
 
@@ -553,7 +554,7 @@ export function Dashboard() {
         }
       />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: 2, mb: 3 }}>
         <StatCard label="Total Servers" value={loading ? 'N/A' : (total - k8sServers)} icon={Server} color="var(--brand-primary)" />
         <StatCard label="K8s Clusters" value={loading ? 'N/A' : k8sServers} icon={Boxes} color="var(--info)" />
         <StatCard label="Status Online" value={loading ? 'N/A' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
