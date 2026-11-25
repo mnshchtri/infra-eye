@@ -60,4 +60,43 @@ test.describe('alert rules', () => {
     await page.getByRole('tab', { name: /Import \/ Export/ }).click()
     await expect(page.getByText('Rules as XML')).toBeVisible()
   })
+
+  test('XML import handles escaped characters and rejects malformed or DOCTYPE input', async ({ page }) => {
+    await page.goto('/alerts')
+    await page.getByRole('tab', { name: /Import \/ Export/ }).click()
+    const editor = page.getByRole('textbox')
+
+    // Export is well-formed and re-importable
+    await expect(editor).toHaveValue(/<AlertRules>/)
+
+    // Malformed (mismatched tags) is refused
+    await editor.fill('<AlertRules><Rule name="e2e-rule-bad"></AlertRules>')
+    await page.getByRole('button', { name: 'Apply XML' }).click()
+    await expect(page.getByText('Import failed')).toBeVisible()
+
+    // A bare ampersand is refused with the explanatory message
+    await editor.fill('<AlertRules><Rule name="e2e-rule-bad" serverId="0"><Action type="ssh_command">a & b</Action></Rule></AlertRules>')
+    await page.getByRole('button', { name: 'Apply XML' }).click()
+    await expect(page.getByText(/not well-formed/).first()).toBeVisible()
+
+    // DOCTYPE / ENTITY declarations are not supported at all
+    await editor.fill('<!DOCTYPE x [<!ENTITY a "b">]><AlertRules><Rule name="e2e-rule-bad"/></AlertRules>')
+    await page.getByRole('button', { name: 'Apply XML' }).click()
+    await expect(page.getByText(/not well-formed/).first()).toBeVisible()
+
+    // Properly escaped special characters round-trip into the rule
+    await editor.fill(
+      '<?xml version="1.0" encoding="UTF-8"?>\n<!-- e2e -->\n<AlertRules>\n' +
+      '  <Rule name="e2e-rule-xml &amp; co" serverId="0" enabled="true">\n' +
+      '    <Condition type="cpu" op="gt" value="66" />\n' +
+      '    <Action type="ssh_command">echo &quot;a &amp; b&quot; &gt; /tmp/x &amp;&amp; test 1 &lt; 2</Action>\n' +
+      '  </Rule>\n</AlertRules>',
+    )
+    await page.getByRole('button', { name: 'Apply XML' }).click()
+    await expect(page.getByText('Rules imported')).toBeVisible()
+    const card = page.locator('.MuiCard-root').filter({ hasText: 'e2e-rule-xml & co' })
+    await expect(card).toBeVisible()
+    await expect(card).toContainText('66')
+    await expect(card).toContainText('echo "a & b" > /tmp/x && test 1 < 2')
+  })
 })

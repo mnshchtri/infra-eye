@@ -13,6 +13,7 @@ import { Modal, SectionHeader, EmptyState, SearchInput, TabSwitcher, PageHeader,
 import { RuleCard } from '../components/alerts/RuleCard'
 import { HistoryRow } from '../components/alerts/HistoryRow'
 import { apiError, errMessage } from '../utils/errors'
+import { parseAlertRulesXml } from '../utils/alertRulesXml'
 
 interface Rule {
   id: number; name: string; server_id: number;
@@ -146,23 +147,7 @@ export function AlertRules() {
   const parseXml = useCallback(async () => {
     setLoading(true)
     try {
-      const parser = new DOMParser()
-      const xmlDoc = parser.parseFromString(xmlContent, 'text/xml')
-      if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-        throw new Error('The XML is not well-formed — check for unescaped characters like < or & in rule values.')
-      }
-      const ruleNodes = xmlDoc.getElementsByTagName('Rule')
-
-      const newRules = Array.from(ruleNodes).map(node => ({
-        name: node.getAttribute('name') || 'Rule',
-        server_id: parseInt(node.getAttribute('serverId') || '0'),
-        enabled: node.getAttribute('enabled') !== 'false',
-        condition_type: node.getElementsByTagName('Condition')[0]?.getAttribute('type') || 'cpu',
-        condition_op: node.getElementsByTagName('Condition')[0]?.getAttribute('op') || 'gt',
-        condition_value: node.getElementsByTagName('Condition')[0]?.getAttribute('value') || '80',
-        action_type: node.getElementsByTagName('Action')[0]?.getAttribute('type') || 'ssh_command',
-        action_command: node.getElementsByTagName('Action')[0]?.textContent || '',
-      }))
+      const newRules = parseAlertRulesXml(xmlContent)
 
       if (newRules.length === 0) throw new Error('No <Rule> elements found in the XML')
       await api.post('/api/alert-rules/batch', newRules)
