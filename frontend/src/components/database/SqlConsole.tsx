@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import CodeEditor from '@uiw/react-textarea-code-editor'
-import { Play, Loader2, Table, CheckCircle2, Code } from 'lucide-react'
+import { Play, Table, CheckCircle2, Code } from 'lucide-react'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Chip from '@mui/material/Chip'
+import TableContainer from '@mui/material/TableContainer'
+import MuiTable from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import { Button } from '../ui'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { useUIStore } from '../../store/uiStore'
@@ -40,20 +50,17 @@ export function SqlConsole({ resourceId }: SqlConsoleProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Code size={15} color="var(--brand-primary)" />
-          <span style={{ fontSize: 13, fontWeight: 700 }}>SQL Console</span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Every query is recorded in the audit log.</span>
-        </div>
-        <button className="btn btn-primary btn-sm" onClick={runQuery} disabled={running} style={{ height: 32 }}>
-          {running ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
-          <span style={{ marginLeft: 6 }}>{running ? 'Running…' : 'Run'}</span>
-        </button>
-      </div>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.25, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+          <Box sx={{ display: 'flex', color: 'primary.main' }}><Code size={15} /></Box>
+          <Typography component="span" sx={{ fontSize: 13, fontWeight: 600 }}>SQL Console</Typography>
+          <Typography component="span" variant="caption" color="text.secondary">Every query is recorded in the audit log.</Typography>
+        </Box>
+        <Button size="sm" onClick={runQuery} loading={running} icon={<Play size={14} />}>{running ? 'Running…' : 'Run'}</Button>
+      </Box>
 
-      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-app)', flexShrink: 0 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.default', flexShrink: 0 }}>
         <CodeEditor
           value={sql}
           language="sql"
@@ -62,45 +69,44 @@ export function SqlConsole({ resourceId }: SqlConsoleProps) {
           onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runQuery() }}
           padding={14}
           data-color-mode={darkMode ? 'dark' : 'light'}
+          aria-label="SQL query"
           style={{ fontFamily: 'var(--font-mono)', fontSize: 13, backgroundColor: 'transparent', minHeight: 140 }}
         />
-      </div>
+      </Box>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: result ? 16 : 0 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: result ? 2 : 0 }}>
         {result && (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Table size={14} color="var(--brand-primary)" />
-                <span style={{ fontSize: 13, fontWeight: 700 }}>Result</span>
-              </div>
-              <span className="badge badge-neutral">
-                {result.type === 'select' ? `${result.rows?.length || 0} rows` : `${result.rows_affected || 0} rows affected`}
-              </span>
-            </div>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.75, borderBottom: 1, borderColor: 'divider', pb: 1.25 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', color: 'primary.main' }}><Table size={14} /></Box>
+                <Typography component="span" sx={{ fontSize: 13, fontWeight: 600 }}>Result</Typography>
+              </Box>
+              <Chip size="small" variant="outlined" label={result.type === 'select' ? `${result.rows?.length || 0} rows` : `${result.rows_affected || 0} rows affected`} />
+            </Box>
             {result.type === 'select' ? (
-              <div className="table-container">
-                <table className="k-table">
-                  <thead><tr>{result.columns?.map(c => <th key={c}>{c}</th>)}</tr></thead>
-                  <tbody>
+              <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                <MuiTable size="small">
+                  <TableHead><TableRow>{result.columns?.map(c => <TableCell key={c} sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c}</TableCell>)}</TableRow></TableHead>
+                  <TableBody>
                     {result.rows?.length === 0 ? (
-                      <tr><td colSpan={result.columns?.length} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No rows returned</td></tr>
+                      <TableRow><TableCell colSpan={result.columns?.length} sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>No rows returned</TableCell></TableRow>
                     ) : result.rows?.map((row, i) => (
-                      <tr key={i}>{result.columns?.map(c => <td key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>{String(row[c])}</td>)}</tr>
+                      <TableRow key={i} hover>{result.columns?.map(c => <TableCell key={c} sx={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, lineHeight: 1.5 }}>{String(row[c])}</TableCell>)}</TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </MuiTable>
+              </TableContainer>
             ) : (
-              <div style={{ padding: 28, background: 'var(--bg-elevated)', border: '1px solid var(--border)', textAlign: 'center' }}>
-                <CheckCircle2 size={28} style={{ color: 'var(--success)', margin: '0 auto 10px' }} />
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Success</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{result.rows_affected} rows modified</div>
-              </div>
+              <Box sx={{ p: 3.5, bgcolor: 'action.hover', border: 1, borderColor: 'divider', borderRadius: 1, textAlign: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', color: 'success.main', mb: 1 }}><CheckCircle2 size={28} /></Box>
+                <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Success</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{result.rows_affected} rows modified</Typography>
+              </Box>
             )}
           </div>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }

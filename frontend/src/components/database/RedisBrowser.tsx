@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
 import {
-  Search, Loader2, Trash2, Plus, X, Save, Key as KeyIcon, Clock, RefreshCw,
+  Search, Trash2, Plus, X, Save, Key as KeyIcon, Clock, RefreshCw,
 } from 'lucide-react'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import TextField from '@mui/material/TextField'
+import InputAdornment from '@mui/material/InputAdornment'
+import Chip from '@mui/material/Chip'
+import List from '@mui/material/List'
+import ListItemButton from '@mui/material/ListItemButton'
+import { Button, Spinner } from '../ui'
 import { api } from '../../api/client'
 import { useToastStore } from '../../store/toastStore'
 import { errMessage } from '../../utils/errors'
@@ -12,9 +22,18 @@ interface RedisBrowserProps {
   canEdit: boolean
 }
 
-const typeColor: Record<RedisType, string> = {
-  string: 'var(--brand-primary)', hash: 'var(--success)', list: 'var(--warning)',
-  set: 'var(--info)', zset: 'var(--danger)',
+const typeColor: Record<RedisType, 'primary' | 'success' | 'warning' | 'info' | 'error'> = {
+  string: 'primary', hash: 'success', list: 'warning', set: 'info', zset: 'error',
+}
+
+const monoInputSx = { '& input': { fontFamily: 'var(--font-mono)', fontSize: 12.5 } }
+
+function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Tooltip title={label}>
+      <IconButton size="small" color="error" aria-label={label} onClick={onClick}><X size={13} /></IconButton>
+    </Tooltip>
+  )
 }
 
 function fmtTtl(sec: number): string {
@@ -118,150 +137,150 @@ export function RedisBrowser({ resourceId, canEdit }: RedisBrowserProps) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={12} style={{ position: 'absolute', left: 8, top: 9, color: 'var(--text-muted)' }} />
-            <input className="input" value={pattern} onChange={e => setPattern(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') loadKeys(true) }}
-              placeholder="pattern (e.g. user:*)" style={{ fontSize: 12, padding: '6px 8px 6px 26px', height: 28, fontFamily: 'var(--font-mono)' }} />
-          </div>
-          <button className="btn-icon" onClick={() => loadKeys(true)} title="Scan" style={{ width: 28, height: 28 }}><RefreshCw size={13} /></button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+    <Box sx={{ display: 'flex', height: '100%' }}>
+      <Box sx={{ width: 260, flexShrink: 0, borderRight: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ p: 1.25, borderBottom: 1, borderColor: 'divider', display: 'flex', gap: 0.75, alignItems: 'center' }}>
+          <TextField
+            size="small" fullWidth value={pattern} onChange={e => setPattern(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') loadKeys(true) }}
+            placeholder="pattern (e.g. user:*)"
+            sx={{ '& input': { fontFamily: 'var(--font-mono)', fontSize: 12, py: 0.75 } }}
+            slotProps={{
+              input: { startAdornment: <InputAdornment position="start"><Search size={12} /></InputAdornment> },
+              htmlInput: { 'aria-label': 'Key pattern' },
+            }}
+          />
+          <Tooltip title="Scan">
+            <IconButton size="small" aria-label="Scan" onClick={() => loadKeys(true)}><RefreshCw size={13} /></IconButton>
+          </Tooltip>
+        </Box>
+        <Box sx={{ flex: 1, overflowY: 'auto' }}>
           {loadingKeys && keys.length === 0 ? (
-            <div style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12.5 }}>
-              <Loader2 size={14} className="spin" /> Scanning…
-            </div>
+            <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontSize: 13 }}>
+              <Spinner size={14} /> Scanning…
+            </Box>
           ) : keys.length === 0 ? (
-            <div style={{ padding: 16, fontSize: 12.5, color: 'var(--text-muted)' }}>No keys match.</div>
+            <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No keys match.</Typography>
           ) : (
             <>
-              {keys.map(key => (
-                <button key={key} onClick={() => selectKey(key)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 12px',
-                    background: selectedKey === key ? 'var(--brand-glow)' : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                    fontSize: 12.5, fontFamily: 'var(--font-mono)', color: selectedKey === key ? 'var(--brand-primary)' : 'var(--text-secondary)',
-                  }}>
-                  <KeyIcon size={11} style={{ flexShrink: 0 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{key}</span>
-                </button>
-              ))}
+              <List dense disablePadding>
+                {keys.map(key => (
+                  <ListItemButton key={key} selected={selectedKey === key} onClick={() => selectKey(key)}
+                    sx={{ gap: 0.75, py: 0.5, px: 1.5, fontFamily: 'var(--font-mono)', fontSize: 12.5, color: selectedKey === key ? 'primary.main' : 'text.secondary' }}>
+                    <KeyIcon size={11} style={{ flexShrink: 0 }} />
+                    <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{key}</Box>
+                  </ListItemButton>
+                ))}
+              </List>
               {cursor !== '0' && (
-                <button onClick={() => loadKeys(false)} disabled={loadingKeys} className="btn btn-secondary btn-sm" style={{ margin: 10, width: 'calc(100% - 20px)' }}>
-                  {loadingKeys ? <Loader2 size={12} className="spin" /> : 'Load more'}
-                </button>
+                <Box sx={{ p: 1.25 }}>
+                  <Button variant="secondary" size="sm" onClick={() => loadKeys(false)} loading={loadingKeys} style={{ width: '100%' }}>Load more</Button>
+                </Box>
               )}
             </>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: selectedKey ? 20 : 0 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: selectedKey ? 2.5 : 0 }}>
         {!selectedKey ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            <KeyIcon size={28} style={{ opacity: 0.3, marginBottom: 10 }} />
+          <Box sx={{ p: 5, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>
+            <KeyIcon size={28} style={{ opacity: 0.4, marginBottom: 10 }} />
             <div>Select a key to view its value.</div>
-          </div>
+          </Box>
         ) : loadingDetail || !detail ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
-            <Loader2 size={16} className="spin" /> Loading {selectedKey}…
-          </div>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <Spinner size={16} /> Loading {selectedKey}…
+          </Box>
         ) : (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700 }}>{detail.key}</span>
-                <span style={{ padding: '2px 8px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: typeColor[detail.type], border: `1px solid ${typeColor[detail.type]}40` }}>{detail.type}</span>
-              </div>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1.25 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                <Typography component="span" sx={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600 }}>{detail.key}</Typography>
+                <Chip size="small" color={typeColor[detail.type]} label={detail.type} />
+              </Box>
               {canEdit && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, fontSize: 12, color: 'text.secondary' }}>
                     <Clock size={12} />
-                    <input className="input" value={draftTtl} onChange={e => setDraftTtl(e.target.value)} placeholder="no expiry"
-                      style={{ width: 90, fontSize: 12, padding: '4px 8px', height: 26, fontFamily: 'var(--font-mono)' }} />
+                    <TextField size="small" value={draftTtl} onChange={e => setDraftTtl(e.target.value)} placeholder="no expiry"
+                      sx={{ width: 110, '& input': { fontFamily: 'var(--font-mono)', fontSize: 12, py: 0.5 } }}
+                      slotProps={{ htmlInput: { 'aria-label': 'TTL in seconds' } }} />
                     sec
-                  </span>
-                  <button className="btn btn-primary btn-sm" onClick={save} disabled={saving} style={{ gap: 6 }}>
-                    {saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} Save
-                  </button>
-                  <button className="btn-icon danger" onClick={() => deleteKey(detail.key)} title="Delete key" style={{ width: 30, height: 30 }}><Trash2 size={14} /></button>
-                </div>
+                  </Box>
+                  <Button size="sm" onClick={save} loading={saving} icon={<Save size={13} />}>Save</Button>
+                  <Tooltip title="Delete key">
+                    <IconButton color="error" aria-label="Delete key" onClick={() => deleteKey(detail.key)}><Trash2 size={14} /></IconButton>
+                  </Tooltip>
+                </Box>
               )}
               {!canEdit && (
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>TTL: {fmtTtl(detail.ttl_seconds)}</span>
+                <Typography variant="caption" color="text.secondary">TTL: {fmtTtl(detail.ttl_seconds)}</Typography>
               )}
-            </div>
+            </Box>
 
             {detail.type === 'string' && (
-              <textarea className="input" value={draftString} onChange={e => setDraftString(e.target.value)} disabled={!canEdit}
-                style={{ width: '100%', minHeight: 200, fontFamily: 'var(--font-mono)', fontSize: 13, padding: 12 }} />
+              <TextField fullWidth multiline minRows={9} value={draftString} onChange={e => setDraftString(e.target.value)} disabled={!canEdit}
+                sx={{ '& textarea': { fontFamily: 'var(--font-mono)', fontSize: 13 } }}
+                slotProps={{ htmlInput: { 'aria-label': 'Value' } }} />
             )}
 
             {detail.type === 'hash' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 {draftFields.map((f, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 6 }}>
-                    <input className="input" value={f.k} disabled={!canEdit} placeholder="field"
+                  <Box key={i} sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                    <TextField size="small" sx={{ flex: 1, ...monoInputSx }} value={f.k} disabled={!canEdit} placeholder="field"
                       onChange={e => setDraftFields(prev => prev.map((x, j) => j === i ? { ...x, k: e.target.value } : x))}
-                      style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '6px 10px', height: 32 }} />
-                    <input className="input" value={f.v} disabled={!canEdit} placeholder="value"
+                      slotProps={{ htmlInput: { 'aria-label': `Field name ${i + 1}` } }} />
+                    <TextField size="small" sx={{ flex: 2, ...monoInputSx }} value={f.v} disabled={!canEdit} placeholder="value"
                       onChange={e => setDraftFields(prev => prev.map((x, j) => j === i ? { ...x, v: e.target.value } : x))}
-                      style={{ flex: 2, fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '6px 10px', height: 32 }} />
-                    {canEdit && <button className="btn-icon danger" onClick={() => setDraftFields(prev => prev.filter((_, j) => j !== i))} style={{ width: 32, height: 32 }}><X size={13} /></button>}
-                  </div>
+                      slotProps={{ htmlInput: { 'aria-label': `Field value ${i + 1}` } }} />
+                    {canEdit && <RemoveButton label="Remove field" onClick={() => setDraftFields(prev => prev.filter((_, j) => j !== i))} />}
+                  </Box>
                 ))}
                 {canEdit && (
-                  <button className="btn btn-secondary btn-sm" onClick={() => setDraftFields(prev => [...prev, { k: '', v: '' }])} style={{ alignSelf: 'flex-start', gap: 6 }}>
-                    <Plus size={13} /> Add field
-                  </button>
+                  <Box><Button variant="secondary" size="sm" onClick={() => setDraftFields(prev => [...prev, { k: '', v: '' }])} icon={<Plus size={13} />}>Add field</Button></Box>
                 )}
-              </div>
+              </Box>
             )}
 
             {(detail.type === 'list' || detail.type === 'set') && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 {draftItems.map((v, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 6 }}>
-                    <input className="input" value={v} disabled={!canEdit}
+                  <Box key={i} sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                    <TextField size="small" fullWidth sx={monoInputSx} value={v} disabled={!canEdit}
                       onChange={e => setDraftItems(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                      style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '6px 10px', height: 32 }} />
-                    {canEdit && <button className="btn-icon danger" onClick={() => setDraftItems(prev => prev.filter((_, j) => j !== i))} style={{ width: 32, height: 32 }}><X size={13} /></button>}
-                  </div>
+                      slotProps={{ htmlInput: { 'aria-label': `Item ${i + 1}` } }} />
+                    {canEdit && <RemoveButton label="Remove item" onClick={() => setDraftItems(prev => prev.filter((_, j) => j !== i))} />}
+                  </Box>
                 ))}
                 {canEdit && (
-                  <button className="btn btn-secondary btn-sm" onClick={() => setDraftItems(prev => [...prev, ''])} style={{ alignSelf: 'flex-start', gap: 6 }}>
-                    <Plus size={13} /> Add item
-                  </button>
+                  <Box><Button variant="secondary" size="sm" onClick={() => setDraftItems(prev => [...prev, ''])} icon={<Plus size={13} />}>Add item</Button></Box>
                 )}
-              </div>
+              </Box>
             )}
 
             {detail.type === 'zset' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 {draftMembers.map((m, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 6 }}>
-                    <input className="input" value={m.member} disabled={!canEdit} placeholder="member"
+                  <Box key={i} sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                    <TextField size="small" sx={{ flex: 2, ...monoInputSx }} value={m.member} disabled={!canEdit} placeholder="member"
                       onChange={e => setDraftMembers(prev => prev.map((x, j) => j === i ? { ...x, member: e.target.value } : x))}
-                      style={{ flex: 2, fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '6px 10px', height: 32 }} />
-                    <input className="input" type="number" value={m.score} disabled={!canEdit} placeholder="score"
+                      slotProps={{ htmlInput: { 'aria-label': `Member ${i + 1}` } }} />
+                    <TextField size="small" type="number" sx={{ width: 120, ...monoInputSx }} value={m.score} disabled={!canEdit} placeholder="score"
                       onChange={e => setDraftMembers(prev => prev.map((x, j) => j === i ? { ...x, score: Number(e.target.value) } : x))}
-                      style={{ width: 100, fontFamily: 'var(--font-mono)', fontSize: 12.5, padding: '6px 10px', height: 32 }} />
-                    {canEdit && <button className="btn-icon danger" onClick={() => setDraftMembers(prev => prev.filter((_, j) => j !== i))} style={{ width: 32, height: 32 }}><X size={13} /></button>}
-                  </div>
+                      slotProps={{ htmlInput: { 'aria-label': `Score ${i + 1}` } }} />
+                    {canEdit && <RemoveButton label="Remove member" onClick={() => setDraftMembers(prev => prev.filter((_, j) => j !== i))} />}
+                  </Box>
                 ))}
                 {canEdit && (
-                  <button className="btn btn-secondary btn-sm" onClick={() => setDraftMembers(prev => [...prev, { member: '', score: 0 }])} style={{ alignSelf: 'flex-start', gap: 6 }}>
-                    <Plus size={13} /> Add member
-                  </button>
+                  <Box><Button variant="secondary" size="sm" onClick={() => setDraftMembers(prev => [...prev, { member: '', score: 0 }])} icon={<Plus size={13} />}>Add member</Button></Box>
                 )}
-              </div>
+              </Box>
             )}
           </div>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }
