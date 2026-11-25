@@ -6,12 +6,18 @@ import {
   Boxes, Search, Terminal, Settings, Database, Zap, CheckCircle, XCircle,
   Gauge, ShieldCheck, ScrollText
 } from 'lucide-react'
+import {
+  Alert, Box, Card, Chip, IconButton, LinearProgress, Skeleton,
+  Table, TableBody, TableCell, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Tooltip as MuiTooltip, Typography,
+} from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import type { ReactNode } from 'react'
 import { useUIStore } from '../store/uiStore'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { api, buildWsUrl } from '../api/client'
-import { StatCard, SectionHeader, SearchInput } from '../components/ui'
+import { StatCard, SectionHeader, SearchInput, PageHeader, Button, EmptyState } from '../components/ui'
 
 import { WindowsIcon, LinuxIcon, AppleIcon, KubernetesIcon } from '../components/OSIcons'
 
@@ -70,129 +76,127 @@ const timeAgo = (iso: string) => {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-const RangeSelector = memo(({ value, onChange, ranges }: { value: number; onChange: (m: number) => void; ranges: { minutes: number; label: string }[] }) => (
-  <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
-    {ranges.map(r => (
-      <button
-        key={r.minutes}
-        onClick={() => onChange(r.minutes)}
-        style={{
-          padding: '5px 12px', fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
-          background: value === r.minutes ? 'var(--brand-primary)' : 'transparent',
-          color: value === r.minutes ? 'var(--text-inverse)' : 'var(--text-muted)',
-          border: 'none', cursor: 'pointer', transition: 'all 0.15s'
-        }}
-      >
-        {r.label}
-      </button>
-    ))}
-  </div>
+
+function RangeSelector({ value, onChange, ranges }: { value: number; onChange: (m: number) => void; ranges: { minutes: number; label: string }[] }) {
+  return (
+    <ToggleButtonGroup exclusive size="small" value={value} onChange={(_, v) => v !== null && onChange(v)} aria-label="Time range">
+      {ranges.map(r => (
+        <ToggleButton key={r.minutes} value={r.minutes} sx={{ px: 1.25, py: 0.25, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{r.label}</ToggleButton>
+      ))}
+    </ToggleButtonGroup>
+  )
+}
+
+const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) => (
+  <LinearProgress
+    variant="determinate"
+    value={Math.min(value, 100)}
+    color={value >= danger ? 'error' : value >= warn ? 'warning' : 'success'}
+    sx={{ flex: 1, height: 6, borderRadius: 3 }}
+  />
 ))
 
-const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; danger?: number; warn?: number }) => {
-  const color = value >= danger
-    ? 'var(--danger)'
-    : value >= warn
-    ? 'var(--warning)'
-    : 'var(--success)'
+/** Titled panel used by every chart/list block on the dashboard. */
+function Panel({ children, sx, grow = 1, basis = 300 }: { children: ReactNode; sx?: object; grow?: number; basis?: number }) {
   return (
-    <div className="metric-bar-outer">
-      <div
-        className="metric-bar-fill"
-        style={{ width: `${Math.min(value, 100)}%`, background: color }}
-      />
-    </div>
+    <Card sx={{ flex: `${grow} 1 ${basis}px`, minWidth: 0, p: 2.5, display: 'flex', flexDirection: 'column', ...sx }}>{children}</Card>
   )
-})
+}
+
+function Donut({ children, center, label }: { children: ReactNode; center: ReactNode; label: string }) {
+  return (
+    <Box sx={{ width: 168, height: 168, position: 'relative', flexShrink: 0, mx: 'auto', mb: 2 }}>
+      {children}
+      <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <Typography variant="h4" component="span">{center}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', fontWeight: 700 }}>{label}</Typography>
+      </Box>
+    </Box>
+  )
+}
+
+function Legend2({ color, label, value, valueColor }: { color: string; label: string; value: ReactNode; valueColor?: string }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+      <Typography variant="body2" noWrap sx={{ flex: 1, fontWeight: 600 }}>{label}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 700, color: valueColor ?? 'text.primary' }}>{value}</Typography>
+    </Box>
+  )
+}
 
 const ServerCard = memo(({ server, metric }: { server: ServerData; metric?: MetricData }) => {
   const navigate = useNavigate()
-
-
+  const go = (e: React.MouseEvent, to: string) => { e.stopPropagation(); navigate(to) }
   return (
-    <div
-      className="card server-card fade-up"
+    <Card
       onClick={() => navigate(`/servers/${server.id}`)}
-      style={{ cursor: 'pointer', padding: 24, overflow: 'hidden' }}
+      sx={{ cursor: 'pointer', p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, '&:hover': { borderColor: 'primary.main' } }}
     >
-      {/* Header row: icon + info + status badge */}
-      <div className="server-card-header" style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 'var(--radius-sm)',
-            background: 'var(--bg-elevated)', border: `1px solid var(--border)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            {server.is_k8s ? <KubernetesIcon size={18} /> :
-             server.os === 'darwin' ? <AppleIcon size={16} color="var(--brand-primary)" /> :
-             server.os === 'windows'? <WindowsIcon size={14} color="var(--brand-primary)" /> :
-             server.os === 'linux'  ? <LinuxIcon size={14} color="var(--brand-primary)" /> :
-             <HelpCircle size={16} color="var(--brand-primary)" />}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{server.name}</h3>
-              <span className={`badge badge-${server.status}`} style={{ fontSize: 11, padding: '1px 6px', fontWeight: 900 }}>{server.status}</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 800 }}>{server.host || 'DIRECT API'}</div>
-          </div>
-        </div>
-      </div>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ width: 32, height: 32, borderRadius: 1, border: 1, borderColor: 'divider', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+          {server.is_k8s ? <KubernetesIcon size={18} /> :
+           server.os === 'darwin' ? <AppleIcon size={16} color="var(--brand-primary)" /> :
+           server.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" /> :
+           server.os === 'linux' ? <LinuxIcon size={14} color="var(--brand-primary)" /> :
+           <HelpCircle size={16} color="var(--brand-primary)" />}
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="subtitle2" noWrap>{server.name}</Typography>
+            <Chip label={server.status} size="small" color={server.status === 'online' ? 'success' : 'default'} variant={server.status === 'online' ? 'filled' : 'outlined'} sx={{ height: 18, fontSize: 10 }} />
+          </Box>
+          <Typography variant="caption" color="text.secondary">{server.host || 'DIRECT API'}</Typography>
+        </Box>
+      </Box>
 
       {metric ? (
-        <div className="server-metric-stack" style={{ margin: '14px 0', gap: 8 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {[
             { label: 'CPU', value: metric.cpu_percent },
             { label: 'MEM', value: metric.mem_percent },
             { label: 'DSK', value: metric.disk_percent },
           ].map(({ label, value }) => (
-            <div key={label} className="metric-row" style={{ gap: 8 }}>
-              <div className="metric-label" style={{ width: 28, fontSize: 11 }}>{label}</div>
+            <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ width: 28, fontWeight: 700 }}>{label}</Typography>
               <MetricBar value={value} danger={90} warn={75} />
-              <span style={{ width: 24, textAlign: 'right', fontSize: 11, fontWeight: 900, color: 'var(--text-secondary)' }}>
-                {value.toFixed(0)}%
-              </span>
-            </div>
+              <Typography variant="caption" sx={{ width: 30, textAlign: 'right', fontWeight: 700 }}>{value.toFixed(0)}%</Typography>
+            </Box>
           ))}
-        </div>
+        </Box>
       ) : (
-        <div style={{
-          padding: '24px 0', display: 'flex', alignItems: 'center', gap: 10,
-          color: 'var(--text-muted)', fontSize: 13, fontWeight: 500,
-        }}>
+        <Typography variant="body2" color="text.secondary" sx={{ py: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Wifi size={14} /> No metrics collected yet
-        </div>
+        </Typography>
       )}
 
-      <div className="server-card-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
-        <div className="server-tag-group" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, borderTop: 1, borderColor: 'divider', pt: 1, mt: 'auto' }}>
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', gap: 0.5, overflow: 'hidden' }}>
           {server.tags && typeof server.tags === 'string'
-            ? server.tags.split(',').slice(0, 2).map(t => (
-                <span key={t} className="server-tag" style={{ fontSize: 12, padding: '2px 6px' }}>{t.trim()}</span>
-              ))
-            : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tags</span>
-          }
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-           {server.status === 'online' && (
-             <>
-               <button onClick={(e) => { e.stopPropagation(); navigate(`/servers/${server.id}?tab=Terminal`); }} className="btn-icon-sm" title="Terminal"><Terminal size={14} /></button>
-               <button onClick={(e) => { e.stopPropagation(); navigate(`/servers/${server.id}?tab=Logs`); }} className="btn-icon-sm" title="Logs"><Activity size={14} /></button>
-             </>
-           )}
-           <button onClick={(e) => { e.stopPropagation(); navigate(`/servers/${server.id}?tab=Settings`); }} className="btn-icon-sm" title="Settings"><Settings size={14} /></button>
-           <button className="btn-icon-sm primary" title="View Detail"><ArrowRight size={14} /></button>
-        </div>
-      </div>
-    </div>
+            ? server.tags.split(',').slice(0, 2).map(t => <Chip key={t} label={t.trim()} size="small" variant="outlined" />)
+            : <Typography variant="caption" color="text.secondary">No tags</Typography>}
+        </Box>
+        {server.status === 'online' && (
+          <>
+            <MuiTooltip title="Terminal"><IconButton aria-label="Terminal" onClick={e => go(e, `/servers/${server.id}?tab=Terminal`)}><Terminal size={14} /></IconButton></MuiTooltip>
+            <MuiTooltip title="Logs"><IconButton aria-label="Logs" onClick={e => go(e, `/servers/${server.id}?tab=Logs`)}><Activity size={14} /></IconButton></MuiTooltip>
+          </>
+        )}
+        <MuiTooltip title="Settings"><IconButton aria-label="Settings" onClick={e => go(e, `/servers/${server.id}?tab=Settings`)}><Settings size={14} /></IconButton></MuiTooltip>
+        <MuiTooltip title="View detail"><IconButton color="primary" aria-label="View detail"><ArrowRight size={14} /></IconButton></MuiTooltip>
+      </Box>
+    </Card>
   )
 })
-
 
 export function Dashboard() {
   const navigate = useNavigate()
   const { darkMode } = useUIStore()
+  const theme = useTheme()
+  // Shared recharts styling, driven by the MUI theme so charts follow light/dark.
+  const axisTick = { fontSize: 11, fontFamily: 'var(--font-mono)', fill: theme.palette.text.secondary }
+  const gridStroke = theme.palette.divider
+  const tooltipStyle = { background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, fontSize: 12, fontFamily: 'var(--font-mono)' }
   const [servers, setServers] = useState<ServerData[]>([])
   const [metrics, setMetrics] = useState<Record<number, MetricData>>({})
   const [resources, setResources] = useState<ResourceData[]>([])
@@ -527,473 +531,347 @@ export function Dashboard() {
     return () => clearInterval(timer)
   }, [])
 
+
+  const timeRangeLabel = RANGES.find(r => r.minutes === fleetRange)?.label
+  const k8sList = filteredServers.filter(s => s.is_k8s)
+  const nodeList = filteredServers.filter(s => !s.is_k8s)
+  const row = { display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3, alignItems: 'stretch' } as const
+  const chartBox = { flex: 1, minHeight: 220 } as const
+  const xAxis = <XAxis dataKey="t" tickFormatter={fmtClock} tick={axisTick} axisLine={false} tickLine={false} minTickGap={40} />
+
   return (
     <div className="page">
-      <div className="page-header" style={{ flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle hidden-mobile">
-            Infrastructure Overview — {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
-        <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
-          <SearchInput value={searchQuery} onChange={setSearchQuery} />
-          <button className="btn btn-secondary" onClick={loadData} disabled={loading} style={{ height: 40 }}>
-            <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
-            <span className="hidden-mobile">Refresh</span>
-          </button>
-          <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')} style={{ height: 40 }}>
-            <Plus size={16} />
-            <span className="hidden-mobile">Add Server</span><span className="show-mobile-only">Add</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Infrastructure Overview — ${currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
+        actions={
+          <>
+            <Box sx={{ width: 240 }}><SearchInput value={searchQuery} onChange={setSearchQuery} /></Box>
+            <Button variant="secondary" onClick={loadData} loading={loading} icon={<RefreshCw size={14} />}>Refresh</Button>
+            <Button icon={<Plus size={14} />} onClick={() => navigate('/servers?add=1')}>Add Server</Button>
+          </>
+        }
+      />
 
-      <div className="grid-stats" style={{ marginBottom: 32 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
         <StatCard label="Total Servers" value={loading ? 'N/A' : (total - k8sServers)} icon={Server} color="var(--brand-primary)" />
         <StatCard label="K8s Clusters" value={loading ? 'N/A' : k8sServers} icon={Boxes} color="var(--info)" />
         <StatCard label="Status Online" value={loading ? 'N/A' : online} icon={Wifi} color="var(--success)" delta={total > 0 ? `${((online / total) * 100).toFixed(0)}% uptime` : undefined} />
         <StatCard label="Status Offline" value={loading ? 'N/A' : offline} icon={AlertTriangle} color={offline > 0 ? 'var(--danger)' : 'var(--text-muted)'} />
         <StatCard label="Global Avg CPU" value={loading ? 'N/A' : avgCpu} icon={TrendingUp} color="var(--info)" />
         <StatCard label="Resources" value={loading ? 'N/A' : resources.length} icon={Database} color="var(--brand-primary)" delta={loading ? undefined : `${resources.filter(r => r.status === 'online').length} online`} />
-      </div>
+      </Box>
 
       {/* Fleet timeline + automation activity */}
       {!loading && seriesServers.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
-          <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={row}>
+          <Panel grow={2} basis={420}>
             <SectionHeader
               title="Fleet Utilization"
-              subtitle={`Per-node ${fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last ${RANGES.find(r => r.minutes === fleetRange)?.label}, live`}
+              subtitle={`Per-node ${fleetMetric === 'cpu' ? 'CPU' : fleetMetric === 'mem' ? 'memory' : 'disk'} — last ${timeRangeLabel}, live`}
               action={
                 <>
-                  <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                  <ToggleButtonGroup exclusive size="small" value={fleetMetric} onChange={(_, v) => v && setFleetMetric(v)} aria-label="Metric">
                     {([['cpu', 'CPU'], ['mem', 'MEM'], ['disk', 'DISK']] as const).map(([key, label]) => (
-                      <button
-                        key={key}
-                        onClick={() => setFleetMetric(key)}
-                        style={{
-                          padding: '5px 14px', fontSize: 11, fontWeight: 700,
-                          background: fleetMetric === key ? 'var(--brand-primary)' : 'transparent',
-                          color: fleetMetric === key ? 'var(--text-inverse)' : 'var(--text-muted)',
-                          border: 'none', cursor: 'pointer', transition: 'all 0.15s'
-                        }}
-                      >
-                        {label}
-                      </button>
+                      <ToggleButton key={key} value={key} sx={{ px: 1.5, py: 0.25, fontSize: 11 }}>{label}</ToggleButton>
                     ))}
-                  </div>
+                  </ToggleButtonGroup>
                   <RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />
                 </>
               }
             />
-            <div style={{ flex: 1, minHeight: 200 }}>
+            <Box sx={chartBox}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={timelineData} margin={{ top: 6, right: 76, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                  <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
-                  <Tooltip
-                    labelFormatter={(t) => fmtClock(t)}
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                  />
+                  <CartesianGrid strokeDasharray="2 2" vertical={false} stroke={gridStroke} />
+                  {xAxis}
+                  <YAxis domain={[0, 100]} tick={axisTick} axisLine={false} tickLine={false} unit="%" />
+                  <Tooltip labelFormatter={(t) => fmtClock(t)} contentStyle={tooltipStyle} />
                   {seriesServers.length > 1 && (
                     <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                   )}
                   {seriesServers.map((s, i) => (
-                    <Line
-                      key={s.id}
-                      type="monotone"
-                      dataKey={s.name}
-                      stroke={seriesColors[i]}
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                      connectNulls
-                      isAnimationActive={false}
-                      label={seriesServers.length === 1 ? endLabel(s.name, timelineData.length) : undefined}
-                    />
+                    <Line key={s.id} type="monotone" dataKey={s.name} stroke={seriesColors[i]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false}
+                      label={seriesServers.length === 1 ? endLabel(s.name, timelineData.length) : undefined} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-          </div>
+            </Box>
+          </Panel>
 
           {healingActions !== null && (
-            <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+            <Panel>
               <SectionHeader
                 icon={Zap}
                 iconColor="var(--warning)"
                 title="Automation Activity"
-                action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/alerts')}>Rules</button>}
+                action={<Button variant="secondary" size="sm" onClick={() => navigate('/alerts')}>Rules</Button>}
               />
               {healingActions.length === 0 ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: 10, padding: '24px 0' }}>
-                  <Zap size={22} style={{ opacity: 0.3 }} />
-                  <span style={{ fontSize: 12 }}>No self-healing actions fired yet</span>
-                </div>
+                <EmptyState icon={Zap} title="No self-healing actions fired yet" />
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflowY: 'auto', maxHeight: 260 }}>
+                <Box sx={{ overflowY: 'auto', maxHeight: 260 }}>
                   {healingActions.map(a => {
                     const ok = a.status === 'success'
                     const srv = servers.find(s => s.id === a.server_id)
                     return (
-                      <div key={a.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', alignItems: 'flex-start' }}>
-                        {ok
-                          ? <CheckCircle size={14} color="var(--success)" style={{ flexShrink: 0, marginTop: 2 }} />
-                          : <XCircle size={14} color="var(--danger)" style={{ flexShrink: 0, marginTop: 2 }} />}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {a.trigger_info || 'Alert rule triggered'}
-                          </div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                      <Box key={a.id} sx={{ display: 'flex', gap: 1.25, py: 1.25, borderBottom: 1, borderColor: 'divider', alignItems: 'flex-start' }}>
+                        {ok ? <CheckCircle size={14} color="var(--success)" style={{ flexShrink: 0, marginTop: 2 }} />
+                            : <XCircle size={14} color="var(--danger)" style={{ flexShrink: 0, marginTop: 2 }} />}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>{a.trigger_info || 'Alert rule triggered'}</Typography>
+                          <Typography variant="caption" noWrap color="text.secondary" sx={{ display: 'block', fontFamily: 'var(--font-mono)' }}>
                             {srv?.name ? `${srv.name} • ` : ''}{a.command || '—'}
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0, marginTop: 2 }}>{timeAgo(a.created_at)}</span>
-                      </div>
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'var(--font-mono)', flexShrink: 0 }}>{timeAgo(a.created_at)}</Typography>
+                      </Box>
                     )
                   })}
-                </div>
+                </Box>
               )}
-            </div>
+            </Panel>
           )}
-        </div>
+        </Box>
       )}
 
-      {/* Fleet network throughput + disk usage breakdown, side by side */}
+      {/* Fleet network throughput + disk usage breakdown */}
       {!loading && (networkData.length > 1 || diskUsageData.length > 0) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
+        <Box sx={row}>
           {networkData.length > 1 && (
-            <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-              <SectionHeader
-                title="Fleet Network I/O"
-                subtitle="Aggregate receive / transmit across all nodes — MB/s"
-                action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />}
-              />
-              <div style={{ flex: 1, minHeight: 200 }}>
+            <Panel grow={2} basis={420}>
+              <SectionHeader title="Fleet Network I/O" subtitle="Aggregate receive / transmit across all nodes — MB/s" action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />} />
+              <Box sx={chartBox}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={networkData} margin={{ top: 6, right: 46, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                    <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                    <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      labelFormatter={(t) => fmtClock(t)}
-                      formatter={(v) => `${v} MB/s`}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                    />
+                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke={gridStroke} />
+                    {xAxis}
+                    <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                    <Tooltip labelFormatter={(t) => fmtClock(t)} formatter={(v) => `${v} MB/s`} contentStyle={tooltipStyle} />
                     <Legend iconType="plainline" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                     <Line type="monotone" dataKey="RX" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                     <Line type="monotone" dataKey="TX" stroke={seriesColors[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
+              </Box>
+            </Panel>
           )}
 
           {diskUsageData.length > 0 && (
-            <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-              <SectionHeader
-                title="Disk Usage by Server"
-                subtitle={`${diskUsageData.length} node${diskUsageData.length === 1 ? '' : 's'} reporting`}
-              />
-              <div style={{ width: 168, height: 168, position: 'relative', flexShrink: 0, margin: '0 auto 16px' }}>
+            <Panel>
+              <SectionHeader title="Disk Usage by Server" subtitle={`${diskUsageData.length} node${diskUsageData.length === 1 ? '' : 's'} reporting`} />
+              <Donut center={`${avgDisk}%`} label="Fleet Avg">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={diskUsageData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={48}
-                      outerRadius={80}
-                      paddingAngle={diskUsageData.length > 1 ? 2 : 0}
-                      stroke="var(--bg-card)"
-                      strokeWidth={2}
-                      isAnimationActive={false}
-                    >
-                      {diskUsageData.map((d, i) => (
-                        <Cell key={d.id} fill={seriesColors[i % seriesColors.length]} />
-                      ))}
+                    <Pie data={diskUsageData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={80} paddingAngle={diskUsageData.length > 1 ? 2 : 0}
+                      stroke={theme.palette.background.paper} strokeWidth={2} isAnimationActive={false}>
+                      {diskUsageData.map((d, i) => <Cell key={d.id} fill={seriesColors[i % seriesColors.length]} />)}
                     </Pie>
-                    <Tooltip
-                      formatter={(v, n) => [`${v}%`, n]}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                    />
+                    <Tooltip formatter={(v, n) => [`${v}%`, n]} contentStyle={tooltipStyle} />
                   </PieChart>
                 </ResponsiveContainer>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                  <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{avgDisk}%</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fleet Avg</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 150 }}>
+              </Donut>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto', maxHeight: 150 }}>
                 {diskUsageData.map((d, i) => (
-                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: seriesColors[i % seriesColors.length], flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
-                    <span style={{ width: 34, textAlign: 'right', fontSize: 12, fontWeight: 900, color: d.value >= 90 ? 'var(--danger)' : d.value >= 75 ? 'var(--warning)' : 'var(--text-primary)' }}>{d.value}%</span>
-                  </div>
+                  <Legend2 key={d.id} color={seriesColors[i % seriesColors.length]} label={d.name} value={`${d.value}%`}
+                    valueColor={d.value >= 90 ? theme.palette.error.main : d.value >= 75 ? theme.palette.warning.main : undefined} />
                 ))}
-              </div>
-            </div>
+              </Box>
+            </Panel>
           )}
-        </div>
+        </Box>
       )}
 
-      {/* Fleet load average trend + security posture, side by side */}
+      {/* Load average + security posture */}
       {!loading && (loadAvgData.length > 1 || securityScans !== null) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, marginBottom: 32, alignItems: 'stretch' }}>
+        <Box sx={row}>
           {loadAvgData.length > 1 && (
-            <div className="card fade-up" style={{ flex: '2 1 420px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
-              <SectionHeader
-                icon={Gauge}
-                iconColor="var(--brand-primary)"
-                title="Fleet Load Average"
-                subtitle={`Average 1-min load across all nodes — last ${RANGES.find(r => r.minutes === fleetRange)?.label}`}
-                action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />}
-              />
-              <div style={{ flex: 1, minHeight: 200 }}>
+            <Panel grow={2} basis={420}>
+              <SectionHeader icon={Gauge} iconColor="var(--brand-primary)" title="Fleet Load Average"
+                subtitle={`Average 1-min load across all nodes — last ${timeRangeLabel}`}
+                action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />} />
+              <Box sx={chartBox}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={loadAvgData} margin={{ top: 6, right: 16, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                    <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                    <YAxis stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      labelFormatter={(t) => fmtClock(t)}
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                    />
+                    <CartesianGrid strokeDasharray="2 2" vertical={false} stroke={gridStroke} />
+                    {xAxis}
+                    <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                    <Tooltip labelFormatter={(t) => fmtClock(t)} contentStyle={tooltipStyle} />
                     <Line type="monotone" dataKey="Load" stroke={seriesColors[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
+              </Box>
+            </Panel>
           )}
 
           {securityScans !== null && (
-            <div className="card fade-up" style={{ flex: '1 1 300px', minWidth: 0, padding: '24px 20px', display: 'flex', flexDirection: 'column' }}>
+            <Panel>
               <SectionHeader
                 icon={ShieldCheck}
                 iconColor={securityTotals && securityTotals.high > 0 ? 'var(--danger)' : 'var(--success)'}
                 title="Security Posture"
                 subtitle={`${securityScans.length} scan${securityScans.length === 1 ? '' : 's'} across kernel, hardening, cluster, resource, code & DAST checks`}
-                action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/audit/kernel')}>Review</button>}
+                action={<Button variant="secondary" size="sm" onClick={() => navigate('/audit/kernel')}>Review</Button>}
               />
               {!securityTotals || securityTotals.findings === 0 ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: 10, padding: '24px 0' }}>
-                  <ShieldCheck size={22} style={{ opacity: 0.3 }} />
-                  <span style={{ fontSize: 12 }}>{securityScans.length === 0 ? 'No security scans run yet' : 'No findings — clean bill of health'}</span>
-                </div>
+                <EmptyState icon={ShieldCheck} title={securityScans.length === 0 ? 'No security scans run yet' : 'No findings — clean bill of health'} />
               ) : (
                 <>
-                  <div style={{ width: 168, height: 168, position: 'relative', flexShrink: 0, margin: '0 auto 16px' }}>
+                  <Donut center={securityTotals.findings} label="Findings">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie
-                          data={securityByType}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={48}
-                          outerRadius={80}
-                          paddingAngle={securityByType.length > 1 ? 2 : 0}
-                          stroke="var(--bg-card)"
-                          strokeWidth={2}
-                          isAnimationActive={false}
-                        >
-                          {securityByType.map((d, i) => (
-                            <Cell key={d.name} fill={seriesColors[i % seriesColors.length]} />
-                          ))}
+                        <Pie data={securityByType} dataKey="value" nameKey="name" innerRadius={48} outerRadius={80} paddingAngle={securityByType.length > 1 ? 2 : 0}
+                          stroke={theme.palette.background.paper} strokeWidth={2} isAnimationActive={false}>
+                          {securityByType.map((d, i) => <Cell key={d.name} fill={seriesColors[i % seriesColors.length]} />)}
                         </Pie>
-                        <Tooltip
-                          formatter={(v, n) => [`${v} finding${v === 1 ? '' : 's'}`, SCAN_TYPE_LABEL[String(n)] || n]}
-                          contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                        />
+                        <Tooltip formatter={(v, n) => [`${v} finding${v === 1 ? '' : 's'}`, SCAN_TYPE_LABEL[String(n)] || n]} contentStyle={tooltipStyle} />
                       </PieChart>
                     </ResponsiveContainer>
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                      <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{securityTotals.findings}</span>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Findings</span>
-                    </div>
-                  </div>
+                  </Donut>
                   {securityTotals.high > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', marginBottom: 12, background: 'rgba(201, 25, 11, 0.08)', border: '1px solid rgba(201, 25, 11, 0.2)', borderRadius: 'var(--radius-md)' }}>
-                      <AlertTriangle size={14} color="var(--danger)" style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)' }}>{securityTotals.high} high-severity finding{securityTotals.high === 1 ? '' : 's'}</span>
-                    </div>
+                    <Alert severity="error" icon={<AlertTriangle size={16} />} sx={{ mb: 1.5, py: 0 }}>
+                      {securityTotals.high} high-severity finding{securityTotals.high === 1 ? '' : 's'}
+                    </Alert>
                   )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: 150 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto', maxHeight: 150 }}>
                     {securityByType.map((d, i) => (
-                      <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: seriesColors[i % seriesColors.length], flexShrink: 0 }} />
-                        <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{SCAN_TYPE_LABEL[d.name] || d.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 900, color: d.high > 0 ? 'var(--danger)' : 'var(--text-primary)' }}>{d.value}</span>
-                      </div>
+                      <Legend2 key={d.name} color={seriesColors[i % seriesColors.length]} label={SCAN_TYPE_LABEL[d.name] || d.name}
+                        value={d.value} valueColor={d.high > 0 ? theme.palette.error.main : undefined} />
                     ))}
-                  </div>
+                  </Box>
                 </>
               )}
-            </div>
+            </Panel>
           )}
-        </div>
+        </Box>
       )}
 
       {!loading && resources.length > 0 && (
-        <div className="card fade-up" style={{ marginBottom: 32, padding: '24px 20px' }}>
+        <Panel sx={{ mb: 3 }} basis={0}>
           <SectionHeader
             title="Resource Inventory"
             subtitle="Click any resource to manage user access and audit logs."
-            action={<button className="btn btn-secondary btn-sm" onClick={() => navigate('/resources')}><span className="hidden-mobile">View full resources</span><span className="show-mobile-only">Resources</span></button>}
+            action={<Button variant="secondary" size="sm" onClick={() => navigate('/resources')}>View full resources</Button>}
           />
-          <div style={{ overflowX: 'auto' }}>
-            <table className="k-table" style={{ minWidth: 680 }}>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Protocol</th>
-                  <th>Host</th>
-                  <th>Port</th>
-                  <th>Status</th>
-                  <th>Users</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resources.slice(0, 4).map((resource) => (
-                  <tr key={resource.id} onClick={() => navigate(`/resources/${resource.id}`)} style={{ cursor: 'pointer' }}>
-                    <td>{resource.name}</td>
-                    <td>{resource.resource_type}</td>
-                    <td>{resource.protocol}</td>
-                    <td>{resource.host}</td>
-                    <td>{resource.port || '—'}</td>
-                    <td style={{ textTransform: 'capitalize' }}>{resource.status}</td>
-                    <td>{resource.use_gateway ? 'Gateway' : 'Direct'}</td>
-                  </tr>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small" sx={{ minWidth: 680 }}>
+              <TableHead>
+                <TableRow>
+                  {['Name', 'Type', 'Protocol', 'Host', 'Port', 'Status', 'Access'].map(h => <TableCell key={h}>{h}</TableCell>)}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {resources.slice(0, 4).map(resource => (
+                  <TableRow key={resource.id} hover onClick={() => navigate(`/resources/${resource.id}`)} sx={{ cursor: 'pointer' }}>
+                    <TableCell>{resource.name}</TableCell>
+                    <TableCell>{resource.resource_type}</TableCell>
+                    <TableCell>{resource.protocol}</TableCell>
+                    <TableCell>{resource.host}</TableCell>
+                    <TableCell>{resource.port || '—'}</TableCell>
+                    <TableCell sx={{ textTransform: 'capitalize' }}>{resource.status}</TableCell>
+                    <TableCell>{resource.use_gateway ? 'Gateway' : 'Direct'}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </TableBody>
+            </Table>
+          </Box>
+        </Panel>
       )}
 
       {!loading && servers.length > 0 && (
-        <div className="card fade-up" style={{ marginBottom: 32, padding: '32px 24px' }}>
-          <SectionHeader
-            icon={Activity}
-            title="Performance Analytics"
-            subtitle="Resource utilization across connected nodes"
-          />
-          <div style={{ height: 450, marginTop: 16 }}>
+        <Panel sx={{ mb: 3 }} basis={0}>
+          <SectionHeader icon={Activity} title="Performance Analytics" subtitle="Resource utilization across connected nodes" />
+          <Box sx={{ height: 400, mt: 1 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="name" stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} unit="%" />
-                <Tooltip
-                  cursor={{ fill: 'var(--bg-elevated)' }}
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                />
+                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke={gridStroke} />
+                <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={axisTick} axisLine={false} tickLine={false} unit="%" />
+                <Tooltip cursor={{ fill: theme.palette.action.hover }} contentStyle={tooltipStyle} />
                 <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                 <Bar dataKey="CPU" fill="#3b82f6" radius={0} maxBarSize={30} />
                 <Bar dataKey="Memory" fill="#10b981" radius={0} maxBarSize={30} />
                 <Bar dataKey="Disk" fill="#f59e0b" radius={0} maxBarSize={30} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
+          </Box>
+        </Panel>
       )}
 
       {!loading && logStats !== null && (
-        <div className="card fade-up" style={{ marginBottom: 32, padding: '32px 24px' }}>
+        <Panel sx={{ mb: 3 }} basis={0}>
           <SectionHeader
             icon={ScrollText}
             title="Log Volume & Error Rate"
             subtitle={
               logStats.totals.error + logStats.totals.warn + logStats.totals.info === 0
-                ? `No log activity in the last ${RANGES.find(r => r.minutes === fleetRange)?.label}`
-                : `${logStats.totals.error} error · ${logStats.totals.warn} warn · ${logStats.totals.info} info — last ${RANGES.find(r => r.minutes === fleetRange)?.label}, fleet-wide`
+                ? `No log activity in the last ${timeRangeLabel}`
+                : `${logStats.totals.error} error · ${logStats.totals.warn} warn · ${logStats.totals.info} info — last ${timeRangeLabel}, fleet-wide`
             }
             action={<RangeSelector value={fleetRange} onChange={setFleetRange} ranges={RANGES} />}
           />
-          <div style={{ height: 260, marginTop: 16 }}>
+          <Box sx={{ height: 260, mt: 1 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={logStats.buckets} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="t" tickFormatter={fmtClock} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} minTickGap={40} />
-                <YAxis allowDecimals={false} stroke="#52525b" tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  labelFormatter={(t) => fmtClock(t)}
-                  cursor={{ fill: 'var(--bg-elevated)' }}
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                />
+                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke={gridStroke} />
+                {xAxis}
+                <YAxis allowDecimals={false} tick={axisTick} axisLine={false} tickLine={false} />
+                <Tooltip labelFormatter={(t) => fmtClock(t)} cursor={{ fill: theme.palette.action.hover }} contentStyle={tooltipStyle} />
                 <Legend iconType="square" align="right" verticalAlign="top" wrapperStyle={{ paddingBottom: 24, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
-                <Bar dataKey="info" name="Info" stackId="logs" fill="var(--text-muted)" radius={0} maxBarSize={30} />
-                <Bar dataKey="warn" name="Warn" stackId="logs" fill="var(--warning)" radius={0} maxBarSize={30} />
-                <Bar dataKey="error" name="Error" stackId="logs" fill="var(--danger)" radius={0} maxBarSize={30} />
+                <Bar dataKey="info" name="Info" stackId="logs" fill={theme.palette.text.disabled} radius={0} maxBarSize={30} />
+                <Bar dataKey="warn" name="Warn" stackId="logs" fill={theme.palette.warning.main} radius={0} maxBarSize={30} />
+                <Bar dataKey="error" name="Error" stackId="logs" fill={theme.palette.error.main} radius={0} maxBarSize={30} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
+          </Box>
+        </Panel>
       )}
 
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-           <div className="card-skeleton" style={{ height: 160 }} />
-           <div className="card-skeleton" style={{ height: 400 }} />
-        </div>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Skeleton variant="rectangular" height={160} />
+          <Skeleton variant="rectangular" height={400} />
+        </Box>
       ) : servers.length === 0 ? (
-        <div className="empty-state fade-up">
-          <div style={{ width: 80, height: 80, borderRadius: 24, background: 'var(--brand-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-            <Server size={40} color="var(--brand-primary)" />
-          </div>
-          <h2>No infrastructure connected</h2>
-          <p>Begin by adding a standalone server or a Kubernetes cluster to monitor your fleet.</p>
-          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-            <button className="btn btn-primary" onClick={() => navigate('/servers?add=1')}>Add Standard Server</button>
-            <button className="btn btn-secondary" onClick={() => navigate('/kubernetes')}>Add K8s Cluster</button>
-          </div>
-        </div>
+        <EmptyState
+          icon={Server}
+          title="No infrastructure connected"
+          description="Begin by adding a standalone server or a Kubernetes cluster to monitor your fleet."
+          action={
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <Button onClick={() => navigate('/servers?add=1')}>Add Standard Server</Button>
+              <Button variant="secondary" onClick={() => navigate('/kubernetes')}>Add K8s Cluster</Button>
+            </Box>
+          }
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-          
-          {/* Managed Clusters Section */}
-          {filteredServers.filter(s => s.is_k8s).length > 0 && (
-            <div>
-              <SectionHeader
-                icon={KubernetesIcon}
-                title="Managed Clusters"
-                action={<span className="badge badge-primary hidden-mobile">{filteredServers.filter(s => s.is_k8s).length} Active</span>}
-              />
-              <div className="grid-cards">
-                {filteredServers.filter(s => s.is_k8s).map((s) => (
-                  <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
-                ))}
-              </div>
-            </div>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {k8sList.length > 0 && (
+            <Box>
+              <SectionHeader icon={KubernetesIcon} title="Managed Clusters" action={<Chip label={`${k8sList.length} Active`} color="primary" size="small" />} />
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 2 }}>
+                {k8sList.map(s => <ServerCard key={s.id} server={s} metric={metrics[s.id]} />)}
+              </Box>
+            </Box>
           )}
 
-          {/* Infrastructure Fleet Section */}
-          {filteredServers.filter(s => !s.is_k8s).length > 0 && (
-            <div>
-              <SectionHeader
-                icon={Server}
-                title="Resource Fleet"
-                action={<span className="badge badge-neutral hidden-mobile">{filteredServers.filter(s => !s.is_k8s).length} Nodes</span>}
-              />
-              <div className="grid-cards">
-                {filteredServers.filter(s => !s.is_k8s).map((s) => (
-                  <ServerCard key={s.id} server={s} metric={metrics[s.id]} />
-                ))}
-              </div>
-            </div>
+          {nodeList.length > 0 && (
+            <Box>
+              <SectionHeader icon={Server} title="Resource Fleet" action={<Chip label={`${nodeList.length} Nodes`} variant="outlined" size="small" />} />
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 2 }}>
+                {nodeList.map(s => <ServerCard key={s.id} server={s} metric={metrics[s.id]} />)}
+              </Box>
+            </Box>
           )}
 
           {filteredServers.length === 0 && searchQuery && (
-             <div className="empty-state" style={{ padding: '60px 0' }}>
-                <Search size={32} color="var(--text-muted)" style={{ marginBottom: 16 }} />
-                <p>No results for "{searchQuery}"</p>
-                <button className="btn btn-secondary btn-sm" onClick={() => setSearchQuery('')}>Clear Filter</button>
-             </div>
+            <EmptyState
+              icon={Search}
+              title={`No results for "${searchQuery}"`}
+              action={<Button variant="secondary" size="sm" onClick={() => setSearchQuery('')}>Clear Filter</Button>}
+            />
           )}
-        </div>
+        </Box>
       )}
     </div>
   )
