@@ -9,8 +9,8 @@ import type { IconComponent } from '../../types/k8s'
 import { Button, EmptyState } from '../ui'
 
 /** Page chrome shared by the audit pages: icon + title + description, then an info notice. */
-export function AuditPage({ icon: Icon, title, description, notice, loading, actions, children }: {
-  icon: IconComponent; title: string; description: string; notice?: ReactNode; loading?: boolean; actions?: ReactNode; children: ReactNode
+export function AuditPage({ icon: Icon, title, description, notice, loading, actions, noticeIcon, noticeAction, children }: {
+  icon: IconComponent; title: string; description: string; notice?: ReactNode; loading?: boolean; actions?: ReactNode; noticeIcon?: ReactNode; noticeAction?: ReactNode; children: ReactNode
 }) {
   if (loading) {
     return (
@@ -32,7 +32,7 @@ export function AuditPage({ icon: Icon, title, description, notice, loading, act
         {actions}
       </Box>
       {notice && (
-        <Alert severity="info" icon={<Info size={16} />} variant="outlined" sx={{ mb: 2, '& .MuiAlert-message': { fontSize: 12 } }}>
+        <Alert severity="info" icon={noticeIcon ?? <Info size={16} />} action={noticeAction} variant="outlined" sx={{ mb: 2, '& .MuiAlert-message': { fontSize: 12 } }}>
           {notice}
         </Alert>
       )}
