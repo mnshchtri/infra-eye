@@ -97,9 +97,10 @@ const MetricBar = memo(({ value, danger = 80, warn = 60 }: { value: number; dang
 ))
 
 /** Titled panel used by every chart/list block on the dashboard. */
+// basis 0 = a full-width block stacked in the page's column layout (flex-basis 0 would collapse its height).
 function Panel({ children, sx, grow = 1, basis = 300 }: { children: ReactNode; sx?: object; grow?: number; basis?: number }) {
   return (
-    <Card sx={{ flex: `${grow} 1 ${basis}px`, minWidth: 0, p: 2.5, display: 'flex', flexDirection: 'column', ...sx }}>{children}</Card>
+    <Card sx={{ flex: basis === 0 ? '0 0 auto' : `${grow} 1 ${basis}px`, minWidth: 0, p: 2.5, display: 'flex', flexDirection: 'column', ...sx }}>{children}</Card>
   )
 }
 
