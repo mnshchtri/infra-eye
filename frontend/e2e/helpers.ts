@@ -22,7 +22,7 @@ export async function authHeaders(request: APIRequestContext) {
 }
 
 /** Remove any leftovers from earlier runs so tests are repeatable. */
-export async function deleteByName(request: APIRequestContext, path: 'servers' | 'alert-rules', prefix: string) {
+export async function deleteByName(request: APIRequestContext, path: 'servers' | 'alert-rules' | 'resources', prefix: string) {
   const headers = await authHeaders(request)
   const res = await request.get(`/api/${path}`, { headers })
   if (!res.ok()) return

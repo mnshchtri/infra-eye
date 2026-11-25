@@ -2,9 +2,15 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Database, Shield, ShieldCheck, Trash2, Plus, Clock3,
-  Table, Loader2, Globe, Activity, User, Lock, History, Code, RefreshCw,
-  Gauge, Zap, Layers, Cpu, CircleDot, AlertTriangle, HardDrive, KeyRound
+  Table as TableIcon, Globe, Activity, User, Lock, History, Code, RefreshCw,
+  Gauge, Zap, Layers, Cpu, AlertTriangle, HardDrive, KeyRound,
 } from 'lucide-react'
+import {
+  Alert, Box, Card, Checkbox, Chip, CircularProgress, FormControlLabel, IconButton, LinearProgress, MenuItem,
+  Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip as MuiTooltip, Typography,
+} from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import { Button, EmptyState, StatCard, TabSwitcher } from '../components/ui'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
 } from 'recharts'
@@ -118,12 +124,12 @@ function fmtDuration(sec: number) {
   return `${m}m`
 }
 
-function statusMeta(status?: string) {
+function statusMeta(status?: string): { color: string; chip: 'success' | 'warning' | 'error' | 'default'; label: string } {
   switch (status) {
-    case 'online': return { color: 'var(--success)', label: 'Online', badge: 'badge-online' }
-    case 'degraded': return { color: 'var(--warning)', label: 'Degraded', badge: 'badge-warning' }
-    case 'offline': return { color: 'var(--danger)', label: 'Offline', badge: 'badge-offline' }
-    default: return { color: 'var(--text-muted)', label: 'Unknown', badge: 'badge-neutral' }
+    case 'online': return { color: 'success.main', chip: 'success', label: 'Online' }
+    case 'degraded': return { color: 'warning.main', chip: 'warning', label: 'Degraded' }
+    case 'offline': return { color: 'error.main', chip: 'error', label: 'Offline' }
+    default: return { color: 'text.disabled', chip: 'default', label: 'Unknown' }
   }
 }
 
@@ -133,6 +139,7 @@ export function ResourceDetail() {
   const toast = useToastStore()
   const { can } = usePermission()
   const canManage = can('manage-resources')
+  const theme = useTheme()
 
   const [resource, setResource] = useState<ResourceDetailData | null>(null)
   const [accessRecords, setAccessRecords] = useState<AccessEntry[]>([])
@@ -303,8 +310,8 @@ export function ResourceDetail() {
   if (loading && !resource) {
     return (
       <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <Loader2 size={32} className="spin" color="var(--brand-primary)" />
-        <span style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>Loading resource…</span>
+        <CircularProgress />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>Loading resource…</Typography>
       </div>
     )
   }
@@ -319,228 +326,206 @@ export function ResourceDetail() {
     { id: 'audit', label: 'Audit Log', icon: History },
   ]
 
+  const label = (t: string) => (
+    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{t}</Typography>
+  )
+  const panelTitle = (Ico: IconComponent, title: string, sub?: string) => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+      <Box sx={{ color: 'primary.main', display: 'flex' }}><Ico size={16} /></Box>
+      <Box>
+        <Typography variant="subtitle1" component="h3">{title}</Typography>
+        {sub && <Typography variant="body2" color="text.secondary">{sub}</Typography>}
+      </Box>
+    </Box>
+  )
+
   return (
     <div className="page">
-      <div className="page-header" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button className="btn-icon-sm" onClick={() => navigate('/resources')} title="Back"><ArrowLeft size={14} /></button>
-          <div style={{ width: 46, height: 46, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Icon size={22} color="var(--brand-primary)" />
-          </div>
-          <div>
-            <h1 className="page-title">{resource?.name || 'Resource'}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-              <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>{resource?.resource_type}</span>
-              <span className={`badge ${st.badge}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CircleDot size={11} /> {st.label}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>{resource?.protocol}://{resource?.host}:{resource?.port}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
+        <MuiTooltip title="Back to resources">
+          <IconButton onClick={() => navigate('/resources')} aria-label="Back to resources"><ArrowLeft size={16} /></IconButton>
+        </MuiTooltip>
+        <Box sx={{ width: 46, height: 46, borderRadius: 1, border: 1, borderColor: 'divider', display: 'grid', placeItems: 'center', flexShrink: 0, color: 'primary.main' }}>
+          <Icon size={22} />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h4" component="h1" noWrap>{resource?.name || 'Resource'}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+            <Chip label={resource?.resource_type} variant="outlined" size="small" />
+            <Chip label={st.label} color={st.chip} size="small" variant={st.chip === 'default' ? 'outlined' : 'filled'} />
+            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'var(--font-mono)' }}>
+              {resource?.protocol}://{resource?.host}:{resource?.port}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
 
-      <div className="tabs-container tabs-scroll-x" style={{ display: 'flex', gap: 2, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as ResourceTab)}
-            style={{
-              border: 'none', background: 'transparent', margin: 0, padding: '11px 20px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600,
-              color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-muted)',
-              borderBottom: activeTab === tab.id ? '2px solid var(--brand-primary)' : '2px solid transparent',
-            }}>
-            <tab.icon size={14} /> {tab.label}
-          </button>
-        ))}
-      </div>
+      <Box sx={{ mb: 3 }}>
+        <TabSwitcher
+          tabs={tabs.map(t => ({ id: t.id, label: t.label, icon: t.icon }))}
+          active={activeTab}
+          onChange={id => setActiveTab(id as ResourceTab)}
+        />
+      </Box>
 
       {/* ── Observability ── */}
       {activeTab === 'observability' && (
-        <div>
-          {/* Status hero */}
-          <div className="card" style={{ padding: '18px 22px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                <span className={st.label === 'Online' ? 'pulse-dot' : ''} style={{ width: 11, height: 11, borderRadius: '50%', background: st.color, boxShadow: `0 0 0 4px ${st.color}22` }} />
-                <span style={{ fontSize: 16, fontWeight: 700, color: st.color }}>{st.label}</span>
-              </span>
-              <span style={{ width: 1, height: 22, background: 'var(--border)' }} />
+        <Box>
+          <Card sx={{ px: 2.5, py: 2, mb: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1.25 }}>
+                <Box sx={{ width: 11, height: 11, borderRadius: '50%', bgcolor: st.color, boxShadow: 4 }} className={st.label === 'Online' ? 'pulse-dot' : ''} />
+                <Typography variant="h6" sx={{ color: st.color }}>{st.label}</Typography>
+              </Box>
+              <Box sx={{ width: '1px', height: 22, bgcolor: 'divider' }} />
               <HeroStat label="Latency" value={live ? fmtMs(live.latency_ms) : '—'} />
               <HeroStat label="Avail 1h" value={uptimePct !== null ? `${uptimePct}%` : '—'} />
               {typeof live?.metrics?.uptime_seconds === 'number' && <HeroStat label="Uptime" value={fmtDuration(Number(live.metrics.uptime_seconds))} />}
               {Boolean(live?.metrics?.version) && <HeroStat label="Version" value={`v${String(live?.metrics?.version)}`} />}
               {Boolean(live?.metrics?.banner) && <HeroStat label="Banner" value={String(live?.metrics?.banner)} />}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} /> Auto-refresh
-              </label>
-              <button className="btn btn-secondary btn-sm" onClick={() => probe(true)} disabled={probing} style={{ height: 34 }}>
-                {probing ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
-                <span style={{ marginLeft: 6 }}>Refresh</span>
-              </button>
-            </div>
-          </div>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <FormControlLabel
+                control={<Checkbox checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />}
+                label="Auto-refresh"
+                sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 13, color: 'text.secondary' } }}
+              />
+              <Button variant="secondary" size="sm" loading={probing} icon={<RefreshCw size={14} />} onClick={() => probe(true)}>Refresh</Button>
+            </Box>
+          </Card>
 
           {live?.error && (
-            <div className="card" style={{ borderColor: 'var(--danger)', background: 'var(--danger-glow)', display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20, padding: 16 }}>
-              <AlertTriangle size={16} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 13.5, color: 'var(--danger)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>{live.error}</span>
-            </div>
+            <Alert severity="error" icon={<AlertTriangle size={16} />} sx={{ mb: 2.5, '& .MuiAlert-message': { fontFamily: 'var(--font-mono)', wordBreak: 'break-word' } }}>
+              {live.error}
+            </Alert>
           )}
 
-          {/* Connection utilization gauge */}
           {connUtil && (
-            <div className="card" style={{ padding: '18px 22px', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>Connection pool</span>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{connUtil.used}</span> / {connUtil.max} · {connUtil.pct}%
-                </span>
-              </div>
-              <div style={{ height: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(connUtil.pct, 100)}%`, height: '100%', background: connUtil.pct >= 90 ? 'var(--danger)' : connUtil.pct >= 70 ? 'var(--warning)' : 'var(--success)', transition: 'width .4s' }} />
-              </div>
-            </div>
+            <Card sx={{ px: 2.5, py: 2, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 1.5 }}>
+                {label('Connection pool')}
+                <Typography variant="body1" color="text.secondary" sx={{ fontFamily: 'var(--font-mono)' }}>
+                  <Typography component="span" variant="h5" color="text.primary">{connUtil.used}</Typography> / {connUtil.max} · {connUtil.pct}%
+                </Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={Math.min(connUtil.pct, 100)}
+                color={connUtil.pct >= 90 ? 'error' : connUtil.pct >= 70 ? 'warning' : 'success'} sx={{ height: 8, borderRadius: 1 }} />
+            </Card>
           )}
 
-          {/* Trends — small multiples built from probe history */}
           {trendDefs.length > 0 ? (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(258px, 100%), 1fr))', gap: 16, marginBottom: extras.length ? 16 : 0 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(258px, 100%), 1fr))', gap: 2, mb: extras.length ? 2 : 0 }}>
                 {trendDefs.map(def => (
-                  <TrendChart key={def.key} def={def} points={def.rate ? toRate(series[def.key]) : series[def.key]} />
+                  <TrendChart key={def.key} def={def} points={def.rate ? toRate(series[def.key]) : series[def.key]}
+                    tooltipStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
                 ))}
-              </div>
+              </Box>
               {extras.length > 0 && (
-                <div className="card" style={{ padding: '16px 20px', marginBottom: bucketNames.length ? 16 : 0 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 12 }}>Current snapshot</div>
-                  <div style={{ display: 'flex', gap: 30, flexWrap: 'wrap' }}>
-                    {extras.map(([label, value]) => (
-                      <span key={label} style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>
-                        <span style={{ fontSize: 11.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{label}</span>
-                        <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{value}</span>
-                      </span>
+                <Card sx={{ px: 2.5, py: 2, mb: bucketNames.length ? 2 : 0 }}>
+                  <Box sx={{ mb: 1.5 }}>{label('Current snapshot')}</Box>
+                  <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {extras.map(([lbl, value]) => (
+                      <Box key={lbl} sx={{ display: 'inline-flex', flexDirection: 'column', gap: 0.25 }}>
+                        {label(lbl)}
+                        <Typography variant="h6" sx={{ fontFamily: 'var(--font-mono)' }}>{value}</Typography>
+                      </Box>
                     ))}
-                  </div>
-                </div>
+                  </Box>
+                </Card>
               )}
               {bucketNames.length > 0 && (
-                <div className="card" style={{ padding: '16px 20px' }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, marginBottom: 12 }}>Buckets ({bucketNames.length})</div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {bucketNames.map(name => (
-                      <span key={name} className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 12.5 }}>{name}</span>
-                    ))}
-                  </div>
-                </div>
+                <Card sx={{ px: 2.5, py: 2 }}>
+                  <Box sx={{ mb: 1.5 }}>{label(`Buckets (${bucketNames.length})`)}</Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {bucketNames.map(name => <Chip key={name} label={name} variant="outlined" size="small" sx={{ fontFamily: 'var(--font-mono)' }} />)}
+                  </Box>
+                </Card>
               )}
             </>
           ) : !probing ? (
-            <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
-              <Gauge size={36} style={{ opacity: 0.25, marginBottom: 12 }} />
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{st.label === 'Offline' ? 'Resource is unreachable' : 'Collecting metrics…'}</div>
-              <div style={{ fontSize: 13, marginTop: 4 }}>{st.label === 'Offline' ? 'Check host, port, and credentials — the error is shown above.' : 'Trend charts fill in as the collector samples every 60s.'}</div>
-            </div>
+            <Card>
+              <EmptyState
+                icon={Gauge}
+                title={st.label === 'Offline' ? 'Resource is unreachable' : 'Collecting metrics…'}
+                description={st.label === 'Offline' ? 'Check host, port, and credentials — the error is shown above.' : 'Trend charts fill in as the collector samples every 60s.'}
+              />
+            </Card>
           ) : null}
-        </div>
+        </Box>
       )}
 
       {/* ── Overview ── */}
       {activeTab === 'overview' && (
-        <div>
-          <div className="grid-stats-4" style={{ marginBottom: 24 }}>
-            <MiniStat icon={Globe} label="Host" value={resource?.host || '—'} mono />
-            <MiniStat icon={Shield} label="Protocol" value={resource?.protocol || '—'} />
-            <MiniStat icon={ShieldCheck} label="Gateway" value={resource?.use_gateway ? 'Enabled' : 'Direct'} />
-            <MiniStat icon={User} label="Users with access" value={String(assignedUsers)} />
-          </div>
-          <div className="resource-overview-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20 }}>
-            <div className="card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <Activity size={16} color="var(--brand-primary)" />
-                <h3 style={{ fontSize: 13, fontWeight: 700 }}>Configuration</h3>
-              </div>
-              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+        <Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
+            <StatCard icon={Globe} label="Host" value={resource?.host || '—'} />
+            <StatCard icon={Shield} label="Protocol" value={resource?.protocol || '—'} />
+            <StatCard icon={ShieldCheck} label="Gateway" value={resource?.use_gateway ? 'Enabled' : 'Direct'} />
+            <StatCard icon={User} label="Users with access" value={String(assignedUsers)} />
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.5fr 1fr' }, gap: 2.5 }}>
+            <Card sx={{ p: 2.5 }}>
+              <Box sx={{ mb: 2 }}>{panelTitle(Activity, 'Configuration')}</Box>
+              <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 <InfoBlock label="Type" value={resource?.resource_type} />
                 <InfoBlock label="Protocol" value={resource?.protocol} />
                 <InfoBlock label="Port" value={String(resource?.port)} mono />
                 <InfoBlock label="Auth" value={resource?.auth_type} />
                 <InfoBlock label="Username" value={resource?.username || 'anonymous'} />
                 {isSqlable && <InfoBlock label="Database" value={resource?.database || 'postgres'} />}
-              </div>
-              <div style={{ marginTop: 20 }}>
-                <div className="input-label" style={{ marginBottom: 8 }}>Description</div>
-                <div style={{ padding: 14, background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: 13.5, color: 'var(--text-secondary)' }}>
-                  {resource?.description || 'No description provided.'}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Layers size={16} color="var(--brand-primary)" />
-                  <h3 style={{ fontSize: 13, fontWeight: 700 }}>Tags</h3>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              </Box>
+              <Box sx={{ mt: 2.5 }}>
+                <Box sx={{ mb: 1 }}>{label('Description')}</Box>
+                <Paper variant="outlined" sx={{ p: 1.75 }}>
+                  <Typography variant="body1" color="text.secondary">{resource?.description || 'No description provided.'}</Typography>
+                </Paper>
+              </Box>
+            </Card>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+              <Card sx={{ p: 2.5 }}>
+                <Box sx={{ mb: 2 }}>{panelTitle(Layers, 'Tags')}</Box>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                   {resource?.tags ? resource.tags.split(',').filter(Boolean).map(tag => (
-                    <span key={tag} style={{ padding: '4px 10px', fontSize: 12, fontWeight: 600, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>{tag.trim()}</span>
-                  )) : <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No tags.</span>}
-                </div>
-              </div>
-              <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Clock3 size={16} color="var(--brand-primary)" />
-                  <h3 style={{ fontSize: 13, fontWeight: 700 }}>Timeline</h3>
-                </div>
-                <div style={{ display: 'grid', gap: 12 }}>
-                  <div>
-                    <div className="input-label">Created</div>
-                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{resource?.created_at ? format(new Date(resource.created_at), 'PPP p') : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="input-label">Last updated</div>
-                    <div style={{ fontWeight: 600, fontSize: 13.5 }}>{resource?.updated_at ? format(new Date(resource.updated_at), 'PPP p') : '—'}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                    <Chip key={tag} label={tag.trim()} variant="outlined" size="small" />
+                  )) : <Typography variant="body2" color="text.secondary">No tags.</Typography>}
+                </Box>
+              </Card>
+              <Card sx={{ p: 2.5 }}>
+                <Box sx={{ mb: 2 }}>{panelTitle(Clock3, 'Timeline')}</Box>
+                <Box sx={{ display: 'grid', gap: 1.5 }}>
+                  <Box>
+                    {label('Created')}
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>{resource?.created_at ? format(new Date(resource.created_at), 'PPP p') : '—'}</Typography>
+                  </Box>
+                  <Box>
+                    {label('Last updated')}
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>{resource?.updated_at ? format(new Date(resource.updated_at), 'PPP p') : '—'}</Typography>
+                  </Box>
+                </Box>
+              </Card>
+            </Box>
+          </Box>
+        </Box>
       )}
 
       {/* ── Database (schema tree + data grid / SQL console) ── */}
       {activeTab === 'database' && resource && (
-        <div className="card" style={{ padding: 0, display: 'flex', height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
-          <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
+        <Card sx={{ display: 'flex', height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
+          <Box sx={{ width: 220, flexShrink: 0, borderRight: 1, borderColor: 'divider', overflow: 'hidden' }}>
             <SchemaTree
               resourceId={resource.id}
               selected={selectedTable}
               onSelect={(schema, table) => { setSelectedTable({ schema, table }); setDbView('browse') }}
             />
-          </div>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <button
-                onClick={() => setDbView('browse')}
-                style={{
-                  border: 'none', background: 'transparent', padding: '9px 16px', cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
-                  color: dbView === 'browse' ? 'var(--text-primary)' : 'var(--text-muted)',
-                  borderBottom: dbView === 'browse' ? '2px solid var(--brand-primary)' : '2px solid transparent',
-                }}
-              >
-                Data
-              </button>
-              <button
-                onClick={() => setDbView('console')}
-                style={{
-                  border: 'none', background: 'transparent', padding: '9px 16px', cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
-                  color: dbView === 'console' ? 'var(--text-primary)' : 'var(--text-muted)',
-                  borderBottom: dbView === 'console' ? '2px solid var(--brand-primary)' : '2px solid transparent',
-                }}
-              >
-                SQL Console
-              </button>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+          </Box>
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <TabSwitcher
+              tabs={[{ id: 'browse', label: 'Data' }, { id: 'console', label: 'SQL Console' }]}
+              active={dbView}
+              onChange={id => setDbView(id as 'browse' | 'console')}
+            />
+            <Box sx={{ flex: 1, overflow: 'hidden' }}>
               {dbView === 'console' ? (
                 <SqlConsole resourceId={resource.id} />
               ) : selectedTable ? (
@@ -551,150 +536,135 @@ export function ResourceDetail() {
                   canEdit={can('manage-resources')}
                 />
               ) : (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                  <Table size={28} style={{ opacity: 0.3, marginBottom: 10 }} />
-                  <div>Select a table from the schema tree to browse its rows.</div>
-                </div>
+                <EmptyState icon={TableIcon} title="Select a table from the schema tree to browse its rows." />
               )}
-            </div>
-          </div>
-        </div>
+            </Box>
+          </Box>
+        </Card>
       )}
 
       {/* ── Redis keys ── */}
       {activeTab === 'redis' && resource && (
-        <div className="card" style={{ padding: 0, height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
+        <Card sx={{ height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
           <RedisBrowser resourceId={resource.id} canEdit={can('manage-resources')} />
-        </div>
+        </Card>
       )}
 
       {/* ── Kafka topics ── */}
       {activeTab === 'kafka' && resource && (
-        <div className="card" style={{ padding: 0, height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
+        <Card sx={{ height: 'calc(100vh - 280px)', minHeight: 500, overflow: 'hidden' }}>
           <KafkaBrowser resourceId={resource.id} />
-        </div>
+        </Card>
       )}
 
       {/* ── Access ── */}
       {activeTab === 'access' && (
-        <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <Lock size={16} color="var(--brand-primary)" />
-            <div>
-              <h3 style={{ fontSize: 13, fontWeight: 700 }}>Access control</h3>
-              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Grant users read, write, or admin access to this resource.</p>
-            </div>
-          </div>
+        <Card sx={{ p: 2.5 }}>
+          <Box sx={{ mb: 2.5 }}>{panelTitle(Lock, 'Access control', 'Grant users read, write, or admin access to this resource.')}</Box>
 
           {canManage && (
-            <div className="resource-access-grid" style={{ display: 'grid', gap: 14, gridTemplateColumns: '1fr 200px 150px', alignItems: 'end', padding: 18, background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginBottom: 20 }}>
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">User</label>
-                <select className="input" value={assignUserId} onChange={(e) => setAssignUserId(Number(e.target.value) || '')}>
-                  <option value="">Select a user…</option>
-                  {users.filter(u => !accessRecords.some(a => a.user_id === u.id)).map(u => (
-                    <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Access level</label>
-                <select className="input" value={assignLevel} onChange={(e) => setAssignLevel(e.target.value)}>
-                  {accessLevels.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                </select>
-              </div>
-              <button className="btn btn-primary" onClick={assignAccess} disabled={savingAccess} style={{ height: 40 }}>
-                {savingAccess ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
-                <span style={{ marginLeft: 6 }}>Grant</span>
-              </button>
-            </div>
+            <Paper variant="outlined" sx={{ p: 2, mb: 2.5, display: 'grid', gap: 1.75, gridTemplateColumns: { xs: '1fr', md: '1fr 200px 150px' }, alignItems: 'end' }}>
+              <TextField select label="User" value={assignUserId} onChange={e => setAssignUserId(Number(e.target.value) || '')}
+                slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+                <MenuItem value="">Select a user…</MenuItem>
+                {users.filter(u => !accessRecords.some(a => a.user_id === u.id)).map(u => (
+                  <MenuItem key={u.id} value={u.id}>{u.username} ({u.role})</MenuItem>
+                ))}
+              </TextField>
+              <TextField select label="Access level" value={assignLevel} onChange={e => setAssignLevel(e.target.value)}>
+                {accessLevels.map(l => <MenuItem key={l.value} value={l.value}>{l.label}</MenuItem>)}
+              </TextField>
+              <Button onClick={assignAccess} loading={savingAccess} icon={<Plus size={14} />}>Grant</Button>
+            </Paper>
           )}
 
-          <div className="table-container">
-            <table className="k-table">
-              <thead><tr>
-                <th>User</th><th>Role</th><th>Access</th><th>Granted</th>{canManage && <th></th>}
-              </tr></thead>
-              <tbody>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>User</TableCell><TableCell>Role</TableCell><TableCell>Access</TableCell><TableCell>Granted</TableCell>{canManage && <TableCell />}
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {accessRecords.length === 0 ? (
-                  <tr><td colSpan={canManage ? 5 : 4} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No users have access yet.</td></tr>
+                  <TableRow><TableCell colSpan={canManage ? 5 : 4} align="center" sx={{ py: 4, color: 'text.secondary' }}>No users have access yet.</TableCell></TableRow>
                 ) : accessRecords.map(entry => (
-                  <tr key={entry.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{entry.user?.username || 'unknown'}</div>
-                      {entry.user?.email && <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{entry.user.email}</div>}
-                    </td>
-                    <td><span className="badge badge-neutral">{entry.user?.role || '—'}</span></td>
-                    <td><span className={`badge ${entry.access_level === 'admin' ? 'badge-info' : entry.access_level === 'write' ? 'badge-warning' : 'badge-neutral'}`}>{entry.access_level}</span></td>
-                    <td style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{entry.created_at ? format(new Date(entry.created_at), 'PP') : '—'}</td>
+                  <TableRow key={entry.id} hover>
+                    <TableCell>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>{entry.user?.username || 'unknown'}</Typography>
+                      {entry.user?.email && <Typography variant="body2" color="text.secondary">{entry.user.email}</Typography>}
+                    </TableCell>
+                    <TableCell><Chip label={entry.user?.role || '—'} variant="outlined" size="small" /></TableCell>
+                    <TableCell>
+                      <Chip label={entry.access_level} size="small"
+                        color={entry.access_level === 'admin' ? 'info' : entry.access_level === 'write' ? 'warning' : 'default'}
+                        variant={entry.access_level === 'read' ? 'outlined' : 'filled'} />
+                    </TableCell>
+                    <TableCell sx={{ color: 'text.secondary' }}>{entry.created_at ? format(new Date(entry.created_at), 'PP') : '—'}</TableCell>
                     {canManage && (
-                      <td style={{ textAlign: 'right' }}>
-                        <button className="btn-icon-sm danger" title="Revoke" onClick={() => revokeAccess(entry.id)} disabled={revokingId === entry.id}>
-                          {revokingId === entry.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
-                        </button>
-                      </td>
+                      <TableCell align="right">
+                        <MuiTooltip title="Revoke">
+                          <span>
+                            <IconButton color="error" onClick={() => revokeAccess(entry.id)} disabled={revokingId === entry.id} aria-label={`Revoke ${entry.user?.username || 'user'}`}>
+                              {revokingId === entry.id ? <CircularProgress size={14} /> : <Trash2 size={14} />}
+                            </IconButton>
+                          </span>
+                        </MuiTooltip>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
       )}
 
       {/* ── Audit ── */}
       {activeTab === 'audit' && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <History size={16} color="var(--brand-primary)" />
-              <div>
-                <h3 style={{ fontSize: 13, fontWeight: 700 }}>Audit log</h3>
-                <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>Every access change and query on this resource.</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                Since <input type="date" className="input" style={{ height: 32, fontSize: 12, width: 130, padding: '0 8px' }} value={auditSince} onChange={(e) => setAuditSince(e.target.value)} />
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                Until <input type="date" className="input" style={{ height: 32, fontSize: 12, width: 130, padding: '0 8px' }} value={auditUntil} onChange={(e) => setAuditUntil(e.target.value)} />
-              </label>
-              <select className="input" style={{ height: 32, fontSize: 12, width: 80, padding: '0 8px' }} value={auditLimit} onChange={(e) => setAuditLimit(Number(e.target.value))}>
-                <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
-              </select>
-              <button className="btn-icon-sm" onClick={() => loadAudit()} disabled={loadingAudit} title="Refresh">
-                {loadingAudit ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
-              </button>
-            </div>
-          </div>
-          <div className="table-container">
-            <table className="k-table">
-              <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Details</th></tr></thead>
-              <tbody>
+        <Card sx={{ p: 2.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5, flexWrap: 'wrap', gap: 2 }}>
+            {panelTitle(History, 'Audit log', 'Every access change and query on this resource.')}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+              <TextField label="Since" type="date" value={auditSince} onChange={e => setAuditSince(e.target.value)} sx={{ width: 160 }} slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField label="Until" type="date" value={auditUntil} onChange={e => setAuditUntil(e.target.value)} sx={{ width: 160 }} slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField select label="Rows" value={auditLimit} onChange={e => setAuditLimit(Number(e.target.value))} sx={{ width: 90 }}>
+                {[10, 20, 50, 100].map(n => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+              </TextField>
+              <MuiTooltip title="Refresh">
+                <span>
+                  <IconButton onClick={() => loadAudit()} disabled={loadingAudit} aria-label="Refresh audit log">
+                    {loadingAudit ? <CircularProgress size={14} /> : <RefreshCw size={14} />}
+                  </IconButton>
+                </span>
+              </MuiTooltip>
+            </Box>
+          </Box>
+          <TableContainer>
+            <Table size="small">
+              <TableHead><TableRow><TableCell>Time</TableCell><TableCell>Actor</TableCell><TableCell>Action</TableCell><TableCell>Details</TableCell></TableRow></TableHead>
+              <TableBody>
                 {loadingAudit && audits.length === 0 ? (
-                  <tr><td colSpan={4} style={{ padding: 48, textAlign: 'center' }}><Loader2 size={22} className="spin" style={{ margin: '0 auto' }} /></td></tr>
+                  <TableRow><TableCell colSpan={4} align="center" sx={{ py: 5 }}><CircularProgress size={22} /></TableCell></TableRow>
                 ) : audits.length === 0 ? (
-                  <tr><td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No audit records.</td></tr>
+                  <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>No audit records.</TableCell></TableRow>
                 ) : audits.map(entry => (
-                  <tr key={entry.id}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, whiteSpace: 'nowrap' }}>{format(new Date(entry.created_at), 'MM/dd HH:mm:ss')}</td>
-                    <td style={{ fontWeight: 600 }}>{entry.performed_by || 'system'}</td>
-                    <td><span className="badge badge-neutral">{entry.action.replace(/_/g, ' ')}</span></td>
-                    <td style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderAuditDetails(entry.details)}</td>
-                  </tr>
+                  <TableRow key={entry.id} hover>
+                    <TableCell sx={{ fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>{format(new Date(entry.created_at), 'MM/dd HH:mm:ss')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{entry.performed_by || 'system'}</TableCell>
+                    <TableCell><Chip label={entry.action.replace(/_/g, ' ')} variant="outlined" size="small" /></TableCell>
+                    <TableCell sx={{ color: 'text.secondary', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{renderAuditDetails(entry.details)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
       )}
 
       <style>{`
-        .info-block { padding: 14px; border: 1px solid var(--border); background: var(--bg-elevated); display: flex; flex-direction: column; gap: 4px; }
         .pulse-dot { animation: pulseDot 2s ease-in-out infinite; }
         @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-        @media (max-width: 900px) { .resource-overview-grid { grid-template-columns: 1fr !important; } .resource-access-grid { grid-template-columns: 1fr !important; } }
       `}</style>
     </div>
   )
@@ -702,15 +672,15 @@ export function ResourceDetail() {
 
 function HeroStat({ label, value }: { label: string; value: string }) {
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
-    </span>
+    <Box sx={{ display: 'inline-flex', flexDirection: 'column', gap: 0.25 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</Typography>
+      <Typography variant="body1" sx={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{value}</Typography>
+    </Box>
   )
 }
 
 // A single small-multiple: metric label, current value, and a sparkline trend.
-function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: number }[] }) {
+function TrendChart({ def, points, tooltipStyle }: { def: TrendDef; points: { t: number; v: number }[]; tooltipStyle: React.CSSProperties }) {
   if (!points || points.length === 0) return null
   const cur = points[points.length - 1].v
   const vals = points.map(p => p.v)
@@ -723,10 +693,10 @@ function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: nu
   }
   const id = `tg_${def.key}`
   return (
-    <div className="card" style={{ padding: 16 }}>
-      <div style={{ fontSize: 12.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{def.label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', margin: '6px 0 10px' }}>{trendFmt(def, cur)}</div>
-      <div style={{ height: 64 }}>
+    <Card sx={{ p: 2 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{def.label}</Typography>
+      <Typography variant="h4" component="div" sx={{ fontFamily: 'var(--font-mono)', my: 0.75 }}>{trendFmt(def, cur)}</Typography>
+      <Box sx={{ height: 64 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
             <defs>
@@ -737,33 +707,20 @@ function TrendChart({ def, points }: { def: TrendDef; points: { t: number; v: nu
             </defs>
             <YAxis hide domain={domain} allowDataOverflow />
             <XAxis dataKey="t" hide />
-            <Tooltip labelFormatter={(t) => format(new Date(t), 'HH:mm:ss')} formatter={(v) => [trendFmt(def, Number(v)), def.label]}
-              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 0, fontSize: 12, fontFamily: 'var(--font-mono)' }} />
+            <Tooltip labelFormatter={(t) => format(new Date(t), 'HH:mm:ss')} formatter={(v) => [trendFmt(def, Number(v)), def.label]} contentStyle={tooltipStyle} />
             <Area type="monotone" dataKey="v" stroke={def.color} strokeWidth={2} fill={`url(#${id})`} isAnimationActive={false} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-function MiniStat({ icon: Icon, label, value, mono }: { icon: IconComponent; label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="card stat-card">
-      <div className="stat-icon-wrapper"><Icon size={18} /></div>
-      <div className="stat-val-group">
-        <div className="stat-value" style={{ fontSize: 13, fontFamily: mono ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
-        <div className="stat-label">{label}</div>
-      </div>
-    </div>
+      </Box>
+    </Card>
   )
 }
 
 function InfoBlock({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
-    <div className="info-block">
-      <strong style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</strong>
-      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, fontFamily: mono ? 'var(--font-mono)' : undefined }}>{value || '—'}</span>
-    </div>
+    <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{label}</Typography>
+      <Typography variant="body1" sx={{ fontWeight: 600, fontFamily: mono ? 'var(--font-mono)' : undefined }}>{value || '—'}</Typography>
+    </Paper>
   )
 }
