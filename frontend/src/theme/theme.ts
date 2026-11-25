@@ -1,4 +1,4 @@
-import { createTheme, type Theme } from '@mui/material/styles'
+import { alpha, createTheme, type Theme } from '@mui/material/styles'
 
 // Enterprise, data-first theme: dense controls, flat surfaces, muted blue/gray
 // palette. Colours deliberately mirror the legacy CSS tokens in index.css so
@@ -30,12 +30,12 @@ export function buildTheme(dark: boolean): Theme {
     typography: {
       fontFamily: FONT_SANS,
       fontSize: 13,
-      h1: { fontSize: '1.75rem', fontWeight: 600 },
-      h2: { fontSize: '1.5rem', fontWeight: 600 },
-      h3: { fontSize: '1.25rem', fontWeight: 600 },
-      h4: { fontSize: '1.125rem', fontWeight: 600 },
-      h5: { fontSize: '1rem', fontWeight: 600 },
-      h6: { fontSize: '0.9375rem', fontWeight: 600 },
+      h1: { fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.02em' },
+      h2: { fontSize: '1.75rem', fontWeight: 600, letterSpacing: '-0.02em' },
+      h3: { fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.01em' },
+      h4: { fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.01em' },
+      h5: { fontSize: '1.125rem', fontWeight: 600 },
+      h6: { fontSize: '1rem', fontWeight: 600 },
       subtitle1: { fontSize: '0.9375rem', fontWeight: 500 },
       subtitle2: { fontSize: '0.8125rem', fontWeight: 600 },
       body1: { fontSize: '0.8125rem' },
@@ -56,7 +56,19 @@ export function buildTheme(dark: boolean): Theme {
       MuiCheckbox: { defaultProps: { size: 'small' } },
       MuiSwitch: { defaultProps: { size: 'small' } },
       MuiTable: { defaultProps: { size: 'small' } },
-      MuiChip: { defaultProps: { size: 'small' }, styleOverrides: { root: { borderRadius: 3, fontWeight: 600 } } },
+      MuiChip: {
+        defaultProps: { size: 'small' },
+        styleOverrides: { root: { borderRadius: 4, fontWeight: 600 } },
+        // Soft, tinted status chips instead of saturated solid fills.
+        variants: (['primary', 'success', 'warning', 'error', 'info'] as const).map(c => ({
+          props: { variant: 'filled' as const, color: c },
+          style: ({ theme }: { theme: Theme }) => ({
+            backgroundColor: alpha(theme.palette[c].main, dark ? 0.2 : 0.14),
+            color: dark ? theme.palette[c].light : theme.palette[c].dark,
+            '& .MuiChip-icon': { color: 'inherit' },
+          }),
+        })),
+      },
       MuiPaper: { defaultProps: { elevation: 0 }, styleOverrides: { root: { backgroundImage: 'none' } } },
       MuiCard: { defaultProps: { variant: 'outlined' } },
       MuiTooltip: { defaultProps: { arrow: true } },

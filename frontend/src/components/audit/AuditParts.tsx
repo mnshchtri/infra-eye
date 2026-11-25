@@ -65,7 +65,7 @@ export function ScanBadge({ tone, icon, children }: { tone: Tone; icon?: ReactNo
       variant={tone === 'default' ? 'outlined' : 'filled'}
       icon={icon as React.ReactElement | undefined}
       label={children}
-      sx={{ fontFamily: 'var(--font-mono)', fontWeight: 700, textTransform: 'uppercase' }}
+      sx={{ fontWeight: 600 }}
     />
   )
 }

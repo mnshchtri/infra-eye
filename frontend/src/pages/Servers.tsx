@@ -211,9 +211,9 @@ export function Servers() {
       field: 'host', headerName: 'Connection', flex: 1, minWidth: 170,
       renderCell: ({ row: s }) => s.host
         ? <Typography variant="body2" sx={{ fontFamily: 'var(--font-mono)' }}>{s.ssh_user}@{s.host}</Typography>
-        : <Chip label="DIRECT API" color="success" size="small" />,
+        : <Chip label="Direct API" color="success" size="small" />,
     },
-    { field: 'auth_type', headerName: 'Auth', width: 120, renderCell: ({ value }) => <Chip label={String(value).toUpperCase()} variant="outlined" size="small" /> },
+    { field: 'auth_type', headerName: 'Auth', width: 120, renderCell: ({ value }) => <Chip label={String(value).charAt(0).toUpperCase() + String(value).slice(1)} variant="outlined" size="small" /> },
     {
       field: 'tags', headerName: 'Tags', flex: 1, minWidth: 140, sortable: false,
       renderCell: ({ row: s }) => (
@@ -235,11 +235,11 @@ export function Servers() {
         if (r !== undefined) {
           return (
             <Tooltip title={r.ok ? '' : r.msg}>
-              <Chip label={r.ok ? 'CONNECTED' : 'FAILED'} color={r.ok ? 'success' : 'error'} size="small" />
+              <Chip label={r.ok ? 'Connected' : 'Failed'} color={r.ok ? 'success' : 'error'} size="small" />
             </Tooltip>
           )
         }
-        return <Chip label={s.status.toUpperCase()} color={s.status === 'online' ? 'success' : 'default'} variant={s.status === 'online' ? 'filled' : 'outlined'} size="small" />
+        return <Chip label={s.status.charAt(0).toUpperCase() + s.status.slice(1)} color={s.status === 'online' ? 'success' : 'default'} variant={s.status === 'online' ? 'filled' : 'outlined'} size="small" />
       },
     },
     {
