@@ -105,12 +105,14 @@ export function Sidebar() {
 
   const content = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: collapsed ? 1.5 : 2, height: 48, flexShrink: 0 }}>
-        <img
-          src={logo}
-          alt="InfraEye"
-          style={{ height: 28, width: 'auto', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }}
-        />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: collapsed ? 1.5 : 2, height: 48, flexShrink: 0 }}>
+        <Box sx={{ width: 32, height: 32, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+          <img
+            src={logo}
+            alt="InfraEye"
+            style={{ width: '100%', height: '100%', objectFit: 'contain', filter: darkMode ? 'brightness(0) invert(1)' : 'none' }}
+          />
+        </Box>
         {!collapsed && (
           <Typography variant="h6" sx={{ flex: 1, fontWeight: 700, letterSpacing: '-0.01em' }}>InfraEye</Typography>
         )}

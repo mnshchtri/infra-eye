@@ -1,3 +1,4 @@
+import { Box, MenuItem, Select } from '@mui/material'
 import type { FolderItem } from '../../hooks/useFolders'
 
 export function FolderTag({
@@ -8,23 +9,25 @@ export function FolderTag({
   onChange: (id: number | null) => void
   disabled?: boolean
 }) {
-  const folder = folders.find(f => f.id === value) || null
-  const cssVars = folder
-    ? ({ '--folder-color': folder.color, '--folder-chip-bg': `${folder.color}1a` } as React.CSSProperties)
-    : undefined
-
+  const dot = (color?: string) => (
+    <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color ?? 'text.disabled', mr: 1, flexShrink: 0, display: 'inline-block' }} />
+  )
   return (
-    <select
+    <Select<number | ''>
       value={value ?? ''}
-      onClick={e => e.stopPropagation()}
-      onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}
+      displayEmpty
       disabled={disabled}
-      title={disabled ? undefined : 'Move to folder'}
-      className="folder-tag-select"
-      style={cssVars}
+      onClick={e => e.stopPropagation()}
+      onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      inputProps={{ 'aria-label': 'Folder' }}
+      sx={{ fontSize: 12, minWidth: 130, maxWidth: '100%', '& .MuiSelect-select': { py: 0.5, display: 'flex', alignItems: 'center' } }}
+      renderValue={(v) => {
+        const f = folders.find(x => x.id === Number(v))
+        return <>{dot(f?.color)}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{f ? f.name : 'No folder'}</span></>
+      }}
     >
-      <option value="">No folder</option>
-      {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-    </select>
+      <MenuItem value="">No folder</MenuItem>
+      {folders.map(f => <MenuItem key={f.id} value={f.id}>{dot(f.color)}{f.name}</MenuItem>)}
+    </Select>
   )
 }

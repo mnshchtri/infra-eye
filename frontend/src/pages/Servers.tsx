@@ -213,7 +213,7 @@ export function Servers() {
         ? <Typography variant="body2" sx={{ fontFamily: 'var(--font-mono)' }}>{s.ssh_user}@{s.host}</Typography>
         : <Chip label="DIRECT API" color="success" size="small" />,
     },
-    { field: 'auth_type', headerName: 'Auth', width: 100, renderCell: ({ value }) => <Chip label={String(value).toUpperCase()} variant="outlined" size="small" /> },
+    { field: 'auth_type', headerName: 'Auth', width: 120, renderCell: ({ value }) => <Chip label={String(value).toUpperCase()} variant="outlined" size="small" /> },
     {
       field: 'tags', headerName: 'Tags', flex: 1, minWidth: 140, sortable: false,
       renderCell: ({ row: s }) => (
@@ -223,7 +223,7 @@ export function Servers() {
       ),
     },
     {
-      field: 'folder_id', headerName: 'Folder', width: 150, sortable: false,
+      field: 'folder_id', headerName: 'Folder', width: 190, sortable: false,
       renderCell: ({ row: s }) => (
         <FolderTag folders={folders} value={s.folder_id ?? null} onChange={fid => moveServerFolder(s.id, fid)} disabled={!canManage} />
       ),
@@ -249,7 +249,7 @@ export function Servers() {
           {canManage && (s.status === 'online' ? (
             <Tooltip title="Disconnect">
               <span>
-                <IconButton color="error" onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id} aria-label="Disconnect">
+                <IconButton onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id} aria-label="Disconnect">
                   {disconnecting === s.id ? <CircularProgress size={14} /> : <WifiOff size={15} />}
                 </IconButton>
               </span>
@@ -409,11 +409,12 @@ export function Servers() {
           action={canManage ? <Button icon={<Plus size={14} />} onClick={openAdd}>Add Your First Server</Button> : undefined}
         />
       ) : (
-        <Box sx={{ flex: 1, minHeight: 320 }}>
+        <Box>
           <DataGrid
+            autoHeight
             rows={filtered}
             columns={columns}
-            rowHeight={56}
+            rowHeight={60}
             disableRowSelectionOnClick
             disableColumnMenu
             pageSizeOptions={[10, 25, 50]}
@@ -428,7 +429,7 @@ export function Servers() {
                 />
               ),
             }}
-            sx={{ bgcolor: 'background.paper', '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' } }}
+            sx={{ bgcolor: 'background.paper', '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center', lineHeight: 1.35 } }}
           />
         </Box>
       )}
