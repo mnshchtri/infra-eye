@@ -21,11 +21,11 @@ export function fmtBytes(bytes: number): string {
   return fmtKB(bytes / 1024)
 }
 
-/** Green below 70%, amber to 90%, red above — the usual disk-pressure bands. */
-export function usageColor(percent: number): string {
-  if (percent >= 90) return 'var(--danger)'
-  if (percent >= 70) return 'var(--warning)'
-  return 'var(--success)'
+/** Success below 70%, warning to 90%, error above: the usual disk-pressure bands. */
+export function usageTone(percent: number): 'success' | 'warning' | 'error' {
+  if (percent >= 90) return 'error'
+  if (percent >= 70) return 'warning'
+  return 'success'
 }
 
 // A fixed palette so a category keeps the same colour between the stacked bar,

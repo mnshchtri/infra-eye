@@ -1,92 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  Alert, Box, ButtonBase, IconButton, MenuItem, TableCell, TableRow, TextField, Tooltip, Typography,
+} from '@mui/material'
+import {
   HardDrive, Database, FolderTree, FileText, Layers, Gauge,
-  ChevronRight, RefreshCw, Search, Loader2, AlertTriangle, CornerLeftUp, Hash,
+  ChevronRight, RefreshCw, Search, AlertTriangle, CornerLeftUp, Hash,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { errMessage } from '../../utils/errors'
 import { useToastStore } from '../../store/toastStore'
-import { fmtKB, usageColor, categoryColor, pathCrumbs } from './format'
+import { Button } from '../ui'
+import {
+  CenteredSpinner, DataTable, Dot, LoadFailed, MonoCell, SectionCard, Tile, TileGrid, UsageBar,
+} from '../server/ServerParts'
+import { MONO } from '../server/tokens'
+import { fmtKB, usageTone, categoryColor, pathCrumbs } from './format'
 import type { StorageInfo, StorageAnalysis, FilesystemInfo } from './types'
-
-const MONO = 'var(--font-mono)'
-
-/** Same visual language as the Overview tab's stat cards. */
-function Tile({ label, value, sub, icon: Icon, accent }: {
-  label: string; value: string; sub?: string; icon: typeof HardDrive; accent?: string
-}) {
-  return (
-    <div className="card" style={{ padding: '20px 24px', border: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{
-          width: 36, height: 36, border: '1px solid var(--border-bright)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Icon size={16} color={accent || 'var(--brand-primary)'} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', fontFamily: MONO, lineHeight: 1.1 }}>{value}</div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.1em', fontFamily: MONO, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {label}
-          </div>
-          {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: MONO, marginTop: 4 }}>{sub}</div>}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SectionCard({ icon: Icon, title, count, action, children }: {
-  icon: typeof HardDrive; title: string; count?: number; action?: React.ReactNode; children: React.ReactNode
-}) {
-  return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <Icon size={16} color="var(--brand-primary)" />
-        <span style={{ fontWeight: 800, fontSize: 14 }}>{title}</span>
-        {count !== undefined && <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', fontFamily: MONO }}>({count})</span>}
-        {action && <div style={{ marginLeft: 'auto' }}>{action}</div>}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-const thStyle: React.CSSProperties = {
-  padding: '10px 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)',
-  textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: MONO,
-  textAlign: 'left', background: 'var(--bg-elevated)',
-}
-const tdStyle: React.CSSProperties = { padding: '10px 16px', fontFamily: MONO, fontSize: 13 }
-
-function THead({ headers, sticky }: { headers: string[]; sticky?: boolean }) {
-  return (
-    <thead>
-      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-        {headers.map(h => (
-          <th key={h} style={sticky ? { ...thStyle, position: 'sticky', top: 0 } : thStyle}>{h}</th>
-        ))}
-      </tr>
-    </thead>
-  )
-}
-
-function UsageBar({ percent, color }: { percent: number; color?: string }) {
-  const pct = Math.max(0, Math.min(100, percent || 0))
-  return (
-    <div style={{ height: 6, background: 'var(--bg-elevated)', border: '1px solid var(--border)', overflow: 'hidden', minWidth: 90 }}>
-      <div style={{ height: '100%', width: `${pct}%`, background: color || usageColor(pct) }} />
-    </div>
-  )
-}
 
 function CategoryBadge({ name }: { name: string }) {
   const c = categoryColor(name)
   return (
-    <span style={{
-      padding: '2px 7px', fontSize: 10, fontWeight: 900, fontFamily: MONO, textTransform: 'uppercase',
-      background: `${c}18`, color: c, border: `1px solid ${c}40`, whiteSpace: 'nowrap',
-    }}>{name}</span>
+    <Box
+      component="span"
+      sx={{
+        px: 0.875, py: 0.125, fontSize: '0.6875rem', fontWeight: 600, borderRadius: 1, whiteSpace: 'nowrap',
+        bgcolor: `${c}22`, color: 'text.primary', border: 1, borderColor: `${c}66`,
+      }}
+    >
+      {name}
+    </Box>
   )
 }
 
@@ -98,34 +40,30 @@ function CategoryBreakdown({ categories, totalKB }: { categories: StorageAnalysi
   if (categories.length === 0) return null
   const shown = categories.slice(0, 10)
   return (
-    <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: MONO }}>
-          Consumption by category
-        </span>
-        <span style={{ fontSize: 12, fontFamily: MONO, color: 'var(--text-secondary)' }}>{fmtKB(totalKB)} total</span>
-      </div>
-      <div style={{ display: 'flex', height: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
+    <Box sx={{ px: 2.5, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+        <Typography variant="subtitle2">Consumption by category</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO }}>{fmtKB(totalKB)} total</Typography>
+      </Box>
+      <Box sx={{ display: 'flex', height: 14, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
         {shown.map((cat, i) => (
-          <div
-            key={cat.name}
-            title={`${cat.name} — ${fmtKB(cat.size_kb)} (${cat.percent.toFixed(1)}%)`}
-            style={{ width: `${Math.max(cat.percent, 0.4)}%`, background: categoryColor(cat.name, i), transition: 'width 0.3s' }}
-          />
+          <Tooltip key={cat.name} title={`${cat.name} - ${fmtKB(cat.size_kb)} (${cat.percent.toFixed(1)}%)`}>
+            <Box sx={{ width: `${Math.max(cat.percent, 0.4)}%`, bgcolor: categoryColor(cat.name, i), transition: 'width 0.3s' }} />
+          </Tooltip>
         ))}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12 }}>
+      </Box>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.75, mt: 1.5 }}>
         {shown.map((cat, i) => (
-          <div key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{ width: 8, height: 8, background: categoryColor(cat.name, i), flexShrink: 0 }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{cat.name}</span>
-            <span style={{ fontSize: 12, fontFamily: MONO, color: 'var(--text-muted)' }}>
+          <Box key={cat.name} sx={{ display: 'flex', alignItems: 'center', gap: 0.875 }}>
+            <Dot color={categoryColor(cat.name, i)} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{cat.name}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO }}>
               {fmtKB(cat.size_kb)} · {cat.percent.toFixed(1)}%
-            </span>
-          </div>
+            </Typography>
+          </Box>
         ))}
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }
 
@@ -234,22 +172,10 @@ export function StoragePanel({ serverId, os }: StoragePanelProps) {
     }
   }, [serverId, limit, minFileKB, toast])
 
-  if (loading && !info) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
-      </div>
-    )
-  }
+  if (loading && !info) return <CenteredSpinner />
 
   if (!info || loadFailed) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-        <HardDrive size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
-        <div style={{ fontSize: 13 }}>Unable to load storage data</div>
-        <button className="btn btn-secondary" onClick={reloadInventory} style={{ marginTop: 16 }}>Retry</button>
-      </div>
-    )
+    return <LoadFailed icon={HardDrive} message="Unable to load storage data" onRetry={reloadInventory} />
   }
 
   const { totals } = info
@@ -259,181 +185,196 @@ export function StoragePanel({ serverId, os }: StoragePanelProps) {
   const crumbs = pathCrumbs(analysis?.path || pathInput)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Summary */}
-      <div className="grid-stats-4">
-        <Tile label="Total Capacity" value={fmtKB(totals.size_kb)} sub={`${totals.mounts} mount${totals.mounts === 1 ? '' : 's'}`} icon={HardDrive} />
-        <Tile label="Used" value={`${totals.use_percent.toFixed(1)}%`} sub={fmtKB(totals.used_kb)} icon={Gauge} accent={usageColor(totals.use_percent)} />
-        <Tile label="Free" value={fmtKB(totals.avail_kb)} icon={Database} accent="var(--success)" />
+      <TileGrid>
+        <Tile label="Total capacity" value={fmtKB(totals.size_kb)} sub={`${totals.mounts} mount${totals.mounts === 1 ? '' : 's'}`} icon={HardDrive} />
+        <Tile label="Used" value={`${totals.use_percent.toFixed(1)}%`} sub={fmtKB(totals.used_kb)} icon={Gauge} accent={`${usageTone(totals.use_percent)}.main`} />
+        <Tile label="Free" value={fmtKB(totals.avail_kb)} icon={Database} accent="success.main" />
         <Tile
-          label="Fullest Mount"
+          label="Fullest mount"
           value={busiest ? `${busiest.use_percent.toFixed(0)}%` : '—'}
           sub={busiest?.mountpoint}
           icon={AlertTriangle}
-          accent={busiest ? usageColor(busiest.use_percent) : undefined}
+          accent={busiest ? `${usageTone(busiest.use_percent)}.main` : undefined}
         />
-      </div>
+      </TileGrid>
 
       {info.warnings.length > 0 && (
-        <div className="card" style={{ padding: '12px 16px', border: '1px solid var(--warning)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <AlertTriangle size={15} color="var(--warning)" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: MONO }}>
-            {info.warnings.map((w, i) => <div key={i}>{w}</div>)}
-          </div>
-        </div>
+        <Alert severity="warning" variant="outlined" icon={<AlertTriangle size={16} />}>
+          {info.warnings.map((w, i) => <div key={i}>{w}</div>)}
+        </Alert>
       )}
 
-      {/* Filesystems — the per-mount answer to "what is consuming this disk" */}
+      {/* Filesystems: the per-mount answer to "what is consuming this disk" */}
       <SectionCard
         icon={HardDrive}
         title="Filesystems"
         count={info.filesystems.length}
         action={
-          <button className="btn btn-secondary btn-sm" onClick={reloadInventory} disabled={loading} title="Refresh">
-            <RefreshCw size={14} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
-          </button>
+          <Tooltip title="Refresh">
+            <span>
+              <IconButton onClick={reloadInventory} disabled={loading} aria-label="Refresh filesystems"><RefreshCw size={14} /></IconButton>
+            </span>
+          </Tooltip>
         }
       >
         {info.filesystems.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No filesystems reported</div>
+          <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>No filesystems reported</Box>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <THead headers={['Mount', 'Device', 'Type', 'Usage', 'Used', 'Free', 'Size', 'Inodes', '']} />
-              <tbody>
-                {info.filesystems.map((fs, i) => {
-                  const color = usageColor(fs.use_percent)
-                  return (
-                    <tr key={`${fs.device}-${fs.mountpoint}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ ...tdStyle, fontWeight: 700 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 6, height: 6, background: color, flexShrink: 0 }} />
-                          <span>{fs.mountpoint}</span>
-                        </div>
-                        {fs.options && (
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {fs.options}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fs.device}</td>
-                      <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-muted)' }}>{fs.fstype || '—'}</td>
-                      <td style={tdStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <UsageBar percent={fs.use_percent} />
-                          <span style={{ fontSize: 12, fontWeight: 800, color }}>{fs.use_percent.toFixed(0)}%</span>
-                        </div>
-                      </td>
-                      <td style={tdStyle}>{fmtKB(fs.used_kb)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{fmtKB(fs.avail_kb)}</td>
-                      <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>{fmtKB(fs.size_kb)}</td>
-                      <td style={{ ...tdStyle, fontSize: 12 }}>
-                        {fs.inodes_total > 0 ? (
-                          <span style={{ color: fs.inodes_percent >= 90 ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                            {fs.inodes_percent.toFixed(0)}%
-                            <span style={{ color: 'var(--text-muted)' }}> of {fs.inodes_total.toLocaleString()}</span>
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => runScan(fs.mountpoint)}
-                          disabled={scanning}
-                          style={{ gap: 6, whiteSpace: 'nowrap' }}
-                          title={`Analyze what is consuming ${fs.mountpoint}`}
-                        >
-                          <Search size={13} /> Analyze
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable label="Filesystems" headers={['Mount', 'Device', 'Type', 'Usage', 'Used', 'Free', 'Size', 'Inodes', '']}>
+            {info.filesystems.map((fs, i) => {
+              const tone = usageTone(fs.use_percent)
+              return (
+                <TableRow key={`${fs.device}-${fs.mountpoint}-${i}`} hover>
+                  <MonoCell bold>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Dot tone={tone} />
+                      <span>{fs.mountpoint}</span>
+                    </Box>
+                    {fs.options && (
+                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', mt: 0.25, maxWidth: 240 }}>
+                        {fs.options}
+                      </Typography>
+                    )}
+                  </MonoCell>
+                  <MonoCell muted sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fs.device}</MonoCell>
+                  <MonoCell muted>{fs.fstype || '—'}</MonoCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                      <Box sx={{ flex: 1 }}><UsageBar percent={fs.use_percent} tone={tone} /></Box>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: `${tone}.main`, fontFamily: MONO }}>{fs.use_percent.toFixed(0)}%</Typography>
+                    </Box>
+                  </TableCell>
+                  <MonoCell>{fmtKB(fs.used_kb)}</MonoCell>
+                  <MonoCell muted>{fmtKB(fs.avail_kb)}</MonoCell>
+                  <MonoCell muted>{fmtKB(fs.size_kb)}</MonoCell>
+                  <MonoCell>
+                    {fs.inodes_total > 0 ? (
+                      <Box component="span" sx={{ color: fs.inodes_percent >= 90 ? 'error.main' : 'text.secondary' }}>
+                        {fs.inodes_percent.toFixed(0)}%
+                        <Box component="span" sx={{ color: 'text.secondary' }}> of {fs.inodes_total.toLocaleString()}</Box>
+                      </Box>
+                    ) : '—'}
+                  </MonoCell>
+                  <TableCell align="right">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => runScan(fs.mountpoint)}
+                      disabled={scanning}
+                      icon={<Search size={13} />}
+                      title={`Analyze what is consuming ${fs.mountpoint}`}
+                    >
+                      Analyze
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </DataTable>
         )}
       </SectionCard>
 
       {/* Path explorer */}
-      <SectionCard icon={FolderTree} title="Path Analyzer">
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            className="input"
+      <SectionCard icon={FolderTree} title="Path analyzer">
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
             value={pathInput}
             onChange={e => setPathInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !scanning) runScan(pathInput) }}
             placeholder={rootPath}
             spellCheck={false}
-            style={{ flex: 1, minWidth: 220, fontFamily: MONO, fontSize: 13 }}
+            sx={{ flex: 1, minWidth: 220 }}
+            slotProps={{ htmlInput: { 'aria-label': 'Path to analyze', style: { fontFamily: MONO } } }}
           />
-          <select className="input" value={minFileKB} onChange={e => setMinFileKB(Number(e.target.value))} style={{ width: 150, fontFamily: MONO, fontSize: 12 }} title="Ignore files smaller than this">
-            <option value={1024}>Files ≥ 1 MB</option>
-            <option value={10240}>Files ≥ 10 MB</option>
-            <option value={102400}>Files ≥ 100 MB</option>
-            <option value={1048576}>Files ≥ 1 GB</option>
-          </select>
-          <select className="input" value={limit} onChange={e => setLimit(Number(e.target.value))} style={{ width: 110, fontFamily: MONO, fontSize: 12 }} title="How many rows to return">
-            <option value={20}>Top 20</option>
-            <option value={50}>Top 50</option>
-            <option value={100}>Top 100</option>
-          </select>
-          <button className="btn btn-primary" onClick={() => runScan(pathInput)} disabled={scanning} style={{ gap: 8 }}>
-            {scanning ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={14} />}
+          <TextField
+            select
+            value={minFileKB}
+            onChange={e => setMinFileKB(Number(e.target.value))}
+            sx={{ width: 160 }}
+            slotProps={{ htmlInput: { 'aria-label': 'Minimum file size' } }}
+            title="Ignore files smaller than this"
+          >
+            <MenuItem value={1024}>Files ≥ 1 MB</MenuItem>
+            <MenuItem value={10240}>Files ≥ 10 MB</MenuItem>
+            <MenuItem value={102400}>Files ≥ 100 MB</MenuItem>
+            <MenuItem value={1048576}>Files ≥ 1 GB</MenuItem>
+          </TextField>
+          <TextField
+            select
+            value={limit}
+            onChange={e => setLimit(Number(e.target.value))}
+            sx={{ width: 120 }}
+            slotProps={{ htmlInput: { 'aria-label': 'Row limit' } }}
+            title="How many rows to return"
+          >
+            <MenuItem value={20}>Top 20</MenuItem>
+            <MenuItem value={50}>Top 50</MenuItem>
+            <MenuItem value={100}>Top 100</MenuItem>
+          </TextField>
+          <Button onClick={() => runScan(pathInput)} loading={scanning} icon={<Search size={14} />}>
             {scanning ? `Scanning… ${elapsed}s` : 'Analyze'}
-          </button>
-        </div>
+          </Button>
+        </Box>
 
-        {/* Breadcrumbs — drilling down is just another scan of a deeper path */}
+        {/* Breadcrumbs: drilling down is just another scan of a deeper path */}
         {(analysis || scanning) && (
-          <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+          <Box sx={{ px: 2.5, py: 1, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
             {analysis?.parent && (
-              <button
-                className="btn btn-secondary btn-sm"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => runScan(analysis.parent)}
                 disabled={scanning}
-                style={{ gap: 6, marginRight: 8 }}
+                icon={<CornerLeftUp size={13} />}
                 title="Analyze the parent directory"
+                style={{ marginRight: 8 }}
               >
-                <CornerLeftUp size={13} /> Up
-              </button>
+                Up
+              </Button>
             )}
             {crumbs.map((crumb, i) => (
-              <span key={crumb.path} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {i > 0 && <ChevronRight size={12} color="var(--text-muted)" />}
-                <button
+              <Box key={crumb.path} component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {i > 0 && <ChevronRight size={12} />}
+                <ButtonBase
                   onClick={() => runScan(crumb.path)}
                   disabled={scanning}
-                  style={{
-                    background: 'transparent', border: 'none', cursor: scanning ? 'default' : 'pointer',
-                    fontFamily: MONO, fontSize: 12, fontWeight: i === crumbs.length - 1 ? 800 : 600,
-                    color: i === crumbs.length - 1 ? 'var(--brand-primary)' : 'var(--text-secondary)', padding: '2px 4px',
+                  sx={{
+                    fontFamily: MONO, fontSize: 12, px: 0.5, py: 0.25, borderRadius: 0.5,
+                    fontWeight: i === crumbs.length - 1 ? 700 : 500,
+                    color: i === crumbs.length - 1 ? 'primary.main' : 'text.secondary',
+                    '&:hover': { bgcolor: 'action.hover' },
                   }}
-                >{crumb.label}</button>
-              </span>
+                >
+                  {crumb.label}
+                </ButtonBase>
+              </Box>
             ))}
-          </div>
+          </Box>
         )}
 
         {scanning && !analysis && (
-          <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
-            <div style={{ fontSize: 13, fontFamily: MONO }}>Walking {pathInput} — {elapsed}s</div>
-            <div style={{ fontSize: 12, marginTop: 6 }}>Directory sizes come from a live du/find walk, so a large tree takes a while.</div>
-          </div>
+          <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
+            <CenteredSpinner size={28} py={1} />
+            <Typography variant="body1" sx={{ fontFamily: MONO }}>Walking {pathInput} - {elapsed}s</Typography>
+            <Typography variant="body2" sx={{ mt: 0.75 }}>Directory sizes come from a live du/find walk, so a large tree takes a while.</Typography>
+          </Box>
         )}
 
         {!scanning && !analysis && (
-          <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
-            <FolderTree size={30} style={{ marginBottom: 12, opacity: 0.3 }} />
-            <div style={{ fontSize: 13 }}>Pick a path (or hit <strong>Analyze</strong> on a mount above) to see which folders, files and data categories are consuming it.</div>
-          </div>
+          <Box sx={{ py: 6, px: 2, textAlign: 'center', color: 'text.secondary' }}>
+            <FolderTree size={30} />
+            <Typography variant="body1" sx={{ mt: 1 }}>
+              Pick a path (or hit <strong>Analyze</strong> on a mount above) to see which folders, files and data categories are consuming it.
+            </Typography>
+          </Box>
         )}
 
         {analysis && (
           <>
             {/* Where this path physically lives */}
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', background: 'var(--bg-elevated)' }}>
+            <Box sx={{ px: 2.5, py: 1.75, borderBottom: 1, borderColor: 'divider', display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center', bgcolor: 'action.hover' }}>
               {[
                 { label: 'Scanned', value: fmtKB(analysis.total_kb) },
                 { label: 'On mount', value: analysis.mountpoint || '—' },
@@ -442,134 +383,119 @@ export function StoragePanel({ serverId, os }: StoragePanelProps) {
                 { label: 'Share of mount', value: analysis.mount_used_kb > 0 ? `${((analysis.total_kb / analysis.mount_used_kb) * 100).toFixed(1)}%` : '—' },
                 { label: 'Scan time', value: `${(analysis.duration_ms / 1000).toFixed(1)}s` },
               ].map(item => (
-                <div key={item.label}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: MONO }}>{item.label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: MONO, marginTop: 3, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.value}</div>
-                </div>
+                <Box key={item.label}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.label}</Typography>
+                  <Typography variant="body1" sx={{ fontFamily: MONO, fontWeight: 600, maxWidth: 260 }} noWrap>{item.value}</Typography>
+                </Box>
               ))}
-            </div>
+            </Box>
 
             <CategoryBreakdown categories={analysis.categories} totalKB={analysis.total_kb} />
 
             {analysis.warnings.length > 0 && (
-              <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <AlertTriangle size={14} color="var(--warning)" style={{ flexShrink: 0, marginTop: 2 }} />
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  {analysis.warnings.map((w, i) => <div key={i}>{w}</div>)}
-                </div>
-              </div>
+              <Alert severity="warning" variant="outlined" icon={<AlertTriangle size={14} />} sx={{ m: 2 }}>
+                {analysis.warnings.map((w, i) => <div key={i}>{w}</div>)}
+              </Alert>
             )}
 
             {/* Folders */}
-            <div style={{ borderBottom: '1px solid var(--border)' }}>
-              <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FolderTree size={14} color="var(--brand-primary)" />
-                <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: MONO }}>Largest folders</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: MONO }}>({analysis.folders.length})</span>
-              </div>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+              <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'inline-flex', color: 'primary.main' }}><FolderTree size={14} /></Box>
+                <Typography variant="subtitle2">Largest folders</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO }}>({analysis.folders.length})</Typography>
+              </Box>
               {analysis.folders.length === 0 ? (
-                <div style={{ padding: '0 20px 20px', color: 'var(--text-muted)', fontSize: 13 }}>No subdirectories under this path.</div>
+                <Typography variant="body1" color="text.secondary" sx={{ px: 2.5, pb: 2.5 }}>No subdirectories under this path.</Typography>
               ) : (
-                <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+                <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
                   {analysis.folders.map(folder => (
-                    <button
+                    <ButtonBase
                       key={folder.path}
                       onClick={() => runScan(folder.path)}
                       disabled={scanning}
-                      style={{
-                        width: '100%', textAlign: 'left', background: 'transparent', border: 'none',
-                        borderTop: '1px solid var(--border)', padding: '10px 20px',
-                        cursor: scanning ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 14,
-                      }}
                       title={`Drill into ${folder.path}`}
+                      sx={{
+                        width: '100%', textAlign: 'left', borderTop: 1, borderColor: 'divider', px: 2.5, py: 1.25,
+                        display: 'flex', alignItems: 'center', gap: 1.75, justifyContent: 'flex-start',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
                     >
-                      <div style={{ flex: '1 1 40%', minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 6, height: 6, background: categoryColor(folder.category), flexShrink: 0 }} />
-                          <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</span>
-                          <CategoryBadge name={folder.category} />
-                        </div>
-                      </div>
-                      <div style={{ flex: '1 1 30%', minWidth: 80 }}>
+                      <Box sx={{ flex: '1 1 40%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Dot color={categoryColor(folder.category)} />
+                        <Typography noWrap sx={{ fontFamily: MONO, fontSize: 13, fontWeight: 600 }}>{folder.name}</Typography>
+                        <CategoryBadge name={folder.category} />
+                      </Box>
+                      <Box sx={{ flex: '1 1 30%', minWidth: 80 }}>
                         <UsageBar percent={folder.percent} color={categoryColor(folder.category)} />
-                      </div>
-                      <div style={{ width: 90, textAlign: 'right', fontFamily: MONO, fontSize: 13, fontWeight: 800 }}>{fmtKB(folder.size_kb)}</div>
-                      <div style={{ width: 56, textAlign: 'right', fontFamily: MONO, fontSize: 12, color: 'var(--text-muted)' }}>{folder.percent.toFixed(1)}%</div>
-                      <ChevronRight size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                    </button>
+                      </Box>
+                      <Typography sx={{ width: 90, textAlign: 'right', fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{fmtKB(folder.size_kb)}</Typography>
+                      <Typography color="text.secondary" sx={{ width: 56, textAlign: 'right', fontFamily: MONO, fontSize: 12 }}>{folder.percent.toFixed(1)}%</Typography>
+                      <ChevronRight size={14} style={{ flexShrink: 0 }} />
+                    </ButtonBase>
                   ))}
-                </div>
+                </Box>
               )}
-            </div>
+            </Box>
 
             {/* Files */}
-            <div>
-              <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <FileText size={14} color="var(--brand-primary)" />
-                <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: MONO }}>Largest files</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: MONO }}>({analysis.files.length})</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+            <Box>
+              <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'inline-flex', color: 'primary.main' }}><FileText size={14} /></Box>
+                <Typography variant="subtitle2">Largest files</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO }}>({analysis.files.length})</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
                   only files ≥ {fmtKB(analysis.file_min_size_kb)}
-                </span>
-              </div>
+                </Typography>
+              </Box>
               {analysis.files.length === 0 ? (
-                <div style={{ padding: '0 20px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
+                <Typography variant="body1" color="text.secondary" sx={{ px: 2.5, pb: 2.5 }}>
                   No files at or above {fmtKB(analysis.file_min_size_kb)} under this path.
-                </div>
+                </Typography>
               ) : (
-                <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <THead headers={['File', 'Category', 'Size', 'Share', 'Modified', 'Owner']} sticky />
-                    <tbody>
-                      {analysis.files.map(file => (
-                        <tr key={file.path} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td style={{ ...tdStyle, maxWidth: 420 }}>
-                            <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.path}</div>
-                          </td>
-                          <td style={tdStyle}><CategoryBadge name={file.category} /></td>
-                          <td style={{ ...tdStyle, fontWeight: 800 }}>{fmtKB(file.size_kb)}</td>
-                          <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-muted)' }}>{file.percent.toFixed(1)}%</td>
-                          <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)' }}>{file.modified || '—'}</td>
-                          <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)' }}>{file.owner || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable label="Largest files" headers={['File', 'Category', 'Size', 'Share', 'Modified', 'Owner']} maxHeight={420}>
+                  {analysis.files.map(file => (
+                    <TableRow key={file.path} hover>
+                      <MonoCell sx={{ maxWidth: 420 }}>
+                        <Typography noWrap sx={{ fontFamily: MONO, fontSize: 13, fontWeight: 600 }}>{file.name}</Typography>
+                        <Typography noWrap variant="caption" color="text.secondary" sx={{ display: 'block', fontFamily: MONO }}>{file.path}</Typography>
+                      </MonoCell>
+                      <TableCell><CategoryBadge name={file.category} /></TableCell>
+                      <MonoCell bold>{fmtKB(file.size_kb)}</MonoCell>
+                      <MonoCell muted>{file.percent.toFixed(1)}%</MonoCell>
+                      <MonoCell muted>{file.modified || '—'}</MonoCell>
+                      <MonoCell muted>{file.owner || '—'}</MonoCell>
+                    </TableRow>
+                  ))}
+                </DataTable>
               )}
-            </div>
+            </Box>
           </>
         )}
       </SectionCard>
 
       {/* Block devices */}
       {info.devices.length > 0 && (
-        <SectionCard icon={Layers} title="Block Devices" count={info.devices.length}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <THead headers={['Name', 'Type', 'Size', 'Filesystem', 'Mountpoint', 'Model']} />
-              <tbody>
-                {info.devices.map((dev, i) => (
-                  <tr key={`${dev.name}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ ...tdStyle, fontWeight: 700 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Hash size={12} color="var(--text-muted)" />
-                        {dev.name}
-                      </div>
-                    </td>
-                    <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-muted)' }}>{dev.type || '—'}</td>
-                    <td style={tdStyle}>{dev.size || '—'}</td>
-                    <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)' }}>{dev.fstype || '—'}</td>
-                    <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)' }}>{dev.mountpoint || '—'}</td>
-                    <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-muted)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dev.model || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <SectionCard icon={Layers} title="Block devices" count={info.devices.length}>
+          <DataTable label="Block devices" headers={['Name', 'Type', 'Size', 'Filesystem', 'Mountpoint', 'Model']}>
+            {info.devices.map((dev, i) => (
+              <TableRow key={`${dev.name}-${i}`} hover>
+                <MonoCell bold>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Hash size={12} />
+                    {dev.name}
+                  </Box>
+                </MonoCell>
+                <MonoCell muted>{dev.type || '—'}</MonoCell>
+                <MonoCell>{dev.size || '—'}</MonoCell>
+                <MonoCell muted>{dev.fstype || '—'}</MonoCell>
+                <MonoCell muted>{dev.mountpoint || '—'}</MonoCell>
+                <MonoCell muted sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dev.model || '—'}</MonoCell>
+              </TableRow>
+            ))}
+          </DataTable>
         </SectionCard>
       )}
-    </div>
+    </Box>
   )
 }
