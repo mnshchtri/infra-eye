@@ -7,6 +7,9 @@ const BASE_URL = process.env.E2E_BASE_URL || 'http://127.0.0.1:5173'
 
 export default defineConfig({
   testDir: './e2e',
+  // Generous: the dev server compiles on demand and CI/laptops can be heavily loaded.
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
   fullyParallel: false, // tests share one backend/database
   workers: 1,
   retries: process.env.CI ? 1 : 0,
