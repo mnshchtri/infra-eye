@@ -31,3 +31,13 @@ export async function deleteByName(request: APIRequestContext, path: 'servers' |
     await request.delete(`/api/${path}/${item.id}`, { headers })
   }
 }
+
+export async function deleteUsersByPrefix(request: APIRequestContext, prefix: string) {
+  const headers = await authHeaders(request)
+  const res = await request.get('/api/users', { headers })
+  if (!res.ok()) return
+  const list: { id: number; username: string }[] = await res.json()
+  for (const u of list.filter(x => x.username.startsWith(prefix))) {
+    await request.delete(`/api/users/${u.id}`, { headers })
+  }
+}

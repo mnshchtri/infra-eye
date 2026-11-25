@@ -7,6 +7,7 @@ const PAGES: { path: string; heading: RegExp }[] = [
   { path: '/servers', heading: /^Servers$/ },
   { path: '/alerts', heading: /^Alert Rules$/ },
   { path: '/resources', heading: /^Resources$/ },
+  { path: '/settings', heading: /^Settings$/ },
   { path: '/audit/kernel', heading: /Kernel Vulnerability Scanner/ },
   { path: '/audit/hardening', heading: /^Server Hardening$/ },
   { path: '/audit/cluster', heading: /^Cluster Security$/ },
