@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test'
 test.describe('ai assistant', () => {
   test('shows the welcome message, suggestions and header controls', async ({ page }) => {
     await page.goto('/ai')
+    // The page reopens the last conversation; start from a fresh one so the welcome state is shown.
+    await page.getByRole('button', { name: /New conversation/ }).first().click()
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Netra')
     await expect(page.getByText('Where do you want to start?')).toBeVisible()
     await expect(page.getByText('online — your DevSecOps copilot')).toBeVisible()
@@ -19,6 +21,8 @@ test.describe('ai assistant', () => {
 
   test('send button follows the input and attach / sidebar controls exist', async ({ page }) => {
     await page.goto('/ai')
+    // The page reopens the last conversation; start from a fresh one so the welcome state is shown.
+    await page.getByRole('button', { name: /New conversation/ }).first().click()
     const input = page.getByRole('textbox', { name: 'Message Netra' })
     const send = page.getByRole('button', { name: 'Send message' })
     await expect(send).toBeDisabled()
@@ -29,14 +33,16 @@ test.describe('ai assistant', () => {
     await expect(page.getByRole('button', { name: 'Attach image' })).toBeVisible()
 
     // Collapse and expand the conversation sidebar
-    await page.getByRole('button', { name: 'Collapse sidebar' }).click()
-    await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
-    await page.getByRole('button', { name: 'Expand sidebar' }).click()
+    await page.getByRole('button', { name: 'Collapse conversations' }).click()
+    await expect(page.getByRole('button', { name: 'Expand conversations' })).toBeVisible()
+    await page.getByRole('button', { name: 'Expand conversations' }).click()
     await expect(page.getByRole('button', { name: 'New conversation' })).toBeVisible()
   })
 
   test('clear history asks for confirmation in a dialog', async ({ page }) => {
     await page.goto('/ai')
+    // The page reopens the last conversation; start from a fresh one so the welcome state is shown.
+    await page.getByRole('button', { name: /New conversation/ }).first().click()
     await page.getByRole('button', { name: 'Clear history' }).click()
     const dialog = page.getByRole('dialog', { name: 'Clear history' })
     await expect(dialog).toBeVisible()

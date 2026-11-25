@@ -53,7 +53,7 @@ test.describe('developer tools', () => {
     await page.getByRole('tab', { name: 'Networking' }).click()
     await page.getByRole('tab', { name: 'Subnet Splitter' }).click()
     await page.getByLabel('Block to split').fill('10.0.0.0/16')
-    await page.getByLabel('Target prefix').fill('18')
+    await page.getByRole('spinbutton', { name: 'Target prefix' }).fill('18')
     await expect(page.getByRole('cell', { name: '10.0.64.0/18' })).toBeVisible()
   })
 

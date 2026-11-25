@@ -128,8 +128,8 @@ export const RunSidebar = memo(({
               <MuiButton variant="contained" startIcon={<Plus size={15} />} onClick={onNew} sx={{ flex: 1, height: 34 }}>
                 New agent run
               </MuiButton>
-              <Tooltip title="Collapse sidebar">
-                <IconButton aria-label="Collapse sidebar" onClick={() => onToggle(true)} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
+              <Tooltip title="Collapse runs">
+                <IconButton aria-label="Collapse runs" onClick={() => onToggle(true)} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
                   <ChevronLeft size={16} />
                 </IconButton>
               </Tooltip>
@@ -144,8 +144,8 @@ export const RunSidebar = memo(({
         </Box>
 
         {isCollapsed && (
-          <Tooltip title="Expand sidebar" placement="right">
-            <IconButton aria-label="Expand sidebar" onClick={() => onToggle(false)}>
+          <Tooltip title="Expand runs" placement="right">
+            <IconButton aria-label="Expand runs" onClick={() => onToggle(false)}>
               <ChevronRight size={16} />
             </IconButton>
           </Tooltip>

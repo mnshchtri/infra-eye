@@ -118,8 +118,8 @@ export const ThreadSidebar = memo(({
               <MuiButton variant="contained" startIcon={<Plus size={15} />} onClick={onNew} sx={{ flex: 1, height: 34 }}>
                 New conversation
               </MuiButton>
-              <Tooltip title="Collapse sidebar">
-                <IconButton aria-label="Collapse sidebar" onClick={() => onToggle(true)} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
+              <Tooltip title="Collapse conversations">
+                <IconButton aria-label="Collapse conversations" onClick={() => onToggle(true)} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
                   <ChevronLeft size={16} />
                 </IconButton>
               </Tooltip>
@@ -134,8 +134,8 @@ export const ThreadSidebar = memo(({
         </Box>
 
         {isCollapsed && (
-          <Tooltip title="Expand sidebar" placement="right">
-            <IconButton aria-label="Expand sidebar" onClick={() => onToggle(false)}>
+          <Tooltip title="Expand conversations" placement="right">
+            <IconButton aria-label="Expand conversations" onClick={() => onToggle(false)}>
               <ChevronRight size={16} />
             </IconButton>
           </Tooltip>
