@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react'
-import { Send, ChevronDown, Image as ImageIcon, X, Trash2, Zap, Activity, Shield, Boxes, Gauge, Menu } from 'lucide-react'
+import { Send, Image as ImageIcon, X, Trash2, Zap, Activity, Shield, Boxes, Gauge, Menu } from 'lucide-react'
+import { Box, ButtonBase, Chip, IconButton, InputBase, MenuItem, Paper, TextField, Tooltip, Typography, Button as MuiButton, alpha } from '@mui/material'
+import { keyframes } from '@mui/material/styles'
+import { Modal, Button } from '../components/ui'
 import { api } from '../api/client'
 import chatbotLogo from '../assets/chatbot-logo.png'
 
@@ -29,7 +32,7 @@ interface ChatThread {
 interface SuggestionGroup {
   label: string
   icon: typeof Activity
-  color: string
+  color: 'primary' | 'info' | 'error' | 'success'
   items: string[]
 }
 
@@ -37,7 +40,7 @@ const SUGGESTION_GROUPS: SuggestionGroup[] = [
   {
     label: 'Diagnose',
     icon: Activity,
-    color: 'var(--brand-primary)',
+    color: 'primary',
     items: [
       'Run a post-mortem on the recent logs — what broke, when, and why?',
       'CPU and load are climbing. Walk me through the top suspects with exact commands.',
@@ -47,7 +50,7 @@ const SUGGESTION_GROUPS: SuggestionGroup[] = [
   {
     label: 'Kubernetes',
     icon: Boxes,
-    color: 'var(--info, #3b82f6)',
+    color: 'info',
     items: [
       'Find pods that are CrashLooping or OOMKilled and explain the root cause.',
       'Audit resource requests vs limits — which workloads are at eviction or throttling risk?',
@@ -57,7 +60,7 @@ const SUGGESTION_GROUPS: SuggestionGroup[] = [
   {
     label: 'Security',
     icon: Shield,
-    color: 'var(--danger)',
+    color: 'error',
     items: [
       'Audit RBAC: which service accounts have cluster-admin or wildcard permissions?',
       'Scan recent logs for SSH brute-force attempts or auth anomalies.',
@@ -67,7 +70,7 @@ const SUGGESTION_GROUPS: SuggestionGroup[] = [
   {
     label: 'Reliability',
     icon: Gauge,
-    color: 'var(--success)',
+    color: 'success',
     items: [
       'Review my alert rules for coverage gaps and suggest self-healing rules worth adding.',
       'Check the resource catalog — are any dependencies degraded or exposed without the gateway?',
@@ -79,34 +82,26 @@ const SUGGESTION_GROUPS: SuggestionGroup[] = [
 const SuggestionCard = memo(({ group, text, onClick }: { group: SuggestionGroup; text: string; onClick: (s: string) => void }) => {
   const Icon = group.icon
   return (
-    <button
+    <ButtonBase
       onClick={() => onClick(text)}
-      style={{
-        display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left',
-        padding: '14px 16px', borderRadius: 'var(--radius-lg)',
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.5,
-        cursor: 'pointer', transition: 'all 0.15s', fontWeight: 500,
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = group.color
-        e.currentTarget.style.transform = 'translateY(-1px)'
-        e.currentTarget.style.boxShadow = 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08))'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.transform = 'none'
-        e.currentTarget.style.boxShadow = 'none'
+      sx={{
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, textAlign: 'left',
+        p: '12px 14px', borderRadius: 1, bgcolor: 'background.paper', border: 1, borderColor: 'divider',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+        '&:hover': { borderColor: `${group.color}.main`, boxShadow: 2 },
       }}
     >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: group.color }}>
+      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: `${group.color}.main`, fontSize: 12, fontWeight: 600 }}>
         <Icon size={13} /> {group.label}
-      </span>
-      <span style={{ color: 'var(--text-primary)' }}>{text}</span>
-    </button>
+      </Box>
+      <Typography component="span" variant="body1" sx={{ lineHeight: 1.5 }}>{text}</Typography>
+    </ButtonBase>
   )
 })
 SuggestionCard.displayName = 'SuggestionCard'
+
+const blink = keyframes`0%, 100% { opacity: 0.3; } 50% { opacity: 1; }`
+const pulseScale = keyframes`0%, 100% { transform: scale(1); } 50% { transform: scale(0.9); }`
 
 type AIProvider = 'openrouter' | 'deepseek' | 'google' | 'mistral' | 'claude' | 'local'
 
@@ -121,7 +116,8 @@ export function AIAssistant() {
   const [loading, setLoading] = useState(false)
   const [provider, setProvider] = useState<AIProvider>('mistral')
   const [mcpAvailable, setMcpAvailable] = useState(false)
-  const [inputFocused, setInputFocused] = useState(false)
+  const [deleteThreadId, setDeleteThreadId] = useState<number | null>(null)
+  const [clearOpen, setClearOpen] = useState(false)
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState<string | null>(null)
@@ -192,9 +188,13 @@ export function AIAssistant() {
     showWelcome()
   }, [showWelcome])
 
-  const deleteThread = useCallback(async (id: number, e: React.MouseEvent) => {
+  const requestDeleteThread = useCallback((id: number, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!window.confirm('Delete this conversation?')) return
+    setDeleteThreadId(id)
+  }, [])
+
+  const deleteThread = useCallback(async (id: number) => {
+    setDeleteThreadId(null)
     try {
       await api.delete(`/api/ai/threads/${id}`)
       setThreads(prev => prev.filter(t => t.id !== id))
@@ -341,7 +341,7 @@ export function AIAssistant() {
   }, [selectedServer, askQuestion])
 
   const handleClearHistory = useCallback(async () => {
-    if (!window.confirm('Clear conversation history for this scope?')) return
+    setClearOpen(false)
     try {
       await api.delete(`/api/ai/history?server_id=${selectedServer || 0}`)
       showWelcome()
@@ -355,188 +355,229 @@ export function AIAssistant() {
     ? selectedServerData.name
     : 'Entire infrastructure'
 
-  const selectStyle: React.CSSProperties = {
-    height: 34, padding: '0 26px 0 10px', borderRadius: 'var(--radius-md)',
-    background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-    color: 'var(--text-primary)', fontSize: 13, fontWeight: 700,
-    cursor: 'pointer', outline: 'none', appearance: 'none', WebkitAppearance: 'none',
-  }
-
   return (
-    <div className={`ai-assistant-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ display: 'flex', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
+    <Box sx={{ display: 'flex', height: '100%', bgcolor: 'background.default', position: 'relative', minHeight: 0 }}>
 
-      <div
-        className={`ai-sidebar-overlay ${!isSidebarCollapsed ? 'mobile-open' : ''}`}
-        onClick={() => setIsSidebarCollapsed(true)}
-      />
+      {!isSidebarCollapsed && (
+        <Box
+          onClick={() => setIsSidebarCollapsed(true)}
+          sx={(t) => ({ display: { xs: 'block', md: 'none' }, position: 'fixed', inset: 0, bgcolor: 'rgba(0,0,0,0.4)', zIndex: t.zIndex.drawer })}
+        />
+      )}
 
       <ThreadSidebar
         threads={threads}
         activeThreadId={activeThreadId}
-        onSelect={id => { setActiveThreadId(id); if (window.innerWidth <= 768) setIsSidebarCollapsed(true) }}
-        onNew={() => { startNewChat(); if (window.innerWidth <= 768) setIsSidebarCollapsed(true) }}
-        onDelete={deleteThread}
+        onSelect={id => { setActiveThreadId(id); if (window.innerWidth <= 900) setIsSidebarCollapsed(true) }}
+        onNew={() => { startNewChat(); if (window.innerWidth <= 900) setIsSidebarCollapsed(true) }}
+        onDelete={requestDeleteThread}
         isCollapsed={isSidebarCollapsed}
         onToggle={setIsSidebarCollapsed}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
         {/* ── Header ── */}
-        <header className="ai-chat-header" style={{
-          width: '100%', padding: '12px 20px',
+        <Box component="header" sx={{
+          width: '100%', px: { xs: 1.5, md: 2.5 }, py: 1.25,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0, borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-card)', flexWrap: 'wrap', gap: 12,
+          flexShrink: 0, borderBottom: 1, borderColor: 'divider',
+          bgcolor: 'background.paper', flexWrap: 'wrap', gap: 1.5,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              className="show-mobile-only btn-icon"
-              onClick={() => setIsSidebarCollapsed(false)}
-              title="Conversations"
-              style={{ padding: 8, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Tooltip title="Conversations">
+              <IconButton aria-label="Open conversations" onClick={() => setIsSidebarCollapsed(false)} sx={{ display: { xs: 'inline-flex', md: 'none' }, border: 1, borderColor: 'divider' }}>
+                <Menu size={16} />
+              </IconButton>
+            </Tooltip>
+            <Box sx={{ width: 36, height: 36, borderRadius: 1, bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', p: 0.5, border: 1, borderColor: 'divider' }}>
+              <Box component="img" src={chatbotLogo} alt="Netra" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </Box>
+            <Box>
+              <Typography variant="h5" component="h1" sx={{ lineHeight: 1.2 }}>
+                नेत्र <Typography component="span" color="text.secondary" sx={{ fontSize: 'inherit', fontWeight: 500 }}>Netra</Typography>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                DevSecOps copilot · <Box component="span" sx={{ color: 'text.primary' }}>{scopeLabel}</Box>
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+            <TextField
+              select
+              label="Model"
+              value={provider}
+              onChange={e => setProvider(e.target.value as AIProvider)}
+              title="AI model provider"
+              sx={{ minWidth: 130 }}
             >
-              <Menu size={16} />
-            </button>
-            <div style={{
-              width: 38, height: 38, borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-app)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden', padding: 4, border: '1px solid var(--border)',
-            }}>
-              <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-                नेत्र <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Netra</span>
-              </h1>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
-                DevSecOps copilot · <span style={{ color: 'var(--text-secondary)' }}>{scopeLabel}</span>
-              </div>
-            </div>
-          </div>
+              <MenuItem value="mistral">Mistral</MenuItem>
+              <MenuItem value="claude">Claude</MenuItem>
+              <MenuItem value="google">Gemini</MenuItem>
+              <MenuItem value="deepseek">DeepSeek</MenuItem>
+              <MenuItem value="openrouter">OpenRouter</MenuItem>
+              <MenuItem value="local">Local LLM</MenuItem>
+            </TextField>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <select value={provider} onChange={e => setProvider(e.target.value as AIProvider)} title="AI model provider" style={selectStyle}>
-                <option value="mistral">Mistral</option>
-                <option value="claude">Claude</option>
-                <option value="google">Gemini</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="openrouter">OpenRouter</option>
-                <option value="local">Local LLM</option>
-              </select>
-              <ChevronDown size={13} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
-            </div>
+            <TextField
+              select
+              label="Scope"
+              value={selectedServer === '' ? '' : String(selectedServer)}
+              onChange={e => setSelectedServer(Number(e.target.value) || '')}
+              title="Context scope — which system Netra analyzes"
+              sx={{ minWidth: 170, maxWidth: 220 }}
+              slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+            >
+              <MenuItem value="">All infrastructure</MenuItem>
+              {servers.map(s => <MenuItem key={s.id} value={String(s.id)}>{s.is_k8s ? '☸ ' : ''}{s.name}</MenuItem>)}
+            </TextField>
 
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <select value={selectedServer} onChange={e => setSelectedServer(Number(e.target.value) || '')} title="Context scope — which system Netra analyzes" style={{ ...selectStyle, maxWidth: 180 }}>
-                <option value="">All infrastructure</option>
-                {servers.map(s => <option key={s.id} value={s.id}>{s.is_k8s ? '☸ ' : ''}{s.name}</option>)}
-              </select>
-              <ChevronDown size={13} color="var(--text-muted)" style={{ position: 'absolute', right: 8, pointerEvents: 'none' }} />
-            </div>
-
-            <div className="hidden-mobile" title={mcpAvailable ? 'Live cluster access is available — Netra can run Kubernetes queries from chat' : 'MCP sidecar unreachable — cluster tool execution disabled'} style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-              borderRadius: 'var(--radius-md)',
-              background: mcpAvailable ? 'var(--brand-glow)' : 'var(--bg-elevated)',
-              border: `1px solid ${mcpAvailable ? 'var(--brand-primary)' : 'var(--border)'}`,
-            }}>
-              <Zap size={12} color={mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)'} />
-              <span style={{ fontSize: 12, fontWeight: 800, color: mcpAvailable ? 'var(--brand-primary)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {mcpAvailable ? 'MCP Live' : 'MCP Offline'}
-              </span>
-            </div>
-          </div>
-        </header>
+            <Tooltip title={mcpAvailable ? 'Live cluster access is available — Netra can run Kubernetes queries from chat' : 'MCP sidecar unreachable — cluster tool execution disabled'}>
+              <Chip
+                size="small"
+                variant="outlined"
+                color={mcpAvailable ? 'primary' : 'default'}
+                icon={<Zap size={12} />}
+                label={mcpAvailable ? 'MCP live' : 'MCP offline'}
+                sx={{ display: { xs: 'none', md: 'inline-flex' } }}
+              />
+            </Tooltip>
+          </Box>
+        </Box>
 
         {/* ── Messages ── */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '24px 16px 150px' }}>
-          <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', px: 2, pt: 3, pb: '150px' }}>
+          <Box sx={{ maxWidth: 980, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
             {messages.length <= 1 && (
-              <div className="fade-in" style={{ padding: '8px 0 8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <h2 style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <Box className="fade-in" sx={{ py: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.75 }}>
+                  <Typography variant="subtitle1" component="h2" color="text.secondary">
                     Where do you want to start?
-                  </h2>
-                  <button onClick={handleClearHistory} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
-                    <Trash2 size={14} /> Clear history
-                  </button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
+                  </Typography>
+                  <MuiButton size="small" color="inherit" onClick={() => setClearOpen(true)} startIcon={<Trash2 size={14} />} sx={{ color: 'text.secondary' }}>
+                    Clear history
+                  </MuiButton>
+                </Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 1.5 }}>
                   {SUGGESTION_GROUPS.flatMap(g => g.items.map(text => (
                     <SuggestionCard key={text} group={g} text={text} onClick={askQuestion} />
                   )))}
-                </div>
-              </div>
+                </Box>
+              </Box>
             )}
 
             {messages.map((msg) => <MessageItem key={msg.id} msg={msg} onExecuteMcpTool={executeMcpTool} />)}
 
             {loading && (
-              <div style={{ display: 'flex', gap: 14, alignSelf: 'flex-start', alignItems: 'center' }} className="fade-up">
-                <div style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', background: 'var(--bg-card)', overflow: 'hidden', padding: 4, border: '1px solid var(--border)', flexShrink: 0 }}>
-                  <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain', animation: 'pulseScale 1.8s infinite' }} />
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600 }}>Analyzing</span>
-                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s infinite' }} />
-                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s 0.2s infinite' }} />
-                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--brand-primary)', animation: 'blink 1s 0.4s infinite' }} />
-                </div>
-              </div>
+              <Box className="fade-up" sx={{ display: 'flex', gap: 1.75, alignSelf: 'flex-start', alignItems: 'center' }}>
+                <Box sx={{ width: 32, height: 32, borderRadius: 1, bgcolor: 'background.paper', overflow: 'hidden', p: 0.5, border: 1, borderColor: 'divider', flexShrink: 0 }}>
+                  <Box component="img" src={chatbotLogo} alt="Netra" sx={{ width: '100%', height: '100%', objectFit: 'contain', animation: `${pulseScale} 1.8s infinite` }} />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }} role="status">
+                  <Typography variant="body1" color="text.secondary">Analyzing</Typography>
+                  {[0, 0.2, 0.4].map(d => (
+                    <Box key={d} component="span" sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'primary.main', animation: `${blink} 1s ${d}s infinite` }} />
+                  ))}
+                </Box>
+              </Box>
             )}
             <div ref={bottomRef} />
-          </div>
-        </div>
+          </Box>
+        </Box>
 
         {/* ── Input ── */}
-        <div className="ai-input-wrapper" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(to top, var(--bg-app) 55%, transparent)', pointerEvents: 'none' }}>
-          <div style={{ maxWidth: 980, margin: '0 auto', pointerEvents: 'auto' }}>
+        <Box sx={(t) => ({
+          position: 'absolute', bottom: 0, left: 0, right: 0, p: { xs: 1.5, sm: 2.5 }, pointerEvents: 'none',
+          background: `linear-gradient(to top, ${t.palette.background.default} 55%, ${alpha(t.palette.background.default, 0)})`,
+        })}>
+          <Box sx={{ maxWidth: 980, mx: 'auto', pointerEvents: 'auto' }}>
             {selectedImage && (
-              <div className="fade-in image-preview-stack" style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-bright)', borderRadius: '12px 12px 0 0', display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: -1, borderBottom: 'none', position: 'relative', marginLeft: 16, boxShadow: '0 -10px 30px rgba(0,0,0,0.1)' }}>
-                <img src={selectedImage} alt="Preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Image attached</div>
-                <button onClick={() => { setSelectedImage(null); setImageMime(null) }} style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={13} /></button>
-              </div>
+              <Paper variant="outlined" className="fade-in" sx={{ px: 1.5, py: 1, display: 'inline-flex', alignItems: 'center', gap: 1.25, mb: 1, ml: 1 }}>
+                <Box component="img" src={selectedImage} alt="Preview" sx={{ width: 36, height: 36, borderRadius: 0.75, objectFit: 'cover', border: 1, borderColor: 'divider' }} />
+                <Typography variant="body2" color="text.secondary">Image attached</Typography>
+                <Tooltip title="Remove image">
+                  <IconButton aria-label="Remove image" onClick={() => { setSelectedImage(null); setImageMime(null) }}><X size={13} /></IconButton>
+                </Tooltip>
+              </Paper>
             )}
 
-            <div className="chat-input-container" style={{
-              background: 'var(--bg-input)',
-              border: `1px solid ${inputFocused ? 'var(--brand-primary)' : 'var(--border)'}`,
-              borderRadius: 'var(--radius-lg)', padding: '12px 14px',
-              display: 'flex', gap: 10, alignItems: 'flex-end',
-              boxShadow: inputFocused ? '0 0 0 3px var(--brand-glow)' : 'var(--shadow-sm, none)',
+            <Paper variant="outlined" sx={{
+              px: 1.5, py: 1, display: 'flex', gap: 1.25, alignItems: 'flex-end', borderRadius: 2,
               transition: 'border-color 0.15s, box-shadow 0.15s',
+              '&:focus-within': { borderColor: 'primary.main', boxShadow: (t) => `0 0 0 3px ${alpha(t.palette.primary.main, 0.2)}` },
             }}>
               <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
-              <button className="hidden-mobile" onClick={() => fileInputRef.current?.click()} title="Attach a screenshot or dashboard capture"
-                style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}>
-                <ImageIcon size={16} />
-              </button>
-              <textarea ref={inputRef} value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={handleKeyDown}
-                onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
+              <Tooltip title="Attach a screenshot or dashboard capture">
+                <IconButton aria-label="Attach image" onClick={() => fileInputRef.current?.click()} sx={{ display: { xs: 'none', sm: 'inline-flex' }, border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75 }}>
+                  <ImageIcon size={16} />
+                </IconButton>
+              </Tooltip>
+              <InputBase
+                inputRef={inputRef}
+                value={question}
+                onChange={e => setQuestion(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Ask Netra — describe the incident, paste a log, or attach a screenshot…"
-                disabled={loading} rows={1}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 13, padding: '8px 0', resize: 'none', lineHeight: 1.6, maxHeight: 150 }}
-                onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px' }}
+                disabled={loading}
+                multiline
+                maxRows={6}
+                fullWidth
+                inputProps={{ 'aria-label': 'Message Netra' }}
+                sx={{ flex: 1, fontSize: 13, lineHeight: 1.6, py: 0.5 }}
               />
-              <button onClick={() => askQuestion()} disabled={(!question.trim() && !selectedImage) || loading} title="Send (Enter)"
-                style={{ width: 38, height: 38, borderRadius: 'var(--radius-md)', flexShrink: 0, background: (question.trim() || selectedImage) && !loading ? 'var(--brand-primary)' : 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}>
-                <Send size={16} color={question.trim() || selectedImage ? 'var(--text-inverse)' : 'var(--text-muted)'} />
-              </button>
-            </div>
-            <div className="hidden-mobile" style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
-              <span>Enter to send · Shift+Enter for a new line</span>
-              {mcpAvailable && <span>· Cluster queries run only after you approve them</span>}
-            </div>
-          </div>
-        </div>
-      </div>
-      <style>{`
-        @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-        @keyframes pulseScale { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.9); } }
-      `}</style>
-    </div>
+              <Tooltip title="Send (Enter)">
+                <span>
+                  <IconButton
+                    aria-label="Send message"
+                    onClick={() => askQuestion()}
+                    disabled={(!question.trim() && !selectedImage) || loading}
+                    sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 1, p: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: 'action.disabledBackground' } }}
+                  >
+                    <Send size={16} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Paper>
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, justifyContent: 'center', gap: 1.75, mt: 1, color: 'text.secondary' }}>
+              <Typography variant="caption">Enter to send · Shift+Enter for a new line</Typography>
+              {mcpAvailable && <Typography variant="caption">· Cluster queries run only after you approve them</Typography>}
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      <Modal
+        isOpen={deleteThreadId !== null}
+        onClose={() => setDeleteThreadId(null)}
+        title="Delete conversation"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteThreadId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => deleteThreadId !== null && deleteThread(deleteThreadId)}>Delete</Button>
+          </>
+        }
+      >
+        <Typography variant="body1" color="text.secondary">
+          Delete <b>{threads.find(t => t.id === deleteThreadId)?.title ?? 'this conversation'}</b>? This cannot be undone.
+        </Typography>
+      </Modal>
+
+      <Modal
+        isOpen={clearOpen}
+        onClose={() => setClearOpen(false)}
+        title="Clear history"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setClearOpen(false)}>Cancel</Button>
+            <Button variant="danger" onClick={handleClearHistory}>Clear history</Button>
+          </>
+        }
+      >
+        <Typography variant="body1" color="text.secondary">Clear conversation history for this scope?</Typography>
+      </Modal>
+
+    </Box>
   )
 }

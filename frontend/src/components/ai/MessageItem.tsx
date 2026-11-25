@@ -2,7 +2,12 @@ import React, { memo, useState, useCallback } from 'react'
 import { User, Play, Loader, CheckCircle, AlertCircle, Terminal, ShieldAlert, Copy, Check } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import {
+  Avatar, Box, Button as MuiButton, Chip, Link, Paper, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Typography, alpha,
+} from '@mui/material'
 import chatbotLogo from '../../assets/chatbot-logo.png'
+import { Modal, Button } from '../ui'
 
 interface Message {
   id: string
@@ -27,6 +32,7 @@ const MCPToolCard = memo(({ raw, onExecute }: {
   onExecute?: (tool: string, args: Record<string, unknown>) => Promise<void>
 }) => {
   const [runState, setRunState] = useState<RunState>('idle')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   let parsed: { tool: string; args?: Record<string, unknown> } | null = null
   try {
@@ -35,12 +41,8 @@ const MCPToolCard = memo(({ raw, onExecute }: {
     parsed = null
   }
 
-  const handleRun = useCallback(async () => {
+  const run = useCallback(async () => {
     if (!onExecute || !parsed?.tool) return
-    if (MUTATING_TOOLS.includes(parsed.tool)) {
-      const argsPreview = JSON.stringify(parsed.args || {}, null, 0)
-      if (!window.confirm(`"${parsed.tool}" modifies the cluster:\n\n${argsPreview}\n\nRun it?`)) return
-    }
     setRunState('running')
     try {
       await onExecute(parsed.tool, parsed.args || {})
@@ -51,83 +53,86 @@ const MCPToolCard = memo(({ raw, onExecute }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onExecute, raw])
 
+  const handleRun = useCallback(() => {
+    if (!onExecute || !parsed?.tool) return
+    if (MUTATING_TOOLS.includes(parsed.tool)) {
+      setConfirmOpen(true)
+      return
+    }
+    run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onExecute, raw, run])
+
   if (!parsed || !parsed.tool) {
     return (
-      <pre style={{ background: 'var(--bg-app)', padding: 12, borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--danger)', border: '1px solid var(--border)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+      <Box component="pre" sx={{ bgcolor: 'background.default', p: 1.5, borderRadius: 1, fontSize: 13, color: 'error.main', border: 1, borderColor: 'divider', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {raw}
-      </pre>
+      </Box>
     )
   }
 
   const isMutating = MUTATING_TOOLS.includes(parsed.tool)
-  const accent = isMutating ? 'var(--warning)' : 'var(--brand-primary)'
+  const accent = isMutating ? 'warning' : 'primary'
+  const argsPreview = JSON.stringify(parsed.args || {}, null, 0)
 
   return (
-    <div style={{
-      margin: '14px 0',
-      borderRadius: 'var(--radius-lg)',
-      border: '1px solid var(--border)',
-      borderLeft: `3px solid ${accent}`,
-      background: 'var(--bg-card)',
-      overflow: 'hidden',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 14px', gap: 10, flexWrap: 'wrap',
-        background: 'var(--bg-elevated)',
-        borderBottom: '1px solid var(--border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          {isMutating ? <ShieldAlert size={14} color={accent} /> : <Terminal size={14} color={accent} />}
-          <code style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {parsed.tool}
-          </code>
-          <span style={{
-            fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
-            color: accent, border: `1px solid ${accent}`, padding: '1px 7px', borderRadius: 99,
-          }}>
-            {isMutating ? 'Mutating' : 'Read-only'}
-          </span>
-        </div>
-        <button
+    <Paper variant="outlined" sx={{ my: 1.75, overflow: 'hidden', borderLeft: 3, borderLeftColor: `${accent}.main` }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.75, py: 1, gap: 1.25, flexWrap: 'wrap', bgcolor: 'action.hover', borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+          {isMutating ? <ShieldAlert size={14} /> : <Terminal size={14} />}
+          <Typography component="code" sx={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{parsed.tool}</Typography>
+          <Chip size="small" variant="outlined" color={accent} label={isMutating ? 'Mutating' : 'Read-only'} />
+        </Box>
+        <MuiButton
+          size="small"
+          variant={runState === 'idle' ? 'contained' : 'outlined'}
+          color={accent}
           onClick={handleRun}
           disabled={runState === 'running' || runState === 'done'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 14px', borderRadius: 'var(--radius-md)',
-            border: `1px solid ${accent}`,
-            background: runState === 'idle' ? accent : 'transparent',
-            color: runState === 'idle' ? 'var(--text-inverse)' : accent,
-            fontSize: 12, fontWeight: 800, cursor: runState === 'idle' ? 'pointer' : 'default',
-          }}
+          startIcon={
+            runState === 'idle' ? <Play size={13} />
+              : runState === 'running' ? <Loader size={13} className="spin" />
+                : runState === 'done' ? <CheckCircle size={13} /> : <AlertCircle size={13} />
+          }
         >
-          {runState === 'idle' && <><Play size={13} /> Execute</>}
-          {runState === 'running' && <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Running</>}
-          {runState === 'done' && <><CheckCircle size={13} /> Done</>}
-          {runState === 'error' && <><AlertCircle size={13} /> Failed</>}
-        </button>
-      </div>
+          {runState === 'idle' ? 'Execute' : runState === 'running' ? 'Running' : runState === 'done' ? 'Done' : 'Failed'}
+        </MuiButton>
+      </Box>
 
-      {/* Args preview */}
       {parsed.args && Object.keys(parsed.args).length > 0 && (
-        <div style={{ padding: '10px 14px' }}>
+        <Box sx={{ px: 1.75, py: 1.25 }}>
           {Object.entries(parsed.args).map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', gap: 10, marginBottom: 4, fontSize: 12.5, fontFamily: 'var(--font-mono)' }}>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 700, minWidth: 90 }}>{k}</span>
-              <span style={{ color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+            <Box key={k} sx={{ display: 'flex', gap: 1.25, mb: 0.5, fontSize: 12.5, fontFamily: 'var(--font-mono)' }}>
+              <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600, minWidth: 90 }}>{k}</Box>
+              <Box component="span" sx={{ wordBreak: 'break-word' }}>
                 {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-              </span>
-            </div>
+              </Box>
+            </Box>
           ))}
-        </div>
+        </Box>
       )}
       {isMutating && runState === 'idle' && (
-        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--warning)', fontWeight: 600 }}>
+        <Typography variant="body2" sx={{ px: 1.75, py: 1, borderTop: 1, borderColor: 'divider', color: 'warning.main', fontWeight: 500 }}>
           This action changes cluster state — review the arguments before executing.
-        </div>
+        </Typography>
       )}
-    </div>
+
+      <Modal
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Run mutating tool"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+            <Button variant="danger" onClick={() => { setConfirmOpen(false); run() }}>Run tool</Button>
+          </>
+        }
+      >
+        <Typography variant="body1" sx={{ mb: 1 }}><b>{parsed.tool}</b> modifies the cluster. Run it with these arguments?</Typography>
+        <Box component="pre" sx={{ m: 0, p: 1.25, bgcolor: 'action.hover', borderRadius: 1, fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{argsPreview}</Box>
+      </Modal>
+    </Paper>
   )
 })
 
@@ -142,111 +147,90 @@ const CodeBlock = ({ lang, code, children }: { lang: string; code: string; child
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <div style={{ margin: '14px 0', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', maxWidth: '100%', minWidth: 0 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '6px 12px', background: 'var(--bg-elevated)',
-        borderBottom: '1px solid var(--border)',
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          {lang}
-        </span>
-        <button
+    <Paper variant="outlined" sx={{ my: 1.75, overflow: 'hidden', maxWidth: '100%', minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.5, py: 0.5, bgcolor: 'action.hover', borderBottom: 1, borderColor: 'divider' }}>
+        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontFamily: 'var(--font-mono)' }}>{lang}</Typography>
+        <MuiButton
+          size="small"
+          color={copied ? 'success' : 'inherit'}
           onClick={handleCopy}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: copied ? 'var(--success)' : 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
-          onMouseEnter={e => !copied && (e.currentTarget.style.color = 'var(--text-primary)')}
-          onMouseLeave={e => !copied && (e.currentTarget.style.color = 'var(--text-muted)')}
+          startIcon={copied ? <Check size={12} /> : <Copy size={12} />}
+          sx={{ color: copied ? undefined : 'text.secondary', minWidth: 0 }}
         >
-          {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
-        </button>
-      </div>
-      <pre style={{
-        background: 'var(--bg-input)', padding: '12px 14px',
-        fontSize: 12.5, overflowX: 'auto', margin: 0,
-        fontFamily: 'var(--font-mono)', color: 'var(--text-primary)',
-        whiteSpace: 'pre', wordBreak: 'normal', lineHeight: 1.6,
+          {copied ? 'Copied' : 'Copy'}
+        </MuiButton>
+      </Box>
+      <Box component="pre" sx={{
+        bgcolor: 'background.default', px: 1.75, py: 1.5, fontSize: 12.5, overflowX: 'auto', m: 0,
+        fontFamily: 'var(--font-mono)', whiteSpace: 'pre', wordBreak: 'normal', lineHeight: 1.6,
         maxHeight: 400, overflowY: 'auto',
-      }}>{children}</pre>
-    </div>
+      }}>{children}</Box>
+    </Paper>
   )
 }
 
 // ── MessageItem ────────────────────────────────────────────────────────────
-export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
-  return (
-    <div
-      className="fade-up"
-      style={{
-        display: 'flex', gap: 14, width: '100%',
-        flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-        alignItems: 'flex-start',
-      }}
-    >
-      <div style={{
-        width: 34, height: 34, borderRadius: 'var(--radius-md)', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: msg.role === 'assistant' ? 'var(--bg-card)' : 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
-        overflow: 'hidden', padding: msg.role === 'assistant' ? 4 : 0,
-      }}>
-        {msg.role === 'assistant' ? (
-          <img src={chatbotLogo} alt="Netra" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-        ) : (
-          <User size={16} color="var(--brand-primary)" />
-        )}
-      </div>
+const markdownSx = {
+  '& p': { m: 0, mb: 1.5 },
+  '& ul, & ol': { mt: 0, mb: 1.5, pl: 2.5, color: 'text.secondary' },
+  '& ul': { listStyleType: 'disc' },
+  '& ol': { listStyleType: 'decimal' },
+  '& li': { mb: 0.5, lineHeight: 1.6, pl: 0.5 },
+  '& h1': { fontSize: '1.125rem', fontWeight: 600, mt: 2, mb: 1.5 },
+  '& h2': { fontSize: '1rem', fontWeight: 600, mt: 2, mb: 1.25 },
+  '& h3, & h4': { fontSize: '0.875rem', fontWeight: 600, mt: 1.5, mb: 1 },
+  '& strong': { fontWeight: 700 },
+  '& blockquote': { fontSize: 13, lineHeight: 1.7, borderLeft: 3, borderColor: 'primary.main', mx: 0, my: 1.5, color: 'text.secondary', bgcolor: 'action.hover', px: 1.5, py: 1, borderRadius: '0 4px 4px 0' },
+  '& blockquote p': { fontSize: 'inherit', m: 0, mb: 1 },
+  '& blockquote p:last-child': { mb: 0 },
+} as const
 
-      <div className="ai-msg-col" style={{
-        display: 'flex', flexDirection: 'column',
-        alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-      }}>
-        <div style={{
-          fontSize: 12, color: 'var(--text-muted)', fontWeight: 700,
-          marginBottom: 6, display: 'flex', gap: 8, alignItems: 'baseline',
-        }}>
-          <span>{msg.role === 'assistant' ? 'Netra' : 'You'}</span>
-          <span style={{ fontSize: 12, fontWeight: 500 }}>
+export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
+  const isUser = msg.role === 'user'
+  return (
+    <Box
+      className="fade-up"
+      sx={{ display: 'flex', gap: 1.75, width: '100%', flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start' }}
+    >
+      {isUser ? (
+        <Avatar variant="rounded" sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'action.hover', color: 'primary.main', border: 1, borderColor: 'divider' }}>
+          <User size={16} />
+        </Avatar>
+      ) : (
+        <Avatar variant="rounded" src={chatbotLogo} alt="Netra" sx={{ width: 32, height: 32, flexShrink: 0, bgcolor: 'background.paper', border: 1, borderColor: 'divider', p: 0.5, '& img': { objectFit: 'contain' } }} />
+      )}
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', maxWidth: { xs: 'calc(100% - 8px)', md: '82%' }, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline', mb: 0.75, color: 'text.secondary' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{isUser ? 'You' : 'Netra'}</Typography>
+          <Typography variant="caption">
             {msg.timestamp instanceof Date && !isNaN(msg.timestamp.getTime())
               ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : ''}
-          </span>
-        </div>
+          </Typography>
+        </Box>
 
-        <div style={{
-          padding: msg.role === 'assistant' ? 0 : '12px 16px',
-          borderRadius: msg.role === 'user' ? 'var(--radius-lg)' : 0,
+        <Box sx={{
+          p: isUser ? '10px 14px' : 0,
+          borderRadius: isUser ? 2 : 0,
           fontSize: 13, lineHeight: 1.7,
-          color: 'var(--text-primary)',
           maxWidth: '100%', minWidth: 0, overflowWrap: 'break-word',
-          ...(msg.role === 'user' && {
-            background: 'var(--bg-input)',
-            border: '1px solid var(--border)',
-          }),
+          ...(isUser && { bgcolor: (t) => alpha(t.palette.primary.main, 0.1), border: 1, borderColor: (t) => alpha(t.palette.primary.main, 0.25) }),
+          ...(!isUser && markdownSx),
         }}>
-          {msg.role === 'assistant' ? (
+          {!isUser ? (
             <Markdown
               remarkPlugins={[remarkGfm]}
               components={{
-                p: ({ children }) => <p style={{ marginBottom: 12 }}>{children}</p>,
-                ul: ({ children }) => <ul style={{ marginBottom: 12, paddingLeft: 20, listStyleType: 'disc', color: 'var(--text-secondary)' }}>{children}</ul>,
-                ol: ({ children }) => <ol style={{ marginBottom: 12, paddingLeft: 20, listStyleType: 'decimal', color: 'var(--text-secondary)' }}>{children}</ol>,
-                li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.6, paddingLeft: 4 }}>{children}</li>,
-                h1: ({ children }) => <h1 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 12, marginTop: 16, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{children}</h1>,
-                h2: ({ children }) => <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 600, marginBottom: 10, marginTop: 16, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>{children}</h2>,
-                h3: ({ children }) => <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8, marginTop: 12, color: 'var(--text-primary)' }}>{children}</h3>,
-                h4: ({ children }) => <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 8, marginTop: 12, color: 'var(--text-primary)' }}>{children}</h4>,
-                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)', textDecoration: 'none', fontWeight: 500 }}>{children}</a>,
-                blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid var(--brand-primary)', margin: '12px 0', color: 'var(--text-secondary)', background: 'var(--bg-app)', padding: '8px 12px', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }}>{children}</blockquote>,
-                strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{children}</strong>,
+                a: ({ href, children }) => <Link href={href} target="_blank" rel="noopener noreferrer" underline="hover">{children}</Link>,
                 code: ({ children, className }) => {
                   const isInline = !className
                   return isInline ? (
-                    <code style={{
-                      background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4,
-                      fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-primary)',
-                      fontWeight: 700, border: '1px solid var(--border)',
-                      overflowWrap: 'anywhere',
-                    }}>{children}</code>
+                    <Box component="code" sx={{
+                      bgcolor: 'action.hover', px: 0.75, py: '1px', borderRadius: 0.5,
+                      fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600,
+                      border: 1, borderColor: 'divider', overflowWrap: 'anywhere',
+                    }}>{children}</Box>
                   ) : (
                     <code style={{ fontFamily: 'var(--font-mono)' }}>{children}</code>
                   )
@@ -268,39 +252,32 @@ export const MessageItem = memo(({ msg, onExecuteMcpTool }: Props) => {
                   return <CodeBlock lang={lang} code={code}>{children}</CodeBlock>
                 },
                 table: ({ children }) => (
-                  <div style={{ overflowX: 'auto', marginBottom: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
-                    <table className="k-table" style={{ margin: 0, border: 'none', tableLayout: 'auto' }}>
-                      {children}
-                    </table>
-                  </div>
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                    <Table size="small">{children}</Table>
+                  </TableContainer>
                 ),
-                th: ({ children }) => (
-                  <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid var(--border)', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', background: 'rgba(248, 250, 252, 0.05)', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 'var(--text-xs)', whiteSpace: 'normal', wordBreak: 'break-word', color: 'var(--text-secondary)', verticalAlign: 'top' }}>
-                    {children}
-                  </td>
-                ),
+                thead: ({ children }) => <TableHead>{children}</TableHead>,
+                tbody: ({ children }) => <TableBody>{children}</TableBody>,
+                tr: ({ children }) => <TableRow>{children}</TableRow>,
+                th: ({ children }) => <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap', bgcolor: 'action.hover', lineHeight: 1.5 }}>{children}</TableCell>,
+                td: ({ children }) => <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word', color: 'text.secondary', verticalAlign: 'top', lineHeight: 1.5 }}>{children}</TableCell>,
               }}
             >
               {msg.content}
             </Markdown>
           ) : (
-            <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>
+            <Box sx={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>
               {msg.content}
               {msg.image && (
-                <div style={{ marginTop: 12 }}>
-                  <img src={msg.image} alt="Upload" style={{ maxWidth: '100%', borderRadius: 12, border: '1px solid var(--border)' }} />
-                </div>
+                <Box sx={{ mt: 1.5 }}>
+                  <Box component="img" src={msg.image} alt="Upload" sx={{ maxWidth: '100%', borderRadius: 1.5, border: 1, borderColor: 'divider' }} />
+                </Box>
               )}
-            </div>
+            </Box>
           )}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   )
 })
 

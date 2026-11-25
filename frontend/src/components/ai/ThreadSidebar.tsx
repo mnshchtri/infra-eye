@@ -1,4 +1,5 @@
 import React, { memo, useState, useEffect, useCallback } from 'react'
+import { Box, ButtonBase, IconButton, Button as MuiButton, Tooltip, Typography } from '@mui/material'
 import { X, ChevronLeft, ChevronRight, Trash2, Plus, MessageSquare } from 'lucide-react'
 
 interface ChatThread {
@@ -67,190 +68,146 @@ export const ThreadSidebar = memo(({
   const sidebarWidth = isCollapsed ? 64 : width
 
   return (
-    <div
-      className={`ai-sidebar ${isCollapsed ? 'collapsed' : ''}`}
-      style={{
+    <Box
+      component="aside"
+      aria-label="Conversations"
+      sx={(t) => ({
         width: sidebarWidth,
-        borderRight: '1px solid var(--border)',
-        background: 'var(--bg-sidebar)', display: 'flex', flexDirection: 'column',
-        flexShrink: 0, transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        overflow: 'hidden',
-        position: 'relative',
-        zIndex: 100,
-      }}
+        borderRight: 1, borderColor: 'divider',
+        bgcolor: 'background.paper', display: 'flex', flexDirection: 'column',
+        flexShrink: 0, transition: isResizing ? 'none' : 'width 0.2s ease',
+        overflow: 'hidden', position: 'relative', zIndex: 2,
+        [t.breakpoints.down('md')]: {
+          position: 'fixed', top: 0, bottom: 0, left: isCollapsed ? '-100%' : 0,
+          width: 280, zIndex: t.zIndex.drawer + 1, transition: 'left 0.25s ease',
+          boxShadow: isCollapsed ? 'none' : t.shadows[8],
+        },
+      })}
     >
-      {/* Mobile Close Button */}
+      {/* Mobile close button */}
       {!isCollapsed && (
-        <button
-          className="show-mobile-only btn-icon"
-          onClick={() => onToggle(true)}
-          style={{ position: 'absolute', right: 12, top: 28, zIndex: 10, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-        >
-          <X size={16} />
-        </button>
+        <Tooltip title="Close conversations">
+          <IconButton
+            aria-label="Close conversations"
+            onClick={() => onToggle(true)}
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, position: 'absolute', right: 8, top: 8, zIndex: 10 }}
+          >
+            <X size={16} />
+          </IconButton>
+        </Tooltip>
       )}
-      {/* Resizer Handle */}
+      {/* Resizer handle */}
       {!isCollapsed && (
-        <div
+        <Box
           onMouseDown={startResizing}
-          style={{
+          sx={(t) => ({
+            display: { xs: 'none', md: 'block' },
             position: 'absolute', right: 0, top: 0, bottom: 0, width: 4,
             cursor: 'col-resize', zIndex: 10,
-            background: isResizing ? 'var(--brand-primary)' : 'transparent',
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={e => !isResizing && (e.currentTarget.style.background = 'var(--border-bright)')}
-          onMouseLeave={e => !isResizing && (e.currentTarget.style.background = 'transparent')}
+            bgcolor: isResizing ? 'primary.main' : 'transparent',
+            transition: 'background-color 0.2s',
+            '&:hover': { bgcolor: isResizing ? 'primary.main' : t.palette.divider },
+          })}
         />
       )}
 
-      <div style={{
-        padding: '20px 14px 14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        alignItems: isCollapsed ? 'center' : 'stretch',
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: isCollapsed ? 'center' : 'space-between',
-          alignItems: 'center',
-          gap: 8,
-        }}>
+      <Box sx={{ p: '14px 12px 10px', display: 'flex', flexDirection: 'column', gap: 1.25, alignItems: isCollapsed ? 'center' : 'stretch' }}>
+        <Box sx={{ display: 'flex', justifyContent: isCollapsed ? 'center' : 'space-between', alignItems: 'center', gap: 1 }}>
           {!isCollapsed ? (
             <>
-              <button
-                onClick={onNew}
-                style={{
-                  flex: 1, height: 40, borderRadius: 'var(--radius-md)',
-                  background: 'var(--brand-primary)', border: 'none',
-                  color: 'var(--text-inverse)', fontSize: 13.5, fontWeight: 800,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  transition: 'filter 0.1s',
-                  padding: '0 14px',
-                }}
-                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                onMouseLeave={e => e.currentTarget.style.filter = 'none'}
-              >
-                <Plus size={15} strokeWidth={3} />
-                <span>New conversation</span>
-              </button>
-              <button
-                onClick={() => onToggle(true)}
-                title="Collapse sidebar"
-                style={{
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                  padding: 6, borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                  color: 'var(--text-muted)', flexShrink: 0,
-                }}
-              >
-                <ChevronLeft size={16} />
-              </button>
+              <MuiButton variant="contained" startIcon={<Plus size={15} />} onClick={onNew} sx={{ flex: 1, height: 34 }}>
+                New conversation
+              </MuiButton>
+              <Tooltip title="Collapse sidebar">
+                <IconButton aria-label="Collapse sidebar" onClick={() => onToggle(true)} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
+                  <ChevronLeft size={16} />
+                </IconButton>
+              </Tooltip>
             </>
           ) : (
-            <button
-              onClick={onNew}
-              title="New conversation"
-              style={{
-                width: 40, height: 40, borderRadius: 'var(--radius-md)',
-                background: 'var(--brand-primary)', border: 'none',
-                color: 'var(--text-inverse)', cursor: 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Plus size={18} strokeWidth={3} />
-            </button>
+            <Tooltip title="New conversation" placement="right">
+              <IconButton aria-label="New conversation" onClick={onNew} sx={{ bgcolor: 'primary.main', color: 'primary.contrastText', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' } }}>
+                <Plus size={16} />
+              </IconButton>
+            </Tooltip>
           )}
-        </div>
+        </Box>
 
         {isCollapsed && (
-          <button
-            onClick={() => onToggle(false)}
-            title="Expand sidebar"
-            style={{
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', padding: 6, cursor: 'pointer', color: 'var(--text-muted)',
-            }}
-          >
-            <ChevronRight size={16} />
-          </button>
+          <Tooltip title="Expand sidebar" placement="right">
+            <IconButton aria-label="Expand sidebar" onClick={() => onToggle(false)}>
+              <ChevronRight size={16} />
+            </IconButton>
+          </Tooltip>
         )}
 
         {!isCollapsed && threads.length > 0 && (
-          <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', padding: '0 4px' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, fontWeight: 600 }}>
             Conversations
-          </div>
+          </Typography>
         )}
-      </div>
+      </Box>
 
-      <div style={{
-        flex: 1, overflowY: 'auto', padding: isCollapsed ? '0 8px' : '0 10px 20px',
-        display: 'flex', flexDirection: 'column', gap: 3,
-      }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', px: isCollapsed ? 1 : 1.25, pb: 2.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
         {!isCollapsed && threads.length === 0 && (
-          <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Box sx={{ py: 3, px: 1.5, textAlign: 'center', color: 'text.secondary' }}>
             <MessageSquare size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
-            <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>No conversations yet — ask Netra something to start one.</div>
-          </div>
+            <Typography variant="body2">No conversations yet — ask Netra something to start one.</Typography>
+          </Box>
         )}
-        {threads.map(t => (
-          <div
-            key={t.id}
-            onClick={() => onSelect(t.id)}
-            title={isCollapsed ? t.title : undefined}
-            className="ai-thread-item"
-            style={{
-              padding: isCollapsed ? '12px 0' : '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center',
-              background: activeThreadId === t.id ? 'var(--bg-elevated)' : 'transparent',
-              boxShadow: activeThreadId === t.id ? 'inset 2px 0 0 var(--brand-primary)' : 'none',
-              transition: 'background 0.15s',
-              justifyContent: isCollapsed ? 'center' : 'space-between',
-              gap: 8,
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-            onMouseEnter={e => { if (activeThreadId !== t.id) e.currentTarget.style.background = 'var(--bg-elevated)' }}
-            onMouseLeave={e => { if (activeThreadId !== t.id) e.currentTarget.style.background = 'transparent' }}
-          >
-            {!isCollapsed ? (
-              <>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{
-                    fontSize: 13.5, color: activeThreadId === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontWeight: activeThreadId === t.id ? 700 : 600,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {t.title}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginTop: 2 }}>
-                    {timeAgo(t.updated_at)}
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => onDelete(t.id, e)}
-                  title="Delete conversation"
-                  style={{
-                    background: 'none', border: 'none', padding: 4, cursor: 'pointer',
-                    color: 'var(--text-muted)', visibility: activeThreadId === t.id ? 'visible' : 'hidden',
-                    flexShrink: 0,
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </>
-            ) : (
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: activeThreadId === t.id ? 'var(--brand-primary)' : 'var(--border-bright)',
-              }} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+        {threads.map(t => {
+          const active = activeThreadId === t.id
+          return (
+            <Box
+              key={t.id}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between', gap: 0.5,
+                borderRadius: 1, overflow: 'hidden', position: 'relative',
+                bgcolor: active ? 'action.selected' : 'transparent',
+                boxShadow: active ? (th) => `inset 2px 0 0 ${th.palette.primary.main}` : 'none',
+                '&:hover': { bgcolor: active ? 'action.selected' : 'action.hover' },
+                '& .thread-delete': { visibility: active ? 'visible' : 'hidden' },
+                '&:hover .thread-delete, & .thread-delete:focus-visible': { visibility: 'visible' },
+              }}
+            >
+              <ButtonBase
+                onClick={() => onSelect(t.id)}
+                aria-label={isCollapsed ? t.title : undefined}
+                aria-current={active ? 'true' : undefined}
+                title={isCollapsed ? t.title : undefined}
+                sx={{
+                  flex: 1, minWidth: 0, textAlign: 'left', justifyContent: isCollapsed ? 'center' : 'flex-start',
+                  py: isCollapsed ? 1.5 : 1, pl: isCollapsed ? 0 : 1.5, pr: 0.5, display: 'flex',
+                }}
+              >
+                {!isCollapsed ? (
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography noWrap variant="body1" sx={{ fontWeight: active ? 600 : 500, color: active ? 'text.primary' : 'text.secondary' }}>
+                      {t.title}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{timeAgo(t.updated_at)}</Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: active ? 'primary.main' : 'divider' }} />
+                )}
+              </ButtonBase>
+              {!isCollapsed && (
+                <Tooltip title="Delete conversation">
+                  <IconButton
+                    className="thread-delete"
+                    aria-label={`Delete conversation ${t.title}`}
+                    onClick={(e) => onDelete(t.id, e)}
+                    sx={{ flexShrink: 0, mr: 0.5, '&:hover': { color: 'error.main' } }}
+                  >
+                    <Trash2 size={14} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          )
+        })}
+      </Box>
+    </Box>
   )
 })
 

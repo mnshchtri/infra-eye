@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Menu, Workflow, Server, Hash, Clock, StopCircle, Cpu,
 } from 'lucide-react'
+import { Box, IconButton, Button as MuiButton, Tooltip, Typography, alpha } from '@mui/material'
 import { api, buildWsUrl } from '../api/client'
 import { useToastStore } from '../store/toastStore'
 import { Badge } from '../components/ui'
@@ -188,79 +189,83 @@ export function Agent() {
   const isLaunchable = !!goal.trim() && !!selectedServer && !starting
   const selectedStep = activeRun?.steps?.find(s => s.id === selectedStepId) ?? null
 
+  const metaSx = { display: 'flex', alignItems: 'center', gap: 0.625, color: 'text.secondary' } as const
+
   return (
-    <div className={`ai-assistant-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ display: 'flex', height: '100%', background: 'var(--bg-app)', position: 'relative' }}>
-      <div
-        className={`ai-sidebar-overlay ${!isSidebarCollapsed ? 'mobile-open' : ''}`}
-        onClick={() => setIsSidebarCollapsed(true)}
-      />
+    <Box sx={{ display: 'flex', height: '100%', bgcolor: 'background.default', position: 'relative', minHeight: 0 }}>
+      {!isSidebarCollapsed && (
+        <Box
+          onClick={() => setIsSidebarCollapsed(true)}
+          sx={(t) => ({ display: { xs: 'block', md: 'none' }, position: 'fixed', inset: 0, bgcolor: 'rgba(0,0,0,0.4)', zIndex: t.zIndex.drawer })}
+        />
+      )}
 
       <RunSidebar
         runs={runs}
         activeRunId={activeRunId}
-        onSelect={id => { setActiveRunId(id); if (window.innerWidth <= 768) setIsSidebarCollapsed(true) }}
-        onNew={() => { setActiveRunId(null); if (window.innerWidth <= 768) setIsSidebarCollapsed(true) }}
+        onSelect={id => { setActiveRunId(id); if (window.innerWidth <= 900) setIsSidebarCollapsed(true) }}
+        onNew={() => { setActiveRunId(null); if (window.innerWidth <= 900) setIsSidebarCollapsed(true) }}
         onDelete={deleteRun}
         isCollapsed={isSidebarCollapsed}
         onToggle={setIsSidebarCollapsed}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
-        <button
-          className="show-mobile-only btn-icon"
-          onClick={() => setIsSidebarCollapsed(false)}
-          title="Runs"
-          style={{ position: 'absolute', top: 14, left: 14, zIndex: 5, padding: 8, background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}
-        >
-          <Menu size={16} />
-        </button>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0 }}>
+        <Tooltip title="Runs">
+          <IconButton
+            aria-label="Open runs"
+            onClick={() => setIsSidebarCollapsed(false)}
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, position: 'absolute', top: 10, left: 10, zIndex: 5, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}
+          >
+            <Menu size={16} />
+          </IconButton>
+        </Tooltip>
 
         {activeRun ? (
           <>
-            <div style={{
-              padding: '14px 24px', borderBottom: '1px solid var(--border)',
-              background: 'var(--bg-card)', flexShrink: 0, zIndex: 2,
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+            <Box sx={{
+              px: { xs: 7, md: 3 }, py: 1.75, borderBottom: 1, borderColor: 'divider',
+              bgcolor: 'background.paper', flexShrink: 0, zIndex: 2,
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap',
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.4 }}>{activeRun.goal}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
+                <Typography variant="h5" component="h1" sx={{ lineHeight: 1.4 }}>{activeRun.goal}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, flexWrap: 'wrap' }}>
                   <Badge variant={STATUS_BADGE[activeRun.status].variant} dot>{STATUS_BADGE[activeRun.status].label}</Badge>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <Typography variant="body2" sx={metaSx}>
                     <Server size={12.5} /> {activeServerName ?? `Server #${activeRun.server_id}`}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  </Typography>
+                  <Typography variant="body2" sx={metaSx}>
                     <Hash size={12.5} /> {activeRun.steps?.length ?? 0} step{(activeRun.steps?.length ?? 0) === 1 ? '' : 's'}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  </Typography>
+                  <Typography variant="body2" sx={metaSx}>
                     <Clock size={12.5} /> started {timeAgo(activeRun.started_at)}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  </Typography>
+                  <Typography variant="body2" sx={metaSx}>
                     <Cpu size={12.5} /> {PROVIDER_LABEL[activeRun.provider] ?? activeRun.provider}
                     {activeRun.model ? ` · ${activeRun.model}` : ''}
-                  </span>
-                </div>
+                  </Typography>
+                </Box>
                 {activeRun.status === 'failed' && activeRun.error_text && (
-                  <div style={{ fontSize: 12.5, color: 'var(--danger)', fontWeight: 600 }}>{activeRun.error_text}</div>
+                  <Typography variant="body2" color="error" sx={{ fontWeight: 500 }}>{activeRun.error_text}</Typography>
                 )}
-              </div>
+              </Box>
 
               {isRunActive && (
-                <button
+                <MuiButton
+                  variant="outlined"
+                  color="error"
                   onClick={cancelRun}
                   disabled={cancelling}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--danger)',
-                    fontSize: 12.5, fontWeight: 800, cursor: cancelling ? 'default' : 'pointer', opacity: cancelling ? 0.6 : 1, flexShrink: 0,
-                  }}
+                  startIcon={<StopCircle size={14} />}
+                  sx={{ flexShrink: 0 }}
                 >
-                  <StopCircle size={14} /> Cancel run
-                </button>
+                  Cancel run
+                </MuiButton>
               )}
-            </div>
+            </Box>
 
-            <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+            <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
               <AgentFlowCanvas
                 run={activeRun}
                 selectedStepId={selectedStepId}
@@ -275,28 +280,28 @@ export function Agent() {
                   onClose={() => setSelectedStepId(null)}
                 />
               )}
-            </div>
+            </Box>
           </>
         ) : (
           <>
-            <div style={{
-              padding: '14px 24px', borderBottom: '1px solid var(--border)',
-              background: 'var(--bg-card)', flexShrink: 0, zIndex: 2,
-              display: 'flex', alignItems: 'center', gap: 12,
+            <Box sx={{
+              px: { xs: 7, md: 3 }, py: 1.75, borderBottom: 1, borderColor: 'divider',
+              bgcolor: 'background.paper', flexShrink: 0, zIndex: 2,
+              display: 'flex', alignItems: 'center', gap: 1.5,
             }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 'var(--radius-md)',
-                background: 'var(--brand-glow)', border: '1px solid var(--brand-primary)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <Workflow size={18} color="var(--brand-primary)" />
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>New Agent Run</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Connect a server, provider, and goal — then trigger to launch. Every SSH or Kubernetes action is proposed first, nothing runs without your approval.</div>
-              </div>
-            </div>
-            <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+              <Box sx={(t) => ({
+                width: 36, height: 36, borderRadius: 1, flexShrink: 0,
+                bgcolor: alpha(t.palette.primary.main, 0.1), border: 1, borderColor: 'primary.main', color: 'primary.main',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              })}>
+                <Workflow size={18} />
+              </Box>
+              <Box>
+                <Typography variant="h5" component="h1">New agent run</Typography>
+                <Typography variant="body2" color="text.secondary">Connect a server, provider, and goal — then launch. Every SSH or Kubernetes action is proposed first, nothing runs without your approval.</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
               <LauncherFlowCanvas
                 servers={servers}
                 selectedServer={selectedServer}
@@ -309,16 +314,10 @@ export function Agent() {
                 isLaunchable={isLaunchable}
                 starting={starting}
               />
-            </div>
+            </Box>
           </>
         )}
-      </div>
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes agentNodePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-        .agent-node-pulse { animation: agentNodePulse 1.4s ease-in-out infinite; }
-      `}</style>
-    </div>
+      </Box>
+    </Box>
   )
 }

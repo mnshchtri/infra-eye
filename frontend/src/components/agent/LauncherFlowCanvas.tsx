@@ -7,6 +7,7 @@ import {
   ServerConfigNode, ProviderConfigNode, GoalConfigNode, TriggerConfigNode, type AgentProvider,
 } from './LauncherFlowNodes'
 import { FlowBlueprintBackground, FlowZoomControls, FlowPanHint } from './FlowChrome'
+import { useTheme } from '@mui/material'
 import type { ServerData } from '../../pages/agentTypes'
 
 const nodeTypes: NodeTypes = {
@@ -31,6 +32,7 @@ interface LauncherFlowCanvasProps {
 
 function FlowInner(props: LauncherFlowCanvasProps) {
   const { fitView } = useReactFlow()
+  const theme = useTheme()
   const {
     servers, selectedServer, onSelectServer, provider, onSelectProvider,
     goal, onGoalChange, onLaunch, isLaunchable, starting,
@@ -60,12 +62,12 @@ function FlowInner(props: LauncherFlowCanvasProps) {
       },
     ]
     const edges: Edge[] = [
-      { id: 'e-server-provider', source: 'server', target: 'provider', type: 'smoothstep', style: { stroke: 'var(--border)', strokeWidth: 2 } },
-      { id: 'e-provider-goal', source: 'provider', target: 'goal', type: 'smoothstep', style: { stroke: 'var(--border)', strokeWidth: 2 } },
-      { id: 'e-goal-trigger', source: 'goal', target: 'trigger', type: 'smoothstep', animated: isLaunchable, style: { stroke: isLaunchable ? 'var(--brand-primary)' : 'var(--border)', strokeWidth: 2 } },
+      { id: 'e-server-provider', source: 'server', target: 'provider', type: 'smoothstep', style: { stroke: theme.palette.divider, strokeWidth: 2 } },
+      { id: 'e-provider-goal', source: 'provider', target: 'goal', type: 'smoothstep', style: { stroke: theme.palette.divider, strokeWidth: 2 } },
+      { id: 'e-goal-trigger', source: 'goal', target: 'trigger', type: 'smoothstep', animated: isLaunchable, style: { stroke: isLaunchable ? theme.palette.primary.main : theme.palette.divider, strokeWidth: 2 } },
     ]
     return { nodes, edges }
-  }, [servers, selectedServer, onSelectServer, provider, onSelectProvider, goal, onGoalChange, onLaunch, isLaunchable, starting])
+  }, [servers, selectedServer, onSelectServer, provider, onSelectProvider, goal, onGoalChange, onLaunch, isLaunchable, starting, theme])
 
   useEffect(() => {
     fitView({ padding: 0.3, duration: 300, maxZoom: 1 })
@@ -80,6 +82,7 @@ function FlowInner(props: LauncherFlowCanvasProps) {
       minZoom={0.15}
       maxZoom={3}
       nodesDraggable={false}
+      colorMode={theme.palette.mode}
       fitView
     >
       <FlowBlueprintBackground />

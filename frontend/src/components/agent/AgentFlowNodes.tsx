@@ -1,4 +1,6 @@
 import { memo } from 'react'
+import { Box, Button as MuiButton, IconButton, Tooltip, Typography, alpha, useTheme } from '@mui/material'
+import { keyframes } from '@mui/material/styles'
 import { Handle, Position } from '@xyflow/react'
 import {
   Target, Flag, CheckCircle2, XCircle,
@@ -8,6 +10,8 @@ import type { AgentStep } from '../../pages/agentTypes'
 import { kindMeta, nodeColor } from './agentFlowMeta'
 
 
+const spin = keyframes`from { transform: rotate(0deg); } to { transform: rotate(360deg); }`
+const pulse = keyframes`0%, 100% { opacity: 1; } 50% { opacity: 0.35; }`
 
 export interface GoalNodeData extends Record<string, unknown> {
   kind: 'goal'
@@ -28,30 +32,36 @@ export interface ThinkingNodeData extends Record<string, unknown> {
   kind: 'thinking'
 }
 
-export const GoalFlowNode = memo(({ data }: { data: GoalNodeData }) => (
-  <div
-    style={{
-      width: 220, borderRadius: 999, padding: '12px 18px',
-      background: 'var(--brand-primary)', color: 'var(--text-inverse)',
-      display: 'flex', alignItems: 'center', gap: 10,
-      boxShadow: data.selected ? '0 0 0 3px var(--brand-glow)' : '0 1px 3px rgba(0,0,0,0.15)',
-      cursor: 'default',
-    }}
-  >
-    <Target size={16} strokeWidth={2.4} style={{ flexShrink: 0 }} />
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.85 }}>Goal</div>
-      <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.goal}</div>
-    </div>
-    <Handle type="source" position={Position.Right} style={{ background: 'var(--brand-primary)', border: 'none', width: 8, height: 8 }} />
-  </div>
-))
+const handleSx = (color: string) => ({ background: color, border: 'none', width: 8, height: 8 })
+
+export const GoalFlowNode = memo(({ data }: { data: GoalNodeData }) => {
+  const theme = useTheme()
+  return (
+    <Box
+      sx={{
+        width: 220, borderRadius: 999, px: 2.25, py: 1.5,
+        bgcolor: 'primary.main', color: 'primary.contrastText',
+        display: 'flex', alignItems: 'center', gap: 1.25,
+        boxShadow: data.selected ? `0 0 0 3px ${alpha(theme.palette.primary.main, 0.3)}` : 1,
+        cursor: 'default',
+      }}
+    >
+      <Target size={16} strokeWidth={2.4} style={{ flexShrink: 0 }} />
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontSize: 11, fontWeight: 600, opacity: 0.85, lineHeight: 1.3 }}>Goal</Typography>
+        <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.4 }}>{data.goal}</Typography>
+      </Box>
+      <Handle type="source" position={Position.Right} style={handleSx(theme.palette.primary.main)} />
+    </Box>
+  )
+})
 GoalFlowNode.displayName = 'GoalFlowNode'
 
 export const StepFlowNode = memo(({ data }: { data: StepNodeData }) => {
+  const theme = useTheme()
   const { step, selected, isBusy, onApprove, onReject } = data
-  const color = nodeColor(step)
-  const meta = kindMeta(step.kind)
+  const color = nodeColor(step, theme)
+  const meta = kindMeta(step.kind, theme)
   const isFinal = step.kind === 'final_answer'
   const Icon = step.status === 'failed' ? AlertTriangle
     : step.status === 'rejected' ? XCircle
@@ -61,94 +71,97 @@ export const StepFlowNode = memo(({ data }: { data: StepNodeData }) => {
     : meta.icon
 
   return (
-    <div
-      style={{
-        width: 230, borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)',
-        border: `1.5px solid ${selected ? color : 'var(--border)'}`,
-        boxShadow: selected ? `0 0 0 3px color-mix(in srgb, ${color} 22%, transparent)` : '0 1px 3px rgba(0,0,0,0.1)',
+    <Box
+      sx={{
+        width: 230, borderRadius: 1.5, bgcolor: 'background.paper',
+        border: '1.5px solid', borderColor: selected ? color : 'divider',
+        boxShadow: selected ? `0 0 0 3px ${alpha(color, 0.22)}` : 1,
         overflow: 'hidden', cursor: 'pointer', position: 'relative',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: color, border: 'none', width: 8, height: 8 }} />
+      <Handle type="target" position={Position.Left} style={handleSx(color)} />
       {/* Status accent strip, matching the Infra Map card language */}
-      <div style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3.5, borderRadius: 1.75, background: color }} />
+      <Box sx={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3.5, borderRadius: '2px', bgcolor: color }} />
       {step.status === 'pending_approval' && (
-        <span style={{
+        <Box component="span" sx={{
           position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: '50%',
-          background: color, boxShadow: `0 0 0 4px color-mix(in srgb, ${color} 25%, transparent)`,
-        }} className="agent-node-pulse" />
+          bgcolor: color, boxShadow: `0 0 0 4px ${alpha(color, 0.25)}`,
+          animation: `${pulse} 1.4s ease-in-out infinite`,
+        }} />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px 10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
-        <div style={{
-          width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'var(--bg-card)', border: `1.5px solid ${color}`, color,
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1.25, pr: 1.5, pl: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+        <Box sx={{
+          width: 24, height: 24, borderRadius: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: 'background.paper', border: '1.5px solid', borderColor: color, color,
         }}>
           <Icon size={12.5} strokeWidth={2.6} />
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>STEP {step.step_number}</div>
-          <div style={{ fontSize: 12, fontWeight: 800, color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.label}</div>
-        </div>
-      </div>
-      <div style={{ padding: '9px 12px' }}>
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.3 }}>Step {step.step_number}</Typography>
+          <Typography noWrap sx={{ fontSize: 12, fontWeight: 600, color, lineHeight: 1.4 }}>{meta.label}</Typography>
+        </Box>
+      </Box>
+      <Box sx={{ px: 1.5, py: 1.25 }}>
         {step.tool_name ? (
-          <code style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-elevated)', padding: '3px 7px', borderRadius: 6, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Box component="code" sx={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'text.secondary', bgcolor: 'action.hover', px: 0.875, py: 0.375, borderRadius: 0.75, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
             {step.tool_name}
-          </code>
+          </Box>
         ) : (
-          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <Typography noWrap sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.5 }}>
             {(step.reasoning || '').slice(0, 60) || 'Mission complete'}
-          </div>
+          </Typography>
         )}
-      </div>
+      </Box>
       {step.status === 'pending_approval' && (
-        <div
+        <Box
           className="nodrag"
-          style={{ display: 'flex', gap: 6, padding: '0 10px 10px' }}
+          sx={{ display: 'flex', gap: 0.75, px: 1.25, pb: 1.25 }}
           onClick={e => e.stopPropagation()}
         >
-          <button
+          <MuiButton
+            variant="contained"
+            size="small"
             disabled={isBusy}
             onClick={() => onApprove(step.id)}
-            title="Approve & run"
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '6px 8px', borderRadius: 7,
-              background: 'var(--brand-primary)', color: 'var(--text-inverse)', border: 'none', fontSize: 11, fontWeight: 800,
-              cursor: isBusy ? 'default' : 'pointer', opacity: isBusy ? 0.6 : 1,
-            }}
+            aria-label={`Approve step ${step.step_number}`}
+            startIcon={isBusy ? <Loader size={11} style={{ animation: `${spin} 1s linear infinite` }} /> : <Check size={11} strokeWidth={3} />}
+            sx={{ flex: 1 }}
           >
-            {isBusy ? <Loader size={11} className="spin" /> : <Check size={11} strokeWidth={3} />}
             Approve
-          </button>
-          <button
-            disabled={isBusy}
-            onClick={() => onReject(step.id)}
-            title="Reject"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 9px', borderRadius: 7,
-              background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)',
-              cursor: isBusy ? 'default' : 'pointer', opacity: isBusy ? 0.6 : 1,
-            }}
-          >
-            <X size={11} strokeWidth={3} />
-          </button>
-        </div>
+          </MuiButton>
+          <Tooltip title="Reject">
+            <span>
+              <IconButton
+                disabled={isBusy}
+                onClick={() => onReject(step.id)}
+                aria-label={`Reject step ${step.step_number}`}
+                sx={{ border: 1, borderColor: 'divider', borderRadius: 1, height: '100%' }}
+              >
+                <X size={11} strokeWidth={3} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
       )}
-      <Handle type="source" position={Position.Right} style={{ background: color, border: 'none', width: 8, height: 8 }} />
-    </div>
+      <Handle type="source" position={Position.Right} style={handleSx(color)} />
+    </Box>
   )
 })
 StepFlowNode.displayName = 'StepFlowNode'
 
-export const ThinkingFlowNode = memo(() => (
-  <div style={{
-    width: 190, borderRadius: 'var(--radius-lg)', padding: '12px 14px',
-    background: 'var(--bg-card)', border: '1.5px dashed var(--brand-primary)',
-    display: 'flex', alignItems: 'center', gap: 9,
-  }}>
-    <Handle type="target" position={Position.Left} style={{ background: 'var(--brand-primary)', border: 'none', width: 8, height: 8 }} />
-    <Loader size={14} className="spin" color="var(--brand-primary)" />
-    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)' }}>Deciding next step…</span>
-  </div>
-))
+export const ThinkingFlowNode = memo(() => {
+  const theme = useTheme()
+  const main = theme.palette.primary.main
+  return (
+    <Box sx={{
+      width: 190, borderRadius: 1.5, px: 1.75, py: 1.5,
+      bgcolor: 'background.paper', border: '1.5px dashed', borderColor: 'primary.main',
+      display: 'flex', alignItems: 'center', gap: 1.25,
+    }}>
+      <Handle type="target" position={Position.Left} style={handleSx(main)} />
+      <Loader size={14} color={main} style={{ animation: `${spin} 1s linear infinite` }} />
+      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'primary.main' }}>Deciding next step…</Typography>
+    </Box>
+  )
+})
 ThinkingFlowNode.displayName = 'ThinkingFlowNode'
