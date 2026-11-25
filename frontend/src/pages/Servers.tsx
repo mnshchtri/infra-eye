@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
-import { 
-  Plus, Server, Trash2, Pencil, Wifi,   Loader2, X, WifiOff, Search 
-} from 'lucide-react'
+import { Plus, Server, Trash2, Pencil, Wifi, WifiOff, Search } from 'lucide-react'
+import {
+  Box, Chip, CircularProgress, IconButton, Link, MenuItem, TextField, Tooltip, Typography,
+  ToggleButton, ToggleButtonGroup, Alert, Button as MuiButton,
+} from '@mui/material'
+import { DataGrid, type GridColDef } from '@mui/x-data-grid'
 import { WindowsIcon, AppleIcon, KubernetesIcon, DistroIcon } from '../components/OSIcons'
 import { api } from '../api/client'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -11,6 +14,7 @@ import { useFolders } from '../hooks/useFolders'
 import { FolderBar, type FolderSelection } from '../components/ui/FolderBar'
 import { FolderTag } from '../components/ui/FolderTag'
 import { apiError, errMessage } from '../utils/errors'
+import { PageHeader, SearchInput, EmptyState, Modal, Button } from '../components/ui'
 
 interface ServerData {
   id: number; name: string; host: string; port: number;
@@ -152,214 +156,232 @@ export function Servers() {
     }
   }
 
+  const filtered = servers.filter(s => {
+    const q = searchQuery.toLowerCase()
+    const matchesSearch =
+      s.name.toLowerCase().includes(q) ||
+      s.host.toLowerCase().includes(q) ||
+      (s.tags && s.tags.toLowerCase().includes(q)) ||
+      (s.description && s.description.toLowerCase().includes(q))
+    const matchesFolder =
+      selectedFolder === 'all' ? true :
+      selectedFolder === 'unassigned' ? !s.folder_id :
+      s.folder_id === selectedFolder
+    return matchesSearch && matchesFolder
+  })
+
+  function openAdd() {
+    setShowForm(true); setEditId(null); setEditingGitManaged(false); setForm(emptyForm)
+  }
+
+  const canManage = can('manage-servers')
+
+  const columns: GridColDef<ServerData>[] = [
+    {
+      field: 'name', headerName: 'Server', flex: 1.4, minWidth: 220,
+      renderCell: ({ row: s }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+          <Box sx={{ width: 30, height: 30, border: 1, borderColor: 'divider', borderRadius: 1, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+            {s.has_kubeconfig
+              ? <KubernetesIcon size={18} />
+              : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
+              : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />
+              : s.os === 'linux' ? <DistroIcon distro={s.distro} size={14} color="var(--brand-primary)" />
+              : <Server size={14} color="var(--brand-primary)" />}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Link component="button" underline="hover" color="text.primary" onClick={() => navigate(`/servers/${s.id}`)}
+                sx={{ fontWeight: 600, fontSize: 13, textAlign: 'left' }} noWrap>
+                {s.name}
+              </Link>
+              {s.git_managed && (
+                <Tooltip title="Created/updated by Git sync — editing this server will stop future syncs from managing it">
+                  <Chip label="Git" variant="outlined" sx={{ height: 18, fontSize: 10 }} />
+                </Tooltip>
+              )}
+            </Box>
+            {s.description && <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{s.description}</Typography>}
+          </Box>
+        </Box>
+      ),
+    },
+    { field: 'os', headerName: 'OS', width: 100, valueGetter: (_v, r) => r.os || 'host', renderCell: ({ value }) => <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{value}</Typography> },
+    {
+      field: 'host', headerName: 'Connection', flex: 1, minWidth: 170,
+      renderCell: ({ row: s }) => s.host
+        ? <Typography variant="body2" sx={{ fontFamily: 'var(--font-mono)' }}>{s.ssh_user}@{s.host}</Typography>
+        : <Chip label="DIRECT API" color="success" size="small" />,
+    },
+    { field: 'auth_type', headerName: 'Auth', width: 100, renderCell: ({ value }) => <Chip label={String(value).toUpperCase()} variant="outlined" size="small" /> },
+    {
+      field: 'tags', headerName: 'Tags', flex: 1, minWidth: 140, sortable: false,
+      renderCell: ({ row: s }) => (
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          {s.tags?.split(',').filter(Boolean).map(t => <Chip key={t} label={t.trim()} size="small" variant="outlined" />)}
+        </Box>
+      ),
+    },
+    {
+      field: 'folder_id', headerName: 'Folder', width: 150, sortable: false,
+      renderCell: ({ row: s }) => (
+        <FolderTag folders={folders} value={s.folder_id ?? null} onChange={fid => moveServerFolder(s.id, fid)} disabled={!canManage} />
+      ),
+    },
+    {
+      field: 'status', headerName: 'Status', width: 120,
+      renderCell: ({ row: s }) => {
+        const r = testResults[s.id]
+        if (r !== undefined) {
+          return (
+            <Tooltip title={r.ok ? '' : r.msg}>
+              <Chip label={r.ok ? 'CONNECTED' : 'FAILED'} color={r.ok ? 'success' : 'error'} size="small" />
+            </Tooltip>
+          )
+        }
+        return <Chip label={s.status.toUpperCase()} color={s.status === 'online' ? 'success' : 'default'} variant={s.status === 'online' ? 'filled' : 'outlined'} size="small" />
+      },
+    },
+    {
+      field: 'actions', headerName: '', width: 170, sortable: false, align: 'right', headerAlign: 'right',
+      renderCell: ({ row: s }) => (
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          {canManage && (s.status === 'online' ? (
+            <Tooltip title="Disconnect">
+              <span>
+                <IconButton color="error" onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id} aria-label="Disconnect">
+                  {disconnecting === s.id ? <CircularProgress size={14} /> : <WifiOff size={15} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          ) : (
+            <Tooltip title="Connect">
+              <span>
+                <IconButton color="success" onClick={() => testConnection(s.id)} disabled={testing === s.id} aria-label="Connect">
+                  {testing === s.id ? <CircularProgress size={14} /> : <Wifi size={15} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          ))}
+          {canManage && (
+            <Tooltip title="Edit"><IconButton onClick={() => editServer(s)} aria-label="Edit"><Pencil size={15} /></IconButton></Tooltip>
+          )}
+          {can('delete-server') && (confirmDelete === s.id ? (
+            <>
+              <MuiButton size="small" color="error" variant="contained" onClick={() => deleteServer(s.id)}>Confirm</MuiButton>
+              <MuiButton size="small" color="inherit" onClick={() => setConfirmDelete(null)}>Cancel</MuiButton>
+            </>
+          ) : (
+            <Tooltip title="Delete"><IconButton color="error" onClick={() => setConfirmDelete(s.id)} aria-label="Delete"><Trash2 size={15} /></IconButton></Tooltip>
+          ))}
+        </Box>
+      ),
+    },
+  ]
+
+  const textField = (label: string, key: 'name' | 'host' | 'port' | 'ssh_user', placeholder: string, type?: string) => (
+    <TextField
+      key={key} label={label} placeholder={placeholder} type={type || 'text'} fullWidth
+      value={form[key]}
+      onChange={e => setForm({ ...form, [key]: type === 'number' ? +e.target.value : e.target.value })}
+    />
+  )
+
   return (
     <div className="page">
-      <div className="page-header" style={{ flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h1 className="page-title">Servers</h1>
-          <p className="page-subtitle hidden-mobile">Manage and monitor connected infrastructure</p>
-        </div>
-        <div className="page-header-actions" style={{ marginLeft: 'auto' }}>
-          <div className="search-container">
-            <Search 
-              size={14} 
-              color="var(--text-muted)" 
-              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 38, height: 40 }}
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                style={{ 
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center'
-                }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          {can('manage-servers') && (
-            <button
-              className="btn btn-primary"
-              onClick={() => { setShowForm(true); setEditId(null); setEditingGitManaged(false); setForm(emptyForm) }}
-              style={{ height: 40 }}
-            >
-              <Plus size={14} /> 
-              <span className="hidden-mobile">Add Server</span><span className="show-mobile-only">Add</span>
-            </button>
+      <PageHeader
+        title="Servers"
+        subtitle="Manage and monitor connected infrastructure"
+        actions={
+          <>
+            <Box sx={{ width: 260 }}><SearchInput value={searchQuery} onChange={setSearchQuery} /></Box>
+            {canManage && <Button icon={<Plus size={14} />} onClick={openAdd}>Add Server</Button>}
+          </>
+        }
+      />
+
+      <Modal
+        isOpen={showForm}
+        onClose={() => setShowForm(false)}
+        size="md"
+        icon={Plus}
+        title={editId ? 'Update server credentials' : 'Add server'}
+        subtitle={editId ? 'Modify infrastructure access parameters' : 'Establish a secure SSH connection to new infrastructure'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button onClick={saveServer} loading={saving}>{editId ? 'Update Server' : 'Add Server'}</Button>
+          </>
+        }
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {editId && editingGitManaged && (
+            <Alert severity="warning">
+              This server was created by Git sync — saving changes here will stop future syncs from managing it.
+            </Alert>
           )}
-        </div>
-      </div>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            {textField('Name', 'name', 'prod-web-01')}
+            {textField('Host', 'host', '192.168.1.100')}
+            {textField('Port', 'port', '22', 'number')}
+            {textField('User', 'ssh_user', 'root')}
+          </Box>
 
-      {/* Add/Edit Modal */}
-      {showForm && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 'var(--z-modal-backdrop)',
-            background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24,
-          }}
-          onClick={() => setShowForm(false)}
-        >
-          <div
-            className="card fade-up modal-content"
-            style={{
-              padding: 'clamp(20px, 5vw, 32px)', width: '100%', maxWidth: 640,
-              maxHeight: '90vh', overflowY: 'auto',
-            }}
-            onClick={e => e.stopPropagation()}
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Authentication method</Typography>
+            <ToggleButtonGroup
+              exclusive fullWidth size="small" value={form.auth_type}
+              onChange={(_, v) => v && setForm({ ...form, auth_type: v })}
+            >
+              <ToggleButton value="key">SSH Key File</ToggleButton>
+              <ToggleButton value="password">Password</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          {form.auth_type === 'key' ? (
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                <Typography variant="subtitle2">SSH private key</Typography>
+                <MuiButton component="label" size="small" variant="outlined" color="inherit">
+                  Upload key file
+                  <input type="file" hidden onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onload = (ev) => setForm({ ...form, ssh_key_path: ev.target?.result as string })
+                      reader.readAsText(file)
+                    }
+                  }} />
+                </MuiButton>
+              </Box>
+              <TextField
+                multiline minRows={5} maxRows={12} fullWidth
+                value={form.ssh_key_path}
+                onChange={e => setForm({ ...form, ssh_key_path: e.target.value })}
+                placeholder={'-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----'}
+                slotProps={{ htmlInput: { style: { fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre' } } }}
+              />
+            </Box>
+          ) : (
+            <TextField label="SSH password" type="password" fullWidth value={form.ssh_password}
+              onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
+          )}
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+            <TextField label="Tags" placeholder="production, mail" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} />
+            <TextField label="Description" placeholder="Optional note" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+          </Box>
+
+          <TextField
+            select label="Folder" fullWidth value={form.folder_id ?? ''}
+            onChange={e => setForm({ ...form, folder_id: e.target.value ? Number(e.target.value) : null })}
           >
-            {/* Modal header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 44, height: 44, background: 'var(--brand-primary)', borderTop: '4px solid var(--brand-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Plus size={24} color="var(--text-inverse)" />
-                </div>
-                <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-                    {editId ? 'UPDATE_SERVER_CREDENTIALS' : 'PROVISION_CONTROL_NODE'}
-                  </h2>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {editId ? 'Modify infrastructure access parameters' : 'Establish secure handshake with new infrastructure'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowForm(false)}
-                className="btn-icon-sm"
-              >
-                <X size={14} />
-              </button>
-            </div>
+            <MenuItem value="">No folder</MenuItem>
+            {folders.map(f => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
+          </TextField>
+        </Box>
+      </Modal>
 
-            {editId && editingGitManaged && (
-              <p style={{ margin: '-16px 0 20px', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
-                This server was created by Git sync — saving changes here will stop future syncs from managing it.
-              </p>
-            )}
-
-            <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
-              {[
-                { label: 'Name', key: 'name', placeholder: 'prod-web-01' },
-                { label: 'Host', key: 'host', placeholder: '192.168.1.100' },
-                { label: 'Port', key: 'port', placeholder: '22', type: 'number' },
-                { label: 'User', key: 'ssh_user', placeholder: 'root' },
-              ].map(({ label, key, placeholder, type }) => (
-                <div key={key} className="input-group" style={{ marginBottom: 0 }}>
-                  <label className="input-label">{label}</label>
-                  <input
-                    className="input"
-                    type={type || 'text'}
-                    value={form[key as keyof typeof form] as string | number}
-                    onChange={e => setForm({ ...form, [key]: type === 'number' ? +e.target.value : e.target.value })}
-                    placeholder={placeholder}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Auth type */}
-            <div className="input-group">
-              <label className="input-label">Authentication Method</label>
-              <div style={{ display: 'flex', gap: 0 }}>
-                {['key', 'password'].map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setForm({ ...form, auth_type: t })}
-                    style={{
-                      flex: 1, padding: '12px', fontSize: 12, fontWeight: 900,
-                      border: '1px solid var(--border)', transition: 'all 0.2s', cursor: 'pointer',
-                      fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                      ...(form.auth_type === t
-                        ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--text-inverse)' }
-                        : { background: 'var(--bg-elevated)', color: 'var(--text-muted)' }
-                      ),
-                    }}
-                  >
-                    {t === 'key' ? 'SSH Key File' : 'Interactive Password'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {form.auth_type === 'key' ? (
-              <div className="input-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <label className="input-label" style={{ marginBottom: 0 }}>SSH Private Key</label>
-                  <label style={{ fontSize: 12, color: 'var(--brand-primary)', cursor: 'pointer', fontWeight: 600, background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
-                    Upload Key File
-                    <input type="file" style={{ display: 'none' }} onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => setForm({ ...form, ssh_key_path: ev.target?.result as string });
-                        reader.readAsText(file);
-                      }
-                    }} />
-                  </label>
-                </div>
-                <textarea 
-                  className="input" 
-                  value={form.ssh_key_path} 
-                  onChange={e => setForm({ ...form, ssh_key_path: e.target.value })} 
-                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----" 
-                  style={{ height: 120, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'pre' }} 
-                />
-              </div>
-            ) : (
-              <div className="input-group">
-                <label className="input-label">SSH Password</label>
-                <input className="input" type="password" value={form.ssh_password} onChange={e => setForm({ ...form, ssh_password: e.target.value })} />
-              </div>
-            )}
-
-            <div className="grid-2-col" style={{ gap: 16, marginBottom: 16 }}>
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Tags</label>
-                <input className="input" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="production, mail" />
-              </div>
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Description</label>
-                <input className="input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional note" />
-              </div>
-            </div>
-
-            <div className="input-group" style={{ marginBottom: 24 }}>
-              <label className="input-label">Folder</label>
-              <select
-                className="input"
-                value={form.folder_id ?? ''}
-                onChange={e => setForm({ ...form, folder_id: e.target.value ? Number(e.target.value) : null })}
-              >
-                <option value="">No folder</option>
-                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={saveServer} disabled={saving}>
-                {saving ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : editId ? 'Update Server' : 'Add Server'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Folder filter bar */}
       {!loading && servers.length > 0 && (
         <FolderBar
           folders={folders}
@@ -373,278 +395,43 @@ export function Servers() {
           onSelect={setSelectedFolder}
           onCreate={createFolder}
           onDelete={deleteFolder}
-          canManage={can('manage-servers')}
+          canManage={canManage}
         />
       )}
 
-      {/* Content */}
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '100px 0' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--brand-primary)', animation: 'spin 0.8s linear infinite' }} />
-        </div>
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}><CircularProgress /></Box>
       ) : servers.length === 0 ? (
-        <div className="empty-state">
-          <div style={{ width: 72, height: 72, borderRadius: 22, background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Server size={32} color="var(--brand-primary)" />
-          </div>
-          <p>No servers connected yet</p>
-          <span>Add your first server to start monitoring your infrastructure</span>
-          {can('manage-servers') && (
-            <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={() => setShowForm(true)}>
-              <Plus size={14} /> Add Your First Server
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={Server}
+          title="No servers connected yet"
+          description="Add your first server to start monitoring your infrastructure"
+          action={canManage ? <Button icon={<Plus size={14} />} onClick={openAdd}>Add Your First Server</Button> : undefined}
+        />
       ) : (
-        <div className="table-container fade-up">
-          <table className="k-table">
-            <thead>
-              <tr>
-                {['Server', 'OS', 'Connection', 'Auth', 'Tags', 'Folder', 'Status', 'Actions'].map(h => (
-                  <th key={h}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const filtered = servers.filter(s => {
-                  const matchesSearch =
-                    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    s.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (s.tags && s.tags.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                    (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()))
-                  const matchesFolder =
-                    selectedFolder === 'all' ? true :
-                    selectedFolder === 'unassigned' ? !s.folder_id :
-                    s.folder_id === selectedFolder
-                  return matchesSearch && matchesFolder
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <tr>
-                      <td colSpan={8} style={{ padding: '60px 0', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-muted)' }}>
-                          <Search size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>No matching servers found</div>
-                          <div style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your search or clear it to see all servers.</div>
-                          <button 
-                            className="btn btn-secondary" 
-                            style={{ marginTop: 16, height: 32, padding: '0 12px', fontSize: 12 }}
-                            onClick={() => setSearchQuery('')}
-                          >
-                            Clear Search
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                return filtered.map((s, i) => (
-                  <tr
-                    key={s.id}
-                    className="fade-up"
-                    style={{
-                      borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
-                      transition: 'background 0.15s',
-                      animationDelay: `${i * 50}ms`,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 0,
-                          background: 'var(--bg-elevated)',
-                          border: `1px solid var(--border)`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        }}>
-                          {s.has_kubeconfig
-                            ? <KubernetesIcon size={18} />
-                            : s.os === 'darwin' ? <AppleIcon size={14} color="var(--brand-primary)" />
-                            : s.os === 'windows' ? <WindowsIcon size={14} color="var(--brand-primary)" />
-                            : s.os === 'linux' ? <DistroIcon distro={s.distro} size={14} color="var(--brand-primary)" />
-                            : <Server size={14} color="var(--brand-primary)" />}
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div
-                              style={{ fontWeight: 900, color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
-                              onClick={() => navigate(`/servers/${s.id}`)}
-                            >
-                              {s.name}
-                            </div>
-                            {s.git_managed && (
-                              <span
-                                title="Created/updated by Git sync — editing this server will stop future syncs from managing it"
-                                style={{
-                                  fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
-                                  padding: '1px 6px', borderRadius: 99, flexShrink: 0,
-                                  color: 'var(--text-muted)', border: '1px solid var(--border)',
-                                }}
-                              >
-                                Git
-                              </span>
-                            )}
-                          </div>
-                          {s.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 800 }}>{s.description.toUpperCase()}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                         <span style={{ fontSize: 12, fontWeight: 800 }}>{s.os?.toUpperCase() || 'HOST'}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {s.host
-                        ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{s.ssh_user}@{s.host}</span>
-                        : <span className="badge badge-online" style={{ fontSize: 11 }}>DIRECT API</span>
-                      }
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span className="badge" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                        {s.auth_type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {s.tags?.split(',').filter(Boolean).map(t => (
-                          <span key={t} className="server-tag" style={{ fontSize: 11 }}>{t.trim().toUpperCase()}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <FolderTag
-                        folders={folders}
-                        value={s.folder_id ?? null}
-                        onChange={fid => moveServerFolder(s.id, fid)}
-                        disabled={!can('manage-servers')}
-                      />
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {testResults[s.id] !== undefined ? (
-                        <span
-                          className={`badge ${testResults[s.id].ok ? 'badge-online' : 'badge-offline'}`}
-                          title={testResults[s.id].ok ? undefined : testResults[s.id].msg}
-                        >
-                          {testResults[s.id].ok ? 'CONNECTED' : 'FAILED'}
-                        </span>
-                      ) : (
-                        <span className={`badge badge-${s.status}`} style={{ fontSize: 11 }}>{s.status.toUpperCase()}</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        {can('manage-servers') && (
-                          s.status === 'online' ? (
-                            <button
-                              title="Disconnect"
-                              style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                                color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
-                                display: 'flex', alignItems: 'center',
-                              }}
-                              onClick={() => disconnectServer(s.id)} disabled={disconnecting === s.id}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-                            >
-                              {disconnecting === s.id
-                                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                : <WifiOff size={14} />}
-                            </button>
-                          ) : (
-                            <button
-                              title="Connect"
-                              style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                                background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
-                                color: 'var(--success)', cursor: 'pointer', transition: 'all 0.15s',
-                                display: 'flex', alignItems: 'center',
-                              }}
-                              onClick={() => testConnection(s.id)} disabled={testing === s.id}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.15)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
-                            >
-                              {testing === s.id
-                                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                : <Wifi size={14} />}
-                            </button>
-                          )
-                        )}
-                        {can('manage-servers') && (
-                          <button
-                            title="Edit"
-                            style={{
-                              padding: '7px 10px', borderRadius: 8, fontSize: 13,
-                              background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                              color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.15s',
-                              display: 'flex', alignItems: 'center',
-                            }}
-                            onClick={() => editServer(s)}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {can('delete-server') && (
-                          confirmDelete === s.id ? (
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <button
-                                style={{
-                                  padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                                  background: 'var(--danger)', border: 'none',
-                                  color: '#fff', cursor: 'pointer',
-                                }}
-                                onClick={() => deleteServer(s.id)}
-                              >
-                                Confirm
-                              </button>
-                              <button
-                                style={{
-                                  padding: '7px 10px', borderRadius: 8, fontSize: 12,
-                                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                                  color: 'var(--text-muted)', cursor: 'pointer',
-                                }}
-                                onClick={() => setConfirmDelete(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              title="Delete"
-                              style={{
-                                padding: '7px 10px', borderRadius: 8, fontSize: 13,
-                                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                                color: 'var(--danger)', cursor: 'pointer', transition: 'all 0.15s',
-                                display: 'flex', alignItems: 'center',
-                              }}
-                              onClick={() => setConfirmDelete(s.id)}
-                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
-                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ));
-              })()}
-            </tbody>
-          </table>
-        </div>
+        <Box sx={{ flex: 1, minHeight: 320 }}>
+          <DataGrid
+            rows={filtered}
+            columns={columns}
+            rowHeight={56}
+            disableRowSelectionOnClick
+            disableColumnMenu
+            pageSizeOptions={[10, 25, 50]}
+            initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+            slots={{
+              noRowsOverlay: () => (
+                <EmptyState
+                  icon={Search}
+                  title="No matching servers found"
+                  description="Try adjusting your search or clear it to see all servers."
+                  action={<Button variant="secondary" size="sm" onClick={() => setSearchQuery('')}>Clear Search</Button>}
+                />
+              ),
+            }}
+            sx={{ bgcolor: 'background.paper', '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' } }}
+          />
+        </Box>
       )}
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   )
 }
