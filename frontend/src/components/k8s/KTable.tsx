@@ -29,13 +29,20 @@ interface KTableProps {
   onToggleAll?: () => void;
 }
 
+// Healthy / finished-OK states are green, transitional states amber, everything else red.
+// (Succeeded and Bound are good outcomes, and Pending is not a failure.)
+const OK_STATES = new Set(['Running', 'Ready', 'Active', 'Succeeded', 'Completed', 'Bound', 'Available', 'Established'])
+const TRANSITIONAL_STATES = new Set(['Pending', 'ContainerCreating', 'PodInitializing', 'Terminating', 'Progressing', 'Released'])
+const statusTone = (val: string): 'success' | 'warning' | 'error' =>
+  OK_STATES.has(val) ? 'success' : TRANSITIONAL_STATES.has(val) ? 'warning' : 'error'
+
 const getVal = (item: K8sRow, col: string) => {
   switch(col.toLowerCase()) {
     case 'name': return item.metadata.name;
     case 'namespace': return item.metadata.namespace;
     case 'status': {
       const val = item.status?.phase || (item.status?.conditions?.find((c: K8sRow) => c.type === 'Ready')?.status === 'True' ? 'Running' : 'Ready');
-      return <Chip size="small" label={val} color={val === 'Running' || val === 'Ready' || val === 'Active' ? 'success' : 'error'} />;
+      return <Chip size="small" label={val} color={statusTone(val)} />;
     }
     case 'restarts': return item.status?.containerStatuses?.[0]?.restartCount ?? 0;
     case 'role': return <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{item.metadata.labels?.['kubernetes.io/role'] || (item.metadata.labels?.['node-role.kubernetes.io/control-plane'] !== undefined ? 'control-plane' : 'worker')}</Box>;
