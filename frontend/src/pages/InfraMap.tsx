@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Server, Boxes, Database, Zap, Layers, HardDrive, Globe, Cpu, Eye,
   Download, RefreshCw, Radar, ZoomIn, ZoomOut, Maximize, AlertTriangle,
-  Network, Folder, ScanSearch, Wifi, Search, X,
+  Network, Folder, ScanSearch, Wifi, Search, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -342,6 +342,7 @@ export function InfraMap() {
   const [error, setError] = useState('')
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [legendOpen, setLegendOpen] = useState(true)
   const [groupMode, setGroupMode] = useState<GroupMode>('network')
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -974,24 +975,39 @@ export function InfraMap() {
             interface CIDR or just an unmapped bucket, so nothing here reads
             as more precise than it is. */}
         {groupMode === 'network' && (topo?.networks?.length ?? 0) > 0 && (
-          <Paper variant="outlined" sx={{ position: 'absolute', top: 12, left: 12, maxWidth: 300, px: 1.5, py: 1.25, boxShadow: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.75 }}>Network segments</Typography>
-            {topo!.networks.map(nw => {
-              const real = nw.id !== 'net-unmapped-private' && !!nw.cidr
-              return (
-                <Box key={nw.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.75 }} title={nw.source}>
-                  <Box component="span" sx={{ width: 9, height: 9, borderRadius: '3px', mt: '4px', flexShrink: 0, bgcolor: netColors[nw.id] ?? 'text.disabled' }} />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="caption" component="div" sx={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'text.primary' }}>
-                      {nw.cidr || nw.label}
-                    </Typography>
-                    <Typography variant="caption" component="div" sx={{ color: real ? 'success.main' : 'text.secondary' }}>
-                      {real ? 'scanned via SSH' : nw.kind === 'vpn' ? 'CGNAT / VPN range' : nw.kind === 'public' ? 'public internet' : 'not yet scanned'}
-                    </Typography>
-                  </Box>
-                </Box>
-              )
-            })}
+          // Bottom-left (above the pan hint): top-left would cover the blueprint title, top-right is
+          // the scan-issues panel and bottom-right the zoom controls. Collapsible so a long list of
+          // segments can never hide the map.
+          <Paper variant="outlined" onMouseDown={e => e.stopPropagation()}
+            sx={{ position: 'absolute', bottom: 52, left: 12, width: 260, maxHeight: '45%', display: 'flex', flexDirection: 'column', boxShadow: 2 }}>
+            <Box component="button" type="button" onClick={() => setLegendOpen(o => !o)} aria-expanded={legendOpen}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', px: 1.5, py: 0.75,
+                bgcolor: 'transparent', border: 0, cursor: 'pointer', color: 'text.secondary', font: 'inherit',
+              }}>
+              <Typography variant="subtitle2" component="span">Network segments ({topo!.networks.length})</Typography>
+              {legendOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </Box>
+            {legendOpen && (
+              <Box sx={{ px: 1.5, pb: 1, overflowY: 'auto' }}>
+                {topo!.networks.map(nw => {
+                  const real = nw.id !== 'net-unmapped-private' && !!nw.cidr
+                  return (
+                    <Box key={nw.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 0.75 }} title={nw.source}>
+                      <Box component="span" sx={{ width: 9, height: 9, borderRadius: '3px', mt: '4px', flexShrink: 0, bgcolor: netColors[nw.id] ?? 'text.disabled' }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="caption" component="div" sx={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'text.primary' }}>
+                          {nw.cidr || nw.label}
+                        </Typography>
+                        <Typography variant="caption" component="div" sx={{ color: real ? 'success.main' : 'text.secondary' }}>
+                          {real ? 'scanned via SSH' : nw.kind === 'vpn' ? 'CGNAT / VPN range' : nw.kind === 'public' ? 'public internet' : 'not yet scanned'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )
+                })}
+              </Box>
+            )}
           </Paper>
         )}
 
