@@ -25,6 +25,9 @@ export function buildTheme(dark: boolean): Theme {
         : { default: '#f0f0f0', paper: '#ffffff' },
       divider: dark ? 'rgba(255,255,255,0.1)' : '#d2d2d2',
     },
+    // Raised above the legacy CSS's fixed z-indexes so dialogs sit over page chrome.
+    // Menus/popovers share this layer so selects inside dialogs open on top of them.
+    zIndex: { modal: 1400 },
     shape: { borderRadius: 4 },
     spacing: 8,
     typography: {

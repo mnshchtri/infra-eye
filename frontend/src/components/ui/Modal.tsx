@@ -29,8 +29,6 @@ export function Modal({ isOpen, onClose, title, icon: Icon, subtitle, children, 
       onClose={onClose}
       maxWidth={MAX_WIDTH[size]}
       fullWidth
-      // Toasts and terminals use raw z-indexes above MUI's default 1300.
-      sx={{ zIndex: 1400 }}
     >
       {title && (
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.25, pr: 1 }}>

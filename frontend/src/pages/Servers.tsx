@@ -429,7 +429,7 @@ export function Servers() {
                 />
               ),
             }}
-            sx={{ bgcolor: 'background.paper', '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center', lineHeight: 1.35 } }}
+            sx={{ bgcolor: 'background.paper', '& .MuiDataGrid-overlayWrapper, & .MuiDataGrid-overlayWrapperInner': { minHeight: 300 }, '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center', lineHeight: 1.35 } }}
           />
         </Box>
       )}

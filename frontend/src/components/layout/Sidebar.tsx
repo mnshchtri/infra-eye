@@ -157,36 +157,42 @@ export function Sidebar() {
                 const showSub = isServers && !collapsed && servers.length > 0
                 return (
                   <Fragment key={to}>
-                    <Tooltip title={collapsed ? label : ''} placement="right">
-                      <ListItemButton
-                        component={NavLink}
-                        to={to}
-                        end={to === '/'}
-                        sx={{
-                          mx: 1, my: 0.25, borderRadius: 1, minHeight: 34, px: 1.25,
-                          justifyContent: collapsed ? 'center' : 'flex-start',
-                          '&.active': {
-                            bgcolor: 'action.selected', color: 'primary.main',
-                            '& .MuiListItemIcon-root': { color: 'primary.main' },
-                          },
-                        }}
-                      >
-                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, color: 'text.secondary' }}>
-                          <Icon size={16} />
-                        </ListItemIcon>
-                        {!collapsed && (
-                          <ListItemText primary={label} slotProps={{ primary: { variant: 'body1', sx: { fontWeight: 500 } } }} />
-                        )}
-                        {showSub && (
-                          <IconButton
-                            aria-label={serversExpanded ? 'Collapse servers' : 'Expand servers'}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setServersExpanded(!serversExpanded) }}
-                          >
-                            {serversExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          </IconButton>
-                        )}
-                      </ListItemButton>
-                    </Tooltip>
+                    <Box sx={{ position: 'relative' }}>
+                      <Tooltip title={collapsed ? label : ''} placement="right">
+                        <ListItemButton
+                          component={NavLink}
+                          to={to}
+                          end={to === '/'}
+                          sx={{
+                            mx: 1, my: 0.25, borderRadius: 1, minHeight: 34, px: 1.25,
+                            justifyContent: collapsed ? 'center' : 'flex-start',
+                            '&.active': {
+                              bgcolor: 'action.selected', color: 'primary.main',
+                              '& .MuiListItemIcon-root': { color: 'primary.main' },
+                            },
+                          }}
+                        >
+                          <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, color: 'text.secondary' }}>
+                            <Icon size={16} />
+                          </ListItemIcon>
+                          {!collapsed && (
+                            <ListItemText primary={label} slotProps={{ primary: { variant: 'body1', sx: { fontWeight: 500 } } }} />
+                          )}
+                        </ListItemButton>
+                      </Tooltip>
+                      {/* Sibling of the link, not a child: a button inside an anchor is invalid HTML
+                          and pollutes the link's accessible name. */}
+                      {showSub && (
+                        <IconButton
+                          aria-label={serversExpanded ? 'Collapse servers' : 'Expand servers'}
+                          aria-expanded={serversExpanded}
+                          onClick={() => setServersExpanded(!serversExpanded)}
+                          sx={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}
+                        >
+                          {serversExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </IconButton>
+                      )}
+                    </Box>
                     {showSub && (
                       <Collapse in={serversExpanded} unmountOnExit>
                         <List dense disablePadding sx={{ maxHeight: 240, overflowY: 'auto' }}>
