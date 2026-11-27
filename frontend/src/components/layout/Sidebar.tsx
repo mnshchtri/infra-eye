@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { ChevronRight, ChevronLeft, Menu, ChevronDown, Download } from 'lucide-react'
 import {
-  Box, Button, Collapse, Divider, Drawer, IconButton, List, ListItemButton,
+  Box, Button, Collapse, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, Drawer, IconButton, List, ListItemButton,
   ListItemIcon, ListItemText, ListSubheader, Tooltip, Typography, useMediaQuery,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
@@ -12,7 +12,6 @@ import { useToastStore } from '../../store/toastStore'
 import { usePermission } from '../../hooks/usePermission'
 import logo from '../../assets/logo.png'
 import { api } from '../../api/client'
-import { Modal, ModalBody, ModalFooter, Button as LegacyButton } from '../ui'
 import { useState, useEffect, Fragment } from 'react'
 import { errMessage } from '../../utils/errors'
 
@@ -255,22 +254,18 @@ export function Sidebar() {
       </Box>
 
       {updateInfo && (
-        <Modal
-          isOpen={confirmUpdateOpen}
-          onClose={() => setConfirmUpdateOpen(false)}
-          title="Update InfraEye"
-          size="sm"
-          footer={
-            <ModalFooter>
-              <LegacyButton variant="ghost" onClick={() => setConfirmUpdateOpen(false)}>Cancel</LegacyButton>
-              <LegacyButton variant="primary" onClick={runUpdate}>Update & Restart</LegacyButton>
-            </ModalFooter>
-          }
-        >
-          <ModalBody>
-            Update InfraEye to v{updateInfo.version}? The app will close and reopen automatically.
-          </ModalBody>
-        </Modal>
+        <Dialog open={confirmUpdateOpen} onClose={() => setConfirmUpdateOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>Update InfraEye</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Update InfraEye to v{updateInfo.version}? The app will close and reopen automatically.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button color="inherit" onClick={() => setConfirmUpdateOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={runUpdate}>Update &amp; Restart</Button>
+          </DialogActions>
+        </Dialog>
       )}
     </Box>
   )
